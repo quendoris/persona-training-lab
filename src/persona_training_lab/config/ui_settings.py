@@ -1,0 +1,3 @@
+DEFAULT_THEME = "velvet"
+DEFAULT_ACCENT = "violet"
+DEFAULT_BUTTON_PRESET = "soft_glow"

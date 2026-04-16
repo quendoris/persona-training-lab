@@ -1,0 +1,31 @@
+[project]
+name = "persona-training-lab"
+version = "0.1.0"
+description = "Desktop-first research workstation for personality training and evaluation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pyside6>=6.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

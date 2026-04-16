@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from persona_training_lab.application.docs.service import DocsService
+from persona_training_lab.application.style.service import StylePreferencesService
+from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
+from persona_training_lab.config.app_settings import AppSettings
+from persona_training_lab.config.paths import build_workspace_paths, ensure_workspace_dirs
+from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactManager
+from persona_training_lab.infrastructure.logging.structured import configure_logging
+from persona_training_lab.infrastructure.persistence.repositories.event_log import SQLiteEventLogRepository
+from persona_training_lab.infrastructure.persistence.repositories.ui_preferences import (
+    SQLiteUIPreferencesRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.db import SQLiteDatabase
+from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
+from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
+from persona_training_lab.ui.viewmodels.docs import DocsViewModel
+from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
+from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
+from persona_training_lab.ui.viewmodels.shell import ShellViewModel
+from persona_training_lab.ui.viewmodels.style import StyleViewModel
+from persona_training_lab.ui.viewmodels.training import TrainingViewModel
+from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
+from persona_training_lab.ui.viewmodels.tests import TestsViewModel
+from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
+
+
+@dataclass(slots=True)
+class AppContainer:
+    settings: AppSettings
+    shell_vm: ShellViewModel
+    dashboard_vm: DashboardViewModel
+    docs_vm: DocsViewModel
+    style_vm: StyleViewModel
+    datasets_vm: DatasetsViewModel
+    profiles_vm: ProfilesViewModel
+    training_vm: TrainingViewModel
+    snapshots_vm: SnapshotsViewModel
+    tests_vm: TestsViewModel
+    analysis_vm: AnalysisViewModel
+
+
+def build_container() -> AppContainer:
+    configure_logging()
+
+    settings = AppSettings()
+    paths = build_workspace_paths(settings)
+    ensure_workspace_dirs(paths)
+
+    db = SQLiteDatabase(paths.sqlite_db)
+    connection = db.connect()
+    create_minimal_schema(connection)
+
+    artifact_manager = LocalArtifactManager(paths)
+    artifact_manager.ensure_layout()
+
+    ui_preferences_repo = SQLiteUIPreferencesRepository(connection)
+    _event_log_repo = SQLiteEventLogRepository(connection)
+
+    workflow_supervisor = WorkflowSupervisor()
+    style_service = StylePreferencesService(ui_preferences_repo)
+    docs_service = DocsService()
+
+    shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
+    dashboard_vm = DashboardViewModel(docs_service=docs_service)
+    docs_vm = DocsViewModel(docs_service=docs_service)
+    style_vm = StyleViewModel(style_service=style_service)
+    datasets_vm = DatasetsViewModel()
+    profiles_vm = ProfilesViewModel()
+    training_vm = TrainingViewModel()
+    snapshots_vm = SnapshotsViewModel()
+    tests_vm = TestsViewModel()
+    analysis_vm = AnalysisViewModel()
+
+    return AppContainer(
+        settings=settings,
+        shell_vm=shell_vm,
+        dashboard_vm=dashboard_vm,
+        docs_vm=docs_vm,
+        style_vm=style_vm,
+        datasets_vm=datasets_vm,
+        profiles_vm=profiles_vm,
+        training_vm=training_vm,
+        snapshots_vm=snapshots_vm,
+        tests_vm=tests_vm,
+        analysis_vm=analysis_vm,
+    )

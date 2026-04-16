@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+THEMES: dict[str, dict[str, str]] = {
+    "velvet": {
+        "label": "Velvet",
+        "window_bg": "#120f1d",
+        "surface_bg": "#181425",
+        "surface_alt": "#1d1830",
+        "surface_soft": "#161228",
+        "text_primary": "#f3f4f6",
+        "text_secondary": "#b9bfd0",
+        "text_muted": "#8e94aa",
+        "border": "#332544",
+        "border_soft": "#2a2039",
+        "titlebar": "#171322",
+        "selection_bg": "#182c43",
+        "is_light": "0",
+    },
+    "eclipse": {
+        "label": "Eclipse",
+        "window_bg": "#0b1020",
+        "surface_bg": "#121a2b",
+        "surface_alt": "#162034",
+        "surface_soft": "#111827",
+        "text_primary": "#eef2ff",
+        "text_secondary": "#b4bfd7",
+        "text_muted": "#8691a8",
+        "border": "#26314a",
+        "border_soft": "#1f2940",
+        "titlebar": "#12192a",
+        "selection_bg": "#16233d",
+        "is_light": "0",
+    },
+    "pearl": {
+        "label": "Pearl",
+        "window_bg": "#edf1f7",
+        "surface_bg": "#ffffff",
+        "surface_alt": "#f6f8fc",
+        "surface_soft": "#f3f5fa",
+        "text_primary": "#111827",
+        "text_secondary": "#4b5563",
+        "text_muted": "#6b7280",
+        "border": "#d9e0ec",
+        "border_soft": "#e6ebf3",
+        "titlebar": "#ffffff",
+        "selection_bg": "#eef3fc",
+        "is_light": "1",
+    },
+}
+
+ACCENTS: dict[str, dict[str, str]] = {
+    "violet": {
+        "label": "Фиолетовый",
+        "accent": "#a855f7",
+        "accent_hover": "#c084fc",
+        "accent_pressed": "#9333ea",
+        "accent_soft_dark": "#2a1936",
+        "accent_soft_light": "#f3e8ff",
+        "accent_text_dark": "#f3e8ff",
+        "accent_text_light": "#6d28d9",
+    },
+    "cyan": {
+        "label": "Бирюзовый",
+        "accent": "#06b6d4",
+        "accent_hover": "#22d3ee",
+        "accent_pressed": "#0891b2",
+        "accent_soft_dark": "#102a35",
+        "accent_soft_light": "#e0f7fb",
+        "accent_text_dark": "#d6fbff",
+        "accent_text_light": "#0f6284",
+    },
+    "emerald": {
+        "label": "Изумрудный",
+        "accent": "#10b981",
+        "accent_hover": "#34d399",
+        "accent_pressed": "#059669",
+        "accent_soft_dark": "#112d28",
+        "accent_soft_light": "#def7ec",
+        "accent_text_dark": "#defcf1",
+        "accent_text_light": "#047857",
+    },
+    "rose": {
+        "label": "Розовый",
+        "accent": "#f43f5e",
+        "accent_hover": "#fb7185",
+        "accent_pressed": "#e11d48",
+        "accent_soft_dark": "#351621",
+        "accent_soft_light": "#ffe4ea",
+        "accent_text_dark": "#ffe2e8",
+        "accent_text_light": "#be123c",
+    },
+}
+
+DEFAULT_THEME = "velvet"
+DEFAULT_ACCENT = "cyan"
+DEFAULT_BUTTON_PRESET = "soft_glow"

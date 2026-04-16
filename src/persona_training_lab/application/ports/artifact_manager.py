@@ -1,0 +1,16 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Protocol
+
+
+class ArtifactManagerPort(Protocol):
+    def ensure_layout(self) -> None: ...
+
+    def create_staging_path(self, entity_kind: str, entity_id: str, filename: str) -> Path: ...
+
+    def finalize_artifact(self, staging_path: Path, final_path: Path) -> Path: ...
+
+    def build_entity_dir(self, entity_kind: str, entity_id: str) -> Path: ...
+
+    def exists(self, path: Path) -> bool: ...
