@@ -87,28 +87,73 @@ class TrainingScreen(QWidget):
         left.addLayout(lower, 1)
 
         checkpoints_card = PanelCard("Лента чекпоинтов", "История run, а не просто список файлов.")
+
         cp_scroll = QScrollArea()
         cp_scroll.setWidgetResizable(True)
         cp_scroll.setFrameShape(QFrame.NoFrame)
         cp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        cp_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         cp_scroll.setMinimumHeight(250)
+        cp_scroll.setStyleSheet("""
+        QScrollArea {
+            background: transparent;
+            border: none;
+        }
+        QScrollArea > QWidget > QWidget {
+            background: transparent;
+            border: none;
+        }
+        """)
+        cp_scroll.viewport().setStyleSheet("background: transparent;")
+
+        # внешний большой закруглённый контейнер
+        cp_outer = QFrame()
+        cp_outer.setObjectName("CheckpointScrollShell")
+        cp_outer.setStyleSheet("""
+        QFrame#CheckpointScrollShell {
+            background-color: rgba(31, 24, 49, 0.92);
+            border: 1px solid rgba(84, 63, 117, 0.65);
+            border-radius: 18px;
+        }
+        """)
+
+        cp_outer_layout = QVBoxLayout(cp_outer)
+        cp_outer_layout.setContentsMargins(14, 14, 14, 14)
+        cp_outer_layout.setSpacing(0)
+
+        # внутренний прозрачный слой
         cp_wrap = QWidget()
+        cp_wrap.setObjectName("CheckpointScrollWrap")
+        cp_wrap.setStyleSheet("""
+        QWidget#CheckpointScrollWrap {
+            background: transparent;
+            border: none;
+        }
+        """)
+
         cp_layout = QVBoxLayout(cp_wrap)
         cp_layout.setContentsMargins(0, 0, 0, 0)
         cp_layout.setSpacing(10)
+
         for item in self._vm.checkpoints:
             row = QFrame()
             row.setObjectName("AccentCard" if item.highlighted else "PanelCardSoft")
+
             rl = QVBoxLayout(row)
             rl.setContentsMargins(12, 10, 12, 10)
             rl.setSpacing(4)
+
             lbl = QLabel(item.name)
             lbl.setObjectName("CardTitle")
             rl.addWidget(lbl)
             rl.addWidget(make_muted_label(item.note))
+
             cp_layout.addWidget(row)
+
         cp_layout.addStretch(1)
-        cp_scroll.setWidget(cp_wrap)
+        cp_outer_layout.addWidget(cp_wrap)
+        cp_scroll.setWidget(cp_outer)
+
         checkpoints_card.add_widget(cp_scroll)
         lower.addWidget(checkpoints_card, 1)
 

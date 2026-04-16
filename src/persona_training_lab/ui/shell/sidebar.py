@@ -125,11 +125,11 @@ class Sidebar(QFrame):
         top_row.addWidget(title, 1, Qt.AlignVCenter)
         brand_layout.addLayout(top_row)
 
-        self._window_toggle = QPushButton("панели ▾")
+        self._window_toggle = QPushButton("┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ панели ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈")
         self._window_toggle.setObjectName("SidebarMenuButton")
         self._window_toggle.setMinimumHeight(32)
         self._window_toggle.setMaximumHeight(32)
-        self._window_toggle.setMaximumWidth(220)
+        self._window_toggle.setMaximumWidth(600)
         self._window_toggle.setCursor(Qt.PointingHandCursor)
         self._window_toggle.clicked.connect(self._show_window_menu)
         brand_layout.addWidget(self._window_toggle, 0, Qt.AlignHCenter)

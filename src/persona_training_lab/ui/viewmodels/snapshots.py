@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -43,6 +42,9 @@ class SnapshotsViewModel:
                 return item
         return self.snapshots[0]
 
+    def detail_metrics(self) -> tuple[tuple[str, str], ...]:
+        return tuple((metric.title, metric.value) for metric in self.metrics)
+
     @property
     def metrics(self) -> tuple[SnapshotMetric, ...]:
         if self.current_snapshot_id == 'snp_mia_v2_baseline':
@@ -66,6 +68,9 @@ class SnapshotsViewModel:
             SnapshotMetric('Стабильность', '0.81', 'держится под перефразами'),
         )
 
+    def timeline_rows(self) -> tuple[tuple[str, str], ...]:
+        return tuple((item.title, item.note) for item in self.timeline)
+
     @property
     def timeline(self) -> tuple[TimelineItem, ...]:
         if self.current_snapshot_id == 'snp_mia_v2_baseline':
@@ -87,6 +92,9 @@ class SnapshotsViewModel:
             TimelineItem('review pending', 'нужно принять решение по продвижению snapshot'),
             TimelineItem('compare ready', 'можно сравнивать с baseline-версией'),
         )
+
+    def lineage_rows(self) -> tuple[str, ...]:
+        return self.lineage
 
     @property
     def lineage(self) -> tuple[str, ...]:
@@ -114,7 +122,6 @@ class SnapshotsViewModel:
             'Запуск обучения · trn_qwen2b_mia_014',
         )
 
-    @property
     def next_step(self) -> str:
         if self.current_snapshot_id == 'snp_mia_v2_baseline':
             return 'Оставить baseline как reference-версию и сравнивать с более сильными snapshot-кандидатами.'

@@ -1,35 +1,77 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 
 
-def _stable_scroll_content(min_height: int = 340, max_height: int | None = None) -> tuple[QScrollArea, QWidget, QVBoxLayout]:
+def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(min_height)
-    if max_height is not None:
-        scroll.setMaximumHeight(max_height)
+    scroll.setStyleSheet(
+        """
+        QScrollArea {
+            background: transparent;
+            border: none;
+        }
+        QScrollArea > QWidget > QWidget {
+            background: transparent;
+            border: none;
+        }
+        """
+    )
+    scroll.viewport().setStyleSheet("background: transparent;")
 
-    outer = QWidget()
+    outer = QFrame()
+    outer.setObjectName("StableScrollShell")
+    outer.setStyleSheet(
+        """
+        QFrame#StableScrollShell {
+            background-color: rgba(31, 24, 49, 0.92);
+            border: 1px solid rgba(84, 63, 117, 0.65);
+            border-radius: 18px;
+        }
+        """
+    )
+
     outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(10, 10, 10, 10)
+    outer_layout.setContentsMargins(14, 14, 14, 14)
     outer_layout.setSpacing(0)
 
-    inner = QFrame()
-    inner.setObjectName("StableScrollWrap")
-    inner_layout = QVBoxLayout(inner)
-    inner_layout.setContentsMargins(14, 14, 14, 14)
-    inner_layout.setSpacing(12)
-    outer_layout.addWidget(inner)
+    wrap = QWidget()
+    wrap.setObjectName("TestsScrollWrap")
+    wrap.setStyleSheet(
+        """
+        QWidget#TestsScrollWrap {
+            background: transparent;
+            border: none;
+        }
+        """
+    )
+
+    layout = QVBoxLayout(wrap)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(10)
+
+    outer_layout.addWidget(wrap)
     scroll.setWidget(outer)
-    return scroll, inner, inner_layout
+    return scroll, layout
 
 
 class TestsScreen(QWidget):
@@ -46,9 +88,11 @@ class TestsScreen(QWidget):
         hl = QVBoxLayout(header)
         hl.setContentsMargins(22, 20, 22, 20)
         hl.setSpacing(8)
+
         title = QLabel(self._vm.title)
         title.setObjectName("ScreenTitle")
         subtitle = make_muted_label(self._vm.subtitle)
+
         hl.addWidget(title)
         hl.addWidget(subtitle)
         root.addWidget(header)
@@ -58,11 +102,13 @@ class TestsScreen(QWidget):
         al = QHBoxLayout(actions)
         al.setContentsMargins(18, 14, 18, 14)
         al.setSpacing(10)
-        for i, text in enumerate(["Запустить проверку", "Открыть анализ", "Разобрать кейсы"]):
+
+        for index, text in enumerate(["Запустить проверку", "Открыть анализ", "Разобрать кейсы"]):
             btn = QPushButton(text)
-            if i:
+            if index:
                 btn.setObjectName("SecondaryButton")
             al.addWidget(btn)
+
         al.addStretch(1)
         root.addWidget(actions)
 
@@ -70,22 +116,29 @@ class TestsScreen(QWidget):
         body.setSpacing(16)
         root.addLayout(body, 1)
 
+        # Левый блок: контекст проверки
         left = PanelCard("Контекст проверки", "Мы тестируем snapshot, а не training run напрямую.")
-        setup_scroll, _setup_inner, setup_layout = _stable_scroll_content(360)
+        setup_scroll, setup_layout = _stable_scroll_shell(340)
+
         for key, value in self._vm.setup_rows:
             row = QFrame()
             row.setObjectName("PanelCardSoft")
+
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(14, 12, 14, 12)
+            rl.setContentsMargins(12, 10, 12, 10)
             rl.setSpacing(10)
+
             rl.addWidget(make_muted_label(key))
             rl.addStretch(1)
             rl.addWidget(QLabel(value), 0, Qt.AlignRight)
+
             setup_layout.addWidget(row)
+
         setup_layout.addStretch(1)
         left.add_widget(setup_scroll)
         body.addWidget(left, 2)
 
+        # Центр
         center = QVBoxLayout()
         center.setSpacing(16)
         body.addLayout(center, 4)
@@ -93,50 +146,72 @@ class TestsScreen(QWidget):
         metrics = PanelCard("Результат проверки", "Метрики должны быть понятны ещё до глубокого анализа.")
         grid = QGridLayout()
         grid.setSpacing(12)
+
         for idx, metric in enumerate(self._vm.metrics):
             card = QFrame()
             card.setObjectName("PanelCardSoft")
+
             cl = QVBoxLayout(card)
             cl.setContentsMargins(14, 12, 14, 12)
             cl.setSpacing(8)
+
             t = QLabel(metric.title)
             t.setObjectName("CardTitle")
+
             v = QLabel(metric.value)
             v.setObjectName("MetricValue")
+
             n = make_muted_label(metric.note)
+
             cl.addWidget(t)
             cl.addWidget(v)
             cl.addWidget(n)
+
             grid.addWidget(card, idx // 2, idx % 2)
+
         metrics._layout.addLayout(grid)
         center.addWidget(metrics)
 
+        # Проблемные кейсы
         cases = PanelCard("Проблемные кейсы", "Не только score, но и места, где нужно посмотреть руками.")
-        case_scroll, _case_inner, case_layout = _stable_scroll_content(360)
+        case_scroll, case_layout = _stable_scroll_shell(340)
+
         for case in self._vm.problematic_cases:
             row = QFrame()
             row.setObjectName("PanelCardSoft")
+
             rl = QVBoxLayout(row)
-            rl.setContentsMargins(14, 12, 14, 12)
+            rl.setContentsMargins(12, 10, 12, 10)
             rl.setSpacing(6)
+
             title = QLabel(case.title)
             title.setObjectName("CardTitle")
+
             rl.addWidget(title)
             rl.addWidget(make_muted_label(case.note))
+
             case_layout.addWidget(row)
+
         case_layout.addStretch(1)
         cases.add_widget(case_scroll)
         center.addWidget(cases, 1)
 
+        # Правый блок: контекст результата
         right = PanelCard("Контекст результата", "Контекст помогает читать метрики правильно.")
-        right_scroll, _right_inner, right_layout = _stable_scroll_content(360)
+        right_scroll, right_layout = _stable_scroll_shell(340)
+
         for item in self._vm.context_rows:
             row = QFrame()
             row.setObjectName("PanelCardSoft")
+
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(14, 12, 14, 12)
+            rl.setContentsMargins(12, 10, 12, 10)
+            rl.setSpacing(10)
+
             rl.addWidget(QLabel(item))
+
             right_layout.addWidget(row)
+
         right_layout.addStretch(1)
         right.add_widget(right_scroll)
         body.addWidget(right, 2)

@@ -195,11 +195,37 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border-radius: 12px;
         padding: 4px 14px;
         font-weight: 800;
-        min-height: 32px;
+        min-height: 20px;
     }
     QPushButton#SidebarMenuButton:hover {
         border: 1px solid $accent;
         background-color: $surface_soft;
+    }
+    QListWidget#DocsTopicList {
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 2px;
+    }
+
+    QListWidget#DocsTopicList::item {
+        background-color: transparent;
+        color: $text_primary;
+        border: 1px solid $border_soft;
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin: 2px 0;
+    }
+
+    QListWidget#DocsTopicList::item:hover {
+        background-color: $surface_soft;
+        border: 1px solid $accent;
+    }
+
+    QListWidget#DocsTopicList::item:selected {
+        background-color: $selection_bg;
+        border: 1px solid $accent;
+        color: $text_primary;
     }
     QWidget[transparentBg="true"] {
         background: transparent;
