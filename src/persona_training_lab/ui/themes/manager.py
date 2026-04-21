@@ -253,6 +253,12 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border: 1px solid $border_soft;
         border-radius: 18px;
     }
+    QFrame#StableScrollShell,
+    QFrame#CheckpointScrollShell {
+        background-color: $surface_soft;
+        border: 1px solid $border_soft;
+        border-radius: 18px;
+    }
     QFrame#LineageRow {
         background-color: $surface_alt;
         border: 1px solid $border_soft;

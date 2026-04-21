@@ -109,13 +109,6 @@ class TrainingScreen(QWidget):
         # внешний большой закруглённый контейнер
         cp_outer = QFrame()
         cp_outer.setObjectName("CheckpointScrollShell")
-        cp_outer.setStyleSheet("""
-        QFrame#CheckpointScrollShell {
-            background-color: rgba(31, 24, 49, 0.92);
-            border: 1px solid rgba(84, 63, 117, 0.65);
-            border-radius: 18px;
-        }
-        """)
 
         cp_outer_layout = QVBoxLayout(cp_outer)
         cp_outer_layout.setContentsMargins(14, 14, 14, 14)

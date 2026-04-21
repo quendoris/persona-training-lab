@@ -40,15 +40,6 @@ def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayou
 
     outer = QFrame()
     outer.setObjectName("StableScrollShell")
-    outer.setStyleSheet(
-        """
-        QFrame#StableScrollShell {
-            background-color: rgba(31, 24, 49, 0.92);
-            border: 1px solid rgba(84, 63, 117, 0.65);
-            border-radius: 18px;
-        }
-        """
-    )
 
     outer_layout = QVBoxLayout(outer)
     outer_layout.setContentsMargins(14, 14, 14, 14)

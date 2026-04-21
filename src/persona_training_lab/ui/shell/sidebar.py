@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCursor
+from PySide6.QtCore import QByteArray, Qt, Signal, QRectF
+from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -21,27 +23,66 @@ from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 
+def _icons_root() -> Path:
+    return Path(__file__).resolve().parent.parent / "assets" / "icons"
+
+
+def _render_svg_icon(path: Path, color: str, canvas_size: int, icon_size: int) -> QPixmap:
+    if not path.exists():
+        return QPixmap()
+
+    raw = path.read_text(encoding="utf-8")
+    themed = (
+        raw.replace("currentColor", color)
+        .replace("currentcolor", color)
+        .replace("#000000", color)
+        .replace("#000", color)
+        .replace("black", color)
+    )
+
+    renderer = QSvgRenderer(QByteArray(themed.encode("utf-8")))
+    pixmap = QPixmap(canvas_size, canvas_size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+    inset = (canvas_size - icon_size) / 2
+    target = QRectF(inset, inset, icon_size, icon_size)
+    renderer.render(painter, target)
+
+    painter.end()
+    return pixmap
+
+
 class NavButton(QPushButton):
     def __init__(self, screen_id: str, icon_text: str, title: str) -> None:
         super().__init__(title)
         self.screen_id = screen_id
+        self._fallback_icon_text = icon_text
+        self._icon_path = _icons_root() / "sidebar" / f"{screen_id}.svg"
+
         self.setObjectName("NavButton")
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setMinimumHeight(52)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setLayoutDirection(Qt.LeftToRight)
+
         self._icon = QLabel(icon_text, self)
         self._icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._icon.setObjectName("NavIcon")
         self._icon.setAlignment(Qt.AlignCenter)
         self._icon.setFixedSize(30, 30)
+
         self._arrow = QLabel("›", self)
         self._arrow.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._arrow.setObjectName("NavArrow")
         self._arrow.setAlignment(Qt.AlignCenter)
         self._arrow.setFixedSize(14, 30)
         self._arrow.hide()
+
         self.setStyleSheet("text-align: left; padding-left: 62px; padding-right: 28px;")
         self._sync_icon_state(False)
 
@@ -60,21 +101,31 @@ class NavButton(QPushButton):
 
     def _sync_icon_state(self, active: bool) -> None:
         if active:
-            self._icon.setStyleSheet(
-                "background-color: rgba(6, 182, 212, 0.14);"
-                "color: rgb(230, 252, 255);"
-                "border: 1px solid rgba(6, 182, 212, 0.72);"
-                "border-radius: 10px;"
-                "font-weight: 800; font-size: 13px;"
-            )
+            bg = "rgba(6, 182, 212, 0.14)"
+            fg = "#22D3EE"
+            border = "rgba(6, 182, 212, 0.72)"
+            weight = "800"
         else:
-            self._icon.setStyleSheet(
-                "background-color: rgba(255, 255, 255, 0.02);"
-                "color: rgba(216, 227, 255, 0.86);"
-                "border: 1px solid rgba(255, 255, 255, 0.08);"
-                "border-radius: 10px;"
-                "font-weight: 700; font-size: 13px;"
-            )
+            bg = "rgba(255, 255, 255, 0.02)"
+            fg = "#90A4C6"
+            border = "rgba(255, 255, 255, 0.08)"
+            weight = "700"
+
+        self._icon.setStyleSheet(
+            f"background-color: {bg};"
+            f"color: {fg};"
+            f"border: 1px solid {border};"
+            "border-radius: 10px;"
+            f"font-weight: {weight}; font-size: 13px;"
+        )
+
+        pixmap = _render_svg_icon(self._icon_path, fg, 30, 20)
+        if pixmap.isNull():
+            self._icon.setPixmap(QPixmap())
+            self._icon.setText(self._fallback_icon_text)
+        else:
+            self._icon.setText("")
+            self._icon.setPixmap(pixmap)
 
 
 class Sidebar(QFrame):
@@ -110,10 +161,14 @@ class Sidebar(QFrame):
 
         top_row = QHBoxLayout()
         top_row.setSpacing(12)
+
         badge = QLabel("")
         badge.setObjectName("BrandBadge")
         badge.setAlignment(Qt.AlignCenter)
         badge.setFixedSize(44, 44)
+        brand_icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", "#22D3EE", 44, 33)
+        if not brand_icon.isNull():
+            badge.setPixmap(brand_icon)
 
         title = QLabel("Persona Training Lab")
         title.setObjectName("SidebarTitle")

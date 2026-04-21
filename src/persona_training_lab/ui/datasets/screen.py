@@ -46,18 +46,6 @@ def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QFrame, QGr
 
     wrap = QFrame()
     wrap.setObjectName("StableScrollShell")
-    wrap.setStyleSheet(
-        """
-        QFrame#StableScrollShell {
-            background-color: rgba(31, 24, 49, 0.92);
-            border: 1px solid rgba(84, 63, 117, 0.65);
-            border-radius: 18px;
-        }
-        QFrame#StableScrollShell QWidget {
-            background: transparent;
-        }
-        """
-    )
 
     layout = QVBoxLayout(wrap)
     layout.setContentsMargins(16, 16, 16, 16)
