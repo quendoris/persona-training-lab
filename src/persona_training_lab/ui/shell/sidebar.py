@@ -48,8 +48,18 @@ def _render_svg_icon(path: Path, color: str, canvas_size: int, icon_size: int) -
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-    inset = (canvas_size - icon_size) / 2
-    target = QRectF(inset, inset, icon_size, icon_size)
+    view_box = renderer.viewBoxF()
+    if view_box.width() > 0 and view_box.height() > 0:
+        scale = min(icon_size / view_box.width(), icon_size / view_box.height())
+        target_w = round(view_box.width() * scale)
+        target_h = round(view_box.height() * scale)
+    else:
+        target_w = icon_size
+        target_h = icon_size
+
+    target_x = round((canvas_size - target_w) / 2)
+    target_y = round((canvas_size - target_h) / 2)
+    target = QRectF(target_x, target_y, target_w, target_h)
     renderer.render(painter, target)
 
     painter.end()
