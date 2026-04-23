@@ -24,8 +24,8 @@ from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
 SIDEBAR_ICON_OPTICAL_OFFSET_X = -40
-SIDEBAR_ICON_BADGE_LEFT = 0
-SIDEBAR_TEXT_LEFT_PADDING = 62
+SIDEBAR_ICON_BADGE_LEFT = 6
+SIDEBAR_TEXT_LEFT_PADDING = 54
 
 
 def _icons_root() -> Path:
