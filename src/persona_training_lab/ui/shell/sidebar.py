@@ -23,9 +23,9 @@ from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
-SIDEBAR_ICON_OPTICAL_OFFSET_X = -40
-SIDEBAR_ICON_BADGE_LEFT = 22
-SIDEBAR_TEXT_LEFT_PADDING = 70
+SIDEBAR_ICON_OPTICAL_OFFSET_X = 0
+SIDEBAR_ICON_BADGE_LEFT = 16
+SIDEBAR_TEXT_LEFT_PADDING = 56
 
 
 def _icons_root() -> Path:
@@ -140,7 +140,7 @@ class NavButton(QPushButton):
         self._icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._icon.setObjectName("NavIcon")
         self._icon.setAlignment(Qt.AlignCenter)
-        self._icon.setFixedSize(30, 30)
+        self._icon.setFixedSize(24, 24)
 
         self._arrow = QLabel("›", self)
         self._arrow.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -180,17 +180,16 @@ class NavButton(QPushButton):
             weight = "700"
 
         self._icon.setStyleSheet(
-            f"background-color: {bg};"
+            "background-color: transparent;"
             f"color: {fg};"
-            f"border: 1px solid {border};"
-            "border-radius: 10px;"
+            "border: none;"
             f"font-weight: {weight}; font-size: 13px;"
         )
 
         pixmap = _render_svg_icon(
             self._icon_path,
             fg,
-            30,
+            24,
             SIDEBAR_ICON_RENDER_SIZE,
             offset_x=SIDEBAR_ICON_OPTICAL_OFFSET_X,
             tight_crop=True,
