@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (
 from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
-SIDEBAR_ICON_OPTICAL_OFFSET_X = -9
+SIDEBAR_ICON_RENDER_SIZE = 18
+SIDEBAR_ICON_OPTICAL_OFFSET_X = -4
 
 
 def _icons_root() -> Path:
@@ -142,7 +143,7 @@ class NavButton(QPushButton):
             self._icon_path,
             fg,
             30,
-            20,
+            SIDEBAR_ICON_RENDER_SIZE,
             offset_x=SIDEBAR_ICON_OPTICAL_OFFSET_X,
         )
         if pixmap.isNull():
