@@ -23,7 +23,9 @@ from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
-SIDEBAR_ICON_OPTICAL_OFFSET_X = -40
+SIDEBAR_ICON_OPTICAL_OFFSET_X = -6
+SIDEBAR_ICON_BADGE_LEFT = 8
+SIDEBAR_TEXT_LEFT_PADDING = 56
 
 
 def _icons_root() -> Path:
@@ -105,13 +107,15 @@ class NavButton(QPushButton):
         self._arrow.setFixedSize(14, 30)
         self._arrow.hide()
 
-        self.setStyleSheet("text-align: left; padding-left: 62px; padding-right: 28px;")
+        self.setStyleSheet(
+            f"text-align: left; padding-left: {SIDEBAR_TEXT_LEFT_PADDING}px; padding-right: 28px;"
+        )
         self._sync_icon_state(False)
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         y = max(10, (self.height() - self._icon.height()) // 2)
-        self._icon.move(14, y)
+        self._icon.move(SIDEBAR_ICON_BADGE_LEFT, y)
         self._arrow.move(self.width() - 26, y)
         self._icon.raise_()
         self._arrow.raise_()
