@@ -23,8 +23,8 @@ from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
-SIDEBAR_ICON_OPTICAL_OFFSET_X = 0
-SIDEBAR_ICON_BADGE_LEFT = 14
+SIDEBAR_ICON_OPTICAL_OFFSET_X = -40
+SIDEBAR_ICON_BADGE_LEFT = 0
 SIDEBAR_TEXT_LEFT_PADDING = 62
 
 
