@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
-SIDEBAR_ICON_OPTICAL_OFFSET_X = -3
+SIDEBAR_ICON_OPTICAL_OFFSET_X = -6
 
 
 def _icons_root() -> Path:
