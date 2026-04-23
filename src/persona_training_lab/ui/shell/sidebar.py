@@ -68,6 +68,8 @@ def _render_svg_icon(
         target_h = icon_size
 
     target_x = round((canvas_size - target_w) / 2) + offset_x
+    max_target_x = max(0, canvas_size - target_w)
+    target_x = max(0, min(target_x, max_target_x))
     target_y = round((canvas_size - target_h) / 2)
     target = QRectF(target_x, target_y, target_w, target_h)
     renderer.render(painter, target)
