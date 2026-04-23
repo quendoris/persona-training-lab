@@ -24,8 +24,9 @@ from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
 SIDEBAR_ICON_OPTICAL_OFFSET_X = -6
-SIDEBAR_ICON_BADGE_LEFT = 8
-SIDEBAR_TEXT_LEFT_PADDING = 56
+SIDEBAR_ICON_BADGE_LEFT = 0
+SIDEBAR_TEXT_LEFT_PADDING = 52
+SIDEBAR_ICON_BADGE_DEBUG = True
 
 
 def _icons_root() -> Path:
@@ -137,10 +138,14 @@ class NavButton(QPushButton):
             border = "rgba(255, 255, 255, 0.08)"
             weight = "700"
 
+        if SIDEBAR_ICON_BADGE_DEBUG:
+            bg = "rgba(255, 0, 184, 0.16)"
+            border = "rgba(255, 0, 184, 0.92)"
+
         self._icon.setStyleSheet(
             f"background-color: {bg};"
             f"color: {fg};"
-            f"border: 1px solid {border};"
+            f"border: 2px solid {border};"
             "border-radius: 10px;"
             f"font-weight: {weight}; font-size: 13px;"
         )
