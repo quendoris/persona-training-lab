@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, Qt, Signal, QRectF
+from PySide6.QtCore import QByteArray, Qt, Signal, QRect, QRectF
 from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
@@ -24,9 +24,8 @@ from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
 SIDEBAR_ICON_OPTICAL_OFFSET_X = -6
-SIDEBAR_ICON_BADGE_LEFT = 0
-SIDEBAR_TEXT_LEFT_PADDING = 52
-SIDEBAR_ICON_BADGE_DEBUG = True
+SIDEBAR_ICON_BADGE_LEFT = 8
+SIDEBAR_TEXT_LEFT_PADDING = 56
 
 
 def _icons_root() -> Path:
@@ -40,6 +39,7 @@ def _render_svg_icon(
     icon_size: int,
     *,
     offset_x: int = 0,
+    tight_crop: bool = False,
 ) -> QPixmap:
     if not path.exists():
         return QPixmap()
@@ -70,7 +70,7 @@ def _render_svg_icon(
         target_w = icon_size
         target_h = icon_size
 
-    target_x = round((canvas_size - target_w) / 2) + offset_x
+    target_x = round((canvas_size - target_w) / 2)
     max_target_x = max(0, canvas_size - target_w)
     target_x = max(0, min(target_x, max_target_x))
     target_y = round((canvas_size - target_h) / 2)
@@ -78,7 +78,48 @@ def _render_svg_icon(
     renderer.render(painter, target)
 
     painter.end()
-    return pixmap
+    if not tight_crop:
+        shifted_x = max(0, min(target_x + offset_x, max_target_x))
+        if shifted_x == target_x:
+            return pixmap
+        shifted = QPixmap(canvas_size, canvas_size)
+        shifted.fill(Qt.GlobalColor.transparent)
+        shifted_painter = QPainter(shifted)
+        shifted_painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        shifted_painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        shifted_painter.drawPixmap(shifted_x, target_y, pixmap.copy(target.toRect()))
+        shifted_painter.end()
+        return shifted
+
+    image = pixmap.toImage()
+    min_x, min_y = canvas_size, canvas_size
+    max_x, max_y = -1, -1
+    for y in range(canvas_size):
+        for x in range(canvas_size):
+            if image.pixelColor(x, y).alpha() > 0:
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
+
+    if max_x < min_x or max_y < min_y:
+        return pixmap
+
+    bounds = QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+    cropped = pixmap.copy(bounds)
+
+    final_pixmap = QPixmap(canvas_size, canvas_size)
+    final_pixmap.fill(Qt.GlobalColor.transparent)
+    final_painter = QPainter(final_pixmap)
+    final_painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    final_painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+    max_crop_x = max(0, canvas_size - cropped.width())
+    final_x = max(0, min(round((canvas_size - cropped.width()) / 2) + offset_x, max_crop_x))
+    final_y = max(0, min(round((canvas_size - cropped.height()) / 2), canvas_size - cropped.height()))
+    final_painter.drawPixmap(final_x, final_y, cropped)
+    final_painter.end()
+    return final_pixmap
 
 
 class NavButton(QPushButton):
@@ -138,14 +179,10 @@ class NavButton(QPushButton):
             border = "rgba(255, 255, 255, 0.08)"
             weight = "700"
 
-        if SIDEBAR_ICON_BADGE_DEBUG:
-            bg = "rgba(255, 0, 184, 0.16)"
-            border = "rgba(255, 0, 184, 0.92)"
-
         self._icon.setStyleSheet(
             f"background-color: {bg};"
             f"color: {fg};"
-            f"border: 2px solid {border};"
+            f"border: 1px solid {border};"
             "border-radius: 10px;"
             f"font-weight: {weight}; font-size: 13px;"
         )
@@ -156,6 +193,7 @@ class NavButton(QPushButton):
             30,
             SIDEBAR_ICON_RENDER_SIZE,
             offset_x=SIDEBAR_ICON_OPTICAL_OFFSET_X,
+            tight_crop=True,
         )
         if pixmap.isNull():
             self._icon.setPixmap(QPixmap())
