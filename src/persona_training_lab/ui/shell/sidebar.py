@@ -27,7 +27,14 @@ def _icons_root() -> Path:
     return Path(__file__).resolve().parent.parent / "assets" / "icons"
 
 
-def _render_svg_icon(path: Path, color: str, canvas_size: int, icon_size: int) -> QPixmap:
+def _render_svg_icon(
+    path: Path,
+    color: str,
+    canvas_size: int,
+    icon_size: int,
+    *,
+    offset_x: int = 0,
+) -> QPixmap:
     if not path.exists():
         return QPixmap()
 
@@ -57,7 +64,7 @@ def _render_svg_icon(path: Path, color: str, canvas_size: int, icon_size: int) -
         target_w = icon_size
         target_h = icon_size
 
-    target_x = round((canvas_size - target_w) / 2)
+    target_x = round((canvas_size - target_w) / 2) + offset_x
     target_y = round((canvas_size - target_h) / 2)
     target = QRectF(target_x, target_y, target_w, target_h)
     renderer.render(painter, target)
@@ -129,7 +136,7 @@ class NavButton(QPushButton):
             f"font-weight: {weight}; font-size: 13px;"
         )
 
-        pixmap = _render_svg_icon(self._icon_path, fg, 30, 20)
+        pixmap = _render_svg_icon(self._icon_path, fg, 30, 20, offset_x=-1)
         if pixmap.isNull():
             self._icon.setPixmap(QPixmap())
             self._icon.setText(self._fallback_icon_text)
