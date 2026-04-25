@@ -142,7 +142,7 @@ class NavButton(QPushButton):
         self._icon.setAlignment(Qt.AlignCenter)
         self._icon.setFixedSize(SIDEBAR_ICON_BADGE_SIZE, SIDEBAR_ICON_BADGE_SIZE)
 
-        self._icon_glyph = QLabel(icon_text, self._icon)
+        self._icon_glyph = QLabel("", self._icon)
         self._icon_glyph.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._icon_glyph.setObjectName("NavIcon")
         self._icon_glyph.setAlignment(Qt.AlignCenter)
@@ -211,10 +211,13 @@ class NavButton(QPushButton):
             SIDEBAR_ICON_BADGE_SIZE,
             SIDEBAR_ICON_RENDER_SIZE,
         )
+        # text and pixmap are mutually exclusive; SVG wins over fallback text.
         if pixmap.isNull():
+            self._icon.setText("")
             self._icon_glyph.setPixmap(QPixmap())
             self._icon_glyph.setText(self._fallback_icon_text)
         else:
+            self._icon.setText("")
             self._icon_glyph.setText("")
             self._icon_glyph.setPixmap(pixmap)
 
