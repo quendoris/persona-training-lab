@@ -7,28 +7,50 @@ from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label
 from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 
-
-def _stable_scroll_content(min_height: int = 260) -> tuple[QScrollArea, QVBoxLayout]:
+def _stable_scroll_content(max_height: int = 320) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    scroll.setMinimumHeight(min_height)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll.setMinimumHeight(max_height)
+    scroll.setStyleSheet("""
+        QScrollArea {
+            background: transparent;
+            border: none;
+        }
+        QScrollArea > QWidget > QWidget {
+            background: transparent;
+            border: none;
+        }
+    """)
+    scroll.viewport().setStyleSheet("background: transparent;")
 
-    outer = QWidget()
+    # вот этот внешний shell возвращает большой закруглённый контейнер
+    outer = QFrame()
+    outer.setObjectName("StableScrollShell")
+
     outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(10, 10, 10, 10)
+    outer_layout.setContentsMargins(14, 14, 14, 14)
     outer_layout.setSpacing(0)
 
-    inner = QFrame()
-    inner.setObjectName("StableScrollWrap")
-    inner_layout = QVBoxLayout(inner)
-    inner_layout.setContentsMargins(14, 14, 14, 14)
-    inner_layout.setSpacing(12)
-    outer_layout.addWidget(inner)
-    scroll.setWidget(outer)
-    return scroll, inner_layout
+    # а вот внутренний контейнер уже прозрачный
+    wrap = QWidget()
+    wrap.setObjectName("LifecycleScrollWrap")
+    wrap.setStyleSheet("""
+        QWidget#LifecycleScrollWrap {
+            background: transparent;
+            border: none;
+        }
+    """)
 
+    layout = QVBoxLayout(wrap)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(10)
+
+    outer_layout.addWidget(wrap)
+    scroll.setWidget(outer)
+    return scroll, layout
 
 def _elide(text: str, max_len: int = 34) -> str:
     return text if len(text) <= max_len else text[: max_len - 1] + '…'

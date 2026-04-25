@@ -23,26 +23,36 @@ from persona_training_lab.ui.components.panels import make_muted_label, make_sta
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 
 
-def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QWidget, QGridLayout]:
+def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QFrame, QGridLayout]:
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setFrameShape(QFrame.Shape.NoFrame)
-    scroll.setMaximumHeight(max_height)
-
-    outer = QWidget()
-    outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(10, 10, 10, 10)
-    outer_layout.setSpacing(0)
+    scroll.setMinimumHeight(max_height)
+    scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    scroll.setStyleSheet(
+        """
+        QScrollArea {
+            background: transparent;
+            border: none;
+        }
+        QScrollArea > QWidget > QWidget {
+            background: transparent;
+            border: none;
+        }
+        """
+    )
 
     wrap = QFrame()
-    wrap.setObjectName("StableScrollWrap")
+    wrap.setObjectName("StableScrollShell")
+
     layout = QVBoxLayout(wrap)
-    layout.setContentsMargins(14, 14, 14, 14)
+    layout.setContentsMargins(16, 16, 16, 16)
     layout.setSpacing(0)
 
     grid_wrap = QWidget()
+    grid_wrap.setObjectName("ValidationGridWrap")
     grid = QGridLayout(grid_wrap)
     grid.setContentsMargins(0, 0, 0, 0)
     grid.setHorizontalSpacing(12)
@@ -50,8 +60,7 @@ def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QWidget, QG
 
     layout.addWidget(grid_wrap)
     layout.addStretch(1)
-    outer_layout.addWidget(wrap)
-    scroll.setWidget(outer)
+    scroll.setWidget(wrap)
     return scroll, wrap, grid
 
 
@@ -69,31 +78,33 @@ class DatasetsScreen(QWidget):
         root.setSpacing(16)
 
         header = QFrame()
-        header.setObjectName('ShellHeader')
+        header.setObjectName("ShellHeader")
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(22, 20, 22, 20)
         header_layout.setSpacing(8)
-        self._title = QLabel('Датасеты')
-        self._title.setObjectName('ScreenTitle')
-        self._subtitle = make_muted_label('Versioned datasets, проверка и readiness для обучения личности.')
+        self._title = QLabel("Датасеты")
+        self._title.setObjectName("ScreenTitle")
+        self._subtitle = make_muted_label(
+            "Versioned datasets, проверка и readiness для обучения личности."
+        )
         header_layout.addWidget(self._title)
         header_layout.addWidget(self._subtitle)
         root.addWidget(header)
 
         actions = QFrame()
-        actions.setObjectName('PanelCardSoft')
+        actions.setObjectName("PanelCardSoft")
         actions_layout = QHBoxLayout(actions)
         actions_layout.setContentsMargins(18, 16, 18, 16)
         actions_layout.setSpacing(12)
         for text, secondary in [
-            ('Импортировать датасет', False),
-            ('Запустить проверку', False),
-            ('Одобрить для обучения', True),
-            ('Сравнить версии', True),
+            ("Импортировать датасет", False),
+            ("Запустить проверку", False),
+            ("Одобрить для обучения", True),
+            ("Сравнить версии", True),
         ]:
             button = QPushButton(text)
             if secondary:
-                button.setObjectName('SecondaryButton')
+                button.setObjectName("SecondaryButton")
             actions_layout.addWidget(button)
         actions_layout.addStretch(1)
         root.addWidget(actions)
@@ -109,7 +120,10 @@ class DatasetsScreen(QWidget):
         left.setSpacing(16)
         body.addWidget(left_container, 0)
 
-        self._datasets_card = PanelCard('Реестр датасетов', 'Небольшие, но сильные curated-наборы вместо шумного массива.')
+        self._datasets_card = PanelCard(
+            "Реестр датасетов",
+            "Небольшие, но сильные curated-наборы вместо шумного массива.",
+        )
         self._datasets_list = QListWidget()
         self._datasets_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._datasets_list.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -119,7 +133,10 @@ class DatasetsScreen(QWidget):
         self._datasets_card.add_widget(self._datasets_list)
         left.addWidget(self._datasets_card)
 
-        self._versions_card = PanelCard('Версии', 'Работаем только с конкретной dataset version, а не с плавающим набором вообще.')
+        self._versions_card = PanelCard(
+            "Версии",
+            "Работаем только с конкретной dataset version, а не с плавающим набором вообще.",
+        )
         self._versions_list = QListWidget()
         self._versions_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._versions_list.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -133,9 +150,13 @@ class DatasetsScreen(QWidget):
         center.setSpacing(16)
         body.addLayout(center, 4)
 
-        self._preview_card = PanelCard('Предпросмотр записей', 'Короткий взгляд на структуру и качество выбранной версии.')
+        self._preview_card = PanelCard(
+            "Предпросмотр записей",
+            "Короткий взгляд на структуру и качество выбранной версии.",
+        )
+        self._preview_card.setMinimumWidth(800)
         self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(['ID', 'Вход', 'Черты', 'Качество'])
+        self._table.setHorizontalHeaderLabels(["ID", "Вход", "Черты", "Качество"])
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -143,16 +164,23 @@ class DatasetsScreen(QWidget):
         self._table.horizontalHeader().setStretchLastSection(True)
         self._table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self._table.setWordWrap(True)
-        self._table.setMinimumHeight(320)
         self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._preview_card.add_widget(self._table)
-        center.addWidget(self._preview_card, 3)
+        self._preview_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        center.addWidget(self._preview_card, 1)
 
-        self._validation_card = PanelCard('Результат проверки', 'Сильная проверка должна быть понятной, а не просто зелёной галочкой.')
-        self._validation_scroll, self._validation_wrap, self._validation_grid = _stable_scroll_grid(360)
+        self._validation_card = PanelCard(
+            "Результат проверки",
+            "Сильная проверка должна быть понятной, а не просто зелёной галочкой.",
+        )
+        self._validation_scroll, self._validation_wrap, self._validation_grid = _stable_scroll_grid(
+            380
+        )
+        self._validation_scroll.setMinimumHeight(320)
         self._validation_card.add_widget(self._validation_scroll)
-        self._validation_card.setMaximumHeight(430)
-        center.addWidget(self._validation_card, 0)
+        self._validation_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        center.addWidget(self._validation_card, 1)
 
         right_container = QWidget()
         right_container.setFixedWidth(320)
@@ -161,22 +189,22 @@ class DatasetsScreen(QWidget):
         right.setSpacing(16)
         body.addWidget(right_container, 0)
 
-        self._summary_card = PanelCard('Сводка версии', 'Быстрый контекст без прыжков между окнами.')
+        self._summary_card = PanelCard("Сводка версии", "Быстрый контекст без прыжков между окнами.")
         self._summary_rows = QVBoxLayout()
         self._summary_rows.setSpacing(10)
         self._summary_card._layout.addLayout(self._summary_rows)
         right.addWidget(self._summary_card)
 
-        self._quality_card = PanelCard('Качество и готовность', 'Что это за версия и что с ней делать дальше.')
-        self._quality_summary = make_muted_label('')
+        self._quality_card = PanelCard("Качество и готовность", "Что это за версия и что с ней делать дальше.")
+        self._quality_summary = make_muted_label("")
         self._quality_card.add_widget(self._quality_summary)
         self._next_step = QFrame()
-        self._next_step.setObjectName('WarningBlock')
+        self._next_step.setObjectName("WarningBlock")
         next_step_layout = QVBoxLayout(self._next_step)
         next_step_layout.setContentsMargins(14, 12, 14, 12)
         next_step_layout.setSpacing(8)
-        next_step_layout.addWidget(QLabel('Следующий лучший шаг'))
-        self._next_step_text = make_muted_label('')
+        next_step_layout.addWidget(QLabel("Следующий лучший шаг"))
+        self._next_step_text = make_muted_label("")
         next_step_layout.addWidget(self._next_step_text)
         self._quality_card.add_widget(self._next_step)
         right.addWidget(self._quality_card)
@@ -239,27 +267,33 @@ class DatasetsScreen(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-        for index, signal in enumerate(self._vm.current_version().validation_signals):
+
+        signals = self._vm.current_version().validation_signals
+        for index, signal in enumerate(signals):
             card = QFrame()
-            card.setObjectName('PanelCardSoft')
+            card.setObjectName("PanelCardSoft")
             layout = QVBoxLayout(card)
             layout.setContentsMargins(14, 12, 14, 12)
             layout.setSpacing(8)
+
             top = QHBoxLayout()
             top.addWidget(QLabel(signal.title))
             top.addStretch(1)
-            if signal.state == 'warning':
-                badge = make_status_label('внимание', warning=True)
-            elif signal.state == 'ok':
-                badge = make_status_label('ok')
+
+            if signal.state == "warning":
+                badge = make_status_label("внимание", warning=True)
+            elif signal.state == "ok":
+                badge = make_status_label("ok")
             else:
-                badge = QLabel('заметка')
-                badge.setObjectName('TelemetryChip')
+                badge = QLabel("заметка")
+                badge.setObjectName("TelemetryChip")
+
             top.addWidget(badge)
             layout.addLayout(top)
             layout.addWidget(make_muted_label(signal.body))
             self._validation_grid.addWidget(card, index // 2, index % 2)
-        self._validation_grid.setRowStretch((len(self._vm.current_version().validation_signals) + 1) // 2, 1)
+
+        self._validation_grid.setRowStretch((len(signals) + 1) // 2, 1)
 
     def _refresh_summary(self) -> None:
         while self._summary_rows.count():
@@ -267,21 +301,25 @@ class DatasetsScreen(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
         for key, value in self._vm.right_summary():
             row = QFrame()
-            row.setObjectName('PanelCardSoft')
+            row.setObjectName("PanelCardSoft")
             layout = QHBoxLayout(row)
             layout.setContentsMargins(12, 10, 12, 10)
             layout.setSpacing(10)
+
             left = QLabel(key)
-            left.setObjectName('MutedText')
+            left.setObjectName("MutedText")
             right = QLabel(value)
             right.setWordWrap(False)
             right.setMinimumWidth(0)
+
             layout.addWidget(left)
             layout.addStretch(1)
             layout.addWidget(right, 0, Qt.AlignmentFlag.AlignRight)
             self._summary_rows.addWidget(row)
+
         version = self._vm.current_version()
         self._quality_summary.setText(version.quality_summary)
         self._next_step_text.setText(self._vm.next_step())

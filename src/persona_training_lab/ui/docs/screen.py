@@ -15,6 +15,9 @@ class DocsScreen(QWidget):
 
         topics = PanelCard("Разделы docs", "Встроенная справка должна помогать в работе, а не быть мёртвым приложением сбоку.")
         topic_list = QListWidget()
+        topic_list.setObjectName("DocsTopicList")
+        topic_list.setSpacing(8)
+        topic_list.setFrameShape(QListWidget.NoFrame)
         for line in view_model.topics():
             topic_list.addItem(line)
         topics.add_widget(topic_list)
