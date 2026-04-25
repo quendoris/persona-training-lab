@@ -136,7 +136,7 @@ class NavButton(QPushButton):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setLayoutDirection(Qt.LeftToRight)
 
-        self._icon = QLabel(icon_text, self)
+        self._icon = QLabel("", self)
         self._icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._icon.setObjectName("NavIconBadge")
         self._icon.setAlignment(Qt.AlignCenter)
@@ -194,6 +194,7 @@ class NavButton(QPushButton):
             f"border: 1px solid {border};"
             "border-radius: 10px;"
         )
+        self._icon.setText("")
 
         self._icon_glyph.setStyleSheet(
             "background-color: transparent;"
