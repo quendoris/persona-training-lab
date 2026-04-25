@@ -25,7 +25,6 @@ from persona_training_lab.ui.viewmodels.style import StyleViewModel
 SIDEBAR_ICON_RENDER_SIZE = 18
 SIDEBAR_ICON_BADGE_LEFT = 22
 SIDEBAR_ICON_BADGE_SIZE = 30
-SIDEBAR_ICON_GLYPH_SIZE = 22
 SIDEBAR_TEXT_LEFT_PADDING = 70
 
 
@@ -143,13 +142,11 @@ class NavButton(QPushButton):
         self._icon.setAlignment(Qt.AlignCenter)
         self._icon.setFixedSize(SIDEBAR_ICON_BADGE_SIZE, SIDEBAR_ICON_BADGE_SIZE)
 
-        self._icon_glyph = QLabel(icon_text, self)
+        self._icon_glyph = QLabel(icon_text, self._icon)
         self._icon_glyph.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._icon_glyph.setObjectName("NavIcon")
         self._icon_glyph.setAlignment(Qt.AlignCenter)
-        self._icon_glyph.setFixedSize(SIDEBAR_ICON_GLYPH_SIZE, SIDEBAR_ICON_GLYPH_SIZE)
-        self._icon.lower()
-        self._icon_glyph.raise_()
+        self._icon_glyph.setGeometry(0, 0, SIDEBAR_ICON_BADGE_SIZE, SIDEBAR_ICON_BADGE_SIZE)
 
         self._arrow = QLabel("›", self)
         self._arrow.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -172,13 +169,7 @@ class NavButton(QPushButton):
         badge_y = max(10, (self.height() - self._icon.height()) // 2)
         self._icon.move(SIDEBAR_ICON_BADGE_LEFT, badge_y)
 
-        glyph_x = SIDEBAR_ICON_BADGE_LEFT + (SIDEBAR_ICON_BADGE_SIZE - SIDEBAR_ICON_GLYPH_SIZE) // 2
-        glyph_y = badge_y + (SIDEBAR_ICON_BADGE_SIZE - SIDEBAR_ICON_GLYPH_SIZE) // 2
-        self._icon_glyph.move(glyph_x, glyph_y)
-
         self._arrow.move(self.width() - 26, badge_y)
-        self._icon.lower()
-        self._icon_glyph.raise_()
         self._arrow.raise_()
 
     def setChecked(self, checked: bool) -> None:  # type: ignore[override]
@@ -216,7 +207,7 @@ class NavButton(QPushButton):
         pixmap = _render_svg_icon(
             self._icon_path,
             fg,
-            SIDEBAR_ICON_GLYPH_SIZE,
+            SIDEBAR_ICON_BADGE_SIZE,
             SIDEBAR_ICON_RENDER_SIZE,
         )
         if pixmap.isNull():
@@ -225,8 +216,6 @@ class NavButton(QPushButton):
         else:
             self._icon_glyph.setText("")
             self._icon_glyph.setPixmap(pixmap)
-        self._icon.lower()
-        self._icon_glyph.raise_()
 
 
 class Sidebar(QFrame):
