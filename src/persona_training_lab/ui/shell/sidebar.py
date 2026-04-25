@@ -159,7 +159,11 @@ class NavButton(QPushButton):
         self._arrow.hide()
 
         self.setStyleSheet(
-            f"text-align: left; padding-left: {SIDEBAR_TEXT_LEFT_PADDING}px; padding-right: 28px;"
+            "QPushButton#NavButton {"
+            " text-align: left;"
+            f" padding-left: {SIDEBAR_TEXT_LEFT_PADDING}px;"
+            " padding-right: 28px;"
+            "}"
         )
         self._sync_icon_state(False)
 
@@ -202,6 +206,9 @@ class NavButton(QPushButton):
 
         self._icon_glyph.setStyleSheet(
             "background-color: transparent;"
+            "padding: 0px;"
+            "margin: 0px;"
+            "border: none;"
             f"color: {fg};"
             f"font-weight: {weight}; font-size: 13px;"
         )
