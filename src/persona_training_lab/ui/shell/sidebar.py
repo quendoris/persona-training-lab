@@ -148,6 +148,8 @@ class NavButton(QPushButton):
         self._icon_glyph.setObjectName("NavIcon")
         self._icon_glyph.setAlignment(Qt.AlignCenter)
         self._icon_glyph.setFixedSize(SIDEBAR_ICON_GLYPH_SIZE, SIDEBAR_ICON_GLYPH_SIZE)
+        self._icon.lower()
+        self._icon_glyph.raise_()
 
         self._arrow = QLabel("›", self)
         self._arrow.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -171,7 +173,7 @@ class NavButton(QPushButton):
         self._icon_glyph.move(glyph_x, glyph_y)
 
         self._arrow.move(self.width() - 26, badge_y)
-        self._icon.raise_()
+        self._icon.lower()
         self._icon_glyph.raise_()
         self._arrow.raise_()
 
@@ -216,6 +218,8 @@ class NavButton(QPushButton):
         else:
             self._icon_glyph.setText("")
             self._icon_glyph.setPixmap(pixmap)
+        self._icon.lower()
+        self._icon_glyph.raise_()
 
 
 class Sidebar(QFrame):
