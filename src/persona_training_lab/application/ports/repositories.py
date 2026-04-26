@@ -22,3 +22,7 @@ class AgentsReadRepositoryPort(Protocol):
 
 class ExperimentsReadRepositoryPort(Protocol):
     def list_experiments(self) -> list[dict[str, str]]: ...
+
+
+class DatasetsReadRepositoryPort(Protocol):
+    def list_datasets(self) -> list[dict[str, str]]: ...

@@ -70,6 +70,22 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_experiments_updated
         ON experiments(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS datasets (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            subtitle TEXT NOT NULL,
+            status TEXT NOT NULL,
+            record_count INTEGER NOT NULL,
+            linked_profile TEXT NOT NULL,
+            quality_summary TEXT NOT NULL,
+            readiness TEXT NOT NULL,
+            schema_name TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_datasets_updated
+        ON datasets(updated_at DESC);
         """
     )
     connection.commit()
