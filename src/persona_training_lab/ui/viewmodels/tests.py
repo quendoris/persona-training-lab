@@ -20,6 +20,8 @@ class EvaluationCase:
 
 @dataclass(slots=True)
 class TestsViewModel:
+    __test__ = False
+
     experiments_service: ExperimentsService | None = None
     title: str = "Тесты · evr_psychotype_pack_04"
     subtitle: str = "Независимая проверка snapshot после freeze и до выводов."
