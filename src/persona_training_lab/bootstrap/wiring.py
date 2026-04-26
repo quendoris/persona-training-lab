@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.projects.service import ProjectsService
+from persona_training_lab.application.profiles.service import ProfilesService
 from persona_training_lab.application.style.service import StylePreferencesService
 from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
 from persona_training_lab.config.app_settings import AppSettings
@@ -12,6 +13,7 @@ from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactM
 from persona_training_lab.infrastructure.logging.structured import configure_logging
 from persona_training_lab.infrastructure.persistence.repositories.event_log import SQLiteEventLogRepository
 from persona_training_lab.infrastructure.persistence.repositories.projects import SQLiteProjectsRepository
+from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
 from persona_training_lab.infrastructure.persistence.repositories.ui_preferences import (
     SQLiteUIPreferencesRepository,
 )
@@ -61,18 +63,20 @@ def build_container() -> AppContainer:
     ui_preferences_repo = SQLiteUIPreferencesRepository(connection)
     _event_log_repo = SQLiteEventLogRepository(connection)
     projects_repo = SQLiteProjectsRepository(connection)
+    profiles_repo = SQLiteProfilesRepository(connection)
 
     workflow_supervisor = WorkflowSupervisor()
     style_service = StylePreferencesService(ui_preferences_repo)
     docs_service = DocsService()
     projects_service = ProjectsService(projects_repo=projects_repo)
+    profiles_service = ProfilesService(profiles_repo=profiles_repo)
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)
     docs_vm = DocsViewModel(docs_service=docs_service)
     style_vm = StyleViewModel(style_service=style_service)
     datasets_vm = DatasetsViewModel()
-    profiles_vm = ProfilesViewModel()
+    profiles_vm = ProfilesViewModel(profiles_service=profiles_service)
     training_vm = TrainingViewModel()
     snapshots_vm = SnapshotsViewModel()
     tests_vm = TestsViewModel()
