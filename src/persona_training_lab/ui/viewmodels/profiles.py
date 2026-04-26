@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from persona_training_lab.application.profiles.service import ProfileSummary, ProfilesService
+
 
 @dataclass(slots=True, frozen=True)
 class TraitView:
@@ -23,6 +25,7 @@ class ProfileView:
 
 @dataclass(slots=True)
 class ProfilesViewModel:
+    profiles_service: ProfilesService | None = None
     _profiles: tuple[ProfileView, ...] = field(default_factory=tuple)
     _current_profile_id: str = 'mia_core_v3'
 
@@ -95,6 +98,72 @@ class ProfilesViewModel:
                     TraitView('Эмоциональная устойчивость', 82, 'плотное ядро'),
                 ),
             ),
+        )
+        self._apply_profiles_connector()
+
+    def _apply_profiles_connector(self) -> None:
+        if self.profiles_service is None:
+            return
+        try:
+            live_profiles = self.profiles_service.list_profiles()
+        except Exception:
+            self._profiles = (self._error_profile(),)
+            self._current_profile_id = self._profiles[0].profile_id
+            return
+
+        if not live_profiles:
+            self._profiles = (self._empty_profile(),)
+            self._current_profile_id = self._profiles[0].profile_id
+            return
+
+        mapped = tuple(self._map_summary_to_profile(summary) for summary in live_profiles)
+        self._profiles = mapped
+        self._current_profile_id = mapped[0].profile_id
+
+    def _map_summary_to_profile(self, summary: ProfileSummary) -> ProfileView:
+        for profile in self._profiles:
+            if profile.profile_id == summary.profile_id:
+                return ProfileView(
+                    profile_id=profile.profile_id,
+                    title=summary.title,
+                    subtitle=summary.subtitle,
+                    summary=profile.summary,
+                    constraints=profile.constraints,
+                    linked_artifacts=profile.linked_artifacts,
+                    traits=profile.traits,
+                )
+        return ProfileView(
+            profile_id=summary.profile_id,
+            title=summary.title,
+            subtitle=summary.subtitle,
+            summary="Профиль подключён из хранилища. Детальная карта будет доступна после синхронизации.",
+            constraints=("Детальные ограничения пока не загружены.",),
+            linked_artifacts=("Связанные артефакты пока не найдены.",),
+            traits=(),
+        )
+
+    @staticmethod
+    def _empty_profile() -> ProfileView:
+        return ProfileView(
+            profile_id="profiles_empty",
+            title="Профили пока не созданы",
+            subtitle="Профили пока не созданы",
+            summary="Профили пока не созданы",
+            constraints=("Создайте первый профиль, чтобы заполнить этот раздел.",),
+            linked_artifacts=("Нет связанных артефактов.",),
+            traits=(),
+        )
+
+    @staticmethod
+    def _error_profile() -> ProfileView:
+        return ProfileView(
+            profile_id="profiles_error",
+            title="Не удалось загрузить профили",
+            subtitle="Не удалось загрузить профили",
+            summary="Не удалось загрузить профили",
+            constraints=("Проверьте подключение к базе данных и повторите позже.",),
+            linked_artifacts=("Данные временно недоступны.",),
+            traits=(),
         )
 
     def profiles(self) -> list[tuple[str, str, str]]:
