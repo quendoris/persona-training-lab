@@ -18,3 +18,7 @@ class ProfilesReadRepositoryPort(Protocol):
 
 class AgentsReadRepositoryPort(Protocol):
     def list_agents(self) -> list[dict[str, str]]: ...
+
+
+class ExperimentsReadRepositoryPort(Protocol):
+    def list_experiments(self) -> list[dict[str, str]]: ...

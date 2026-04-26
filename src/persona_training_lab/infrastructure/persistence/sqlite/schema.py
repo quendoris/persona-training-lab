@@ -59,6 +59,17 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_agents_updated
         ON agents(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS experiments (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            subtitle TEXT NOT NULL,
+            status TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_experiments_updated
+        ON experiments(updated_at DESC);
         """
     )
     connection.commit()
