@@ -5,7 +5,6 @@ from PySide6.QtWidgets import QApplication, QDockWidget, QFrame, QHBoxLayout, QL
 
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.agents.screen import AgentsScreen
-from persona_training_lab.ui.experiments.screen import ExperimentsScreen
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.docs.screen import DocsScreen
@@ -27,7 +26,6 @@ from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 from persona_training_lab.ui.viewmodels.docs import DocsViewModel
 from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
-from persona_training_lab.ui.viewmodels.experiments import ExperimentsViewModel
 from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
 from persona_training_lab.ui.viewmodels.shell import ShellViewModel
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
@@ -75,7 +73,6 @@ class MainWindow(QMainWindow):
         docs_vm: DocsViewModel,
         style_vm: StyleViewModel,
         agents_vm: AgentsViewModel,
-        experiments_vm: ExperimentsViewModel,
         datasets_vm: DatasetsViewModel,
         profiles_vm: ProfilesViewModel,
         training_vm: TrainingViewModel,
@@ -107,7 +104,6 @@ class MainWindow(QMainWindow):
         self._workspace.register("dashboard", DashboardScreen(dashboard_vm))
         self._workspace.register("profiles", ProfilesScreen(profiles_vm))
         self._workspace.register("agents", AgentsScreen(agents_vm))
-        self._workspace.register("experiments", ExperimentsScreen(experiments_vm))
         self._workspace.register("datasets", DatasetsScreen(datasets_vm))
         self._workspace.register("training", TrainingScreen(training_vm))
         self._workspace.register("snapshots", SnapshotsScreen(snapshots_vm))
