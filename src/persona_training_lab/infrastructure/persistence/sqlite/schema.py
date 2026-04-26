@@ -27,6 +27,16 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_event_log_entity
         ON event_log(entity_kind, entity_id, occurred_at);
+
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_projects_updated
+        ON projects(updated_at DESC);
         """
     )
     connection.commit()
