@@ -21,6 +21,7 @@ def main() -> int:
         docs_vm=container.docs_vm,
         style_vm=container.style_vm,
         agents_vm=container.agents_vm,
+        experiments_vm=container.experiments_vm,
         datasets_vm=container.datasets_vm,
         profiles_vm=container.profiles_vm,
         training_vm=container.training_vm,
