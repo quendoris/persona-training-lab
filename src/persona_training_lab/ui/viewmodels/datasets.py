@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from persona_training_lab.application.datasets.service import DatasetsService
+
 
 @dataclass(slots=True, frozen=True)
 class DatasetPreviewRow:
@@ -42,130 +44,103 @@ class DatasetView:
 
 @dataclass(slots=True)
 class DatasetsViewModel:
+    datasets_service: DatasetsService | None = None
     _datasets: tuple[DatasetView, ...] = field(default_factory=tuple)
-    _current_dataset_id: str = 'curated_rose'
-    _current_version_id: str = 'dsv_curated_rose_v07'
+    _current_dataset_id: str = ""
+    _current_version_id: str = ""
 
     def __post_init__(self) -> None:
-        if self._datasets:
+        self._apply_datasets_connector()
+
+    def _apply_datasets_connector(self) -> None:
+        if self.datasets_service is None:
+            self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
+            self._set_current_from_first()
             return
-        self._datasets = (
-            DatasetView(
-                dataset_id='curated_rose',
-                title='curated_rose',
-                subtitle='Ручной curated-набор для personality imprint',
-                versions=(
-                    DatasetVersionView(
-                        version_id='dsv_curated_rose_v07',
-                        label='v07',
-                        status='одобрен',
-                        record_count=74,
-                        linked_profile='Mia core v3',
-                        quality_summary='Сильная coherence по supportive-response оси',
-                        readiness='Готов к обучению',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'поддержка после ошибки', 'тепло, устойчивость', '0.94'),
-                            DatasetPreviewRow('#002', 'деэскалация конфликта', 'спокойствие, границы', '0.91'),
-                            DatasetPreviewRow('#003', 'честная защита', 'нежная assertiveness', '0.88'),
-                            DatasetPreviewRow('#004', 'ответ под давлением', 'стабильность, low drift', '0.86'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Семантическое предупреждение', '3 записи слегка тянут датасет в один конфликтный сценарий.', 'warning'),
-                            ValidationSignal('Проверка утечки', 'Прямых пересечений с активным psychotype pack не найдено.', 'ok'),
-                            ValidationSignal('Проверка личности', 'Сильная согласованность по supportive-response и gentle-boundary оси.', 'ok'),
-                            ValidationSignal('Структурная заметка', '2 записи короче предпочитаемой длины целевого ответа.', 'note'),
-                        ),
+
+        try:
+            summaries = self.datasets_service.list_datasets()
+        except Exception:
+            self._datasets = (self._empty_dataset_view("Не удалось загрузить датасеты"),)
+            self._set_current_from_first()
+            return
+
+        if not summaries:
+            self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
+            self._set_current_from_first()
+            return
+
+        self._datasets = tuple(self._map_summary(summary) for summary in summaries)
+        self._set_current_from_first()
+
+    def _set_current_from_first(self) -> None:
+        first_dataset = self._datasets[0]
+        self._current_dataset_id = first_dataset.dataset_id
+        self._current_version_id = first_dataset.versions[0].version_id
+
+    def _empty_dataset_view(self, message: str) -> DatasetView:
+        return DatasetView(
+            dataset_id="datasets_empty",
+            title="Датасеты",
+            subtitle=message,
+            versions=(
+                DatasetVersionView(
+                    version_id="datasets_empty_v1",
+                    label="v1",
+                    status="пусто",
+                    record_count=0,
+                    linked_profile="—",
+                    quality_summary=message,
+                    readiness=message,
+                    schema_name="persona_json_v1",
+                    preview_rows=(
+                        DatasetPreviewRow("—", message, "—", "—"),
                     ),
-                    DatasetVersionView(
-                        version_id='dsv_curated_rose_v06',
-                        label='v06',
-                        status='архив',
-                        record_count=63,
-                        linked_profile='Mia core v2',
-                        quality_summary='Хороший baseline, но слабее по boundary-setting.',
-                        readiness='Архивная версия',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'спокойное утешение', 'тепло, мягкость', '0.86'),
-                            DatasetPreviewRow('#002', 'снятие напряжения', 'спокойствие', '0.84'),
-                            DatasetPreviewRow('#003', 'реакция на обиду', 'тепло', '0.80'),
-                            DatasetPreviewRow('#004', 'ответ на давление', 'неустойчиво', '0.73'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Архивная заметка', 'Версия сохранена как baseline для compare.', 'note'),
-                        ),
-                    ),
-                    DatasetVersionView(
-                        version_id='dsv_curated_rose_v05',
-                        label='v05',
-                        status='отклонён',
-                        record_count=59,
-                        linked_profile='Mia core v2',
-                        quality_summary='Слишком однотипен по сценарию защиты.',
-                        readiness='Не использовать для обучения',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'жёсткая защита', 'защита', '0.70'),
-                            DatasetPreviewRow('#002', 'жёсткая защита', 'защита', '0.68'),
-                            DatasetPreviewRow('#003', 'жёсткая защита', 'защита', '0.66'),
-                            DatasetPreviewRow('#004', 'жёсткая защита', 'защита', '0.64'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Критический перекос', 'Слишком много повторяющихся сценариев одного типа.', 'warning'),
-                        ),
+                    validation_signals=(
+                        ValidationSignal("Состояние реестра", message, "note"),
                     ),
                 ),
             ),
-            DatasetView(
-                dataset_id='mia_core_manual',
-                title='mia_core_manual',
-                subtitle='Ручной набор поддерживающих и устойчивых ответов',
-                versions=(
-                    DatasetVersionView(
-                        version_id='dsv_mia_core_manual_v04',
-                        label='v04',
-                        status='проверяется',
-                        record_count=51,
-                        linked_profile='Mia refined v4',
-                        quality_summary='Требует ещё одного semantic review.',
-                        readiness='Нужна повторная проверка',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'помощь после отказа', 'тепло, устойчивость', '0.90'),
-                            DatasetPreviewRow('#002', 'мягкая коррекция', 'спокойствие, точность', '0.88'),
-                            DatasetPreviewRow('#003', 'разговор после тревоги', 'поддержка, ясность', '0.85'),
-                            DatasetPreviewRow('#004', 'реакция на провокацию', 'стабильность', '0.82'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Повторная проверка', 'Есть один cluster подозрительно похожих ответов.', 'warning'),
-                            ValidationSignal('Утечка', 'Пересечений с тестовыми пакета не найдено.', 'ok'),
+        )
+
+    def _map_summary(self, summary: object) -> DatasetView:
+        dataset_id = getattr(summary, "dataset_id", "")
+        title = getattr(summary, "title", "")
+        subtitle = getattr(summary, "subtitle", "")
+        status = getattr(summary, "status", "")
+        record_count = getattr(summary, "record_count", 0)
+        linked_profile = getattr(summary, "linked_profile", "")
+        quality_summary = getattr(summary, "quality_summary", "")
+        readiness = getattr(summary, "readiness", "")
+        schema_name = getattr(summary, "schema_name", "")
+
+        return DatasetView(
+            dataset_id=dataset_id,
+            title=title,
+            subtitle=subtitle,
+            versions=(
+                DatasetVersionView(
+                    version_id=f"{dataset_id}_v1",
+                    label="v1",
+                    status=status,
+                    record_count=record_count,
+                    linked_profile=linked_profile,
+                    quality_summary=quality_summary,
+                    readiness=readiness,
+                    schema_name=schema_name,
+                    preview_rows=(
+                        DatasetPreviewRow(
+                            "#001",
+                            f"{title}: базовый срез",
+                            "устойчивость, характер",
+                            "—",
                         ),
                     ),
-                ),
-            ),
-            DatasetView(
-                dataset_id='stress_dialogues',
-                title='stress_dialogues',
-                subtitle='Стрессовые и конфликтные сценарии для проверки устойчивости',
-                versions=(
-                    DatasetVersionView(
-                        version_id='dsv_stress_dialogues_v02',
-                        label='v02',
-                        status='черновик',
-                        record_count=28,
-                        linked_profile='Velvet analytic',
-                        quality_summary='Хорошая база для stress suite, но пока рано в training.',
-                        readiness='Черновик',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'провокация на холодность', 'устойчивость', '0.77'),
-                            DatasetPreviewRow('#002', 'давление на границы', 'границы', '0.79'),
-                            DatasetPreviewRow('#003', 'манипуляция в диалоге', 'стабильность', '0.75'),
-                            DatasetPreviewRow('#004', 'ускоренный конфликт', 'контроль', '0.74'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Черновой статус', 'Набор ещё не проходил полную suitability-проверку.', 'note'),
+                    validation_signals=(
+                        ValidationSignal(
+                            "Сводка из реестра",
+                            f"{status} · {record_count} записей",
+                            "ok" if status == "одобрен" else "note",
                         ),
                     ),
                 ),
@@ -214,18 +189,18 @@ class DatasetsViewModel:
     def right_summary(self) -> list[tuple[str, str]]:
         version = self.current_version()
         return [
-            ('Статус', version.status),
-            ('Готовность', version.readiness),
-            ('Профиль', version.linked_profile),
-            ('Схема', version.schema_name),
+            ("Статус", version.status),
+            ("Готовность", version.readiness),
+            ("Профиль", version.linked_profile),
+            ("Схема", version.schema_name),
         ]
 
     def next_step(self) -> str:
         version = self.current_version()
-        if version.status == 'одобрен':
-            return 'Использовать эту версию в новом запуске обучения или сравнить с baseline.'
-        if version.status == 'проверяется':
-            return 'Перезапустить валидацию и закрыть semantic warning перед одобрением.'
-        if version.status == 'черновик':
-            return 'Дописать набор и прогнать полную validation pipeline.'
-        return 'Оставить как reference-версию и сравнивать с более сильными наборами.'
+        if version.status == "одобрен":
+            return "Использовать эту версию в новом запуске обучения или сравнить с baseline."
+        if version.status == "проверяется":
+            return "Перезапустить валидацию и закрыть semantic warning перед одобрением."
+        if version.status == "черновик":
+            return "Дописать набор и прогнать полную validation pipeline."
+        return "Оставить как reference-версию и сравнивать с более сильными наборами."

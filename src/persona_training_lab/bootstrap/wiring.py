@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.agents.service import AgentsService
+from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.experiments.service import ExperimentsService
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.profiles.service import ProfilesService
@@ -15,6 +16,7 @@ from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactM
 from persona_training_lab.infrastructure.logging.structured import configure_logging
 from persona_training_lab.infrastructure.persistence.repositories.event_log import SQLiteEventLogRepository
 from persona_training_lab.infrastructure.persistence.repositories.agents import SQLiteAgentsRepository
+from persona_training_lab.infrastructure.persistence.repositories.datasets import SQLiteDatasetsRepository
 from persona_training_lab.infrastructure.persistence.repositories.experiments import SQLiteExperimentsRepository
 from persona_training_lab.infrastructure.persistence.repositories.projects import SQLiteProjectsRepository
 from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
@@ -71,6 +73,7 @@ def build_container() -> AppContainer:
     projects_repo = SQLiteProjectsRepository(connection)
     profiles_repo = SQLiteProfilesRepository(connection)
     agents_repo = SQLiteAgentsRepository(connection)
+    datasets_repo = SQLiteDatasetsRepository(connection)
     experiments_repo = SQLiteExperimentsRepository(connection)
 
     workflow_supervisor = WorkflowSupervisor()
@@ -79,13 +82,14 @@ def build_container() -> AppContainer:
     projects_service = ProjectsService(projects_repo=projects_repo)
     profiles_service = ProfilesService(profiles_repo=profiles_repo)
     agents_service = AgentsService(agents_repo=agents_repo)
+    datasets_service = DatasetsService(datasets_repo=datasets_repo)
     experiments_service = ExperimentsService(experiments_repo=experiments_repo)
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)
     docs_vm = DocsViewModel(docs_service=docs_service)
     style_vm = StyleViewModel(style_service=style_service)
-    datasets_vm = DatasetsViewModel()
+    datasets_vm = DatasetsViewModel(datasets_service=datasets_service)
     profiles_vm = ProfilesViewModel(profiles_service=profiles_service)
     agents_vm = AgentsViewModel(agents_service=agents_service)
     training_vm = TrainingViewModel()
