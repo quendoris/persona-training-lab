@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+from persona_training_lab.application.training.service import TrainingService
 
 
 @dataclass(slots=True, frozen=True)
@@ -19,39 +21,95 @@ class CheckpointView:
 
 @dataclass(slots=True)
 class TrainingViewModel:
-    title: str = "Обучение · trn_qwen2b_mia_014"
-    subtitle: str = "Persona Imprint · Qwen 2B · Mia core v3 · curated_rose v07"
-    status: str = "выполняется · checkpoint-safe"
+    training_service: TrainingService | None = None
+    title: str = "Обучение"
+    subtitle: str = "Обучение пока не запускалось"
+    status: str = "ожидание"
     selected_objects: tuple[tuple[str, str], ...] = (
-        ("Базовая модель", "Qwen 2B"),
-        ("Профиль", "Mia core v3"),
-        ("Версия датасета", "curated_rose v07"),
-        ("Режим", "Persona Imprint"),
+        ("Базовая модель", "—"),
+        ("Профиль", "—"),
+        ("Версия датасета", "—"),
+        ("Режим", "—"),
     )
     stat_cards: tuple[TrainingMetric, ...] = (
-        TrainingMetric("Эпоха", "3 / 8", "Шаг 18 420"),
-        TrainingMetric("Loss", "1.42", "ровное снижение"),
-        TrainingMetric("Скорость", "61 ток/с", "сеанс стабилен"),
-        TrainingMetric("Чекпоинты", "05", "следующий через 11 мин"),
+        TrainingMetric("Эпоха", "—", "Обучение пока не запускалось"),
+        TrainingMetric("Loss", "—", "Обучение пока не запускалось"),
+        TrainingMetric("Скорость", "—", "Обучение пока не запускалось"),
+        TrainingMetric("Чекпоинты", "00", "Обучение пока не запускалось"),
     )
     checkpoints: tuple[CheckpointView, ...] = (
-        CheckpointView("chk_001", "epoch 1 · validated"),
-        CheckpointView("chk_002", "epoch 2 · стабильная кривая"),
-        CheckpointView("chk_003", "epoch 2.5 · drift снижается"),
-        CheckpointView("chk_004", "epoch 3 · лучший кандидат", True),
+        CheckpointView("Ожидание запуска", "Обучение пока не запускалось"),
     )
     logs: tuple[str, ...] = (
-        "[10:21:04] training started",
-        "[10:22:11] checkpoint policy applied",
-        "[10:23:32] monitor: GPU 63°C · VRAM 14.8/16 GB",
-        "[10:24:08] metric hint: contradiction risk stable",
-        "[10:25:46] checkpoint chk_004 registered",
+        "[—] Обучение пока не запускалось",
     )
     monitor_rows: tuple[tuple[str, int, str], ...] = (
-        ("Нагрузка GPU", 78, "63°C"),
-        ("Видеопамять", 92, "14.8 / 16 ГБ"),
-        ("Память RAM", 52, "50 / 96 ГБ"),
+        ("Нагрузка GPU", 0, "нет активного запуска"),
+        ("Видеопамять", 0, "нет активного запуска"),
+        ("Память RAM", 0, "нет активного запуска"),
     )
-    risk_title: str = "Мягкое предупреждение"
-    risk_body: str = "Запас по памяти уже узкий, но стабильный. Лучше не повышать sequence length в этом запуске."
-    next_step: str = "После завершения система предложит зафиксировать run как snapshot перед тестированием."
+    risk_title: str = "Статус"
+    risk_body: str = "Обучение пока не запускалось"
+    next_step: str = "Выберите профиль и датасет, затем запустите обучение."
+
+    def __post_init__(self) -> None:
+        self._apply_training_connector()
+
+    def _apply_training_connector(self) -> None:
+        if self.training_service is None:
+            return
+
+        try:
+            runs = self.training_service.list_training_runs()
+        except Exception:
+            self.title = "Обучение"
+            self.subtitle = "Не удалось загрузить запуски обучения"
+            self.status = "ошибка"
+            self.logs = ("[—] Не удалось загрузить запуски обучения",)
+            self.risk_title = "Статус"
+            self.risk_body = "Не удалось загрузить запуски обучения"
+            self.next_step = "Проверьте подключение к базе данных."
+            self.stat_cards = (
+                TrainingMetric("Эпоха", "—", "Не удалось загрузить запуски обучения"),
+                TrainingMetric("Loss", "—", "Не удалось загрузить запуски обучения"),
+                TrainingMetric("Скорость", "—", "Не удалось загрузить запуски обучения"),
+                TrainingMetric("Чекпоинты", "—", "Не удалось загрузить запуски обучения"),
+            )
+            return
+
+        if not runs:
+            self.title = "Обучение"
+            self.subtitle = "Обучение пока не запускалось"
+            return
+
+        current = runs[0]
+        self.title = f"Обучение · {current.run_id}"
+        self.subtitle = current.subtitle
+        self.status = current.status
+        self.selected_objects = (
+            ("Базовая модель", current.base_model),
+            ("Профиль", current.profile),
+            ("Версия датасета", current.dataset_version),
+            ("Режим", current.mode),
+        )
+        self.stat_cards = (
+            TrainingMetric("Эпоха", current.epoch_progress, "статус из реестра запусков"),
+            TrainingMetric("Loss", current.loss, "статус из реестра запусков"),
+            TrainingMetric("Скорость", current.speed, "статус из реестра запусков"),
+            TrainingMetric("Чекпоинты", current.checkpoints_count, "статус из реестра запусков"),
+        )
+        checkpoints_count = int(current.checkpoints_count) if current.checkpoints_count.isdigit() else 0
+        self.checkpoints = tuple(
+            CheckpointView(f"chk_{idx + 1:03d}", "из реестра запуска", highlighted=idx == checkpoints_count - 1)
+            for idx in range(max(1, checkpoints_count))
+        )
+        self.logs = (
+            f"[реестр] run: {current.run_id}",
+            f"[реестр] статус: {current.status}",
+            f"[реестр] прогресс: {current.epoch_progress}",
+            f"[реестр] loss: {current.loss}",
+            f"[реестр] скорость: {current.speed}",
+        )
+        self.risk_title = "Контроль запуска"
+        self.risk_body = "Состояние и метрики читаются из SQLite-реестра запусков обучения."
+        self.next_step = "После завершения зафиксируйте snapshot и переходите к тестам."

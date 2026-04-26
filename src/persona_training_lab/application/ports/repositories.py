@@ -26,3 +26,7 @@ class ExperimentsReadRepositoryPort(Protocol):
 
 class DatasetsReadRepositoryPort(Protocol):
     def list_datasets(self) -> list[dict[str, str]]: ...
+
+
+class TrainingReadRepositoryPort(Protocol):
+    def list_training_runs(self) -> list[dict[str, str]]: ...

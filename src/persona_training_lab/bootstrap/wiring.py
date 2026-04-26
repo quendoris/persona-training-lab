@@ -9,6 +9,7 @@ from persona_training_lab.application.experiments.service import ExperimentsServ
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.profiles.service import ProfilesService
 from persona_training_lab.application.style.service import StylePreferencesService
+from persona_training_lab.application.training.service import TrainingService
 from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
 from persona_training_lab.config.app_settings import AppSettings
 from persona_training_lab.config.paths import build_workspace_paths, ensure_workspace_dirs
@@ -20,6 +21,7 @@ from persona_training_lab.infrastructure.persistence.repositories.datasets impor
 from persona_training_lab.infrastructure.persistence.repositories.experiments import SQLiteExperimentsRepository
 from persona_training_lab.infrastructure.persistence.repositories.projects import SQLiteProjectsRepository
 from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
+from persona_training_lab.infrastructure.persistence.repositories.training import SQLiteTrainingRepository
 from persona_training_lab.infrastructure.persistence.repositories.ui_preferences import (
     SQLiteUIPreferencesRepository,
 )
@@ -75,6 +77,7 @@ def build_container() -> AppContainer:
     agents_repo = SQLiteAgentsRepository(connection)
     datasets_repo = SQLiteDatasetsRepository(connection)
     experiments_repo = SQLiteExperimentsRepository(connection)
+    training_repo = SQLiteTrainingRepository(connection)
 
     workflow_supervisor = WorkflowSupervisor()
     style_service = StylePreferencesService(ui_preferences_repo)
@@ -84,6 +87,7 @@ def build_container() -> AppContainer:
     agents_service = AgentsService(agents_repo=agents_repo)
     datasets_service = DatasetsService(datasets_repo=datasets_repo)
     experiments_service = ExperimentsService(experiments_repo=experiments_repo)
+    training_service = TrainingService(training_repo=training_repo)
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)
@@ -92,7 +96,7 @@ def build_container() -> AppContainer:
     datasets_vm = DatasetsViewModel(datasets_service=datasets_service)
     profiles_vm = ProfilesViewModel(profiles_service=profiles_service)
     agents_vm = AgentsViewModel(agents_service=agents_service)
-    training_vm = TrainingViewModel()
+    training_vm = TrainingViewModel(training_service=training_service)
     snapshots_vm = SnapshotsViewModel()
     tests_vm = TestsViewModel(experiments_service=experiments_service)
     analysis_vm = AnalysisViewModel()
