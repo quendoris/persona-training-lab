@@ -332,6 +332,7 @@ class Sidebar(QFrame):
         items = [
             ("dashboard", "П", "Панель"),
             ("profiles", "ПР", "Профили"),
+            ("agents", "АГ", "Агенты"),
             ("datasets", "ДС", "Датасеты"),
             ("training", "ОБ", "Обучение"),
             ("snapshots", "СН", "Снимки"),
