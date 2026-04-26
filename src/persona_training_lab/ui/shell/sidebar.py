@@ -333,7 +333,6 @@ class Sidebar(QFrame):
             ("dashboard", "П", "Панель"),
             ("profiles", "ПР", "Профили"),
             ("agents", "АГ", "Агенты"),
-            ("experiments", "ЭК", "Эксперименты"),
             ("datasets", "ДС", "Датасеты"),
             ("training", "ОБ", "Обучение"),
             ("snapshots", "СН", "Снимки"),
