@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.training.service import TrainingService
 
 
@@ -19,9 +20,17 @@ class CheckpointView:
     highlighted: bool = False
 
 
+@dataclass(slots=True, frozen=True)
+class PersonalityVersionView:
+    title: str
+    status: str
+    note: str
+
+
 @dataclass(slots=True)
 class TrainingViewModel:
     training_service: TrainingService | None = None
+    model_versions_service: ModelVersionsService | None = None
     title: str = "Обучение"
     subtitle: str = "Обучение пока не запускалось"
     status: str = "ожидание"
@@ -40,6 +49,10 @@ class TrainingViewModel:
     checkpoints: tuple[CheckpointView, ...] = (
         CheckpointView("Ожидание запуска", "Обучение пока не запускалось"),
     )
+    personality_versions: tuple[PersonalityVersionView, ...] = (
+        PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
+    )
+    versions_status_message: str = "Версии личности пока не созданы"
     logs: tuple[str, ...] = (
         "[—] Обучение пока не запускалось",
     )
@@ -54,6 +67,7 @@ class TrainingViewModel:
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
+        self._apply_model_versions_connector()
 
     def _apply_training_connector(self) -> None:
         if self.training_service is None:
@@ -113,3 +127,33 @@ class TrainingViewModel:
         self.risk_title = "Контроль запуска"
         self.risk_body = "Состояние и метрики читаются из SQLite-реестра запусков обучения."
         self.next_step = "После завершения зафиксируйте snapshot и переходите к тестам."
+
+    def _apply_model_versions_connector(self) -> None:
+        if self.model_versions_service is None:
+            return
+
+        try:
+            versions = self.model_versions_service.list_model_versions()
+        except Exception:
+            self.versions_status_message = "Не удалось загрузить версии личности"
+            self.personality_versions = (
+                PersonalityVersionView("Ошибка загрузки", "ошибка", "Не удалось загрузить версии личности"),
+            )
+            return
+
+        if not versions:
+            self.versions_status_message = "Версии личности пока не созданы"
+            self.personality_versions = (
+                PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
+            )
+            return
+
+        self.versions_status_message = ""
+        self.personality_versions = tuple(
+            PersonalityVersionView(
+                title=item.title,
+                status=item.status,
+                note=f"{item.base_model} · {item.profile_title} · {item.dataset_title} · {item.training_run_id}\n{item.quality_summary}\n{item.artifact_path}",
+            )
+            for item in versions
+        )

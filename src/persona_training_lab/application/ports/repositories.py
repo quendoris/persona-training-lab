@@ -34,3 +34,7 @@ class TrainingReadRepositoryPort(Protocol):
 
 class AnalysisReadRepositoryPort(Protocol):
     def list_analysis_results(self) -> list[dict[str, str]]: ...
+
+
+class ModelVersionsReadRepositoryPort(Protocol):
+    def list_model_versions(self) -> list[dict[str, str]]: ...
