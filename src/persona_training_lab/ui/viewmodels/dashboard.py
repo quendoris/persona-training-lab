@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from persona_training_lab.application.docs.service import DocsService
+from persona_training_lab.application.projects.service import ProjectsService
 
 
 @dataclass(slots=True)
 class DashboardViewModel:
     docs_service: DocsService
+    projects_service: ProjectsService
 
     def quick_actions(self) -> list[tuple[str, str, str]]:
         return [
@@ -20,8 +22,21 @@ class DashboardViewModel:
         return self.docs_service.get_quick_start_items()
 
     def stats(self) -> list[tuple[str, str, str]]:
+        try:
+            projects = self.projects_service.list_projects()
+        except Exception:
+            project_count = "—"
+            project_note = "Не удалось загрузить проекты"
+        else:
+            project_count = f"{len(projects):02d}"
+            if projects:
+                latest = projects[0]
+                project_note = f"{latest.title} · {latest.status}"
+            else:
+                project_note = "Проекты пока не созданы"
+
         return [
-            ("Активные запуски", "02", "1 обучение · 1 тестирование"),
+            ("Проекты", project_count, project_note),
             ("Снимки", "14", "3 одобрено · 2 архивировано"),
             ("Датасеты", "07", "2 требуют внимания"),
             ("Риски", "03", "критических сбоев нет"),

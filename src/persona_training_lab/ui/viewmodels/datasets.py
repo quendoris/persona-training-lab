@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from persona_training_lab.application.datasets.service import DatasetsService
+
 
 @dataclass(slots=True, frozen=True)
 class DatasetPreviewRow:
@@ -24,10 +26,13 @@ class DatasetVersionView:
     label: str
     status: str
     record_count: int
+    valid_count: int
+    invalid_count: int
     linked_profile: str
     quality_summary: str
     readiness: str
     schema_name: str
+    validation_errors_preview: str
     preview_rows: tuple[DatasetPreviewRow, ...]
     validation_signals: tuple[ValidationSignal, ...]
 
@@ -42,132 +47,154 @@ class DatasetView:
 
 @dataclass(slots=True)
 class DatasetsViewModel:
+    datasets_service: DatasetsService | None = None
     _datasets: tuple[DatasetView, ...] = field(default_factory=tuple)
-    _current_dataset_id: str = 'curated_rose'
-    _current_version_id: str = 'dsv_curated_rose_v07'
+    _current_dataset_id: str = ""
+    _current_version_id: str = ""
+    _message: str = ""
 
     def __post_init__(self) -> None:
-        if self._datasets:
+        self.refresh()
+
+    def refresh(self) -> None:
+        self._apply_datasets_connector()
+
+    def add_dataset_from_path(self, file_path: str) -> tuple[bool, str]:
+        if self.datasets_service is None:
+            return False, "Не удалось загрузить датасеты"
+        try:
+            created = self.datasets_service.add_dataset_from_path(file_path)
+        except ValueError as exc:
+            return False, str(exc)
+        except Exception:
+            return False, "Не удалось загрузить датасеты"
+
+        self._message = f"Добавлен датасет: {created.title}"
+        self._apply_datasets_connector(select_dataset_id=created.dataset_id)
+        return True, self._message
+
+    def validate_current_dataset(self) -> tuple[bool, str]:
+        if self.datasets_service is None:
+            return False, "Не удалось проверить датасет"
+
+        dataset_id = self.current_dataset().dataset_id
+        if dataset_id == "datasets_empty":
+            return False, "Датасеты пока не добавлены"
+
+        try:
+            result = self.datasets_service.validate_dataset(dataset_id)
+        except Exception:
+            return False, "Не удалось проверить датасет"
+
+        self._message = (
+            f"Статус: {result.status} · Записей: {result.total_rows} · "
+            f"Валидных: {result.valid_rows} · Ошибок: {result.invalid_rows}"
+        )
+        self._apply_datasets_connector(select_dataset_id=dataset_id)
+        return True, self._message
+
+    def _apply_datasets_connector(self, select_dataset_id: str | None = None) -> None:
+        if self.datasets_service is None:
+            self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
+            self._set_current_from_first()
             return
-        self._datasets = (
-            DatasetView(
-                dataset_id='curated_rose',
-                title='curated_rose',
-                subtitle='Ручной curated-набор для personality imprint',
-                versions=(
-                    DatasetVersionView(
-                        version_id='dsv_curated_rose_v07',
-                        label='v07',
-                        status='одобрен',
-                        record_count=74,
-                        linked_profile='Mia core v3',
-                        quality_summary='Сильная coherence по supportive-response оси',
-                        readiness='Готов к обучению',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'поддержка после ошибки', 'тепло, устойчивость', '0.94'),
-                            DatasetPreviewRow('#002', 'деэскалация конфликта', 'спокойствие, границы', '0.91'),
-                            DatasetPreviewRow('#003', 'честная защита', 'нежная assertiveness', '0.88'),
-                            DatasetPreviewRow('#004', 'ответ под давлением', 'стабильность, low drift', '0.86'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Семантическое предупреждение', '3 записи слегка тянут датасет в один конфликтный сценарий.', 'warning'),
-                            ValidationSignal('Проверка утечки', 'Прямых пересечений с активным psychotype pack не найдено.', 'ok'),
-                            ValidationSignal('Проверка личности', 'Сильная согласованность по supportive-response и gentle-boundary оси.', 'ok'),
-                            ValidationSignal('Структурная заметка', '2 записи короче предпочитаемой длины целевого ответа.', 'note'),
-                        ),
+
+        try:
+            summaries = self.datasets_service.list_datasets()
+        except Exception:
+            self._datasets = (self._empty_dataset_view("Не удалось загрузить датасеты"),)
+            self._set_current_from_first()
+            return
+
+        if not summaries:
+            self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
+            self._set_current_from_first()
+            return
+
+        self._datasets = tuple(self._map_summary(summary) for summary in summaries)
+        if select_dataset_id is not None:
+            for dataset in self._datasets:
+                if dataset.dataset_id == select_dataset_id:
+                    self._current_dataset_id = dataset.dataset_id
+                    self._current_version_id = dataset.versions[0].version_id
+                    return
+        self._set_current_from_first()
+
+    def _set_current_from_first(self) -> None:
+        first_dataset = self._datasets[0]
+        self._current_dataset_id = first_dataset.dataset_id
+        self._current_version_id = first_dataset.versions[0].version_id
+
+    def _empty_dataset_view(self, message: str) -> DatasetView:
+        return DatasetView(
+            dataset_id="datasets_empty",
+            title="Датасеты",
+            subtitle=message,
+            versions=(
+                DatasetVersionView(
+                    version_id="datasets_empty_v1",
+                    label="v1",
+                    status="пусто",
+                    record_count=0,
+                    valid_count=0,
+                    invalid_count=0,
+                    linked_profile="—",
+                    quality_summary=message,
+                    readiness=message,
+                    schema_name="jsonl_finetune_v1",
+                    validation_errors_preview="",
+                    preview_rows=(
+                        DatasetPreviewRow("—", message, "—", "—"),
                     ),
-                    DatasetVersionView(
-                        version_id='dsv_curated_rose_v06',
-                        label='v06',
-                        status='архив',
-                        record_count=63,
-                        linked_profile='Mia core v2',
-                        quality_summary='Хороший baseline, но слабее по boundary-setting.',
-                        readiness='Архивная версия',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'спокойное утешение', 'тепло, мягкость', '0.86'),
-                            DatasetPreviewRow('#002', 'снятие напряжения', 'спокойствие', '0.84'),
-                            DatasetPreviewRow('#003', 'реакция на обиду', 'тепло', '0.80'),
-                            DatasetPreviewRow('#004', 'ответ на давление', 'неустойчиво', '0.73'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Архивная заметка', 'Версия сохранена как baseline для compare.', 'note'),
-                        ),
-                    ),
-                    DatasetVersionView(
-                        version_id='dsv_curated_rose_v05',
-                        label='v05',
-                        status='отклонён',
-                        record_count=59,
-                        linked_profile='Mia core v2',
-                        quality_summary='Слишком однотипен по сценарию защиты.',
-                        readiness='Не использовать для обучения',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'жёсткая защита', 'защита', '0.70'),
-                            DatasetPreviewRow('#002', 'жёсткая защита', 'защита', '0.68'),
-                            DatasetPreviewRow('#003', 'жёсткая защита', 'защита', '0.66'),
-                            DatasetPreviewRow('#004', 'жёсткая защита', 'защита', '0.64'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Критический перекос', 'Слишком много повторяющихся сценариев одного типа.', 'warning'),
-                        ),
+                    validation_signals=(
+                        ValidationSignal("Состояние реестра", message, "note"),
                     ),
                 ),
             ),
-            DatasetView(
-                dataset_id='mia_core_manual',
-                title='mia_core_manual',
-                subtitle='Ручной набор поддерживающих и устойчивых ответов',
-                versions=(
-                    DatasetVersionView(
-                        version_id='dsv_mia_core_manual_v04',
-                        label='v04',
-                        status='проверяется',
-                        record_count=51,
-                        linked_profile='Mia refined v4',
-                        quality_summary='Требует ещё одного semantic review.',
-                        readiness='Нужна повторная проверка',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'помощь после отказа', 'тепло, устойчивость', '0.90'),
-                            DatasetPreviewRow('#002', 'мягкая коррекция', 'спокойствие, точность', '0.88'),
-                            DatasetPreviewRow('#003', 'разговор после тревоги', 'поддержка, ясность', '0.85'),
-                            DatasetPreviewRow('#004', 'реакция на провокацию', 'стабильность', '0.82'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Повторная проверка', 'Есть один cluster подозрительно похожих ответов.', 'warning'),
-                            ValidationSignal('Утечка', 'Пересечений с тестовыми пакета не найдено.', 'ok'),
-                        ),
+        )
+
+    def _map_summary(self, summary: object) -> DatasetView:
+        dataset_id = getattr(summary, "dataset_id", "")
+        title = getattr(summary, "title", "")
+        subtitle = getattr(summary, "subtitle", "")
+        status = getattr(summary, "status", "")
+        record_count = getattr(summary, "record_count", 0)
+        valid_count = getattr(summary, "valid_count", 0)
+        invalid_count = getattr(summary, "invalid_count", 0)
+        quality_summary = getattr(summary, "quality_summary", "")
+        errors_preview = getattr(summary, "validation_errors_preview", "")
+        format_name = getattr(summary, "format", "jsonl")
+
+        state = "ok" if status == "Готов к обучению" else "warning" if status in {"Есть предупреждения", "Ошибка структуры", "Не удалось проверить датасет"} else "note"
+        signals = [
+            ValidationSignal("Итог проверки", f"Статус: {status}", state),
+            ValidationSignal("Сводка", f"Записей: {record_count} · Валидных: {valid_count} · Ошибок: {invalid_count}", "note"),
+        ]
+        if errors_preview:
+            first_error = errors_preview.splitlines()[0]
+            signals.append(ValidationSignal("Ошибка структуры", first_error, "warning"))
+
+        return DatasetView(
+            dataset_id=dataset_id,
+            title=title,
+            subtitle=subtitle,
+            versions=(
+                DatasetVersionView(
+                    version_id=f"{dataset_id}_v1",
+                    label="v1",
+                    status=status,
+                    record_count=record_count,
+                    valid_count=valid_count,
+                    invalid_count=invalid_count,
+                    linked_profile="—",
+                    quality_summary=quality_summary,
+                    readiness=status,
+                    schema_name=format_name,
+                    validation_errors_preview=errors_preview,
+                    preview_rows=(
+                        DatasetPreviewRow("#001", f"{title}: выборка из JSONL", "user/assistant · prompt/response", str(valid_count)),
                     ),
-                ),
-            ),
-            DatasetView(
-                dataset_id='stress_dialogues',
-                title='stress_dialogues',
-                subtitle='Стрессовые и конфликтные сценарии для проверки устойчивости',
-                versions=(
-                    DatasetVersionView(
-                        version_id='dsv_stress_dialogues_v02',
-                        label='v02',
-                        status='черновик',
-                        record_count=28,
-                        linked_profile='Velvet analytic',
-                        quality_summary='Хорошая база для stress suite, но пока рано в training.',
-                        readiness='Черновик',
-                        schema_name='persona_json_v1',
-                        preview_rows=(
-                            DatasetPreviewRow('#001', 'провокация на холодность', 'устойчивость', '0.77'),
-                            DatasetPreviewRow('#002', 'давление на границы', 'границы', '0.79'),
-                            DatasetPreviewRow('#003', 'манипуляция в диалоге', 'стабильность', '0.75'),
-                            DatasetPreviewRow('#004', 'ускоренный конфликт', 'контроль', '0.74'),
-                        ),
-                        validation_signals=(
-                            ValidationSignal('Черновой статус', 'Набор ещё не проходил полную suitability-проверку.', 'note'),
-                        ),
-                    ),
+                    validation_signals=tuple(signals),
                 ),
             ),
         )
@@ -209,23 +236,28 @@ class DatasetsViewModel:
     def header_summary(self) -> tuple[str, str]:
         dataset = self.current_dataset()
         version = self.current_version()
+        if self._message:
+            return dataset.title, self._message
         return dataset.title, f"{dataset.subtitle} · {version.label} · {version.record_count} записей"
 
     def right_summary(self) -> list[tuple[str, str]]:
         version = self.current_version()
         return [
-            ('Статус', version.status),
-            ('Готовность', version.readiness),
-            ('Профиль', version.linked_profile),
-            ('Схема', version.schema_name),
+            ("Статус", version.status),
+            ("Записей", str(version.record_count)),
+            ("Валидных", str(version.valid_count)),
+            ("Ошибок", str(version.invalid_count)),
+            ("Формат", version.schema_name),
         ]
 
     def next_step(self) -> str:
         version = self.current_version()
-        if version.status == 'одобрен':
-            return 'Использовать эту версию в новом запуске обучения или сравнить с baseline.'
-        if version.status == 'проверяется':
-            return 'Перезапустить валидацию и закрыть semantic warning перед одобрением.'
-        if version.status == 'черновик':
-            return 'Дописать набор и прогнать полную validation pipeline.'
-        return 'Оставить как reference-версию и сравнивать с более сильными наборами.'
+        if version.status == "Готов к обучению":
+            return "Датасет готов к обучению. Можно переходить к запуску тренировки."
+        if version.status == "Есть предупреждения":
+            return "Есть предупреждения. Проверьте проблемные строки перед обучением."
+        if version.status == "Ошибка структуры":
+            return "Исправьте структуру JSONL и повторите проверку."
+        if version.status == "Не удалось проверить датасет":
+            return "Проверьте путь к файлу и повторите проверку."
+        return "Добавьте файл JSONL и запустите проверку датасета."
