@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, ModelProbeResult
+
+
+class FilesystemLocalModelProbeProvider:
+    def check_model_files(self, model_path: str) -> ModelProbeResult:
+        try:
+            model_dir = Path(model_path)
+            if not model_dir.exists() or not model_dir.is_dir():
+                return ModelProbeResult(
+                    status="Модель не найдена",
+                    details="Не найдена директория модели.",
+                )
+
+            missing: list[str] = []
+            if not (model_dir / "config.json").exists():
+                missing.append("config.json")
+
+            tokenizer_exists = any(
+                (model_dir / name).exists()
+                for name in ("tokenizer.json", "tokenizer.model", "tokenizer_config.json")
+            )
+            if not tokenizer_exists:
+                missing.append("tokenizer")
+
+            weights_exists = any(model_dir.glob("*.safetensors")) or (model_dir / "pytorch_model.bin").exists()
+            if not weights_exists:
+                missing.append("weights")
+
+            if missing:
+                return ModelProbeResult(
+                    status="Модель не найдена",
+                    details=f"Не найдены обязательные файлы: {', '.join(missing)}.",
+                )
+
+            return ModelProbeResult(
+                status="Модель найдена",
+                details="Структура файлов модели выглядит корректно.",
+            )
+        except Exception:
+            return ModelProbeResult(
+                status="Не удалось проверить модель",
+                details="Проверьте путь и права доступа к файлам модели.",
+            )
+
+    def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
+        return InferenceProbeResult(message="Inference backend пока не подключён")

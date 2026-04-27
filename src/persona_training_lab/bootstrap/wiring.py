@@ -7,6 +7,7 @@ from persona_training_lab.application.agents.service import AgentsService
 from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.experiments.service import ExperimentsService
+from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.profiles.service import ProfilesService
@@ -16,6 +17,7 @@ from persona_training_lab.application.workflows.supervisor import WorkflowSuperv
 from persona_training_lab.config.app_settings import AppSettings
 from persona_training_lab.config.paths import build_workspace_paths, ensure_workspace_dirs
 from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactManager
+from persona_training_lab.infrastructure.local_model.probe_provider import FilesystemLocalModelProbeProvider
 from persona_training_lab.infrastructure.logging.structured import configure_logging
 from persona_training_lab.infrastructure.persistence.repositories.event_log import SQLiteEventLogRepository
 from persona_training_lab.infrastructure.persistence.repositories.agents import SQLiteAgentsRepository
@@ -96,6 +98,7 @@ def build_container() -> AppContainer:
     experiments_service = ExperimentsService(experiments_repo=experiments_repo)
     model_versions_service = ModelVersionsService(model_versions_repo=model_versions_repo)
     training_service = TrainingService(training_repo=training_repo)
+    local_model_service = LocalModelService(probe_provider=FilesystemLocalModelProbeProvider())
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)
@@ -107,6 +110,7 @@ def build_container() -> AppContainer:
     training_vm = TrainingViewModel(
         training_service=training_service,
         model_versions_service=model_versions_service,
+        local_model_service=local_model_service,
     )
     snapshots_vm = SnapshotsViewModel()
     tests_vm = TestsViewModel(experiments_service=experiments_service)
