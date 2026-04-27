@@ -97,8 +97,13 @@ def build_container() -> AppContainer:
     datasets_service = DatasetsService(datasets_repo=datasets_repo)
     experiments_service = ExperimentsService(experiments_repo=experiments_repo)
     model_versions_service = ModelVersionsService(model_versions_repo=model_versions_repo)
-    training_service = TrainingService(training_repo=training_repo)
     local_model_service = LocalModelService(probe_provider=FilesystemLocalModelProbeProvider())
+    training_service = TrainingService(
+        training_repo=training_repo,
+        profiles_service=profiles_service,
+        datasets_service=datasets_service,
+        local_model_service=local_model_service,
+    )
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)

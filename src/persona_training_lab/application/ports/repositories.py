@@ -38,6 +38,10 @@ class TrainingReadRepositoryPort(Protocol):
     def list_training_runs(self) -> list[dict[str, str]]: ...
 
 
+class TrainingWriteRepositoryPort(Protocol):
+    def create_training_run(self, payload: dict[str, str]) -> None: ...
+
+
 class AnalysisReadRepositoryPort(Protocol):
     def list_analysis_results(self) -> list[dict[str, str]]: ...
 
