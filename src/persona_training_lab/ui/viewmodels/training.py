@@ -4,7 +4,11 @@ from dataclasses import dataclass
 
 from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
-from persona_training_lab.application.training.service import TrainingService
+from persona_training_lab.application.training.service import (
+    TrainingConfigurationError,
+    TrainingService,
+    TrainingValidationError,
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -28,6 +32,19 @@ class PersonalityVersionView:
     note: str
 
 
+@dataclass(slots=True, frozen=True)
+class TrainingProfileChoice:
+    profile_id: str
+    title: str
+
+
+@dataclass(slots=True, frozen=True)
+class TrainingDatasetChoice:
+    dataset_id: str
+    title: str
+    status: str
+
+
 @dataclass(slots=True)
 class TrainingViewModel:
     training_service: TrainingService | None = None
@@ -49,7 +66,7 @@ class TrainingViewModel:
         TrainingMetric("Чекпоинты", "00", "Обучение пока не запускалось"),
     )
     checkpoints: tuple[CheckpointView, ...] = (
-        CheckpointView("Ожидание запуска", "Обучение пока не запускалось"),
+        CheckpointView("Чекпоинты и версии личности", "Чекпоинты и версии личности пока не созданы"),
     )
     personality_versions: tuple[PersonalityVersionView, ...] = (
         PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
@@ -71,11 +88,15 @@ class TrainingViewModel:
     local_model_status: str = "Модель не проверялась"
     local_model_note: str = "Проверка файлов модели выполняется по запросу."
     local_inference_status: str = ""
+    creation_message: str = ""
+    profile_choices: tuple[TrainingProfileChoice, ...] = ()
+    dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
         self._apply_model_versions_connector()
         self._sync_local_model_info()
+        self._sync_creation_choices()
 
     def _sync_local_model_info(self) -> None:
         if self.local_model_service is None:
@@ -108,6 +129,9 @@ class TrainingViewModel:
         if not runs:
             self.title = "Обучение"
             self.subtitle = "Обучение пока не запускалось"
+            self.checkpoints = (
+                CheckpointView("Чекпоинты и версии личности", "Чекпоинты и версии личности пока не созданы"),
+            )
             return
 
         current = runs[0]
@@ -171,6 +195,72 @@ class TrainingViewModel:
             )
             for item in versions
         )
+
+    def _sync_creation_choices(self) -> None:
+        if self.training_service is None:
+            self.profile_choices = ()
+            self.dataset_choices = ()
+            return
+
+        try:
+            profiles = self.training_service.list_profile_options()
+        except Exception:
+            profiles = []
+        try:
+            datasets = self.training_service.list_dataset_options()
+        except Exception:
+            datasets = []
+
+        self.profile_choices = tuple(
+            TrainingProfileChoice(profile_id=item.profile_id, title=item.title)
+            for item in profiles
+        )
+        self.dataset_choices = tuple(
+            TrainingDatasetChoice(dataset_id=item.dataset_id, title=item.title, status=item.status)
+            for item in datasets
+        )
+
+    def refresh(self) -> None:
+        self._apply_training_connector()
+        self._apply_model_versions_connector()
+        self._sync_local_model_info()
+        self._sync_creation_choices()
+
+    def create_training_run(
+        self,
+        *,
+        title: str,
+        profile_id: str,
+        dataset_id: str,
+        base_model: str,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+    ) -> tuple[bool, str]:
+        if self.training_service is None:
+            self.creation_message = "Не удалось создать запуск обучения"
+            return False, self.creation_message
+
+        try:
+            self.training_service.create_training_run(
+                title=title,
+                profile_id=profile_id,
+                dataset_id=dataset_id,
+                base_model=base_model,
+                epochs=epochs,
+                batch_size=batch_size,
+                learning_rate=learning_rate,
+            )
+        except (TrainingConfigurationError, TrainingValidationError) as exc:
+            self.creation_message = str(exc)
+            return False, self.creation_message
+        except Exception:
+            self.creation_message = "Не удалось создать запуск обучения"
+            return False, self.creation_message
+
+        self.creation_message = "Запуск обучения создан"
+        self.refresh()
+        return True, self.creation_message
 
     def check_local_model(self) -> None:
         self.local_model_status = "Проверка модели…"

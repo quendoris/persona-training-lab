@@ -33,6 +33,7 @@ from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
+from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
 
 
 class _PlaceholderScreen(QWidget):
@@ -79,6 +80,7 @@ class MainWindow(QMainWindow):
         snapshots_vm: SnapshotsViewModel,
         tests_vm: TestsViewModel,
         analysis_vm: AnalysisViewModel,
+        telemetry_vm: TelemetryViewModel,
     ) -> None:
         super().__init__()
         self._shell_vm = shell_vm
@@ -126,7 +128,7 @@ class MainWindow(QMainWindow):
         self._docks: dict[str, QDockWidget] = {}
         inspector = self._register_dock("Инспектор", InspectorPanel(), Qt.RightDockWidgetArea)
         activity = self._register_dock("Активность", ActivityPanel(), Qt.BottomDockWidgetArea)
-        telemetry = self._register_dock("Телеметрия", TelemetryPanel(), Qt.BottomDockWidgetArea)
+        telemetry = self._register_dock("Телеметрия", TelemetryPanel(telemetry_vm), Qt.BottomDockWidgetArea)
         issues = self._register_dock("Проблемы", IssuesPanel(), Qt.BottomDockWidgetArea)
         self.tabifyDockWidget(activity, telemetry)
         self.tabifyDockWidget(telemetry, issues)

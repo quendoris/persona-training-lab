@@ -1,7 +1,21 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QTextEdit, QVBoxLayout, QWidget, QScrollArea, QPushButton
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.metrics import RoundedMetricBar
@@ -23,11 +37,11 @@ class TrainingScreen(QWidget):
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(22, 20, 22, 20)
         header_layout.setSpacing(8)
-        title = QLabel(self._vm.title)
-        title.setObjectName("ScreenTitle")
-        subtitle = make_muted_label(self._vm.subtitle)
-        header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
+        self._title = QLabel(self._vm.title)
+        self._title.setObjectName("ScreenTitle")
+        self._subtitle = make_muted_label(self._vm.subtitle)
+        header_layout.addWidget(self._title)
+        header_layout.addWidget(self._subtitle)
         root.addWidget(header)
 
         actions = QFrame()
@@ -35,13 +49,18 @@ class TrainingScreen(QWidget):
         actions_layout = QHBoxLayout(actions)
         actions_layout.setContentsMargins(18, 16, 18, 16)
         actions_layout.setSpacing(12)
-        actions_layout.addWidget(make_status_label(self._vm.status))
+        self._status_label = make_status_label(self._vm.status)
+        actions_layout.addWidget(self._status_label)
         for text in ["Пауза", "Остановить", "Открыть логи"]:
             btn = QPushButton(text)
             btn.setObjectName("SecondaryButton")
             btn.setCursor(Qt.PointingHandCursor)
             btn.setMinimumHeight(34)
             actions_layout.addWidget(btn)
+        launch_placeholder = QPushButton("Запуск обучения будет подключён на следующем этапе")
+        launch_placeholder.setObjectName("SecondaryButton")
+        launch_placeholder.setEnabled(False)
+        actions_layout.addWidget(launch_placeholder)
         actions_layout.addStretch(1)
         root.addWidget(actions)
 
@@ -86,7 +105,7 @@ class TrainingScreen(QWidget):
         lower.setSpacing(16)
         left.addLayout(lower, 1)
 
-        checkpoints_card = PanelCard("Лента чекпоинтов", "История run, а не просто список файлов.")
+        checkpoints_card = PanelCard("Чекпоинты и версии личности", "Единая лента артефактов обучения.")
 
         cp_scroll = QScrollArea()
         cp_scroll.setWidgetResizable(True)
@@ -128,6 +147,7 @@ class TrainingScreen(QWidget):
         cp_layout.setContentsMargins(0, 0, 0, 0)
         cp_layout.setSpacing(10)
 
+        has_checkpoint_rows = False
         for item in self._vm.checkpoints:
             row = QFrame()
             row.setObjectName("AccentCard" if item.highlighted else "PanelCardSoft")
@@ -142,6 +162,34 @@ class TrainingScreen(QWidget):
             rl.addWidget(make_muted_label(item.note))
 
             cp_layout.addWidget(row)
+            has_checkpoint_rows = True
+
+        for version in self._vm.personality_versions:
+            row = QFrame()
+            row.setObjectName("PanelCardSoft")
+            rl = QVBoxLayout(row)
+            rl.setContentsMargins(12, 10, 12, 10)
+            rl.setSpacing(6)
+            title_row = QHBoxLayout()
+            title = QLabel(f"Версия личности · {version.title}")
+            title.setObjectName("CardTitle")
+            title_row.addWidget(title)
+            title_row.addStretch(1)
+            title_row.addWidget(make_status_label(version.status))
+            rl.addLayout(title_row)
+            rl.addWidget(make_muted_label(version.note))
+            cp_layout.addWidget(row)
+            has_checkpoint_rows = True
+
+        if not has_checkpoint_rows:
+            empty_row = QFrame()
+            empty_row.setObjectName("PanelCardSoft")
+            empty_layout = QVBoxLayout(empty_row)
+            empty_layout.setContentsMargins(12, 10, 12, 10)
+            empty_layout.setSpacing(4)
+            empty_layout.addWidget(QLabel("Чекпоинты и версии личности"))
+            empty_layout.addWidget(make_muted_label("Чекпоинты и версии личности пока не созданы"))
+            cp_layout.addWidget(empty_row)
 
         cp_layout.addStretch(1)
         cp_outer_layout.addWidget(cp_wrap)
@@ -151,41 +199,63 @@ class TrainingScreen(QWidget):
         lower.addWidget(checkpoints_card, 1)
 
         logs_card = PanelCard("Живые логи", "Технический хвост рядом, но не ломает основной фокус.")
-        log_box = QTextEdit()
-        log_box.setReadOnly(True)
-        log_box.setPlainText("\n".join(self._vm.logs))
-        logs_card.add_widget(log_box)
+        self._log_box = QTextEdit()
+        self._log_box.setReadOnly(True)
+        self._log_box.setPlainText("\n".join(self._vm.logs))
+        logs_card.add_widget(self._log_box)
         lower.addWidget(logs_card, 1)
 
         right = QVBoxLayout()
         right.setSpacing(16)
         body.addLayout(right, 2)
 
-        versions = PanelCard("Версии личности", "Артефакты обучения.")
-        versions_rows = QVBoxLayout()
-        versions_rows.setSpacing(10)
+        create_run = PanelCard("Новый запуск обучения", "Подготовка run без реального старта обучения.")
+        create_layout = QGridLayout()
+        create_layout.setHorizontalSpacing(8)
+        create_layout.setVerticalSpacing(8)
 
-        if self._vm.versions_status_message:
-            versions_rows.addWidget(make_muted_label(self._vm.versions_status_message))
+        self._run_name = QLineEdit()
+        self._run_name.setPlaceholderText("Название запуска")
+        self._profile_combo = QComboBox()
+        self._dataset_combo = QComboBox()
+        self._model_name = QLineEdit(self._vm.local_model_name)
+        self._epochs = QSpinBox()
+        self._epochs.setRange(1, 10000)
+        self._epochs.setValue(3)
+        self._batch_size = QSpinBox()
+        self._batch_size.setRange(1, 100000)
+        self._batch_size.setValue(4)
+        self._learning_rate = QDoubleSpinBox()
+        self._learning_rate.setDecimals(6)
+        self._learning_rate.setRange(0.000001, 1.0)
+        self._learning_rate.setSingleStep(0.0001)
+        self._learning_rate.setValue(0.0002)
 
-        for version in self._vm.personality_versions:
-            row = QFrame()
-            row.setObjectName("PanelCardSoft")
-            rl = QVBoxLayout(row)
-            rl.setContentsMargins(12, 10, 12, 10)
-            rl.setSpacing(6)
-            title_row = QHBoxLayout()
-            title = QLabel(version.title)
-            title.setObjectName("CardTitle")
-            title_row.addWidget(title)
-            title_row.addStretch(1)
-            title_row.addWidget(make_status_label(version.status))
-            rl.addLayout(title_row)
-            rl.addWidget(make_muted_label(version.note))
-            versions_rows.addWidget(row)
+        create_layout.addWidget(make_muted_label("Название запуска"), 0, 0)
+        create_layout.addWidget(self._run_name, 0, 1)
+        create_layout.addWidget(make_muted_label("Профиль"), 1, 0)
+        create_layout.addWidget(self._profile_combo, 1, 1)
+        create_layout.addWidget(make_muted_label("Датасет"), 2, 0)
+        create_layout.addWidget(self._dataset_combo, 2, 1)
+        create_layout.addWidget(make_muted_label("Модель"), 3, 0)
+        create_layout.addWidget(self._model_name, 3, 1)
+        create_layout.addWidget(make_muted_label("Эпохи"), 4, 0)
+        create_layout.addWidget(self._epochs, 4, 1)
+        create_layout.addWidget(make_muted_label("Batch size"), 5, 0)
+        create_layout.addWidget(self._batch_size, 5, 1)
+        create_layout.addWidget(make_muted_label("Learning rate"), 6, 0)
+        create_layout.addWidget(self._learning_rate, 6, 1)
 
-        versions._layout.addLayout(versions_rows)
-        right.addWidget(versions)
+        self._create_run_btn = QPushButton("Создать запуск")
+        self._create_run_btn.setObjectName("SecondaryButton")
+        self._create_run_btn.clicked.connect(self._on_create_run)
+        create_layout.addWidget(self._create_run_btn, 7, 0, 1, 2)
+
+        self._create_message = make_muted_label(self._vm.creation_message)
+        create_layout.addWidget(self._create_message, 8, 0, 1, 2)
+        self._populate_training_inputs()
+        create_run._layout.addLayout(create_layout)
+        right.addWidget(create_run)
 
         local_model = PanelCard("Локальная модель", "Проверка наличия локальной модели без загрузки в память.")
         local_rows = QVBoxLayout()
@@ -237,8 +307,6 @@ class TrainingScreen(QWidget):
         local_model._layout.addLayout(local_rows)
         right.addWidget(local_model)
 
-        risk = PanelCard(self._vm.risk_title, self._vm.risk_body)
-        right.addWidget(risk)
         right.addStretch(1)
 
     def _on_check_local_model(self) -> None:
@@ -253,3 +321,50 @@ class TrainingScreen(QWidget):
         self._local_model_status.setText(self._vm.local_model_status)
         self._local_model_note.setText(self._vm.local_model_note)
         self._local_inference_note.setText(self._vm.local_inference_status)
+
+    def _populate_training_inputs(self) -> None:
+        selected_profile_id = str(self._profile_combo.currentData() or "")
+        self._profile_combo.clear()
+        for profile in self._vm.profile_choices:
+            self._profile_combo.addItem(profile.title, profile.profile_id)
+        if self._profile_combo.count() > 0:
+            selected_index = self._profile_combo.findData(selected_profile_id)
+            self._profile_combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+
+        selected_dataset_id = str(self._dataset_combo.currentData() or "")
+        self._dataset_combo.clear()
+        for dataset in self._vm.dataset_choices:
+            label = f"{dataset.title} ({dataset.status})"
+            self._dataset_combo.addItem(label, dataset.dataset_id)
+        if self._dataset_combo.count() > 0:
+            selected_dataset_index = self._dataset_combo.findData(selected_dataset_id)
+            self._dataset_combo.setCurrentIndex(selected_dataset_index if selected_dataset_index >= 0 else 0)
+
+        if self._profile_combo.count() == 0:
+            self._create_run_btn.setEnabled(False)
+            self._create_message.setText("Сначала создайте профиль личности")
+        else:
+            self._create_run_btn.setEnabled(True)
+            self._create_message.setText(self._vm.creation_message)
+
+    def _on_create_run(self) -> None:
+        success, message = self._vm.create_training_run(
+            title=self._run_name.text(),
+            profile_id=str(self._profile_combo.currentData() or ""),
+            dataset_id=str(self._dataset_combo.currentData() or ""),
+            base_model=self._model_name.text(),
+            epochs=self._epochs.value(),
+            batch_size=self._batch_size.value(),
+            learning_rate=float(self._learning_rate.value()),
+        )
+        self._create_message.setText(message)
+        if success:
+            self._run_name.clear()
+            self._populate_training_inputs()
+            self._refresh_training_overview()
+
+    def _refresh_training_overview(self) -> None:
+        self._title.setText(self._vm.title)
+        self._subtitle.setText(self._vm.subtitle)
+        self._status_label.setText(self._vm.status)
+        self._log_box.setPlainText("\n".join(self._vm.logs))

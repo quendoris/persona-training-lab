@@ -32,3 +32,30 @@ class SQLiteTrainingRepository:
             }
             for row in rows
         ]
+
+    def create_training_run(self, payload: dict[str, str]) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO training_runs (
+                id, title, subtitle, status, base_model, profile, dataset_version,
+                mode, epoch_progress, loss, speed, checkpoints_count, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.get("id", ""),
+                payload.get("title", ""),
+                payload.get("subtitle", ""),
+                payload.get("status", ""),
+                payload.get("base_model", ""),
+                payload.get("profile", ""),
+                payload.get("dataset_version", ""),
+                payload.get("mode", ""),
+                payload.get("epoch_progress", ""),
+                payload.get("loss", ""),
+                payload.get("speed", ""),
+                payload.get("checkpoints_count", "00"),
+                payload.get("updated_at", ""),
+            ),
+        )
+        self._connection.commit()

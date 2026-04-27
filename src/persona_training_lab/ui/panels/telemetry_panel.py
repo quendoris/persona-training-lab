@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
 
 @dataclass(slots=True, frozen=True)
@@ -12,6 +14,7 @@ class TelemetryItem:
     full_label: str
     value: int
     tooltip: str
+    value_text: str
 
 
 class _VerticalMetric(QFrame):
@@ -20,7 +23,7 @@ class _VerticalMetric(QFrame):
         self.setToolTip(item.tooltip)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
 
         track = QFrame()
         track.setObjectName("TelemetryBarTrack")
@@ -28,7 +31,7 @@ class _VerticalMetric(QFrame):
 
         fill = QFrame(track)
         fill.setObjectName("TelemetryBarFill")
-        height = max(28, int(86 * item.value / 100))
+        height = max(8, int(86 * item.value / 100))
         fill.setGeometry(0, 86 - height, 28, height)
         fill.show()
 
@@ -39,6 +42,11 @@ class _VerticalMetric(QFrame):
         caption.setMinimumWidth(42)
         caption.setFixedHeight(24)
         layout.addWidget(caption, 0, Qt.AlignHCenter)
+
+        value_label = QLabel(item.value_text)
+        value_label.setObjectName("TelemetryCaption")
+        value_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(value_label)
 
 
 class _HorizontalMetric(QFrame):
@@ -64,44 +72,59 @@ class _HorizontalMetric(QFrame):
 
         fill = QFrame(track)
         fill.setObjectName("TelemetryBarFill")
-        width = max(28, int(184 * item.value / 100))
+        width = max(8, int(184 * item.value / 100))
         fill.setGeometry(0, 0, width, 28)
         fill.show()
 
         layout.addWidget(track)
-        value_label = QLabel(f"{item.value}%")
+        value_label = QLabel(item.value_text)
         value_label.setObjectName("TelemetryCaption")
         layout.addWidget(value_label)
         layout.addStretch(1)
 
 
 class TelemetryPanel(QFrame):
-    def __init__(self) -> None:
+    def __init__(self, view_model: TelemetryViewModel) -> None:
         super().__init__()
         self.setObjectName("PanelCard")
-        self._items = [
-            TelemetryItem("CPU", "CPU", 0, "Источник не подключён"),
-            TelemetryItem("RAM", "RAM", 0, "Источник не подключён"),
-            TelemetryItem("GPU", "GPU", 0, "Источник не подключён"),
-            TelemetryItem("VRAM", "VRAM", 0, "Источник не подключён"),
-            TelemetryItem("Temp", "Темп", 0, "Источник не подключён"),
-            TelemetryItem("Proc", "Проц", 0, "Источник не подключён"),
-        ]
+        self._vm = view_model
+        self._items = self._to_items(self._vm.metric_items())
         self._mode: str | None = None
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(14, 14, 14, 14)
         self._root.setSpacing(10)
 
-        self._title = QLabel("Телеметрия")
-        self._subtitle = QLabel("Данные телеметрии пока недоступны.")
+        title_row = QHBoxLayout()
+        self._title = QLabel(self._vm.status_title)
+        title_row.addWidget(self._title)
+        title_row.addStretch(1)
+        refresh_btn = QPushButton("Обновить")
+        refresh_btn.setObjectName("SecondaryButton")
+        refresh_btn.clicked.connect(self._on_refresh)
+        title_row.addWidget(refresh_btn)
+        self._root.addLayout(title_row)
+
+        self._subtitle = QLabel(self._vm.status_subtitle)
         self._subtitle.setObjectName("MutedText")
-        self._root.addWidget(self._title)
         self._root.addWidget(self._subtitle)
+
+        self._error = QLabel(self._vm.status_error)
+        self._error.setObjectName("MutedText")
+        self._root.addWidget(self._error)
+
+        self._cores = QLabel(self._vm.cpu_cores_text)
+        self._cores.setObjectName("MutedText")
+        self._root.addWidget(self._cores)
 
         self._content = QWidget()
         self._content.setProperty("transparentBg", True)
         self._root.addWidget(self._content, 1)
+
+        self._processes = QVBoxLayout()
+        self._processes.setSpacing(6)
+        self._root.addLayout(self._processes)
+        self._refresh_processes()
         self._rebuild("bottom")
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
@@ -109,6 +132,41 @@ class TelemetryPanel(QFrame):
         desired = "side" if self.width() < max(460, self.height() * 0.72) else "bottom"
         if desired != self._mode:
             self._rebuild(desired)
+
+    def _to_items(self, metrics: tuple[TelemetryMetricView, ...]) -> list[TelemetryItem]:
+        return [
+            TelemetryItem(
+                short_label=item.short_label,
+                full_label=item.full_label,
+                value=max(0, min(100, item.value_percent)),
+                tooltip=item.tooltip,
+                value_text=item.value_text,
+            )
+            for item in metrics
+        ]
+
+    def _on_refresh(self) -> None:
+        self._vm.refresh()
+        self._title.setText(self._vm.status_title)
+        self._subtitle.setText(self._vm.status_subtitle)
+        self._error.setText(self._vm.status_error)
+        self._cores.setText(self._vm.cpu_cores_text)
+        self._items = self._to_items(self._vm.metric_items())
+        self._refresh_processes()
+        self._rebuild(self._mode or "bottom")
+
+    def _refresh_processes(self) -> None:
+        while self._processes.count():
+            item = self._processes.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        header = QLabel("Процессы")
+        header.setObjectName("TelemetryChip")
+        self._processes.addWidget(header)
+        for row in self._vm.processes_rows:
+            self._processes.addWidget(QLabel(row))
 
     def _rebuild(self, mode: str) -> None:
         self._mode = mode
@@ -122,7 +180,6 @@ class TelemetryPanel(QFrame):
             old_layout.deleteLater()
 
         if mode == "side":
-            self._subtitle.setText("Данные телеметрии пока недоступны.")
             outer = QVBoxLayout(self._content)
             outer.setContentsMargins(0, 4, 0, 0)
             outer.setSpacing(8)
@@ -134,7 +191,6 @@ class TelemetryPanel(QFrame):
                 layout.addWidget(_HorizontalMetric(item))
             outer.addWidget(center, 0, Qt.AlignTop)
         else:
-            self._subtitle.setText("Данные телеметрии пока недоступны.")
             outer = QVBoxLayout(self._content)
             outer.setContentsMargins(0, 4, 0, 0)
             outer.setSpacing(8)

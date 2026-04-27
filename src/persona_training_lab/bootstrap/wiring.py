@@ -12,6 +12,7 @@ from persona_training_lab.application.model_versions.service import ModelVersion
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.profiles.service import ProfilesService
 from persona_training_lab.application.style.service import StylePreferencesService
+from persona_training_lab.application.telemetry.service import SystemTelemetryService
 from persona_training_lab.application.training.service import TrainingService
 from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
 from persona_training_lab.config.app_settings import AppSettings
@@ -19,6 +20,7 @@ from persona_training_lab.config.paths import build_workspace_paths, ensure_work
 from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactManager
 from persona_training_lab.infrastructure.local_model.probe_provider import FilesystemLocalModelProbeProvider
 from persona_training_lab.infrastructure.logging.structured import configure_logging
+from persona_training_lab.infrastructure.telemetry.collector import NvidiaSmiTelemetryProvider, PsutilTelemetryProvider
 from persona_training_lab.infrastructure.persistence.repositories.event_log import SQLiteEventLogRepository
 from persona_training_lab.infrastructure.persistence.repositories.agents import SQLiteAgentsRepository
 from persona_training_lab.infrastructure.persistence.repositories.analysis import SQLiteAnalysisRepository
@@ -44,6 +46,7 @@ from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
+from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
 
 
 @dataclass(slots=True)
@@ -60,6 +63,7 @@ class AppContainer:
     snapshots_vm: SnapshotsViewModel
     tests_vm: TestsViewModel
     analysis_vm: AnalysisViewModel
+    telemetry_vm: TelemetryViewModel
 
 
 def build_container() -> AppContainer:
@@ -97,8 +101,17 @@ def build_container() -> AppContainer:
     datasets_service = DatasetsService(datasets_repo=datasets_repo)
     experiments_service = ExperimentsService(experiments_repo=experiments_repo)
     model_versions_service = ModelVersionsService(model_versions_repo=model_versions_repo)
-    training_service = TrainingService(training_repo=training_repo)
     local_model_service = LocalModelService(probe_provider=FilesystemLocalModelProbeProvider())
+    training_service = TrainingService(
+        training_repo=training_repo,
+        profiles_service=profiles_service,
+        datasets_service=datasets_service,
+        local_model_service=local_model_service,
+    )
+    telemetry_service = SystemTelemetryService(
+        system_provider=PsutilTelemetryProvider(),
+        gpu_provider=NvidiaSmiTelemetryProvider(),
+    )
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)
@@ -115,6 +128,7 @@ def build_container() -> AppContainer:
     snapshots_vm = SnapshotsViewModel()
     tests_vm = TestsViewModel(experiments_service=experiments_service)
     analysis_vm = AnalysisViewModel(analysis_service=analysis_service)
+    telemetry_vm = TelemetryViewModel(telemetry_service=telemetry_service)
 
     return AppContainer(
         settings=settings,
@@ -129,4 +143,5 @@ def build_container() -> AppContainer:
         snapshots_vm=snapshots_vm,
         tests_vm=tests_vm,
         analysis_vm=analysis_vm,
+        telemetry_vm=telemetry_vm,
     )

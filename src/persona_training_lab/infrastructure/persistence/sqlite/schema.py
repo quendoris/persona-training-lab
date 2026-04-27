@@ -42,7 +42,13 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             subtitle TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            communication_style TEXT NOT NULL DEFAULT '',
+            principles TEXT NOT NULL DEFAULT '',
+            constraints TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL
         );
 
@@ -165,8 +171,27 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
         ON model_versions(updated_at DESC);
         """
     )
+    _ensure_profile_columns(connection)
     _ensure_dataset_columns(connection)
     connection.commit()
+
+
+def _ensure_profile_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(persona_profiles)").fetchall()
+    }
+    additions = [
+        ("description", "TEXT NOT NULL DEFAULT ''"),
+        ("communication_style", "TEXT NOT NULL DEFAULT ''"),
+        ("principles", "TEXT NOT NULL DEFAULT ''"),
+        ("constraints", "TEXT NOT NULL DEFAULT ''"),
+        ("notes", "TEXT NOT NULL DEFAULT ''"),
+        ("created_at", "TEXT NOT NULL DEFAULT ''"),
+    ]
+    for name, definition in additions:
+        if name not in columns:
+            connection.execute(f"ALTER TABLE persona_profiles ADD COLUMN {name} {definition}")
 
 
 def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:

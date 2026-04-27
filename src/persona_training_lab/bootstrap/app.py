@@ -27,6 +27,7 @@ def main() -> int:
         snapshots_vm=container.snapshots_vm,
         tests_vm=container.tests_vm,
         analysis_vm=container.analysis_vm,
+        telemetry_vm=container.telemetry_vm,
     )
     window.show()
     return app.exec()
