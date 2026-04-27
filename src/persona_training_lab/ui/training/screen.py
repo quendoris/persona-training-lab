@@ -204,6 +204,56 @@ class TrainingScreen(QWidget):
         versions._layout.addLayout(versions_rows)
         right.addWidget(versions)
 
+        local_model = PanelCard("Локальная модель", "Проверка наличия локальной модели без загрузки в память.")
+        local_rows = QVBoxLayout()
+        local_rows.setSpacing(10)
+
+        model_row = QFrame()
+        model_row.setObjectName("PanelCardSoft")
+        model_layout = QHBoxLayout(model_row)
+        model_layout.setContentsMargins(12, 10, 12, 10)
+        model_layout.setSpacing(10)
+        model_layout.addWidget(make_muted_label("Модель"))
+        model_layout.addStretch(1)
+        model_layout.addWidget(QLabel(self._vm.local_model_name), 0, Qt.AlignRight)
+        local_rows.addWidget(model_row)
+
+        path_row = QFrame()
+        path_row.setObjectName("PanelCardSoft")
+        path_layout = QHBoxLayout(path_row)
+        path_layout.setContentsMargins(12, 10, 12, 10)
+        path_layout.setSpacing(10)
+        path_layout.addWidget(make_muted_label("Путь"))
+        path_layout.addStretch(1)
+        path_layout.addWidget(QLabel(self._vm.local_model_path), 0, Qt.AlignRight)
+        local_rows.addWidget(path_row)
+
+        self._local_model_status = make_status_label(self._vm.local_model_status)
+        local_rows.addWidget(self._local_model_status)
+
+        self._local_model_note = make_muted_label(self._vm.local_model_note)
+        local_rows.addWidget(self._local_model_note)
+
+        controls = QHBoxLayout()
+        controls.setSpacing(10)
+        self._check_model_btn = QPushButton("Проверить модель")
+        self._check_model_btn.setObjectName("SecondaryButton")
+        self._check_model_btn.clicked.connect(self._on_check_local_model)
+        controls.addWidget(self._check_model_btn)
+
+        self._test_inference_btn = QPushButton("Тестовый ответ")
+        self._test_inference_btn.setObjectName("SecondaryButton")
+        self._test_inference_btn.clicked.connect(self._on_test_inference)
+        controls.addWidget(self._test_inference_btn)
+        controls.addStretch(1)
+        local_rows.addLayout(controls)
+
+        self._local_inference_note = make_muted_label(self._vm.local_inference_status)
+        local_rows.addWidget(self._local_inference_note)
+
+        local_model._layout.addLayout(local_rows)
+        right.addWidget(local_model)
+
         monitor = PanelCard("Мониторинг железа", "Цифры должны помогать, а не давить.")
         monitor_rows = QVBoxLayout()
         monitor_rows.setSpacing(12)
@@ -228,3 +278,16 @@ class TrainingScreen(QWidget):
         next_card = PanelCard("Следующий лучший шаг", self._vm.next_step)
         right.addWidget(next_card)
         right.addStretch(1)
+
+    def _on_check_local_model(self) -> None:
+        self._vm.check_local_model()
+        self._refresh_local_model_block()
+
+    def _on_test_inference(self) -> None:
+        self._vm.test_local_inference()
+        self._refresh_local_model_block()
+
+    def _refresh_local_model_block(self) -> None:
+        self._local_model_status.setText(self._vm.local_model_status)
+        self._local_model_note.setText(self._vm.local_model_note)
+        self._local_inference_note.setText(self._vm.local_inference_status)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.training.service import TrainingService
 
@@ -31,6 +32,7 @@ class PersonalityVersionView:
 class TrainingViewModel:
     training_service: TrainingService | None = None
     model_versions_service: ModelVersionsService | None = None
+    local_model_service: LocalModelService | None = None
     title: str = "Обучение"
     subtitle: str = "Обучение пока не запускалось"
     status: str = "ожидание"
@@ -64,10 +66,22 @@ class TrainingViewModel:
     risk_title: str = "Статус"
     risk_body: str = "Обучение пока не запускалось"
     next_step: str = "Выберите профиль и датасет, затем запустите обучение."
+    local_model_name: str = "Qwen3.5-0.8B"
+    local_model_path: str = "models/qwen3.5-0.8b"
+    local_model_status: str = "Модель не проверялась"
+    local_model_note: str = "Проверка файлов модели выполняется по запросу."
+    local_inference_status: str = ""
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
         self._apply_model_versions_connector()
+        self._sync_local_model_info()
+
+    def _sync_local_model_info(self) -> None:
+        if self.local_model_service is None:
+            return
+        self.local_model_name = self.local_model_service.model_name
+        self.local_model_path = self.local_model_service.model_path
 
     def _apply_training_connector(self) -> None:
         if self.training_service is None:
@@ -157,3 +171,31 @@ class TrainingViewModel:
             )
             for item in versions
         )
+
+    def check_local_model(self) -> None:
+        self.local_model_status = "Проверка модели…"
+        self.local_model_note = "Идёт проверка структуры файлов."
+        self.local_inference_status = ""
+
+        if self.local_model_service is None:
+            self.local_model_status = "Не удалось проверить модель"
+            self.local_model_note = "Сервис локальной модели не подключён."
+            return
+
+        try:
+            result = self.local_model_service.probe_model_files()
+            self.local_model_status = result.status
+            self.local_model_note = result.details
+        except Exception:
+            self.local_model_status = "Не удалось проверить модель"
+            self.local_model_note = "Проверьте путь и права доступа к файлам модели."
+
+    def test_local_inference(self) -> None:
+        if self.local_model_service is None:
+            self.local_inference_status = "Inference backend пока не подключён"
+            return
+        try:
+            result = self.local_model_service.probe_inference_backend()
+            self.local_inference_status = result.message
+        except Exception:
+            self.local_inference_status = "Inference backend пока не подключён"
