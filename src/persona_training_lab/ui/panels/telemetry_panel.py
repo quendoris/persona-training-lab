@@ -52,7 +52,8 @@ class _BarTrack(QWidget):
 
         rect = self.rect().adjusted(1, 1, -1, -1)
         radius = min(rect.width(), rect.height()) / 2.0
-        track_color = self.palette().color(QPalette.ColorRole.Base).lighter(118)
+        track_color = self.palette().color(QPalette.ColorRole.Midlight)
+        track_color.setAlpha(140)
         fill_color = self.palette().color(QPalette.ColorRole.Highlight)
         painter.setPen(Qt.NoPen)
         painter.setBrush(track_color)
@@ -173,6 +174,7 @@ class TelemetryPanel(QFrame):
         self._root.addLayout(top_row)
 
         self._splitter = QSplitter(Qt.Horizontal)
+        self._splitter.setProperty("transparentBg", True)
         self._splitter.setChildrenCollapsible(False)
         self._splitter.setHandleWidth(6)
         self._root.addWidget(self._splitter, 1)
@@ -217,6 +219,7 @@ class TelemetryPanel(QFrame):
         self._processes_layout = QVBoxLayout(self._processes_container)
         self._processes_layout.setContentsMargins(0, 0, 0, 0)
         self._processes_layout.setSpacing(4)
+        self._processes_layout.setAlignment(Qt.AlignTop)
         self._processes_scroll.setWidget(self._processes_container)
         self._processes_container.setProperty("transparentBg", True)
         self._processes_scroll.viewport().setStyleSheet("background: transparent;")
@@ -226,7 +229,7 @@ class TelemetryPanel(QFrame):
 
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([450, 590])
+        self._splitter.setSizes([500, 560])
 
         self._bind_dock_state()
         self._apply_size_policy()
@@ -338,7 +341,7 @@ class TelemetryPanel(QFrame):
                 self._metric_widgets.append(widget)
                 outer.addWidget(widget)
             outer.addStretch(1)
-            self._splitter.setSizes([420, 600])
+            self._splitter.setSizes([470, 560])
             return
 
         row = QWidget()
@@ -352,7 +355,7 @@ class TelemetryPanel(QFrame):
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
-        self._splitter.setSizes([450, 590])
+        self._splitter.setSizes([500, 560])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
