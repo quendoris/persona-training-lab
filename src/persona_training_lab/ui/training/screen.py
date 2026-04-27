@@ -178,6 +178,32 @@ class TrainingScreen(QWidget):
         inspector._layout.addLayout(rows)
         right.addWidget(inspector)
 
+        versions = PanelCard("Версии личности", "Артефакты обучения и готовность версий после запуска.")
+        versions_rows = QVBoxLayout()
+        versions_rows.setSpacing(10)
+
+        if self._vm.versions_status_message:
+            versions_rows.addWidget(make_muted_label(self._vm.versions_status_message))
+
+        for version in self._vm.personality_versions:
+            row = QFrame()
+            row.setObjectName("PanelCardSoft")
+            rl = QVBoxLayout(row)
+            rl.setContentsMargins(12, 10, 12, 10)
+            rl.setSpacing(6)
+            title_row = QHBoxLayout()
+            title = QLabel(version.title)
+            title.setObjectName("CardTitle")
+            title_row.addWidget(title)
+            title_row.addStretch(1)
+            title_row.addWidget(make_status_label(version.status))
+            rl.addLayout(title_row)
+            rl.addWidget(make_muted_label(version.note))
+            versions_rows.addWidget(row)
+
+        versions._layout.addLayout(versions_rows)
+        right.addWidget(versions)
+
         monitor = PanelCard("Мониторинг железа", "Цифры должны помогать, а не давить.")
         monitor_rows = QVBoxLayout()
         monitor_rows.setSpacing(12)
