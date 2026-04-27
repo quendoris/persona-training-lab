@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QDateTime, Qt
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPalette
+from PySide6.QtGui import QPainter, QPaintEvent, QPalette
 from PySide6.QtWidgets import (
     QDockWidget,
     QFrame,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSplitter,
     QVBoxLayout,
+    QSizePolicy,
     QWidget,
 )
 
@@ -54,7 +55,10 @@ class _BarTrack(QWidget):
         radius = min(rect.width(), rect.height()) / 2.0
         track_color = self.palette().color(QPalette.ColorRole.Midlight)
         track_color.setAlpha(140)
-        fill_color = self.palette().color(QPalette.ColorRole.Highlight)
+        accent_role = getattr(QPalette.ColorRole, "Accent", QPalette.ColorRole.Highlight)
+        fill_color = self.palette().color(accent_role)
+        if not fill_color.isValid():
+            fill_color = self.palette().color(QPalette.ColorRole.Highlight)
         painter.setPen(Qt.NoPen)
         painter.setBrush(track_color)
         painter.drawRoundedRect(rect, radius, radius)
@@ -175,13 +179,14 @@ class TelemetryPanel(QFrame):
 
         self._splitter = QSplitter(Qt.Horizontal)
         self._splitter.setProperty("transparentBg", True)
+        self._splitter.setStyleSheet("QSplitter { background: transparent; border: none; } QSplitter::handle { background: transparent; }")
         self._splitter.setChildrenCollapsible(False)
         self._splitter.setHandleWidth(6)
         self._root.addWidget(self._splitter, 1)
 
         self._left_shell = QFrame()
         self._left_shell.setProperty("transparentBg", True)
-        self._left_shell.setMinimumWidth(230)
+        self._left_shell.setMinimumWidth(220)
         left_shell_layout = QVBoxLayout(self._left_shell)
         left_shell_layout.setContentsMargins(10, 6, 8, 6)
         left_shell_layout.setSpacing(2)
@@ -193,7 +198,7 @@ class TelemetryPanel(QFrame):
 
         self._right_shell = QFrame()
         self._right_shell.setProperty("transparentBg", True)
-        self._right_shell.setMinimumWidth(270)
+        self._right_shell.setMinimumWidth(300)
         self._right_shell.setMaximumWidth(660)
         right_shell_layout = QVBoxLayout(self._right_shell)
         right_shell_layout.setContentsMargins(8, 4, 8, 4)
@@ -210,7 +215,6 @@ class TelemetryPanel(QFrame):
         self._processes_scroll.setFrameShape(QFrame.NoFrame)
         self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._processes_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._processes_scroll.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._processes_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self._processes_scroll.setMinimumHeight(104)
         self._processes_scroll.setMaximumHeight(148)
@@ -220,7 +224,10 @@ class TelemetryPanel(QFrame):
         self._processes_layout.setContentsMargins(0, 0, 0, 0)
         self._processes_layout.setSpacing(4)
         self._processes_layout.setAlignment(Qt.AlignTop)
+        self._processes_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
+        self._processes_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self._processes_scroll.setWidget(self._processes_container)
+        self._processes_scroll.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._processes_container.setProperty("transparentBg", True)
         self._processes_scroll.viewport().setStyleSheet("background: transparent;")
         processes_card_layout.addWidget(self._processes_scroll, 1)
@@ -229,7 +236,7 @@ class TelemetryPanel(QFrame):
 
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([500, 560])
+        self._splitter.setSizes([460, 620])
 
         self._bind_dock_state()
         self._apply_size_policy()
@@ -238,7 +245,9 @@ class TelemetryPanel(QFrame):
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        desired = "side" if self.width() < 680 else "bottom"
+        floating = bool(self._dock_ref and self._dock_ref.isFloating())
+        side_threshold = 560 if floating else 680
+        desired = "side" if self.width() < side_threshold else "bottom"
         if desired != self._mode:
             self._rebuild(desired)
 
@@ -266,11 +275,11 @@ class TelemetryPanel(QFrame):
         is_floating = bool(self._dock_ref and self._dock_ref.isFloating())
         if is_floating:
             self._left_shell.setMinimumWidth(260)
-            self._right_shell.setMinimumWidth(300)
-            self.setMinimumWidth(740)
+            self._right_shell.setMinimumWidth(340)
+            self.setMinimumWidth(760)
         else:
-            self._left_shell.setMinimumWidth(170)
-            self._right_shell.setMinimumWidth(220)
+            self._left_shell.setMinimumWidth(140)
+            self._right_shell.setMinimumWidth(210)
             self.setMinimumWidth(0)
         if self._mode is not None:
             self._rebuild(self._mode)
@@ -336,15 +345,17 @@ class TelemetryPanel(QFrame):
         outer.setSpacing(6)
 
         if mode == "side":
+            outer.addStretch(1)
             for item in items:
                 widget = _HorizontalMetric(item)
                 self._metric_widgets.append(widget)
-                outer.addWidget(widget)
+                outer.addWidget(widget, 0, Qt.AlignHCenter)
             outer.addStretch(1)
-            self._splitter.setSizes([470, 560])
+            self._splitter.setSizes([430, 610])
             return
 
         row = QWidget()
+        row.setProperty("transparentBg", True)
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
@@ -355,7 +366,7 @@ class TelemetryPanel(QFrame):
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
-        self._splitter.setSizes([500, 560])
+        self._splitter.setSizes([460, 620])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
