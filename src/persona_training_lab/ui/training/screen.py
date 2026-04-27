@@ -105,7 +105,7 @@ class TrainingScreen(QWidget):
         lower.setSpacing(16)
         left.addLayout(lower, 1)
 
-        checkpoints_card = PanelCard("Лента чекпоинтов", "История run, а не просто список файлов.")
+        checkpoints_card = PanelCard("Чекпоинты и версии личности", "Единая лента артефактов обучения.")
 
         cp_scroll = QScrollArea()
         cp_scroll.setWidgetResizable(True)
@@ -147,6 +147,7 @@ class TrainingScreen(QWidget):
         cp_layout.setContentsMargins(0, 0, 0, 0)
         cp_layout.setSpacing(10)
 
+        has_checkpoint_rows = False
         for item in self._vm.checkpoints:
             row = QFrame()
             row.setObjectName("AccentCard" if item.highlighted else "PanelCardSoft")
@@ -161,6 +162,34 @@ class TrainingScreen(QWidget):
             rl.addWidget(make_muted_label(item.note))
 
             cp_layout.addWidget(row)
+            has_checkpoint_rows = True
+
+        for version in self._vm.personality_versions:
+            row = QFrame()
+            row.setObjectName("PanelCardSoft")
+            rl = QVBoxLayout(row)
+            rl.setContentsMargins(12, 10, 12, 10)
+            rl.setSpacing(6)
+            title_row = QHBoxLayout()
+            title = QLabel(f"Версия личности · {version.title}")
+            title.setObjectName("CardTitle")
+            title_row.addWidget(title)
+            title_row.addStretch(1)
+            title_row.addWidget(make_status_label(version.status))
+            rl.addLayout(title_row)
+            rl.addWidget(make_muted_label(version.note))
+            cp_layout.addWidget(row)
+            has_checkpoint_rows = True
+
+        if not has_checkpoint_rows:
+            empty_row = QFrame()
+            empty_row.setObjectName("PanelCardSoft")
+            empty_layout = QVBoxLayout(empty_row)
+            empty_layout.setContentsMargins(12, 10, 12, 10)
+            empty_layout.setSpacing(4)
+            empty_layout.addWidget(QLabel("Чекпоинты и версии личности"))
+            empty_layout.addWidget(make_muted_label("Чекпоинты и версии личности пока не созданы"))
+            cp_layout.addWidget(empty_row)
 
         cp_layout.addStretch(1)
         cp_outer_layout.addWidget(cp_wrap)
@@ -201,7 +230,6 @@ class TrainingScreen(QWidget):
         self._learning_rate.setRange(0.000001, 1.0)
         self._learning_rate.setSingleStep(0.0001)
         self._learning_rate.setValue(0.0002)
-        self._populate_training_inputs()
 
         create_layout.addWidget(make_muted_label("Название запуска"), 0, 0)
         create_layout.addWidget(self._run_name, 0, 1)
@@ -225,34 +253,9 @@ class TrainingScreen(QWidget):
 
         self._create_message = make_muted_label(self._vm.creation_message)
         create_layout.addWidget(self._create_message, 8, 0, 1, 2)
+        self._populate_training_inputs()
         create_run._layout.addLayout(create_layout)
         right.addWidget(create_run)
-
-        versions = PanelCard("Версии личности", "Артефакты обучения.")
-        versions_rows = QVBoxLayout()
-        versions_rows.setSpacing(10)
-
-        if self._vm.versions_status_message:
-            versions_rows.addWidget(make_muted_label(self._vm.versions_status_message))
-
-        for version in self._vm.personality_versions:
-            row = QFrame()
-            row.setObjectName("PanelCardSoft")
-            rl = QVBoxLayout(row)
-            rl.setContentsMargins(12, 10, 12, 10)
-            rl.setSpacing(6)
-            title_row = QHBoxLayout()
-            title = QLabel(version.title)
-            title.setObjectName("CardTitle")
-            title_row.addWidget(title)
-            title_row.addStretch(1)
-            title_row.addWidget(make_status_label(version.status))
-            rl.addLayout(title_row)
-            rl.addWidget(make_muted_label(version.note))
-            versions_rows.addWidget(row)
-
-        versions._layout.addLayout(versions_rows)
-        right.addWidget(versions)
 
         local_model = PanelCard("Локальная модель", "Проверка наличия локальной модели без загрузки в память.")
         local_rows = QVBoxLayout()
@@ -304,8 +307,6 @@ class TrainingScreen(QWidget):
         local_model._layout.addLayout(local_rows)
         right.addWidget(local_model)
 
-        risk = PanelCard(self._vm.risk_title, self._vm.risk_body)
-        right.addWidget(risk)
         right.addStretch(1)
 
     def _on_check_local_model(self) -> None:
@@ -330,6 +331,12 @@ class TrainingScreen(QWidget):
         for dataset in self._vm.dataset_choices:
             label = f"{dataset.title} ({dataset.status})"
             self._dataset_combo.addItem(label, dataset.dataset_id)
+
+        if self._profile_combo.count() == 0:
+            self._create_run_btn.setEnabled(False)
+            self._create_message.setText("Сначала создайте профиль личности")
+        else:
+            self._create_run_btn.setEnabled(True)
 
     def _on_create_run(self) -> None:
         success, message = self._vm.create_training_run(

@@ -66,7 +66,7 @@ class TrainingViewModel:
         TrainingMetric("Чекпоинты", "00", "Обучение пока не запускалось"),
     )
     checkpoints: tuple[CheckpointView, ...] = (
-        CheckpointView("Ожидание запуска", "Обучение пока не запускалось"),
+        CheckpointView("Чекпоинты и версии личности", "Чекпоинты и версии личности пока не созданы"),
     )
     personality_versions: tuple[PersonalityVersionView, ...] = (
         PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
@@ -129,6 +129,9 @@ class TrainingViewModel:
         if not runs:
             self.title = "Обучение"
             self.subtitle = "Обучение пока не запускалось"
+            self.checkpoints = (
+                CheckpointView("Чекпоинты и версии личности", "Чекпоинты и версии личности пока не созданы"),
+            )
             return
 
         current = runs[0]
