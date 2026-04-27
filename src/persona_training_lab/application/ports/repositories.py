@@ -30,3 +30,7 @@ class DatasetsReadRepositoryPort(Protocol):
 
 class TrainingReadRepositoryPort(Protocol):
     def list_training_runs(self) -> list[dict[str, str]]: ...
+
+
+class AnalysisReadRepositoryPort(Protocol):
+    def list_analysis_results(self) -> list[dict[str, str]]: ...

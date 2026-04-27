@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.agents.service import AgentsService
+from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.experiments.service import ExperimentsService
 from persona_training_lab.application.projects.service import ProjectsService
@@ -17,6 +18,7 @@ from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactM
 from persona_training_lab.infrastructure.logging.structured import configure_logging
 from persona_training_lab.infrastructure.persistence.repositories.event_log import SQLiteEventLogRepository
 from persona_training_lab.infrastructure.persistence.repositories.agents import SQLiteAgentsRepository
+from persona_training_lab.infrastructure.persistence.repositories.analysis import SQLiteAnalysisRepository
 from persona_training_lab.infrastructure.persistence.repositories.datasets import SQLiteDatasetsRepository
 from persona_training_lab.infrastructure.persistence.repositories.experiments import SQLiteExperimentsRepository
 from persona_training_lab.infrastructure.persistence.repositories.projects import SQLiteProjectsRepository
@@ -75,6 +77,7 @@ def build_container() -> AppContainer:
     projects_repo = SQLiteProjectsRepository(connection)
     profiles_repo = SQLiteProfilesRepository(connection)
     agents_repo = SQLiteAgentsRepository(connection)
+    analysis_repo = SQLiteAnalysisRepository(connection)
     datasets_repo = SQLiteDatasetsRepository(connection)
     experiments_repo = SQLiteExperimentsRepository(connection)
     training_repo = SQLiteTrainingRepository(connection)
@@ -85,6 +88,7 @@ def build_container() -> AppContainer:
     projects_service = ProjectsService(projects_repo=projects_repo)
     profiles_service = ProfilesService(profiles_repo=profiles_repo)
     agents_service = AgentsService(agents_repo=agents_repo)
+    analysis_service = AnalysisService(analysis_repo=analysis_repo)
     datasets_service = DatasetsService(datasets_repo=datasets_repo)
     experiments_service = ExperimentsService(experiments_repo=experiments_repo)
     training_service = TrainingService(training_repo=training_repo)
@@ -99,7 +103,7 @@ def build_container() -> AppContainer:
     training_vm = TrainingViewModel(training_service=training_service)
     snapshots_vm = SnapshotsViewModel()
     tests_vm = TestsViewModel(experiments_service=experiments_service)
-    analysis_vm = AnalysisViewModel()
+    analysis_vm = AnalysisViewModel(analysis_service=analysis_service)
 
     return AppContainer(
         settings=settings,
