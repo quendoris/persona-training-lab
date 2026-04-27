@@ -1,7 +1,22 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAbstractItemView, QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QDialogButtonBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.metrics import TraitMetricCard
@@ -11,6 +26,52 @@ from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
 
 def _elide(text: str, max_len: int = 42) -> str:
     return text if len(text) <= max_len else text[: max_len - 1] + "…"
+
+
+class ProfileEditorDialog(QDialog):
+    def __init__(self, *, parent: QWidget | None, title: str, initial: dict[str, str]) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.resize(560, 520)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        self._title = QLineEdit(initial.get("title", ""))
+        self._description = QTextEdit(initial.get("description", ""))
+        self._communication_style = QTextEdit(initial.get("communication_style", ""))
+        self._principles = QTextEdit(initial.get("principles", ""))
+        self._constraints = QTextEdit(initial.get("constraints", ""))
+        self._notes = QTextEdit(initial.get("notes", ""))
+
+        fields = [
+            ("Название", self._title),
+            ("Краткое описание", self._description),
+            ("Стиль общения", self._communication_style),
+            ("Принципы", self._principles),
+            ("Ограничения", self._constraints),
+            ("Заметки", self._notes),
+        ]
+        for label_text, widget in fields:
+            layout.addWidget(make_muted_label(label_text))
+            layout.addWidget(widget)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def payload(self) -> dict[str, str]:
+        return {
+            "title": self._title.text(),
+            "description": self._description.toPlainText(),
+            "communication_style": self._communication_style.toPlainText(),
+            "principles": self._principles.toPlainText(),
+            "constraints": self._constraints.toPlainText(),
+            "notes": self._notes.toPlainText(),
+        }
 
 
 class ProfilesScreen(QWidget):
@@ -46,6 +107,22 @@ class ProfilesScreen(QWidget):
         body.addWidget(left_container, 0)
 
         self._profiles_card = PanelCard("Реестр профилей", "Тот самый слой, где мы закрепляем ядро личности.")
+        controls = QHBoxLayout()
+        controls.setSpacing(8)
+
+        create_btn = QPushButton("Создать профиль")
+        create_btn.setObjectName("SecondaryButton")
+        create_btn.clicked.connect(self._on_create_profile)
+        controls.addWidget(create_btn)
+
+        edit_btn = QPushButton("Редактировать профиль")
+        edit_btn.setObjectName("SecondaryButton")
+        edit_btn.clicked.connect(self._on_edit_profile)
+        controls.addWidget(edit_btn)
+        self._edit_btn = edit_btn
+
+        self._profiles_card._layout.addLayout(controls)
+
         self._profiles_list = QListWidget()
         self._profiles_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._profiles_list.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -110,6 +187,7 @@ class ProfilesScreen(QWidget):
                 current_item = item
         if current_item is not None:
             self._profiles_list.setCurrentItem(current_item)
+        self._edit_btn.setEnabled(self._vm.current_profile().profile_id not in {"profiles_empty", "profiles_error"})
 
     def _refresh_header(self) -> None:
         title, subtitle = self._vm.header_summary()
@@ -170,12 +248,10 @@ class ProfilesScreen(QWidget):
             layout.addWidget(link_label, 1)
             self._linked_layout.addWidget(row)
         profile = self._vm.current_profile()
-        if profile.profile_id == "mia_core_v3":
-            self._next_text.setText("Связать этот профиль с новым training config и продолжить через curated_rose v07.")
-        elif profile.profile_id == "mia_refined_v4":
-            self._next_text.setText("Сравнить refined-профиль с core v3 и решить, что идёт в следующий run.")
+        if profile.profile_id in {"profiles_empty", "profiles_error"}:
+            self._next_text.setText("Создайте профиль личности и затем переходите к подготовке обучения.")
         else:
-            self._next_text.setText("Оставить ветку как исследовательскую и не смешивать её с основным ядром.")
+            self._next_text.setText("Профиль сохранён. Теперь можно привязать датасет и создать запуск обучения.")
 
     def _refresh_all(self) -> None:
         self._refresh_header()
@@ -188,4 +264,27 @@ class ProfilesScreen(QWidget):
         if item is None:
             return
         self._vm.select_profile(item.data(Qt.ItemDataRole.UserRole))
+        self._edit_btn.setEnabled(self._vm.current_profile().profile_id not in {"profiles_empty", "profiles_error"})
         self._refresh_all()
+
+    def _on_create_profile(self) -> None:
+        dialog = ProfileEditorDialog(parent=self, title="Создать профиль", initial=self._vm.profile_form_data())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        ok, _message = self._vm.create_profile(**dialog.payload())
+        self._populate_profiles()
+        self._refresh_all()
+        if not ok:
+            self._subtitle.setText(_message)
+
+    def _on_edit_profile(self) -> None:
+        if self._vm.current_profile().profile_id in {"profiles_empty", "profiles_error"}:
+            return
+        dialog = ProfileEditorDialog(parent=self, title="Редактировать профиль", initial=self._vm.profile_form_data())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        ok, _message = self._vm.update_current_profile(**dialog.payload())
+        self._populate_profiles()
+        self._refresh_all()
+        if not ok:
+            self._subtitle.setText(_message)
