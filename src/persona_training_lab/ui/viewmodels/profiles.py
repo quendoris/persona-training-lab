@@ -18,6 +18,10 @@ class ProfileView:
     title: str
     subtitle: str
     summary: str
+    communication_style: str
+    principles_text: str
+    constraints_text: str
+    notes: str
     constraints: tuple[str, ...]
     linked_artifacts: tuple[str, ...]
     traits: tuple[TraitView, ...]
@@ -27,82 +31,19 @@ class ProfileView:
 class ProfilesViewModel:
     profiles_service: ProfilesService | None = None
     _profiles: tuple[ProfileView, ...] = field(default_factory=tuple)
-    _current_profile_id: str = 'mia_core_v3'
+    _current_profile_id: str = "profiles_empty"
+    _message: str = ""
 
     def __post_init__(self) -> None:
-        if self._profiles:
-            return
-        self._profiles = (
-            ProfileView(
-                profile_id='mia_core_v3',
-                title='Mia core v3',
-                subtitle='Тёплая, устойчивая и эмоционально читаемая personality-основа.',
-                summary='Профиль с выраженным теплом, спокойной ясностью, мягкой, но устойчивой границей и низкой терпимостью к внутренним противоречиям.',
-                constraints=(
-                    'не уходить в холодную дистанцию',
-                    'не скатываться в декоративную нежность без опоры',
-                    'сохранять спокойное ведение пользователя',
-                ),
-                linked_artifacts=(
-                    'Датасет · curated_rose v07',
-                    'Training config · imprint_full_qwen',
-                    'Snapshot · snp_mia_v3_candidate',
-                    'Compare · v2 vs v3',
-                ),
-                traits=(
-                    TraitView('Тепло', 88, 'считывается как опорная мягкость'),
-                    TraitView('Стабильность', 81, 'хорошо держится под перефразами'),
-                    TraitView('Нежная assertiveness', 74, 'границы держатся без жёсткости'),
-                    TraitView('Любопытство', 92, 'живой интерес к собеседнику'),
-                    TraitView('Эмоциональная устойчивость', 69, 'ещё есть запас для усиления'),
-                ),
-            ),
-            ProfileView(
-                profile_id='mia_refined_v4',
-                title='Mia refined v4',
-                subtitle='Уточнённый профиль с более собранной границей.',
-                summary='Следующая версия профиля, где warmth остаётся высокой, но boundary-setting становится спокойнее и плотнее.',
-                constraints=(
-                    'не терять мягкость в конфликте',
-                    'не усиливать формальную сухость',
-                ),
-                linked_artifacts=(
-                    'Датасет · mia_core_manual v04',
-                    'Evaluation · evr_psychotype_pack_04',
-                ),
-                traits=(
-                    TraitView('Тепло', 85, 'чуть ниже, но стабильнее'),
-                    TraitView('Стабильность', 84, 'выше baseline'),
-                    TraitView('Нежная assertiveness', 80, 'лучше держит границы'),
-                    TraitView('Любопытство', 88, 'спокойное, без суеты'),
-                    TraitView('Эмоциональная устойчивость', 76, 'выше, чем у core v3'),
-                ),
-            ),
-            ProfileView(
-                profile_id='velvet_analytic_a1',
-                title='Velvet analytic a1',
-                subtitle='Более дистанцированный и аналитичный профиль.',
-                summary='Экспериментальная ветка с высокой ясностью, меньшей эмоциональной теплотой и более наблюдательной позицией.',
-                constraints=(
-                    'не ломать читабельность',
-                    'не уходить в холодный формализм',
-                ),
-                linked_artifacts=(
-                    'Датасет · stress_dialogues v02',
-                ),
-                traits=(
-                    TraitView('Тепло', 48, 'осознанно ниже'),
-                    TraitView('Стабильность', 79, 'ровная аналитическая подача'),
-                    TraitView('Нежная assertiveness', 62, 'спокойные границы'),
-                    TraitView('Любопытство', 71, 'больше аналитики, чем вовлечения'),
-                    TraitView('Эмоциональная устойчивость', 82, 'плотное ядро'),
-                ),
-            ),
-        )
-        self._apply_profiles_connector()
+        self.refresh()
 
-    def _apply_profiles_connector(self) -> None:
+    def refresh(self, *, select_profile_id: str | None = None) -> None:
+        self._apply_profiles_connector(select_profile_id=select_profile_id)
+
+    def _apply_profiles_connector(self, *, select_profile_id: str | None = None) -> None:
         if self.profiles_service is None:
+            self._profiles = (self._empty_profile(),)
+            self._current_profile_id = self._profiles[0].profile_id
             return
         try:
             live_profiles = self.profiles_service.list_profiles()
@@ -118,29 +59,38 @@ class ProfilesViewModel:
 
         mapped = tuple(self._map_summary_to_profile(summary) for summary in live_profiles)
         self._profiles = mapped
+        if select_profile_id is not None:
+            for profile in mapped:
+                if profile.profile_id == select_profile_id:
+                    self._current_profile_id = profile.profile_id
+                    return
         self._current_profile_id = mapped[0].profile_id
 
     def _map_summary_to_profile(self, summary: ProfileSummary) -> ProfileView:
-        for profile in self._profiles:
-            if profile.profile_id == summary.profile_id:
-                return ProfileView(
-                    profile_id=profile.profile_id,
-                    title=summary.title,
-                    subtitle=summary.subtitle,
-                    summary=profile.summary,
-                    constraints=profile.constraints,
-                    linked_artifacts=profile.linked_artifacts,
-                    traits=profile.traits,
-                )
+        constraints_lines = self._parse_multiline(summary.constraints)
+        principles_lines = self._parse_multiline(summary.principles)
+        communication_style = summary.communication_style or "Не указано"
         return ProfileView(
             profile_id=summary.profile_id,
             title=summary.title,
             subtitle=summary.subtitle,
-            summary="Профиль подключён из хранилища. Детальная карта будет доступна после синхронизации.",
-            constraints=("Детальные ограничения пока не загружены.",),
-            linked_artifacts=("Связанные артефакты пока не найдены.",),
+            summary=summary.description or summary.subtitle,
+            communication_style=communication_style,
+            principles_text=summary.principles,
+            constraints_text=summary.constraints,
+            notes=summary.notes,
+            constraints=tuple(constraints_lines[:3]) if constraints_lines else ("Ограничения пока не заданы.",),
+            linked_artifacts=(
+                f"Стиль общения · {communication_style}",
+                f"Принципы · {principles_lines[0] if principles_lines else 'Не указаны'}",
+                f"Статус · {summary.status}",
+            ),
             traits=(),
         )
+
+    @staticmethod
+    def _parse_multiline(value: str) -> list[str]:
+        return [line.strip() for line in value.splitlines() if line.strip()]
 
     @staticmethod
     def _empty_profile() -> ProfileView:
@@ -149,6 +99,10 @@ class ProfilesViewModel:
             title="Профили пока не созданы",
             subtitle="Профили пока не созданы",
             summary="Профили пока не созданы",
+            communication_style="",
+            principles_text="",
+            constraints_text="",
+            notes="",
             constraints=("Создайте первый профиль, чтобы заполнить этот раздел.",),
             linked_artifacts=("Нет связанных артефактов.",),
             traits=(),
@@ -161,10 +115,73 @@ class ProfilesViewModel:
             title="Не удалось загрузить профили",
             subtitle="Не удалось загрузить профили",
             summary="Не удалось загрузить профили",
+            communication_style="",
+            principles_text="",
+            constraints_text="",
+            notes="",
             constraints=("Проверьте подключение к базе данных и повторите позже.",),
             linked_artifacts=("Данные временно недоступны.",),
             traits=(),
         )
+
+    def create_profile(
+        self,
+        *,
+        title: str,
+        description: str,
+        communication_style: str,
+        principles: str,
+        constraints: str,
+        notes: str,
+    ) -> tuple[bool, str]:
+        if self.profiles_service is None:
+            return False, "Не удалось сохранить профиль личности"
+        ok, message, created = self.profiles_service.create_profile(
+            title=title,
+            description=description,
+            communication_style=communication_style,
+            principles=principles,
+            constraints=constraints,
+            notes=notes,
+        )
+        if not ok:
+            return False, message
+
+        self._message = message
+        self.refresh(select_profile_id=created.profile_id if created is not None else None)
+        return True, message
+
+    def update_current_profile(
+        self,
+        *,
+        title: str,
+        description: str,
+        communication_style: str,
+        principles: str,
+        constraints: str,
+        notes: str,
+    ) -> tuple[bool, str]:
+        current = self.current_profile()
+        if current.profile_id in {"profiles_empty", "profiles_error"}:
+            return False, "Не удалось сохранить профиль личности"
+        if self.profiles_service is None:
+            return False, "Не удалось сохранить профиль личности"
+
+        ok, message = self.profiles_service.update_profile(
+            profile_id=current.profile_id,
+            title=title,
+            description=description,
+            communication_style=communication_style,
+            principles=principles,
+            constraints=constraints,
+            notes=notes,
+        )
+        if not ok:
+            return False, message
+
+        self._message = message
+        self.refresh(select_profile_id=current.profile_id)
+        return True, message
 
     def profiles(self) -> list[tuple[str, str, str]]:
         return [(p.profile_id, p.title, p.subtitle) for p in self._profiles]
@@ -180,4 +197,26 @@ class ProfilesViewModel:
 
     def header_summary(self) -> tuple[str, str]:
         profile = self.current_profile()
+        if self._message:
+            return profile.title, self._message
         return profile.title, profile.subtitle
+
+    def profile_form_data(self) -> dict[str, str]:
+        profile = self.current_profile()
+        if profile.profile_id in {"profiles_empty", "profiles_error"}:
+            return {
+                "title": "",
+                "description": "",
+                "communication_style": "",
+                "principles": "",
+                "constraints": "",
+                "notes": "",
+            }
+        return {
+            "title": profile.title,
+            "description": profile.summary,
+            "communication_style": profile.communication_style,
+            "principles": profile.principles_text,
+            "constraints": profile.constraints_text,
+            "notes": profile.notes,
+        }
