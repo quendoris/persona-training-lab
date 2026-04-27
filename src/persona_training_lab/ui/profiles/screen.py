@@ -110,12 +110,12 @@ class ProfilesScreen(QWidget):
         controls = QHBoxLayout()
         controls.setSpacing(8)
 
-        create_btn = QPushButton("Создать профиль")
+        create_btn = QPushButton("Создать")
         create_btn.setObjectName("SecondaryButton")
         create_btn.clicked.connect(self._on_create_profile)
         controls.addWidget(create_btn)
 
-        edit_btn = QPushButton("Редактировать профиль")
+        edit_btn = QPushButton("Редактировать")
         edit_btn.setObjectName("SecondaryButton")
         edit_btn.clicked.connect(self._on_edit_profile)
         controls.addWidget(edit_btn)

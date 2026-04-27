@@ -45,6 +45,16 @@ def _seed_profile(connection: sqlite3.Connection) -> None:
     )
 
 
+def _seed_second_profile(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        INSERT INTO persona_profiles (id, title, subtitle, status, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        ("prf_002", "Mia refined v4", "refined persona", "готов", "2026-04-27T00:00:01Z"),
+    )
+
+
 def _seed_dataset(connection: sqlite3.Connection, *, status: str) -> None:
     connection.execute(
         """
@@ -205,3 +215,28 @@ def test_repository_persists_created_training_run() -> None:
     assert len(rows) == 1
     assert rows[0]["run_id"] == "trn_persist_1"
     assert rows[0]["status"] == "Готов к запуску"
+
+
+def test_create_training_run_uses_selected_profile_id() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    _seed_profile(connection)
+    _seed_second_profile(connection)
+    _seed_dataset(connection, status="Готов к обучению")
+    connection.commit()
+
+    service = _build_service(connection, _ReadyProbe())
+    created = service.create_training_run(
+        title="Run E",
+        profile_id="prf_002",
+        dataset_id="ds_001",
+        base_model="Qwen3.5-0.8B",
+        epochs=2,
+        batch_size=4,
+        learning_rate=0.0003,
+    )
+
+    assert created.profile == "Mia refined v4"
+    runs = service.list_training_runs()
+    assert runs[0].profile == "Mia refined v4"

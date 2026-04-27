@@ -323,20 +323,29 @@ class TrainingScreen(QWidget):
         self._local_inference_note.setText(self._vm.local_inference_status)
 
     def _populate_training_inputs(self) -> None:
+        selected_profile_id = str(self._profile_combo.currentData() or "")
         self._profile_combo.clear()
         for profile in self._vm.profile_choices:
             self._profile_combo.addItem(profile.title, profile.profile_id)
+        if self._profile_combo.count() > 0:
+            selected_index = self._profile_combo.findData(selected_profile_id)
+            self._profile_combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
 
+        selected_dataset_id = str(self._dataset_combo.currentData() or "")
         self._dataset_combo.clear()
         for dataset in self._vm.dataset_choices:
             label = f"{dataset.title} ({dataset.status})"
             self._dataset_combo.addItem(label, dataset.dataset_id)
+        if self._dataset_combo.count() > 0:
+            selected_dataset_index = self._dataset_combo.findData(selected_dataset_id)
+            self._dataset_combo.setCurrentIndex(selected_dataset_index if selected_dataset_index >= 0 else 0)
 
         if self._profile_combo.count() == 0:
             self._create_run_btn.setEnabled(False)
             self._create_message.setText("Сначала создайте профиль личности")
         else:
             self._create_run_btn.setEnabled(True)
+            self._create_message.setText(self._vm.creation_message)
 
     def _on_create_run(self) -> None:
         success, message = self._vm.create_training_run(
