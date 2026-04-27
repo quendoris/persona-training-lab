@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QDateTime, Qt
-from PySide6.QtGui import QColor, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPalette
 from PySide6.QtWidgets import (
     QDockWidget,
     QFrame,
@@ -33,8 +33,6 @@ class _BarTrack(QWidget):
         super().__init__(parent)
         self._vertical = vertical
         self._progress = 0
-        self._track_color = QColor("#252B36")
-        self._fill_color = QColor("#4C8CFF")
         if vertical:
             self.setFixedSize(thickness, length)
         else:
@@ -54,8 +52,10 @@ class _BarTrack(QWidget):
 
         rect = self.rect().adjusted(1, 1, -1, -1)
         radius = min(rect.width(), rect.height()) / 2.0
+        track_color = self.palette().color(QPalette.ColorRole.Base).lighter(118)
+        fill_color = self.palette().color(QPalette.ColorRole.Highlight)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(self._track_color)
+        painter.setBrush(track_color)
         painter.drawRoundedRect(rect, radius, radius)
 
         if self._progress <= 0:
@@ -68,7 +68,7 @@ class _BarTrack(QWidget):
             fill_width = max(2, int(rect.width() * self._progress / 100))
             fill_rect = rect.adjusted(0, 0, -(rect.width() - fill_width), 0)
 
-        painter.setBrush(self._fill_color)
+        painter.setBrush(fill_color)
         painter.drawRoundedRect(fill_rect, radius, radius)
 
 
@@ -142,7 +142,7 @@ class _HorizontalMetric(QFrame):
 class TelemetryPanel(QFrame):
     def __init__(self, view_model: TelemetryViewModel) -> None:
         super().__init__()
-        self.setObjectName("PanelCard")
+        self.setProperty("transparentBg", True)
         self._vm = view_model
         self._mode: str | None = None
         self._metric_widgets: list[_VerticalMetric | _HorizontalMetric] = []
@@ -208,6 +208,7 @@ class TelemetryPanel(QFrame):
         self._processes_scroll.setFrameShape(QFrame.NoFrame)
         self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._processes_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._processes_scroll.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._processes_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self._processes_scroll.setMinimumHeight(104)
         self._processes_scroll.setMaximumHeight(148)
@@ -225,7 +226,7 @@ class TelemetryPanel(QFrame):
 
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([480, 560])
+        self._splitter.setSizes([450, 590])
 
         self._bind_dock_state()
         self._apply_size_policy()
@@ -265,7 +266,7 @@ class TelemetryPanel(QFrame):
             self._right_shell.setMinimumWidth(300)
             self.setMinimumWidth(740)
         else:
-            self._left_shell.setMinimumWidth(190)
+            self._left_shell.setMinimumWidth(170)
             self._right_shell.setMinimumWidth(220)
             self.setMinimumWidth(0)
         if self._mode is not None:
@@ -337,7 +338,7 @@ class TelemetryPanel(QFrame):
                 self._metric_widgets.append(widget)
                 outer.addWidget(widget)
             outer.addStretch(1)
-            self._splitter.setSizes([430, 590])
+            self._splitter.setSizes([420, 600])
             return
 
         row = QWidget()
@@ -351,7 +352,7 @@ class TelemetryPanel(QFrame):
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
-        self._splitter.setSizes([480, 560])
+        self._splitter.setSizes([450, 590])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
