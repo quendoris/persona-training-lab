@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -97,8 +98,8 @@ class DatasetsScreen(QWidget):
         actions_layout.setContentsMargins(18, 16, 18, 16)
         actions_layout.setSpacing(12)
         for text, secondary in [
-            ("Импортировать датасет", False),
-            ("Запустить проверку", False),
+            ("Добавить датасет", False),
+            ("Проверить датасет", False),
             ("Одобрить для обучения", True),
             ("Сравнить версии", True),
         ]:
@@ -106,8 +107,14 @@ class DatasetsScreen(QWidget):
             if secondary:
                 button.setObjectName("SecondaryButton")
             actions_layout.addWidget(button)
+            if text == "Добавить датасет":
+                self._add_dataset_btn = button
+            if text == "Проверить датасет":
+                self._validate_dataset_btn = button
         actions_layout.addStretch(1)
         root.addWidget(actions)
+        self._add_dataset_btn.clicked.connect(self._on_add_dataset)
+        self._validate_dataset_btn.clicked.connect(self._on_validate_dataset)
 
         body = QHBoxLayout()
         body.setSpacing(16)
@@ -349,3 +356,24 @@ class DatasetsScreen(QWidget):
         self._refresh_table()
         self._refresh_validation()
         self._refresh_summary()
+
+    def _on_add_dataset(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите JSONL датасет",
+            "",
+            "JSONL (*.jsonl)",
+        )
+        if not file_path:
+            return
+        ok, message = self._vm.add_dataset_from_path(file_path)
+        self._subtitle.setText(message)
+        if ok:
+            self._populate_datasets()
+            self._refresh_all()
+
+    def _on_validate_dataset(self) -> None:
+        ok, message = self._vm.validate_current_dataset()
+        self._subtitle.setText(message)
+        self._populate_datasets()
+        self._refresh_all()

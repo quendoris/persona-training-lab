@@ -26,10 +26,13 @@ class DatasetVersionView:
     label: str
     status: str
     record_count: int
+    valid_count: int
+    invalid_count: int
     linked_profile: str
     quality_summary: str
     readiness: str
     schema_name: str
+    validation_errors_preview: str
     preview_rows: tuple[DatasetPreviewRow, ...]
     validation_signals: tuple[ValidationSignal, ...]
 
@@ -48,11 +51,49 @@ class DatasetsViewModel:
     _datasets: tuple[DatasetView, ...] = field(default_factory=tuple)
     _current_dataset_id: str = ""
     _current_version_id: str = ""
+    _message: str = ""
 
     def __post_init__(self) -> None:
+        self.refresh()
+
+    def refresh(self) -> None:
         self._apply_datasets_connector()
 
-    def _apply_datasets_connector(self) -> None:
+    def add_dataset_from_path(self, file_path: str) -> tuple[bool, str]:
+        if self.datasets_service is None:
+            return False, "Не удалось загрузить датасеты"
+        try:
+            created = self.datasets_service.add_dataset_from_path(file_path)
+        except ValueError as exc:
+            return False, str(exc)
+        except Exception:
+            return False, "Не удалось загрузить датасеты"
+
+        self._message = f"Добавлен датасет: {created.title}"
+        self._apply_datasets_connector(select_dataset_id=created.dataset_id)
+        return True, self._message
+
+    def validate_current_dataset(self) -> tuple[bool, str]:
+        if self.datasets_service is None:
+            return False, "Не удалось проверить датасет"
+
+        dataset_id = self.current_dataset().dataset_id
+        if dataset_id == "datasets_empty":
+            return False, "Датасеты пока не добавлены"
+
+        try:
+            result = self.datasets_service.validate_dataset(dataset_id)
+        except Exception:
+            return False, "Не удалось проверить датасет"
+
+        self._message = (
+            f"Статус: {result.status} · Записей: {result.total_rows} · "
+            f"Валидных: {result.valid_rows} · Ошибок: {result.invalid_rows}"
+        )
+        self._apply_datasets_connector(select_dataset_id=dataset_id)
+        return True, self._message
+
+    def _apply_datasets_connector(self, select_dataset_id: str | None = None) -> None:
         if self.datasets_service is None:
             self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
             self._set_current_from_first()
@@ -71,6 +112,12 @@ class DatasetsViewModel:
             return
 
         self._datasets = tuple(self._map_summary(summary) for summary in summaries)
+        if select_dataset_id is not None:
+            for dataset in self._datasets:
+                if dataset.dataset_id == select_dataset_id:
+                    self._current_dataset_id = dataset.dataset_id
+                    self._current_version_id = dataset.versions[0].version_id
+                    return
         self._set_current_from_first()
 
     def _set_current_from_first(self) -> None:
@@ -89,10 +136,13 @@ class DatasetsViewModel:
                     label="v1",
                     status="пусто",
                     record_count=0,
+                    valid_count=0,
+                    invalid_count=0,
                     linked_profile="—",
                     quality_summary=message,
                     readiness=message,
-                    schema_name="persona_json_v1",
+                    schema_name="jsonl_finetune_v1",
+                    validation_errors_preview="",
                     preview_rows=(
                         DatasetPreviewRow("—", message, "—", "—"),
                     ),
@@ -109,10 +159,20 @@ class DatasetsViewModel:
         subtitle = getattr(summary, "subtitle", "")
         status = getattr(summary, "status", "")
         record_count = getattr(summary, "record_count", 0)
-        linked_profile = getattr(summary, "linked_profile", "")
+        valid_count = getattr(summary, "valid_count", 0)
+        invalid_count = getattr(summary, "invalid_count", 0)
         quality_summary = getattr(summary, "quality_summary", "")
-        readiness = getattr(summary, "readiness", "")
-        schema_name = getattr(summary, "schema_name", "")
+        errors_preview = getattr(summary, "validation_errors_preview", "")
+        format_name = getattr(summary, "format", "jsonl")
+
+        state = "ok" if status == "Готов к обучению" else "warning" if status in {"Есть предупреждения", "Ошибка структуры", "Не удалось проверить датасет"} else "note"
+        signals = [
+            ValidationSignal("Итог проверки", f"Статус: {status}", state),
+            ValidationSignal("Сводка", f"Записей: {record_count} · Валидных: {valid_count} · Ошибок: {invalid_count}", "note"),
+        ]
+        if errors_preview:
+            first_error = errors_preview.splitlines()[0]
+            signals.append(ValidationSignal("Ошибка структуры", first_error, "warning"))
 
         return DatasetView(
             dataset_id=dataset_id,
@@ -124,25 +184,17 @@ class DatasetsViewModel:
                     label="v1",
                     status=status,
                     record_count=record_count,
-                    linked_profile=linked_profile,
+                    valid_count=valid_count,
+                    invalid_count=invalid_count,
+                    linked_profile="—",
                     quality_summary=quality_summary,
-                    readiness=readiness,
-                    schema_name=schema_name,
+                    readiness=status,
+                    schema_name=format_name,
+                    validation_errors_preview=errors_preview,
                     preview_rows=(
-                        DatasetPreviewRow(
-                            "#001",
-                            f"{title}: базовый срез",
-                            "устойчивость, характер",
-                            "—",
-                        ),
+                        DatasetPreviewRow("#001", f"{title}: выборка из JSONL", "user/assistant · prompt/response", str(valid_count)),
                     ),
-                    validation_signals=(
-                        ValidationSignal(
-                            "Сводка из реестра",
-                            f"{status} · {record_count} записей",
-                            "ok" if status == "одобрен" else "note",
-                        ),
-                    ),
+                    validation_signals=tuple(signals),
                 ),
             ),
         )
@@ -184,23 +236,28 @@ class DatasetsViewModel:
     def header_summary(self) -> tuple[str, str]:
         dataset = self.current_dataset()
         version = self.current_version()
+        if self._message:
+            return dataset.title, self._message
         return dataset.title, f"{dataset.subtitle} · {version.label} · {version.record_count} записей"
 
     def right_summary(self) -> list[tuple[str, str]]:
         version = self.current_version()
         return [
             ("Статус", version.status),
-            ("Готовность", version.readiness),
-            ("Профиль", version.linked_profile),
-            ("Схема", version.schema_name),
+            ("Записей", str(version.record_count)),
+            ("Валидных", str(version.valid_count)),
+            ("Ошибок", str(version.invalid_count)),
+            ("Формат", version.schema_name),
         ]
 
     def next_step(self) -> str:
         version = self.current_version()
-        if version.status == "одобрен":
-            return "Использовать эту версию в новом запуске обучения или сравнить с baseline."
-        if version.status == "проверяется":
-            return "Перезапустить валидацию и закрыть semantic warning перед одобрением."
-        if version.status == "черновик":
-            return "Дописать набор и прогнать полную validation pipeline."
-        return "Оставить как reference-версию и сравнивать с более сильными наборами."
+        if version.status == "Готов к обучению":
+            return "Датасет готов к обучению. Можно переходить к запуску тренировки."
+        if version.status == "Есть предупреждения":
+            return "Есть предупреждения. Проверьте проблемные строки перед обучением."
+        if version.status == "Ошибка структуры":
+            return "Исправьте структуру JSONL и повторите проверку."
+        if version.status == "Не удалось проверить датасет":
+            return "Проверьте путь к файлу и повторите проверку."
+        return "Добавьте файл JSONL и запустите проверку датасета."

@@ -75,12 +75,18 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             subtitle TEXT NOT NULL,
+            path TEXT NOT NULL DEFAULT '',
+            format TEXT NOT NULL DEFAULT 'jsonl',
             status TEXT NOT NULL,
             record_count INTEGER NOT NULL,
+            valid_count INTEGER NOT NULL DEFAULT 0,
+            invalid_count INTEGER NOT NULL DEFAULT 0,
             linked_profile TEXT NOT NULL,
             quality_summary TEXT NOT NULL,
+            validation_errors_preview TEXT NOT NULL DEFAULT '',
             readiness TEXT NOT NULL,
             schema_name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL
         );
 
@@ -159,4 +165,23 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
         ON model_versions(updated_at DESC);
         """
     )
+    _ensure_dataset_columns(connection)
     connection.commit()
+
+
+def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(datasets)").fetchall()
+    }
+    additions = [
+        ("path", "TEXT NOT NULL DEFAULT ''"),
+        ("format", "TEXT NOT NULL DEFAULT 'jsonl'"),
+        ("valid_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("invalid_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("validation_errors_preview", "TEXT NOT NULL DEFAULT ''"),
+        ("created_at", "TEXT NOT NULL DEFAULT ''"),
+    ]
+    for name, definition in additions:
+        if name not in columns:
+            connection.execute(f"ALTER TABLE datasets ADD COLUMN {name} {definition}")
