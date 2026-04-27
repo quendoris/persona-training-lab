@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(activity, telemetry)
         self.tabifyDockWidget(telemetry, issues)
         inspector.raise_()
-        activity.raise_()
+        telemetry.raise_()
 
         windows_menu = self._build_windows_menu()
         self._sidebar.set_window_menu(windows_menu)

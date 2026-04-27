@@ -161,24 +161,7 @@ class TrainingScreen(QWidget):
         right.setSpacing(16)
         body.addLayout(right, 2)
 
-        inspector = PanelCard("Контекст запуска", "Нельзя заставлять пользователя помнить, что именно выбрано.")
-        rows = QVBoxLayout()
-        rows.setSpacing(10)
-        for key, value in self._vm.selected_objects:
-            row = QFrame()
-            row.setObjectName("PanelCardSoft")
-            rl = QHBoxLayout(row)
-            rl.setContentsMargins(12, 10, 12, 10)
-            rl.setSpacing(10)
-            left_lbl = make_muted_label(key)
-            right_lbl = QLabel(value)
-            rl.addWidget(left_lbl, 1)
-            rl.addWidget(right_lbl, 0, Qt.AlignRight)
-            rows.addWidget(row)
-        inspector._layout.addLayout(rows)
-        right.addWidget(inspector)
-
-        versions = PanelCard("Версии личности", "Артефакты обучения и готовность версий после запуска.")
+        versions = PanelCard("Версии личности", "Артефакты обучения.")
         versions_rows = QVBoxLayout()
         versions_rows.setSpacing(10)
 
@@ -254,29 +237,8 @@ class TrainingScreen(QWidget):
         local_model._layout.addLayout(local_rows)
         right.addWidget(local_model)
 
-        monitor = PanelCard("Мониторинг железа", "Цифры должны помогать, а не давить.")
-        monitor_rows = QVBoxLayout()
-        monitor_rows.setSpacing(12)
-        for label, value, note in self._vm.monitor_rows:
-            block = QFrame()
-            block.setObjectName("PanelCardSoft")
-            bl = QVBoxLayout(block)
-            bl.setContentsMargins(12, 10, 12, 10)
-            bl.setSpacing(8)
-            row = QHBoxLayout()
-            row.addWidget(QLabel(label))
-            row.addWidget(make_muted_label(note), 1, Qt.AlignRight)
-            bl.addLayout(row)
-            bl.addWidget(RoundedMetricBar(value=value, height=12))
-            monitor_rows.addWidget(block)
-        monitor._layout.addLayout(monitor_rows)
-        right.addWidget(monitor)
-
         risk = PanelCard(self._vm.risk_title, self._vm.risk_body)
         right.addWidget(risk)
-
-        next_card = PanelCard("Следующий лучший шаг", self._vm.next_step)
-        right.addWidget(next_card)
         right.addStretch(1)
 
     def _on_check_local_model(self) -> None:
