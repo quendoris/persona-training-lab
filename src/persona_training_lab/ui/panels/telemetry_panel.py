@@ -177,10 +177,10 @@ class TelemetryPanel(QFrame):
 
         self._left_shell = QFrame()
         self._left_shell.setProperty("transparentBg", True)
-        self._left_shell.setMinimumWidth(250)
+        self._left_shell.setMinimumWidth(230)
         left_shell_layout = QVBoxLayout(self._left_shell)
-        left_shell_layout.setContentsMargins(4, 2, 4, 2)
-        left_shell_layout.setSpacing(0)
+        left_shell_layout.setContentsMargins(10, 6, 8, 6)
+        left_shell_layout.setSpacing(2)
 
         self._metrics_host = QWidget()
         self._metrics_host.setProperty("transparentBg", True)
@@ -189,31 +189,38 @@ class TelemetryPanel(QFrame):
 
         self._right_shell = QFrame()
         self._right_shell.setProperty("transparentBg", True)
-        self._right_shell.setMinimumWidth(250)
-        self._right_shell.setMaximumWidth(640)
+        self._right_shell.setMinimumWidth(270)
+        self._right_shell.setMaximumWidth(660)
         right_shell_layout = QVBoxLayout(self._right_shell)
-        right_shell_layout.setContentsMargins(4, 2, 4, 2)
+        right_shell_layout.setContentsMargins(8, 4, 8, 4)
         right_shell_layout.setSpacing(0)
+
+        self._processes_card = QFrame()
+        self._processes_card.setObjectName("PanelCardSoft")
+        processes_card_layout = QVBoxLayout(self._processes_card)
+        processes_card_layout.setContentsMargins(10, 8, 10, 8)
+        processes_card_layout.setSpacing(0)
 
         self._processes_scroll = QScrollArea()
         self._processes_scroll.setWidgetResizable(True)
         self._processes_scroll.setFrameShape(QFrame.NoFrame)
         self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._processes_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._processes_scroll.setMinimumHeight(112)
-        self._processes_scroll.setMaximumHeight(152)
+        self._processes_scroll.setMinimumHeight(104)
+        self._processes_scroll.setMaximumHeight(148)
 
         self._processes_container = QWidget()
         self._processes_layout = QVBoxLayout(self._processes_container)
         self._processes_layout.setContentsMargins(0, 0, 0, 0)
         self._processes_layout.setSpacing(4)
         self._processes_scroll.setWidget(self._processes_container)
-        right_shell_layout.addWidget(self._processes_scroll, 1)
+        processes_card_layout.addWidget(self._processes_scroll, 1)
+        right_shell_layout.addWidget(self._processes_card, 1)
         self._splitter.addWidget(self._right_shell)
 
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([520, 520])
+        self._splitter.setSizes([480, 560])
 
         self._refresh_processes()
         self._rebuild("bottom")
@@ -290,7 +297,7 @@ class TelemetryPanel(QFrame):
                 self._metric_widgets.append(widget)
                 outer.addWidget(widget)
             outer.addStretch(1)
-            self._splitter.setSizes([460, 560])
+            self._splitter.setSizes([430, 590])
             return
 
         row = QWidget()
@@ -303,8 +310,7 @@ class TelemetryPanel(QFrame):
             layout.addWidget(widget, 0, Qt.AlignVCenter)
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
-        outer.addStretch(1)
-        self._splitter.setSizes([520, 520])
+        self._splitter.setSizes([480, 560])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
