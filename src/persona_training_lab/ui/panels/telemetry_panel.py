@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
@@ -117,13 +117,40 @@ class TelemetryPanel(QFrame):
         self._cores.setObjectName("MutedText")
         self._root.addWidget(self._cores)
 
+        body_row = QHBoxLayout()
+        body_row.setSpacing(12)
+        self._root.addLayout(body_row, 1)
+
         self._content = QWidget()
         self._content.setProperty("transparentBg", True)
-        self._root.addWidget(self._content, 1)
+        body_row.addWidget(self._content, 2)
 
-        self._processes = QVBoxLayout()
+        processes_shell = QFrame()
+        processes_shell.setObjectName("PanelCardSoft")
+        processes_shell.setMaximumWidth(420)
+        processes_shell.setMinimumWidth(280)
+        processes_shell_layout = QVBoxLayout(processes_shell)
+        processes_shell_layout.setContentsMargins(10, 10, 10, 10)
+        processes_shell_layout.setSpacing(8)
+
+        header = QLabel("Процессы")
+        header.setObjectName("TelemetryChip")
+        processes_shell_layout.addWidget(header)
+
+        self._processes_scroll = QScrollArea()
+        self._processes_scroll.setWidgetResizable(True)
+        self._processes_scroll.setFrameShape(QFrame.NoFrame)
+        self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._processes_scroll.setMaximumHeight(138)
+
+        self._processes_container = QWidget()
+        self._processes = QVBoxLayout(self._processes_container)
+        self._processes.setContentsMargins(0, 0, 0, 0)
         self._processes.setSpacing(6)
-        self._root.addLayout(self._processes)
+        self._processes_scroll.setWidget(self._processes_container)
+        processes_shell_layout.addWidget(self._processes_scroll, 1)
+        body_row.addWidget(processes_shell, 1)
+
         self._refresh_processes()
         self._rebuild("bottom")
 
@@ -162,9 +189,6 @@ class TelemetryPanel(QFrame):
             if widget is not None:
                 widget.deleteLater()
 
-        header = QLabel("Процессы")
-        header.setObjectName("TelemetryChip")
-        self._processes.addWidget(header)
         for row in self._vm.processes_rows:
             self._processes.addWidget(QLabel(row))
 
