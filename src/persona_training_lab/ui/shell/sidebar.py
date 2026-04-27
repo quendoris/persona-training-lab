@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, Qt, Signal, QRectF
+from PySide6.QtCore import QByteArray, Qt, Signal, QRect, QRectF
 from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
@@ -22,12 +22,25 @@ from PySide6.QtWidgets import (
 from persona_training_lab.ui.themes.tokens import THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
+SIDEBAR_ICON_RENDER_SIZE = 18
+SIDEBAR_ICON_BADGE_LEFT = 22
+SIDEBAR_ICON_BADGE_SIZE = 30
+SIDEBAR_TEXT_LEFT_PADDING = 70
+
 
 def _icons_root() -> Path:
     return Path(__file__).resolve().parent.parent / "assets" / "icons"
 
 
-def _render_svg_icon(path: Path, color: str, canvas_size: int, icon_size: int) -> QPixmap:
+def _render_svg_icon(
+    path: Path,
+    color: str,
+    canvas_size: int,
+    icon_size: int,
+    *,
+    offset_x: int = 0,
+    tight_crop: bool = False,
+) -> QPixmap:
     if not path.exists():
         return QPixmap()
 
@@ -48,12 +61,65 @@ def _render_svg_icon(path: Path, color: str, canvas_size: int, icon_size: int) -
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-    inset = (canvas_size - icon_size) / 2
-    target = QRectF(inset, inset, icon_size, icon_size)
+    view_box = renderer.viewBoxF()
+    if view_box.width() > 0 and view_box.height() > 0:
+        scale = min(icon_size / view_box.width(), icon_size / view_box.height())
+        target_w = round(view_box.width() * scale)
+        target_h = round(view_box.height() * scale)
+    else:
+        target_w = icon_size
+        target_h = icon_size
+
+    target_x = round((canvas_size - target_w) / 2)
+    max_target_x = max(0, canvas_size - target_w)
+    target_x = max(0, min(target_x, max_target_x))
+    target_y = round((canvas_size - target_h) / 2)
+    target = QRectF(target_x, target_y, target_w, target_h)
     renderer.render(painter, target)
 
     painter.end()
-    return pixmap
+    if not tight_crop:
+        shifted_x = max(0, min(target_x + offset_x, max_target_x))
+        if shifted_x == target_x:
+            return pixmap
+        shifted = QPixmap(canvas_size, canvas_size)
+        shifted.fill(Qt.GlobalColor.transparent)
+        shifted_painter = QPainter(shifted)
+        shifted_painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        shifted_painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        shifted_painter.drawPixmap(shifted_x, target_y, pixmap.copy(target.toRect()))
+        shifted_painter.end()
+        return shifted
+
+    image = pixmap.toImage()
+    min_x, min_y = canvas_size, canvas_size
+    max_x, max_y = -1, -1
+    for y in range(canvas_size):
+        for x in range(canvas_size):
+            if image.pixelColor(x, y).alpha() > 0:
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
+
+    if max_x < min_x or max_y < min_y:
+        return pixmap
+
+    bounds = QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+    cropped = pixmap.copy(bounds)
+
+    final_pixmap = QPixmap(canvas_size, canvas_size)
+    final_pixmap.fill(Qt.GlobalColor.transparent)
+    final_painter = QPainter(final_pixmap)
+    final_painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    final_painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+    max_crop_x = max(0, canvas_size - cropped.width())
+    final_x = max(0, min(round((canvas_size - cropped.width()) / 2) + offset_x, max_crop_x))
+    final_y = max(0, min(round((canvas_size - cropped.height()) / 2), canvas_size - cropped.height()))
+    final_painter.drawPixmap(final_x, final_y, cropped)
+    final_painter.end()
+    return final_pixmap
 
 
 class NavButton(QPushButton):
@@ -70,11 +136,17 @@ class NavButton(QPushButton):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setLayoutDirection(Qt.LeftToRight)
 
-        self._icon = QLabel(icon_text, self)
+        self._icon = QLabel("", self)
         self._icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self._icon.setObjectName("NavIcon")
+        self._icon.setObjectName("NavIconBadge")
         self._icon.setAlignment(Qt.AlignCenter)
-        self._icon.setFixedSize(30, 30)
+        self._icon.setFixedSize(SIDEBAR_ICON_BADGE_SIZE, SIDEBAR_ICON_BADGE_SIZE)
+
+        self._icon_glyph = QLabel("", self._icon)
+        self._icon_glyph.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._icon_glyph.setObjectName("NavIcon")
+        self._icon_glyph.setAlignment(Qt.AlignCenter)
+        self._icon_glyph.setGeometry(0, 0, SIDEBAR_ICON_BADGE_SIZE, SIDEBAR_ICON_BADGE_SIZE)
 
         self._arrow = QLabel("›", self)
         self._arrow.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -83,15 +155,21 @@ class NavButton(QPushButton):
         self._arrow.setFixedSize(14, 30)
         self._arrow.hide()
 
-        self.setStyleSheet("text-align: left; padding-left: 62px; padding-right: 28px;")
+        self.setStyleSheet(
+            "QPushButton#NavButton {"
+            " text-align: left;"
+            f" padding-left: {SIDEBAR_TEXT_LEFT_PADDING}px;"
+            " padding-right: 28px;"
+            "}"
+        )
         self._sync_icon_state(False)
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        y = max(10, (self.height() - self._icon.height()) // 2)
-        self._icon.move(14, y)
-        self._arrow.move(self.width() - 26, y)
-        self._icon.raise_()
+        badge_y = max(10, (self.height() - self._icon.height()) // 2)
+        self._icon.move(SIDEBAR_ICON_BADGE_LEFT, badge_y)
+
+        self._arrow.move(self.width() - 26, badge_y)
         self._arrow.raise_()
 
     def setChecked(self, checked: bool) -> None:  # type: ignore[override]
@@ -113,19 +191,35 @@ class NavButton(QPushButton):
 
         self._icon.setStyleSheet(
             f"background-color: {bg};"
-            f"color: {fg};"
             f"border: 1px solid {border};"
             "border-radius: 10px;"
+        )
+        self._icon.setText("")
+
+        self._icon_glyph.setStyleSheet(
+            "background-color: transparent;"
+            "padding: 0px;"
+            "margin: 0px;"
+            "border: none;"
+            f"color: {fg};"
             f"font-weight: {weight}; font-size: 13px;"
         )
 
-        pixmap = _render_svg_icon(self._icon_path, fg, 30, 20)
+        pixmap = _render_svg_icon(
+            self._icon_path,
+            fg,
+            SIDEBAR_ICON_BADGE_SIZE,
+            SIDEBAR_ICON_RENDER_SIZE,
+        )
+        # text and pixmap are mutually exclusive; SVG wins over fallback text.
         if pixmap.isNull():
-            self._icon.setPixmap(QPixmap())
-            self._icon.setText(self._fallback_icon_text)
+            self._icon.setText("")
+            self._icon_glyph.setPixmap(QPixmap())
+            self._icon_glyph.setText(self._fallback_icon_text)
         else:
             self._icon.setText("")
-            self._icon.setPixmap(pixmap)
+            self._icon_glyph.setText("")
+            self._icon_glyph.setPixmap(pixmap)
 
 
 class Sidebar(QFrame):
@@ -238,6 +332,7 @@ class Sidebar(QFrame):
         items = [
             ("dashboard", "П", "Панель"),
             ("profiles", "ПР", "Профили"),
+            ("agents", "АГ", "Агенты"),
             ("datasets", "ДС", "Датасеты"),
             ("training", "ОБ", "Обучение"),
             ("snapshots", "СН", "Снимки"),

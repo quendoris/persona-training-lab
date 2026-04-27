@@ -135,7 +135,9 @@ class TestsScreen(QWidget):
         body.addLayout(center, 4)
 
         metrics = PanelCard("Результат проверки", "Метрики должны быть понятны ещё до глубокого анализа.")
-        grid = QGridLayout()
+        metrics_grid_wrap = QWidget()
+        grid = QGridLayout(metrics_grid_wrap)
+        grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(12)
 
         for idx, metric in enumerate(self._vm.metrics):
@@ -160,7 +162,7 @@ class TestsScreen(QWidget):
 
             grid.addWidget(card, idx // 2, idx % 2)
 
-        metrics._layout.addLayout(grid)
+        metrics.add_widget(metrics_grid_wrap)
         center.addWidget(metrics)
 
         # Проблемные кейсы

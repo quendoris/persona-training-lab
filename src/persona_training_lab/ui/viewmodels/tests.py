@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from persona_training_lab.application.experiments.service import ExperimentsService
+
 
 @dataclass(slots=True, frozen=True)
 class EvaluationMetric:
@@ -18,6 +20,9 @@ class EvaluationCase:
 
 @dataclass(slots=True)
 class TestsViewModel:
+    __test__ = False
+
+    experiments_service: ExperimentsService | None = None
     title: str = "Тесты · evr_psychotype_pack_04"
     subtitle: str = "Независимая проверка snapshot после freeze и до выводов."
     setup_rows: tuple[tuple[str, str], ...] = (
@@ -43,3 +48,45 @@ class TestsViewModel:
         "Сбор ответов · завершён",
         "Режим review · доступен",
     )
+
+    def __post_init__(self) -> None:
+        self._apply_tests_connector()
+
+    def _apply_tests_connector(self) -> None:
+        if self.experiments_service is None:
+            return
+        try:
+            scenarios = self.experiments_service.list_experiments()
+        except Exception:
+            self.title = "Тесты"
+            self.subtitle = "Не удалось загрузить тесты"
+            self.problematic_cases = (
+                EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),
+            )
+            self.context_rows = (
+                "Проверка устойчивости, поведения и сохранения характера",
+            )
+            return
+
+        if not scenarios:
+            self.title = "Тесты"
+            self.subtitle = "Тесты пока не созданы"
+            self.problematic_cases = (
+                EvaluationCase("Тесты пока не созданы", "Сценарии проверки личности появятся после добавления записей."),
+            )
+            self.context_rows = (
+                "Сценарии проверки личности",
+                "Проверка устойчивости, поведения и сохранения характера",
+            )
+            return
+
+        self.title = f"Тесты · {scenarios[0].title}"
+        self.subtitle = "Сценарии проверки личности"
+        self.problematic_cases = tuple(
+            EvaluationCase(item.title, item.subtitle)
+            for item in scenarios
+        )
+        self.context_rows = (
+            "Сценарии проверки личности",
+            "Проверка устойчивости, поведения и сохранения характера",
+        )

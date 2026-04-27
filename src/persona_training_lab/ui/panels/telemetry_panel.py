@@ -80,14 +80,12 @@ class TelemetryPanel(QFrame):
         super().__init__()
         self.setObjectName("PanelCard")
         self._items = [
-            TelemetryItem("ГП", "ГП", 76, "Нагрузка графического процессора: 76% | 63°C | сеанс стабилен"),
-            TelemetryItem("ВП", "ВП", 92, "Видеопамять: 14.8 / 16 ГБ | запас небольшой, но стабильный"),
-            TelemetryItem("ОЗУ", "ОЗУ", 58, "Оперативная память: 56 / 96 ГБ | комфортный запас"),
-            TelemetryItem("Диск", "Диск", 44, "Нагрузка на диск: умеренная | checkpoints пишутся безопасно"),
-            TelemetryItem("Ток", "Ток", 68, "Скорость генерации: 61 ток/с | стабильный поток"),
-            TelemetryItem("Шаг", "Шаг", 71, "Время шага: 182 мс | аномалий не обнаружено"),
-            TelemetryItem("Риск", "Риск", 23, "Давление по рискам низкое | есть только мягкое предупреждение"),
-            TelemetryItem("В/В", "В/В", 37, "Запись артефактов идёт без блокировок"),
+            TelemetryItem("CPU", "CPU", 0, "Источник не подключён"),
+            TelemetryItem("RAM", "RAM", 0, "Источник не подключён"),
+            TelemetryItem("GPU", "GPU", 0, "Источник не подключён"),
+            TelemetryItem("VRAM", "VRAM", 0, "Источник не подключён"),
+            TelemetryItem("Temp", "Темп", 0, "Источник не подключён"),
+            TelemetryItem("Proc", "Проц", 0, "Источник не подключён"),
         ]
         self._mode: str | None = None
 
@@ -96,7 +94,7 @@ class TelemetryPanel(QFrame):
         self._root.setSpacing(10)
 
         self._title = QLabel("Телеметрия")
-        self._subtitle = QLabel("Наведи на столбик, чтобы увидеть подробности по конкретной метрике.")
+        self._subtitle = QLabel("Данные телеметрии пока недоступны.")
         self._subtitle.setObjectName("MutedText")
         self._root.addWidget(self._title)
         self._root.addWidget(self._subtitle)
@@ -124,30 +122,26 @@ class TelemetryPanel(QFrame):
             old_layout.deleteLater()
 
         if mode == "side":
-            self._subtitle.setText("Панель повернулась вместе с dock-зоной: наведи на строку, чтобы увидеть детали по метрике.")
+            self._subtitle.setText("Данные телеметрии пока недоступны.")
             outer = QVBoxLayout(self._content)
             outer.setContentsMargins(0, 4, 0, 0)
-            outer.setSpacing(0)
-            outer.addStretch(1)
+            outer.setSpacing(8)
             center = QWidget()
             layout = QVBoxLayout(center)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(12)
             for item in self._items:
                 layout.addWidget(_HorizontalMetric(item))
-            outer.addWidget(center, 0, Qt.AlignHCenter)
-            outer.addStretch(1)
+            outer.addWidget(center, 0, Qt.AlignTop)
         else:
-            self._subtitle.setText("Наведи на столбик, чтобы увидеть подробности по конкретной метрике.")
+            self._subtitle.setText("Данные телеметрии пока недоступны.")
             outer = QVBoxLayout(self._content)
             outer.setContentsMargins(0, 4, 0, 0)
-            outer.setSpacing(0)
-            outer.addStretch(1)
+            outer.setSpacing(8)
             row = QWidget()
             layout = QHBoxLayout(row)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(10)
             for item in self._items:
                 layout.addWidget(_VerticalMetric(item))
-            outer.addWidget(row, 0, Qt.AlignLeft)
-            outer.addStretch(1)
+            outer.addWidget(row, 0, Qt.AlignLeft | Qt.AlignTop)

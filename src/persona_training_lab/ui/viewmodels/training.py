@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+from persona_training_lab.application.local_model.service import LocalModelService
+from persona_training_lab.application.model_versions.service import ModelVersionsService
+from persona_training_lab.application.training.service import TrainingService
 
 
 @dataclass(slots=True, frozen=True)
@@ -17,41 +21,181 @@ class CheckpointView:
     highlighted: bool = False
 
 
+@dataclass(slots=True, frozen=True)
+class PersonalityVersionView:
+    title: str
+    status: str
+    note: str
+
+
 @dataclass(slots=True)
 class TrainingViewModel:
-    title: str = "Обучение · trn_qwen2b_mia_014"
-    subtitle: str = "Persona Imprint · Qwen 2B · Mia core v3 · curated_rose v07"
-    status: str = "выполняется · checkpoint-safe"
+    training_service: TrainingService | None = None
+    model_versions_service: ModelVersionsService | None = None
+    local_model_service: LocalModelService | None = None
+    title: str = "Обучение"
+    subtitle: str = "Обучение пока не запускалось"
+    status: str = "ожидание"
     selected_objects: tuple[tuple[str, str], ...] = (
-        ("Базовая модель", "Qwen 2B"),
-        ("Профиль", "Mia core v3"),
-        ("Версия датасета", "curated_rose v07"),
-        ("Режим", "Persona Imprint"),
+        ("Базовая модель", "—"),
+        ("Профиль", "—"),
+        ("Версия датасета", "—"),
+        ("Режим", "—"),
     )
     stat_cards: tuple[TrainingMetric, ...] = (
-        TrainingMetric("Эпоха", "3 / 8", "Шаг 18 420"),
-        TrainingMetric("Loss", "1.42", "ровное снижение"),
-        TrainingMetric("Скорость", "61 ток/с", "сеанс стабилен"),
-        TrainingMetric("Чекпоинты", "05", "следующий через 11 мин"),
+        TrainingMetric("Эпоха", "—", "Обучение пока не запускалось"),
+        TrainingMetric("Loss", "—", "Обучение пока не запускалось"),
+        TrainingMetric("Скорость", "—", "Обучение пока не запускалось"),
+        TrainingMetric("Чекпоинты", "00", "Обучение пока не запускалось"),
     )
     checkpoints: tuple[CheckpointView, ...] = (
-        CheckpointView("chk_001", "epoch 1 · validated"),
-        CheckpointView("chk_002", "epoch 2 · стабильная кривая"),
-        CheckpointView("chk_003", "epoch 2.5 · drift снижается"),
-        CheckpointView("chk_004", "epoch 3 · лучший кандидат", True),
+        CheckpointView("Ожидание запуска", "Обучение пока не запускалось"),
     )
+    personality_versions: tuple[PersonalityVersionView, ...] = (
+        PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
+    )
+    versions_status_message: str = "Версии личности пока не созданы"
     logs: tuple[str, ...] = (
-        "[10:21:04] training started",
-        "[10:22:11] checkpoint policy applied",
-        "[10:23:32] monitor: GPU 63°C · VRAM 14.8/16 GB",
-        "[10:24:08] metric hint: contradiction risk stable",
-        "[10:25:46] checkpoint chk_004 registered",
+        "[—] Обучение пока не запускалось",
     )
     monitor_rows: tuple[tuple[str, int, str], ...] = (
-        ("Нагрузка GPU", 78, "63°C"),
-        ("Видеопамять", 92, "14.8 / 16 ГБ"),
-        ("Память RAM", 52, "50 / 96 ГБ"),
+        ("Нагрузка GPU", 0, "нет активного запуска"),
+        ("Видеопамять", 0, "нет активного запуска"),
+        ("Память RAM", 0, "нет активного запуска"),
     )
-    risk_title: str = "Мягкое предупреждение"
-    risk_body: str = "Запас по памяти уже узкий, но стабильный. Лучше не повышать sequence length в этом запуске."
-    next_step: str = "После завершения система предложит зафиксировать run как snapshot перед тестированием."
+    risk_title: str = "Статус"
+    risk_body: str = "Обучение пока не запускалось"
+    next_step: str = "Выберите профиль и датасет, затем запустите обучение."
+    local_model_name: str = "Qwen3.5-0.8B"
+    local_model_path: str = "models/qwen3.5-0.8b"
+    local_model_status: str = "Модель не проверялась"
+    local_model_note: str = "Проверка файлов модели выполняется по запросу."
+    local_inference_status: str = ""
+
+    def __post_init__(self) -> None:
+        self._apply_training_connector()
+        self._apply_model_versions_connector()
+        self._sync_local_model_info()
+
+    def _sync_local_model_info(self) -> None:
+        if self.local_model_service is None:
+            return
+        self.local_model_name = self.local_model_service.model_name
+        self.local_model_path = self.local_model_service.model_path
+
+    def _apply_training_connector(self) -> None:
+        if self.training_service is None:
+            return
+
+        try:
+            runs = self.training_service.list_training_runs()
+        except Exception:
+            self.title = "Обучение"
+            self.subtitle = "Не удалось загрузить запуски обучения"
+            self.status = "ошибка"
+            self.logs = ("[—] Не удалось загрузить запуски обучения",)
+            self.risk_title = "Статус"
+            self.risk_body = "Не удалось загрузить запуски обучения"
+            self.next_step = "Проверьте подключение к базе данных."
+            self.stat_cards = (
+                TrainingMetric("Эпоха", "—", "Не удалось загрузить запуски обучения"),
+                TrainingMetric("Loss", "—", "Не удалось загрузить запуски обучения"),
+                TrainingMetric("Скорость", "—", "Не удалось загрузить запуски обучения"),
+                TrainingMetric("Чекпоинты", "—", "Не удалось загрузить запуски обучения"),
+            )
+            return
+
+        if not runs:
+            self.title = "Обучение"
+            self.subtitle = "Обучение пока не запускалось"
+            return
+
+        current = runs[0]
+        self.title = f"Обучение · {current.run_id}"
+        self.subtitle = current.subtitle
+        self.status = current.status
+        self.selected_objects = (
+            ("Базовая модель", current.base_model),
+            ("Профиль", current.profile),
+            ("Версия датасета", current.dataset_version),
+            ("Режим", current.mode),
+        )
+        self.stat_cards = (
+            TrainingMetric("Эпоха", current.epoch_progress, "статус из реестра запусков"),
+            TrainingMetric("Loss", current.loss, "статус из реестра запусков"),
+            TrainingMetric("Скорость", current.speed, "статус из реестра запусков"),
+            TrainingMetric("Чекпоинты", current.checkpoints_count, "статус из реестра запусков"),
+        )
+        checkpoints_count = int(current.checkpoints_count) if current.checkpoints_count.isdigit() else 0
+        self.checkpoints = tuple(
+            CheckpointView(f"chk_{idx + 1:03d}", "из реестра запуска", highlighted=idx == checkpoints_count - 1)
+            for idx in range(max(1, checkpoints_count))
+        )
+        self.logs = (
+            f"[реестр] run: {current.run_id}",
+            f"[реестр] статус: {current.status}",
+            f"[реестр] прогресс: {current.epoch_progress}",
+            f"[реестр] loss: {current.loss}",
+            f"[реестр] скорость: {current.speed}",
+        )
+        self.risk_title = "Контроль запуска"
+        self.risk_body = "Состояние и метрики читаются из SQLite-реестра запусков обучения."
+        self.next_step = "После завершения зафиксируйте snapshot и переходите к тестам."
+
+    def _apply_model_versions_connector(self) -> None:
+        if self.model_versions_service is None:
+            return
+
+        try:
+            versions = self.model_versions_service.list_model_versions()
+        except Exception:
+            self.versions_status_message = "Не удалось загрузить версии личности"
+            self.personality_versions = (
+                PersonalityVersionView("Ошибка загрузки", "ошибка", "Не удалось загрузить версии личности"),
+            )
+            return
+
+        if not versions:
+            self.versions_status_message = "Версии личности пока не созданы"
+            self.personality_versions = (
+                PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
+            )
+            return
+
+        self.versions_status_message = ""
+        self.personality_versions = tuple(
+            PersonalityVersionView(
+                title=item.title,
+                status=item.status,
+                note=f"{item.base_model} · {item.profile_title} · {item.dataset_title} · {item.training_run_id}\n{item.quality_summary}\n{item.artifact_path}",
+            )
+            for item in versions
+        )
+
+    def check_local_model(self) -> None:
+        self.local_model_status = "Проверка модели…"
+        self.local_model_note = "Идёт проверка структуры файлов."
+        self.local_inference_status = ""
+
+        if self.local_model_service is None:
+            self.local_model_status = "Не удалось проверить модель"
+            self.local_model_note = "Сервис локальной модели не подключён."
+            return
+
+        try:
+            result = self.local_model_service.probe_model_files()
+            self.local_model_status = result.status
+            self.local_model_note = result.details
+        except Exception:
+            self.local_model_status = "Не удалось проверить модель"
+            self.local_model_note = "Проверьте путь и права доступа к файлам модели."
+
+    def test_local_inference(self) -> None:
+        if self.local_model_service is None:
+            self.local_inference_status = "Inference backend пока не подключён"
+            return
+        try:
+            result = self.local_model_service.probe_inference_backend()
+            self.local_inference_status = result.message
+        except Exception:
+            self.local_inference_status = "Inference backend пока не подключён"
