@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, QDateTime
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
@@ -31,7 +31,6 @@ class _VerticalMetric(QFrame):
 
         self._fill = QFrame(self._track)
         self._fill.setObjectName("TelemetryBarFill")
-        self._fill.setStyleSheet("border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;")
 
         layout.addWidget(self._track, 0, Qt.AlignHCenter)
 
@@ -82,7 +81,6 @@ class _HorizontalMetric(QFrame):
 
         self._fill = QFrame(self._track)
         self._fill.setObjectName("TelemetryBarFill")
-        self._fill.setStyleSheet("border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;")
         layout.addWidget(self._track)
 
         self._value_label = QLabel()
@@ -136,38 +134,30 @@ class TelemetryPanel(QFrame):
         self._error.setObjectName("MutedText")
         self._root.addWidget(self._error)
 
-        body = QHBoxLayout()
-        body.setSpacing(10)
-        self._root.addLayout(body, 1)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(6)
+        self._root.addWidget(splitter, 1)
 
         self._left_shell = QFrame()
-        self._left_shell.setObjectName("PanelCardSoft")
+        self._left_shell.setProperty("transparentBg", True)
+        self._left_shell.setMinimumWidth(280)
         left_shell_layout = QVBoxLayout(self._left_shell)
-        left_shell_layout.setContentsMargins(10, 8, 10, 8)
-        left_shell_layout.setSpacing(4)
-        left_title = QLabel("Телеметрия")
-        left_title.setObjectName("TelemetryChip")
-        left_shell_layout.addWidget(left_title, 0, Qt.AlignLeft)
-        self._cores = QLabel(self._vm.cpu_cores_text)
-        self._cores.setObjectName("MutedText")
-        left_shell_layout.addWidget(self._cores, 0, Qt.AlignLeft)
+        left_shell_layout.setContentsMargins(2, 2, 2, 2)
+        left_shell_layout.setSpacing(2)
 
         self._metrics_host = QWidget()
         self._metrics_host.setProperty("transparentBg", True)
         left_shell_layout.addWidget(self._metrics_host, 1)
-        body.addWidget(self._left_shell, 2)
+        splitter.addWidget(self._left_shell)
 
         self._right_shell = QFrame()
         self._right_shell.setObjectName("PanelCardSoft")
-        self._right_shell.setMinimumWidth(290)
-        self._right_shell.setMaximumWidth(390)
+        self._right_shell.setMinimumWidth(280)
+        self._right_shell.setMaximumWidth(480)
         right_shell_layout = QVBoxLayout(self._right_shell)
         right_shell_layout.setContentsMargins(10, 8, 10, 8)
         right_shell_layout.setSpacing(6)
-
-        right_title = QLabel("Процессы")
-        right_title.setObjectName("TelemetryChip")
-        right_shell_layout.addWidget(right_title, 0, Qt.AlignLeft)
 
         self._processes_scroll = QScrollArea()
         self._processes_scroll.setWidgetResizable(True)
@@ -181,8 +171,10 @@ class TelemetryPanel(QFrame):
         self._processes_layout.setSpacing(4)
         self._processes_scroll.setWidget(self._processes_container)
         right_shell_layout.addWidget(self._processes_scroll, 1)
-
-        body.addWidget(self._right_shell, 1)
+        splitter.addWidget(self._right_shell)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([520, 520])
 
         self._refresh_processes()
         self._rebuild("bottom")
@@ -194,16 +186,21 @@ class TelemetryPanel(QFrame):
             self._rebuild(desired)
 
     def _to_items(self, metrics: tuple[TelemetryMetricView, ...]) -> list[TelemetryItem]:
-        return [
-            TelemetryItem(
-                short_label=item.short_label,
-                full_label=item.full_label,
-                value=max(0, min(100, item.value_percent)),
-                tooltip=item.tooltip,
-                value_text=item.value_text,
+        result: list[TelemetryItem] = []
+        for item in metrics:
+            tooltip = item.tooltip
+            if item.short_label == "CPU":
+                tooltip = f"{item.tooltip} · {self._vm.cpu_cores_text}"
+            result.append(
+                TelemetryItem(
+                    short_label=item.short_label,
+                    full_label=item.full_label,
+                    value=max(0, min(100, item.value_percent)),
+                    tooltip=tooltip,
+                    value_text=item.value_text,
+                )
             )
-            for item in metrics
-        ]
+        return result
 
     def _on_refresh(self) -> None:
         self._vm.refresh()
@@ -211,7 +208,6 @@ class TelemetryPanel(QFrame):
         now_text = QDateTime.currentDateTime().toString("HH:mm:ss.zzz")
         self._time.setText(f"Обновлено: {now_text}")
         self._error.setText(self._vm.status_error)
-        self._cores.setText(self._vm.cpu_cores_text)
         self._refresh_processes()
         self._update_metric_widgets()
 
