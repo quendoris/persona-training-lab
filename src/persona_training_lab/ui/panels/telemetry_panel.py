@@ -184,20 +184,22 @@ class TelemetryPanel(QFrame):
             return
         self._refresh_pending = True
         self._refresh_btn.setEnabled(False)
-        self._refresh_btn.setText("Обновление…")
+        self._refresh_btn.setText("Обновление...")
         QTimer.singleShot(0, self._finish_refresh)
 
     def _finish_refresh(self) -> None:
-        self._vm.refresh()
-        self._title.setText(self._vm.status_title)
-        self._subtitle.setText(self._vm.status_subtitle)
-        self._error.setText(self._vm.status_error)
-        self._items = self._to_items(self._vm.metric_items())
-        self._refresh_processes()
-        self._rebuild(self._mode or "bottom")
-        self._refresh_btn.setText("Обновить")
-        self._refresh_btn.setEnabled(True)
-        self._refresh_pending = False
+        try:
+            self._vm.refresh()
+            self._title.setText(self._vm.status_title)
+            self._subtitle.setText(self._vm.status_subtitle)
+            self._error.setText(self._vm.status_error)
+            self._items = self._to_items(self._vm.metric_items())
+            self._refresh_processes()
+            self._rebuild(self._mode or "bottom")
+        finally:
+            self._refresh_btn.setText("Обновить")
+            self._refresh_btn.setEnabled(True)
+            self._refresh_pending = False
 
     def _refresh_processes(self) -> None:
         while self._processes.count():
