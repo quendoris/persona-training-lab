@@ -145,6 +145,8 @@ class _HorizontalMetric(QFrame):
 class TelemetryPanel(QFrame):
     def __init__(self, view_model: TelemetryViewModel) -> None:
         super().__init__()
+        self.setFrameShape(QFrame.NoFrame)
+        self.setAutoFillBackground(False)
         self.setProperty("transparentBg", True)
         self._vm = view_model
         self._mode: str | None = None
@@ -176,12 +178,16 @@ class TelemetryPanel(QFrame):
         self._root.addLayout(top_row)
 
         self._splitter = QSplitter(Qt.Horizontal)
+        self._splitter.setAutoFillBackground(False)
         self._splitter.setProperty("transparentBg", True)
+        self._splitter.setStyleSheet("QSplitter, QSplitter::handle { background: transparent; border: none; }")
         self._splitter.setChildrenCollapsible(False)
         self._splitter.setHandleWidth(6)
         self._root.addWidget(self._splitter, 1)
 
         self._left_shell = QFrame()
+        self._left_shell.setFrameShape(QFrame.NoFrame)
+        self._left_shell.setAutoFillBackground(False)
         self._left_shell.setProperty("transparentBg", True)
         self._left_shell.setMinimumWidth(230)
         left_shell_layout = QVBoxLayout(self._left_shell)
@@ -189,11 +195,14 @@ class TelemetryPanel(QFrame):
         left_shell_layout.setSpacing(2)
 
         self._metrics_host = QWidget()
+        self._metrics_host.setAutoFillBackground(False)
         self._metrics_host.setProperty("transparentBg", True)
         left_shell_layout.addWidget(self._metrics_host, 1)
         self._splitter.addWidget(self._left_shell)
 
         self._right_shell = QFrame()
+        self._right_shell.setFrameShape(QFrame.NoFrame)
+        self._right_shell.setAutoFillBackground(False)
         self._right_shell.setProperty("transparentBg", True)
         self._right_shell.setMinimumWidth(270)
         self._right_shell.setMaximumWidth(660)
@@ -214,8 +223,8 @@ class TelemetryPanel(QFrame):
         self._processes_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._processes_scroll.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._processes_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        self._processes_scroll.setMinimumHeight(104)
-        self._processes_scroll.setMaximumHeight(148)
+        self._processes_scroll.setMinimumHeight(96)
+        self._processes_scroll.setMaximumHeight(136)
 
         self._processes_container = QWidget()
         self._processes_layout = QVBoxLayout(self._processes_container)
@@ -226,12 +235,13 @@ class TelemetryPanel(QFrame):
         self._processes_container.setProperty("transparentBg", True)
         self._processes_scroll.viewport().setStyleSheet("background: transparent;")
         processes_card_layout.addWidget(self._processes_scroll, 1)
-        right_shell_layout.addWidget(self._processes_card, 1)
+        right_shell_layout.addWidget(self._processes_card, 0, Qt.AlignTop)
+        right_shell_layout.addStretch(1)
         self._splitter.addWidget(self._right_shell)
 
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([520, 540])
+        self._splitter.setSizes([470, 590])
 
         self._bind_dock_state()
         self._apply_size_policy()
@@ -270,10 +280,12 @@ class TelemetryPanel(QFrame):
             self._left_shell.setMinimumWidth(260)
             self._right_shell.setMinimumWidth(300)
             self.setMinimumWidth(740)
+            self._splitter.setSizes([520, 620])
         else:
-            self._left_shell.setMinimumWidth(170)
-            self._right_shell.setMinimumWidth(220)
+            self._left_shell.setMinimumWidth(160)
+            self._right_shell.setMinimumWidth(260)
             self.setMinimumWidth(0)
+            self._splitter.setSizes([470, 590])
         if self._mode is not None:
             self._rebuild(self._mode)
 
@@ -342,7 +354,7 @@ class TelemetryPanel(QFrame):
                 self._metric_widgets.append(widget)
                 outer.addWidget(widget)
             outer.addStretch(1)
-            self._splitter.setSizes([500, 540])
+            self._splitter.setSizes([460, 590])
             return
 
         row = QWidget()
@@ -357,7 +369,7 @@ class TelemetryPanel(QFrame):
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
-        self._splitter.setSizes([520, 540])
+        self._splitter.setSizes([470, 590])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
