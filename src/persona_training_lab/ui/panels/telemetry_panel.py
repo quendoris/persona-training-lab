@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
@@ -28,9 +28,11 @@ class _VerticalMetric(QFrame):
         track = QFrame()
         track.setObjectName("TelemetryBarTrack")
         track.setFixedSize(28, 86)
+        track.setAttribute(Qt.WA_StyledBackground, True)
 
         fill = QFrame(track)
         fill.setObjectName("TelemetryBarFill")
+        fill.setAttribute(Qt.WA_StyledBackground, True)
         height = max(8, int(86 * item.value / 100))
         fill.setGeometry(0, 86 - height, 28, height)
         fill.show()
@@ -69,9 +71,11 @@ class _HorizontalMetric(QFrame):
         track.setMinimumHeight(28)
         track.setMaximumHeight(28)
         track.setFixedWidth(184)
+        track.setAttribute(Qt.WA_StyledBackground, True)
 
         fill = QFrame(track)
         fill.setObjectName("TelemetryBarFill")
+        fill.setAttribute(Qt.WA_StyledBackground, True)
         width = max(8, int(184 * item.value / 100))
         fill.setGeometry(0, 0, width, 28)
         fill.show()
@@ -90,6 +94,7 @@ class TelemetryPanel(QFrame):
         self._vm = view_model
         self._items = self._to_items(self._vm.metric_items())
         self._mode: str | None = None
+        self._refresh_pending = False
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(14, 14, 14, 14)
@@ -99,10 +104,10 @@ class TelemetryPanel(QFrame):
         self._title = QLabel(self._vm.status_title)
         title_row.addWidget(self._title)
         title_row.addStretch(1)
-        refresh_btn = QPushButton("Обновить")
-        refresh_btn.setObjectName("SecondaryButton")
-        refresh_btn.clicked.connect(self._on_refresh)
-        title_row.addWidget(refresh_btn)
+        self._refresh_btn = QPushButton("Обновить")
+        self._refresh_btn.setObjectName("SecondaryButton")
+        self._refresh_btn.clicked.connect(self._on_refresh)
+        title_row.addWidget(self._refresh_btn)
         self._root.addLayout(title_row)
 
         self._subtitle = QLabel(self._vm.status_subtitle)
@@ -112,10 +117,6 @@ class TelemetryPanel(QFrame):
         self._error = QLabel(self._vm.status_error)
         self._error.setObjectName("MutedText")
         self._root.addWidget(self._error)
-
-        self._cores = QLabel(self._vm.cpu_cores_text)
-        self._cores.setObjectName("MutedText")
-        self._root.addWidget(self._cores)
 
         body_row = QHBoxLayout()
         body_row.setSpacing(12)
@@ -166,26 +167,37 @@ class TelemetryPanel(QFrame):
             self._rebuild(desired)
 
     def _to_items(self, metrics: tuple[TelemetryMetricView, ...]) -> list[TelemetryItem]:
+        cpu_tooltip = self._vm.cpu_cores_text.strip()
         return [
             TelemetryItem(
                 short_label=item.short_label,
                 full_label=item.full_label,
                 value=max(0, min(100, item.value_percent)),
-                tooltip=item.tooltip,
+                tooltip=f"{item.tooltip}\n{cpu_tooltip}" if item.short_label == "CPU" and cpu_tooltip else item.tooltip,
                 value_text=item.value_text,
             )
             for item in metrics
         ]
 
     def _on_refresh(self) -> None:
+        if self._refresh_pending:
+            return
+        self._refresh_pending = True
+        self._refresh_btn.setEnabled(False)
+        self._refresh_btn.setText("Обновление…")
+        QTimer.singleShot(0, self._finish_refresh)
+
+    def _finish_refresh(self) -> None:
         self._vm.refresh()
         self._title.setText(self._vm.status_title)
         self._subtitle.setText(self._vm.status_subtitle)
         self._error.setText(self._vm.status_error)
-        self._cores.setText(self._vm.cpu_cores_text)
         self._items = self._to_items(self._vm.metric_items())
         self._refresh_processes()
         self._rebuild(self._mode or "bottom")
+        self._refresh_btn.setText("Обновить")
+        self._refresh_btn.setEnabled(True)
+        self._refresh_pending = False
 
     def _refresh_processes(self) -> None:
         while self._processes.count():
