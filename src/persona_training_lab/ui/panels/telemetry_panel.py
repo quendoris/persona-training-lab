@@ -174,6 +174,7 @@ class TelemetryPanel(QFrame):
         super().__init__()
         self.setFrameShape(QFrame.NoFrame)
         self.setAutoFillBackground(False)
+        self.setObjectName("TelemetryPanelRoot")
         self.setProperty("transparentBg", True)
         self._vm = view_model
         self._mode: str | None = None
@@ -205,6 +206,7 @@ class TelemetryPanel(QFrame):
         self._root.addLayout(top_row)
 
         self._splitter = QSplitter(Qt.Horizontal)
+        self._splitter.setObjectName("TelemetryPanelBody")
         self._splitter.setAutoFillBackground(False)
         self._splitter.setProperty("transparentBg", True)
         self._splitter.setStyleSheet("QSplitter, QSplitter::handle { background: transparent; border: none; }")
@@ -241,7 +243,7 @@ class TelemetryPanel(QFrame):
         right_shell_layout.setSpacing(0)
 
         self._processes_card = QFrame()
-        self._processes_card.setObjectName("PanelCardSoft")
+        self._processes_card.setObjectName("TelemetryProcessesCard")
         processes_card_layout = QVBoxLayout(self._processes_card)
         processes_card_layout.setContentsMargins(10, 8, 10, 8)
         processes_card_layout.setSpacing(0)
@@ -269,9 +271,9 @@ class TelemetryPanel(QFrame):
         right_shell_layout.addStretch(1)
         self._splitter.addWidget(self._right_shell)
 
-        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(0, 2)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([470, 590])
+        self._splitter.setSizes([620, 420])
 
         self._bind_dock_state()
         self._apply_size_policy()
@@ -280,7 +282,7 @@ class TelemetryPanel(QFrame):
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        desired = "side" if self.width() < 520 else "bottom"
+        desired = "bottom"
         if desired != self._mode:
             self._rebuild(desired)
 
@@ -288,6 +290,7 @@ class TelemetryPanel(QFrame):
         super().showEvent(event)
         self._bind_dock_state()
         self._apply_size_policy()
+        self._rebuild("bottom")
 
     def _bind_dock_state(self) -> None:
         dock = self._find_dock_widget()
@@ -310,12 +313,12 @@ class TelemetryPanel(QFrame):
             self._left_shell.setMinimumWidth(260)
             self._right_shell.setMinimumWidth(300)
             self.setMinimumWidth(740)
-            self._splitter.setSizes([520, 620])
+            self._splitter.setSizes([620, 460])
         else:
             self._left_shell.setMinimumWidth(160)
             self._right_shell.setMinimumWidth(260)
             self.setMinimumWidth(0)
-            self._splitter.setSizes([470, 590])
+            self._splitter.setSizes([620, 420])
         if self._mode is not None:
             self._rebuild(self._mode)
 
@@ -384,7 +387,7 @@ class TelemetryPanel(QFrame):
                 self._metric_widgets.append(widget)
                 outer.addWidget(widget)
             outer.addStretch(1)
-            self._splitter.setSizes([460, 590])
+            self._splitter.setSizes([540, 420])
             return
 
         row = QWidget()
@@ -402,7 +405,7 @@ class TelemetryPanel(QFrame):
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
-        self._splitter.setSizes([470, 590])
+        self._splitter.setSizes([620, 420])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
