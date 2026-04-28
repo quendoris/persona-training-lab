@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QDateTime, Qt
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPalette
+from PySide6.QtGui import QPainter, QPaintEvent, QPalette
 from PySide6.QtWidgets import (
     QDockWidget,
     QFrame,
@@ -35,8 +35,10 @@ class _BarTrack(QWidget):
         self._progress = 0
         if vertical:
             self.setFixedSize(thickness, length)
+            self.setMinimumSize(thickness, length)
         else:
             self.setFixedSize(length, thickness)
+            self.setMinimumSize(length, thickness)
 
     def set_progress(self, value: int) -> None:
         clamped = max(0, min(100, value))
@@ -52,9 +54,26 @@ class _BarTrack(QWidget):
 
         rect = self.rect().adjusted(1, 1, -1, -1)
         radius = min(rect.width(), rect.height()) / 2.0
-        track_color = self.palette().color(QPalette.ColorRole.Midlight)
-        track_color.setAlpha(72)
-        fill_color = self.palette().color(QPalette.ColorRole.Highlight)
+        palette = self.palette()
+        window_color = palette.color(QPalette.ColorRole.Window)
+        base_track = palette.color(QPalette.ColorRole.Midlight)
+        base_fill = palette.color(QPalette.ColorRole.Highlight)
+        if not base_fill.isValid() or base_fill.alpha() < 120:
+            base_fill = palette.color(QPalette.ColorRole.Link)
+        if not base_fill.isValid():
+            base_fill = palette.color(QPalette.ColorRole.BrightText)
+
+        contrast = abs(base_fill.lightness() - window_color.lightness())
+        if contrast < 36:
+            base_fill = base_fill.lighter(145) if window_color.lightness() < 128 else base_fill.darker(150)
+        base_fill.setAlpha(max(190, base_fill.alpha()))
+
+        track_color = base_track if base_track.isValid() else window_color
+        track_contrast = abs(track_color.lightness() - window_color.lightness())
+        if track_contrast < 16:
+            track_color = window_color.lighter(125) if window_color.lightness() < 128 else window_color.darker(125)
+        track_color.setAlpha(108)
+        fill_color = base_fill
         painter.setPen(Qt.NoPen)
         painter.setBrush(track_color)
         painter.drawRoundedRect(rect, radius, radius)
