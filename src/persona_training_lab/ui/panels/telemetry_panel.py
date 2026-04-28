@@ -53,7 +53,7 @@ class _BarTrack(QWidget):
         rect = self.rect().adjusted(1, 1, -1, -1)
         radius = min(rect.width(), rect.height()) / 2.0
         track_color = self.palette().color(QPalette.ColorRole.Midlight)
-        track_color.setAlpha(140)
+        track_color.setAlpha(72)
         fill_color = self.palette().color(QPalette.ColorRole.Highlight)
         painter.setPen(Qt.NoPen)
         painter.setBrush(track_color)
@@ -76,6 +76,7 @@ class _BarTrack(QWidget):
 class _VerticalMetric(QFrame):
     def __init__(self, item: TelemetryItem) -> None:
         super().__init__()
+        self.setProperty("transparentBg", True)
         self._item = item
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -109,6 +110,7 @@ class _VerticalMetric(QFrame):
 class _HorizontalMetric(QFrame):
     def __init__(self, item: TelemetryItem) -> None:
         super().__init__()
+        self.setProperty("transparentBg", True)
         self._item = item
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -229,7 +231,7 @@ class TelemetryPanel(QFrame):
 
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
-        self._splitter.setSizes([500, 560])
+        self._splitter.setSizes([520, 540])
 
         self._bind_dock_state()
         self._apply_size_policy()
@@ -315,7 +317,6 @@ class TelemetryPanel(QFrame):
             label.setObjectName("TelemetryCaption")
             label.setWordWrap(False)
             self._processes_layout.addWidget(label)
-        self._processes_layout.addStretch(1)
 
     def _rebuild(self, mode: str) -> None:
         self._mode = mode
@@ -341,10 +342,11 @@ class TelemetryPanel(QFrame):
                 self._metric_widgets.append(widget)
                 outer.addWidget(widget)
             outer.addStretch(1)
-            self._splitter.setSizes([470, 560])
+            self._splitter.setSizes([500, 540])
             return
 
         row = QWidget()
+        row.setProperty("transparentBg", True)
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
@@ -355,7 +357,7 @@ class TelemetryPanel(QFrame):
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
-        self._splitter.setSizes([500, 560])
+        self._splitter.setSizes([520, 540])
 
     def _update_metric_widgets(self) -> None:
         items = self._to_items(self._vm.metric_items())
