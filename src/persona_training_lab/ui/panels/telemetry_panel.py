@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -31,6 +32,7 @@ class TelemetryItem:
 class _BarTrack(QWidget):
     def __init__(self, *, vertical: bool, length: int, thickness: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("TelemetryBarTrack")
         self._vertical = vertical
         self._progress = 0
         if vertical:
@@ -95,7 +97,10 @@ class _BarTrack(QWidget):
 class _VerticalMetric(QFrame):
     def __init__(self, item: TelemetryItem) -> None:
         super().__init__()
+        self.setObjectName("TelemetryMetricItem")
         self.setProperty("transparentBg", True)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setMinimumSize(56, 148)
         self._item = item
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -129,7 +134,10 @@ class _VerticalMetric(QFrame):
 class _HorizontalMetric(QFrame):
     def __init__(self, item: TelemetryItem) -> None:
         super().__init__()
+        self.setObjectName("TelemetryMetricItem")
         self.setProperty("transparentBg", True)
+        self.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+        self.setMinimumHeight(38)
         self._item = item
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -214,8 +222,11 @@ class TelemetryPanel(QFrame):
         left_shell_layout.setSpacing(2)
 
         self._metrics_host = QWidget()
+        self._metrics_host.setObjectName("TelemetryMetricsHost")
         self._metrics_host.setAutoFillBackground(False)
         self._metrics_host.setProperty("transparentBg", True)
+        self._metrics_host.setMinimumHeight(170)
+        self._metrics_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_shell_layout.addWidget(self._metrics_host, 1)
         self._splitter.addWidget(self._left_shell)
 
@@ -269,7 +280,7 @@ class TelemetryPanel(QFrame):
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        desired = "side" if self.width() < 680 else "bottom"
+        desired = "side" if self.width() < 520 else "bottom"
         if desired != self._mode:
             self._rebuild(desired)
 
@@ -377,14 +388,17 @@ class TelemetryPanel(QFrame):
             return
 
         row = QWidget()
+        row.setObjectName("TelemetryMetricsRow")
         row.setProperty("transparentBg", True)
+        row.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
+        row.setMinimumHeight(154)
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         for item in items:
             widget = _VerticalMetric(item)
             self._metric_widgets.append(widget)
-            layout.addWidget(widget, 0, Qt.AlignVCenter)
+            layout.addWidget(widget, 0, Qt.AlignCenter)
         outer.addStretch(1)
         outer.addWidget(row, 0, Qt.AlignCenter)
         outer.addStretch(1)
