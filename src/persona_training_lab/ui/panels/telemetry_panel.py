@@ -122,6 +122,7 @@ class TelemetryPanel(QFrame):
         self._root.addLayout(body_row, 1)
 
         self._content = QWidget()
+        self._content.setObjectName("TelemetryMetricsHost")
         self._content.setProperty("transparentBg", True)
         body_row.addWidget(self._content, 2)
 
@@ -138,12 +139,16 @@ class TelemetryPanel(QFrame):
         processes_shell_layout.addWidget(header)
 
         self._processes_scroll = QScrollArea()
+        self._processes_scroll.setObjectName("TelemetryProcessesScroll")
         self._processes_scroll.setWidgetResizable(True)
         self._processes_scroll.setFrameShape(QFrame.NoFrame)
         self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._processes_scroll.setMaximumHeight(138)
+        self._processes_scroll.viewport().setObjectName("TelemetryProcessesViewport")
 
         self._processes_container = QWidget()
+        self._processes_container.setObjectName("TelemetryProcessesContainer")
+        self._processes_container.setProperty("transparentBg", True)
         self._processes = QVBoxLayout(self._processes_container)
         self._processes.setContentsMargins(0, 0, 0, 0)
         self._processes.setSpacing(6)
@@ -208,6 +213,8 @@ class TelemetryPanel(QFrame):
             outer.setContentsMargins(0, 4, 0, 0)
             outer.setSpacing(8)
             center = QWidget()
+            center.setObjectName("TelemetryMetricsViewport")
+            center.setProperty("transparentBg", True)
             layout = QVBoxLayout(center)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(12)
@@ -219,6 +226,8 @@ class TelemetryPanel(QFrame):
             outer.setContentsMargins(0, 4, 0, 0)
             outer.setSpacing(8)
             row = QWidget()
+            row.setObjectName("TelemetryMetricsViewport")
+            row.setProperty("transparentBg", True)
             layout = QHBoxLayout(row)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(10)

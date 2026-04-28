@@ -231,6 +231,15 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         background: transparent;
         border: none;
     }
+    QWidget#TelemetryMetricsHost,
+    QWidget#TelemetryMetricsViewport,
+    QWidget#TelemetryProcessesContainer,
+    QWidget#TelemetryProcessesViewport,
+    QScrollArea#TelemetryProcessesScroll,
+    QScrollArea#TelemetryProcessesScroll > QWidget > QWidget {
+        background: transparent;
+        border: none;
+    }
     QLabel#WorkflowPill {
         background-color: $surface_alt;
         border: 1px solid $border;
