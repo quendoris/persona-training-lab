@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QPainter, QPainterPath
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
@@ -17,25 +18,58 @@ class TelemetryItem:
     value_text: str
 
 
+class _TelemetryBarTrack(QFrame):
+    def __init__(self, value: int, *, vertical: bool) -> None:
+        super().__init__()
+        self.setObjectName("TelemetryBarTrack")
+        self._value = max(0, min(100, value))
+        self._vertical = vertical
+        self.setAttribute(Qt.WA_StyledBackground, True)
+
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        if rect.width() <= 0 or rect.height() <= 0:
+            return
+
+        opt = QStyleOptionFrame()
+        opt.initFrom(self)
+        opt.rect = self.rect()
+        self.style().drawPrimitive(QStyle.PE_Widget, opt, painter, self)
+
+        radius = min(10.0, rect.width() / 2.0, rect.height() / 2.0)
+        track_path = QPainterPath()
+        track_path.addRoundedRect(rect, radius, radius)
+        painter.save()
+        painter.setClipPath(track_path)
+
+        fill_rect = rect.toRect()
+        if self._vertical:
+            fill_height = max(8, int(rect.height() * self._value / 100))
+            fill_rect.setTop(fill_rect.bottom() - fill_height + 1)
+        else:
+            fill_width = max(8, int(rect.width() * self._value / 100))
+            fill_rect.setRight(fill_rect.left() + fill_width - 1)
+
+        fill_color = self.palette().color(self.foregroundRole())
+        if not fill_color.isValid() or fill_color.alpha() == 0:
+            fill_color = self.palette().highlight().color()
+        painter.fillRect(fill_rect, QColor(fill_color))
+        painter.restore()
+
+
 class _VerticalMetric(QFrame):
     def __init__(self, item: TelemetryItem) -> None:
         super().__init__()
+        self.setProperty("transparentBg", True)
         self.setToolTip(item.tooltip)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        track = QFrame()
-        track.setObjectName("TelemetryBarTrack")
+        track = _TelemetryBarTrack(item.value, vertical=True)
         track.setFixedSize(28, 86)
-        track.setAttribute(Qt.WA_StyledBackground, True)
-
-        fill = QFrame(track)
-        fill.setObjectName("TelemetryBarFill")
-        fill.setAttribute(Qt.WA_StyledBackground, True)
-        height = max(8, int(86 * item.value / 100))
-        fill.setGeometry(0, 86 - height, 28, height)
-        fill.show()
 
         layout.addWidget(track, 0, Qt.AlignHCenter)
         caption = QLabel(item.short_label)
@@ -54,6 +88,7 @@ class _VerticalMetric(QFrame):
 class _HorizontalMetric(QFrame):
     def __init__(self, item: TelemetryItem) -> None:
         super().__init__()
+        self.setProperty("transparentBg", True)
         self.setToolTip(item.tooltip)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -66,19 +101,10 @@ class _HorizontalMetric(QFrame):
         label.setFixedHeight(24)
         layout.addWidget(label)
 
-        track = QFrame()
-        track.setObjectName("TelemetryBarTrack")
+        track = _TelemetryBarTrack(item.value, vertical=False)
         track.setMinimumHeight(28)
         track.setMaximumHeight(28)
         track.setFixedWidth(184)
-        track.setAttribute(Qt.WA_StyledBackground, True)
-
-        fill = QFrame(track)
-        fill.setObjectName("TelemetryBarFill")
-        fill.setAttribute(Qt.WA_StyledBackground, True)
-        width = max(8, int(184 * item.value / 100))
-        fill.setGeometry(0, 0, width, 28)
-        fill.show()
 
         layout.addWidget(track)
         value_label = QLabel(item.value_text)
