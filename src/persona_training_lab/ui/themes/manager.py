@@ -274,28 +274,30 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border-radius: 16px;
     }
     QScrollBar:vertical {
-        background: transparent;
-        width: 10px;
+        background-color: $surface_soft;
+        width: 12px;
         margin: 2px 2px 2px 0px;
-        border: none;
+        border: 1px solid $border_soft;
+        border-radius: 6px;
     }
     QScrollBar:horizontal {
-        background: transparent;
-        height: 10px;
+        background-color: $surface_soft;
+        height: 12px;
         margin: 0px 2px 2px 2px;
-        border: none;
+        border: 1px solid $border_soft;
+        border-radius: 6px;
     }
     QScrollBar::handle:vertical {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 5px;
-        min-height: 28px;
+        border-radius: 6px;
+        min-height: 30px;
     }
     QScrollBar::handle:horizontal {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 5px;
-        min-width: 28px;
+        border-radius: 6px;
+        min-width: 30px;
     }
     QScrollBar::handle:vertical:hover,
     QScrollBar::handle:horizontal:hover {
@@ -303,7 +305,11 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border: 1px solid $accent;
     }
     QScrollBar::add-line,
-    QScrollBar::sub-line {
+    QScrollBar::sub-line,
+    QScrollBar::up-arrow,
+    QScrollBar::down-arrow,
+    QScrollBar::left-arrow,
+    QScrollBar::right-arrow {
         background: transparent;
         border: none;
         width: 0px;
@@ -311,8 +317,8 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
     }
     QScrollBar::add-page,
     QScrollBar::sub-page {
-        background-color: $surface_soft;
-        border-radius: 5px;
+        background: transparent;
+        border: none;
     }
     QListWidget, QTextEdit, QPlainTextEdit, QComboBox, QLineEdit {
         background-color: $surface_alt;
@@ -320,6 +326,32 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border: 1px solid $border;
         border-radius: 16px;
         padding: 8px;
+    }
+    QComboBox {
+        padding-right: 30px;
+    }
+    QComboBox::drop-down {
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 26px;
+        border: none;
+        background: transparent;
+        border-top-right-radius: 16px;
+        border-bottom-right-radius: 16px;
+    }
+    QComboBox::down-arrow {
+        image: none;
+        width: 0px;
+        height: 0px;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid $text_muted;
+        margin-right: 10px;
+        background: transparent;
+    }
+    QComboBox::down-arrow:on,
+    QComboBox::down-arrow:hover {
+        border-top: 6px solid $accent;
     }
     QTableWidget {
         background-color: $surface_alt;
