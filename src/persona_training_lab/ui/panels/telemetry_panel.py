@@ -44,7 +44,7 @@ class _TelemetryBarTrack(QFrame):
         painter.save()
         painter.setClipPath(track_path)
 
-        fill_rect = rect.toRect()
+        fill_rect = type(rect)(rect)
         if self._vertical:
             fill_height = max(8, int(rect.height() * self._value / 100))
             fill_rect.setTop(fill_rect.bottom() - fill_height + 1)
