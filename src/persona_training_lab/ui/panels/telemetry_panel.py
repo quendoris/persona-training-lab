@@ -252,7 +252,7 @@ class TelemetryPanel(QFrame):
         if self._dock_widget is None:
             return
         if self._dock_widget.isFloating():
-            fixed = QSize(780, 300)
+            fixed = QSize(740, 260)
             self._dock_widget.setMinimumSize(fixed)
             self._dock_widget.setMaximumSize(fixed)
             self._dock_widget.resize(fixed)
