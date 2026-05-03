@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath
+from PySide6.QtGui import QPainter, QPainterPath
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
@@ -25,6 +25,9 @@ class _TelemetryBarTrack(QFrame):
         self._value = max(0, min(100, value))
         self._vertical = vertical
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self._fill_probe = QFrame(self)
+        self._fill_probe.setObjectName("TelemetryBarFill")
+        self._fill_probe.hide()
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
         painter = QPainter(self)
@@ -52,8 +55,10 @@ class _TelemetryBarTrack(QFrame):
             fill_width = max(8, int(rect.width() * self._value / 100))
             fill_rect.setRight(fill_rect.left() + fill_width - 1)
 
-        fill_color = self.palette().highlight().color()
-        painter.fillRect(fill_rect, QColor(fill_color))
+        fill_opt = QStyleOptionFrame()
+        fill_opt.initFrom(self._fill_probe)
+        fill_opt.rect = fill_rect
+        self._fill_probe.style().drawPrimitive(QStyle.PE_Widget, fill_opt, painter, self._fill_probe)
         painter.restore()
 
 
