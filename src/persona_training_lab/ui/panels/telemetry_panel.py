@@ -151,7 +151,7 @@ class TelemetryPanel(QFrame):
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(14, 14, 14, 14)
-        self._root.setSpacing(6)
+        self._root.setSpacing(4)
 
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
@@ -169,6 +169,7 @@ class TelemetryPanel(QFrame):
 
         self._error = QLabel(self._vm.status_error)
         self._error.setObjectName("MutedText")
+        self._error.setVisible(bool(self._vm.status_error.strip()))
         self._root.addWidget(self._error)
 
         body_row = QHBoxLayout()
@@ -251,9 +252,10 @@ class TelemetryPanel(QFrame):
         if self._dock_widget is None:
             return
         if self._dock_widget.isFloating():
-            self._dock_widget.setMinimumSize(QSize(820, 300))
-            self._dock_widget.setMaximumSize(QSize(980, 360))
-            self._dock_widget.resize(860, 320)
+            fixed = QSize(820, 300)
+            self._dock_widget.setMinimumSize(fixed)
+            self._dock_widget.setMaximumSize(fixed)
+            self._dock_widget.resize(fixed)
         else:
             self._dock_widget.setMinimumSize(QSize(0, 0))
             self._dock_widget.setMaximumSize(QSize(16777215, 16777215))
@@ -292,6 +294,7 @@ class TelemetryPanel(QFrame):
             self._title.setText(self._vm.status_title)
             self._subtitle.setText(self._compact_updated_text(self._vm.status_subtitle))
             self._error.setText(self._vm.status_error)
+            self._error.setVisible(bool(self._vm.status_error.strip()))
             self._items = self._to_items(self._vm.metric_items())
             self._refresh_processes()
             self._update_metric_widgets()
@@ -336,7 +339,7 @@ class TelemetryPanel(QFrame):
 
         if mode == "side":
             outer = QVBoxLayout(self._content)
-            outer.setContentsMargins(0, 4, 0, 0)
+            outer.setContentsMargins(0, 0, 0, 0)
             outer.setSpacing(8)
             center = QWidget()
             center.setObjectName("TelemetryMetricsViewport")
@@ -353,7 +356,7 @@ class TelemetryPanel(QFrame):
             outer.addWidget(center, 0, Qt.AlignTop)
         else:
             outer = QVBoxLayout(self._content)
-            outer.setContentsMargins(0, 4, 0, 0)
+            outer.setContentsMargins(0, 0, 0, 0)
             outer.setSpacing(8)
             row = QWidget()
             row.setObjectName("TelemetryMetricsViewport")
