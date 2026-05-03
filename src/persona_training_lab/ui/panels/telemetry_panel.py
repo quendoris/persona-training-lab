@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer, Qt, QSize
 from PySide6.QtGui import QPainter, QPainterPath
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDockWidget, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
@@ -147,14 +147,19 @@ class TelemetryPanel(QFrame):
         self._auto_refresh_timer = QTimer(self)
         self._auto_refresh_timer.setInterval(30_000)
         self._auto_refresh_timer.timeout.connect(self._on_auto_refresh)
+        self._dock_widget: QDockWidget | None = None
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(14, 14, 14, 14)
-        self._root.setSpacing(10)
+        self._root.setSpacing(6)
 
         title_row = QHBoxLayout()
+        title_row.setSpacing(8)
         self._title = QLabel(self._vm.status_title)
         title_row.addWidget(self._title)
+        self._subtitle = QLabel(self._vm.status_subtitle)
+        self._subtitle.setObjectName("MutedText")
+        title_row.addWidget(self._subtitle, 0, Qt.AlignVCenter)
         title_row.addStretch(1)
         self._refresh_btn = QPushButton("Обновить")
         self._refresh_btn.setObjectName("SecondaryButton")
@@ -162,16 +167,12 @@ class TelemetryPanel(QFrame):
         title_row.addWidget(self._refresh_btn)
         self._root.addLayout(title_row)
 
-        self._subtitle = QLabel(self._vm.status_subtitle)
-        self._subtitle.setObjectName("MutedText")
-        self._root.addWidget(self._subtitle)
-
         self._error = QLabel(self._vm.status_error)
         self._error.setObjectName("MutedText")
         self._root.addWidget(self._error)
 
         body_row = QHBoxLayout()
-        body_row.setSpacing(12)
+        body_row.setSpacing(16)
         self._root.addLayout(body_row, 1)
 
         self._content = QWidget()
@@ -225,6 +226,8 @@ class TelemetryPanel(QFrame):
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
+        self._ensure_dock_binding()
+        self._apply_floating_size_policy()
         if not self._auto_refresh_timer.isActive():
             self._auto_refresh_timer.start()
         self._on_auto_refresh()
@@ -232,6 +235,28 @@ class TelemetryPanel(QFrame):
     def hideEvent(self, event) -> None:  # type: ignore[override]
         super().hideEvent(event)
         self._auto_refresh_timer.stop()
+
+    def _ensure_dock_binding(self) -> None:
+        if self._dock_widget is not None:
+            return
+        parent = self.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QDockWidget):
+                self._dock_widget = parent
+                self._dock_widget.topLevelChanged.connect(lambda _floating: self._apply_floating_size_policy())
+                break
+            parent = parent.parentWidget()
+
+    def _apply_floating_size_policy(self) -> None:
+        if self._dock_widget is None:
+            return
+        if self._dock_widget.isFloating():
+            self._dock_widget.setMinimumSize(QSize(820, 300))
+            self._dock_widget.setMaximumSize(QSize(980, 360))
+            self._dock_widget.resize(860, 320)
+        else:
+            self._dock_widget.setMinimumSize(QSize(0, 0))
+            self._dock_widget.setMaximumSize(QSize(16777215, 16777215))
 
     def _to_items(self, metrics: tuple[TelemetryMetricView, ...]) -> list[TelemetryItem]:
         cpu_tooltip = self._vm.cpu_cores_text.strip()
