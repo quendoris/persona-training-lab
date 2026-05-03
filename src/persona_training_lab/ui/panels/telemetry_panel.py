@@ -29,6 +29,10 @@ class _TelemetryBarTrack(QFrame):
         self._fill_probe.setObjectName("TelemetryBarFill")
         self._fill_probe.hide()
 
+    def set_value(self, value: int) -> None:
+        self._value = max(0, min(100, value))
+        self.update()
+
     def paintEvent(self, event) -> None:  # type: ignore[override]
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -86,6 +90,13 @@ class _VerticalMetric(QFrame):
         value_label.setObjectName("TelemetryCaption")
         value_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(value_label)
+        self._track = track
+        self._value_label = value_label
+
+    def set_item(self, item: TelemetryItem) -> None:
+        self.setToolTip(item.tooltip)
+        self._track.set_value(item.value)
+        self._value_label.setText(item.value_text)
 
 
 class _HorizontalMetric(QFrame):
@@ -114,6 +125,13 @@ class _HorizontalMetric(QFrame):
         value_label.setObjectName("TelemetryCaption")
         layout.addWidget(value_label)
         layout.addStretch(1)
+        self._track = track
+        self._value_label = value_label
+
+    def set_item(self, item: TelemetryItem) -> None:
+        self.setToolTip(item.tooltip)
+        self._track.set_value(item.value)
+        self._value_label.setText(item.value_text)
 
 
 class TelemetryPanel(QFrame):
@@ -124,6 +142,11 @@ class TelemetryPanel(QFrame):
         self._items = self._to_items(self._vm.metric_items())
         self._mode: str | None = None
         self._refresh_pending = False
+        self._metrics_widgets: list[_VerticalMetric | _HorizontalMetric] = []
+        self._metrics_layout: QVBoxLayout | QHBoxLayout | None = None
+        self._auto_refresh_timer = QTimer(self)
+        self._auto_refresh_timer.setInterval(30_000)
+        self._auto_refresh_timer.timeout.connect(self._on_auto_refresh)
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(14, 14, 14, 14)
@@ -188,12 +211,23 @@ class TelemetryPanel(QFrame):
 
         self._refresh_processes()
         self._rebuild("bottom")
+        self._auto_refresh_timer.start()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         desired = "side" if self.width() < max(460, self.height() * 0.72) else "bottom"
         if desired != self._mode:
             self._rebuild(desired)
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        if not self._auto_refresh_timer.isActive():
+            self._auto_refresh_timer.start()
+        self._on_auto_refresh()
+
+    def hideEvent(self, event) -> None:  # type: ignore[override]
+        super().hideEvent(event)
+        self._auto_refresh_timer.stop()
 
     def _to_items(self, metrics: tuple[TelemetryMetricView, ...]) -> list[TelemetryItem]:
         cpu_tooltip = self._vm.cpu_cores_text.strip()
@@ -209,26 +243,46 @@ class TelemetryPanel(QFrame):
         ]
 
     def _on_refresh(self) -> None:
+        self._run_refresh(show_pending=True)
+
+    def _on_auto_refresh(self) -> None:
+        self._run_refresh(show_pending=False)
+
+    def _run_refresh(self, *, show_pending: bool) -> None:
         if self._refresh_pending:
             return
         self._refresh_pending = True
-        self._refresh_btn.setEnabled(False)
-        self._refresh_btn.setText("Обновление...")
+        if show_pending:
+            self._refresh_btn.setEnabled(False)
+            self._refresh_btn.setText("Обновление...")
         QTimer.singleShot(0, self._finish_refresh)
 
     def _finish_refresh(self) -> None:
         try:
             self._vm.refresh()
             self._title.setText(self._vm.status_title)
-            self._subtitle.setText(self._vm.status_subtitle)
+            self._subtitle.setText(self._compact_updated_text(self._vm.status_subtitle))
             self._error.setText(self._vm.status_error)
             self._items = self._to_items(self._vm.metric_items())
             self._refresh_processes()
-            self._rebuild(self._mode or "bottom")
+            self._update_metric_widgets()
         finally:
             self._refresh_btn.setText("Обновить")
             self._refresh_btn.setEnabled(True)
             self._refresh_pending = False
+
+    def _compact_updated_text(self, subtitle: str) -> str:
+        prefix = "Последнее обновление:"
+        if subtitle.startswith(prefix):
+            return f"Обновлено:{subtitle[len(prefix):]}"
+        return subtitle
+
+    def _update_metric_widgets(self) -> None:
+        if len(self._metrics_widgets) != len(self._items):
+            self._rebuild(self._mode or "bottom")
+            return
+        for widget, item in zip(self._metrics_widgets, self._items):
+            widget.set_item(item)
 
     def _refresh_processes(self) -> None:
         while self._processes.count():
@@ -261,8 +315,12 @@ class TelemetryPanel(QFrame):
             layout = QVBoxLayout(center)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(12)
+            self._metrics_layout = layout
+            self._metrics_widgets = []
             for item in self._items:
-                layout.addWidget(_HorizontalMetric(item))
+                metric = _HorizontalMetric(item)
+                self._metrics_widgets.append(metric)
+                layout.addWidget(metric)
             outer.addWidget(center, 0, Qt.AlignTop)
         else:
             outer = QVBoxLayout(self._content)
@@ -274,6 +332,10 @@ class TelemetryPanel(QFrame):
             layout = QHBoxLayout(row)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(10)
+            self._metrics_layout = layout
+            self._metrics_widgets = []
             for item in self._items:
-                layout.addWidget(_VerticalMetric(item))
+                metric = _VerticalMetric(item)
+                self._metrics_widgets.append(metric)
+                layout.addWidget(metric)
             outer.addWidget(row, 0, Qt.AlignLeft | Qt.AlignTop)
