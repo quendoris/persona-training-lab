@@ -273,6 +273,47 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border: 1px solid $border_soft;
         border-radius: 16px;
     }
+    QScrollBar:vertical {
+        background: transparent;
+        width: 10px;
+        margin: 2px 2px 2px 0px;
+        border: none;
+    }
+    QScrollBar:horizontal {
+        background: transparent;
+        height: 10px;
+        margin: 0px 2px 2px 2px;
+        border: none;
+    }
+    QScrollBar::handle:vertical {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
+        min-height: 28px;
+    }
+    QScrollBar::handle:horizontal {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
+        min-width: 28px;
+    }
+    QScrollBar::handle:vertical:hover,
+    QScrollBar::handle:horizontal:hover {
+        background-color: $accent_hover;
+        border: 1px solid $accent;
+    }
+    QScrollBar::add-line,
+    QScrollBar::sub-line {
+        background: transparent;
+        border: none;
+        width: 0px;
+        height: 0px;
+    }
+    QScrollBar::add-page,
+    QScrollBar::sub-page {
+        background-color: $surface_soft;
+        border-radius: 5px;
+    }
     QListWidget, QTextEdit, QPlainTextEdit, QComboBox, QLineEdit {
         background-color: $surface_alt;
         color: $text_primary;
