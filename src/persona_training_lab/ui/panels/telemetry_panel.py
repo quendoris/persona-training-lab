@@ -52,9 +52,7 @@ class _TelemetryBarTrack(QFrame):
             fill_width = max(8, int(rect.width() * self._value / 100))
             fill_rect.setRight(fill_rect.left() + fill_width - 1)
 
-        fill_color = self.palette().color(self.foregroundRole())
-        if not fill_color.isValid() or fill_color.alpha() == 0:
-            fill_color = self.palette().highlight().color()
+        fill_color = self.palette().highlight().color()
         painter.fillRect(fill_rect, QColor(fill_color))
         painter.restore()
 
