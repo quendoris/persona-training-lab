@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QPainter, QPainterPath
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
@@ -181,8 +181,8 @@ class TelemetryPanel(QFrame):
 
         processes_shell = QFrame()
         processes_shell.setObjectName("PanelCardSoft")
-        processes_shell.setMaximumWidth(420)
         processes_shell.setMinimumWidth(280)
+        processes_shell.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         processes_shell_layout = QVBoxLayout(processes_shell)
         processes_shell_layout.setContentsMargins(10, 10, 10, 10)
         processes_shell_layout.setSpacing(8)
@@ -196,7 +196,7 @@ class TelemetryPanel(QFrame):
         self._processes_scroll.setWidgetResizable(True)
         self._processes_scroll.setFrameShape(QFrame.NoFrame)
         self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._processes_scroll.setMaximumHeight(138)
+        self._processes_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._processes_scroll.viewport().setObjectName("TelemetryProcessesViewport")
 
         self._processes_container = QWidget()
@@ -205,8 +205,10 @@ class TelemetryPanel(QFrame):
         self._processes = QVBoxLayout(self._processes_container)
         self._processes.setContentsMargins(0, 0, 0, 0)
         self._processes.setSpacing(6)
+        self._processes.setAlignment(Qt.AlignTop)
         self._processes_scroll.setWidget(self._processes_container)
         processes_shell_layout.addWidget(self._processes_scroll, 1)
+        processes_shell_layout.setStretch(1, 1)
         body_row.addWidget(processes_shell, 1)
 
         self._refresh_processes()
