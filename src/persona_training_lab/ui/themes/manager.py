@@ -126,12 +126,14 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
     v_style = RoundedScrollBarStyle(
-        theme["surface_alt"],
+        theme["surface_soft"],
+        theme["border_soft"],
         accent["accent"],
         accent["accent_hover"],
     )
     h_style = RoundedScrollBarStyle(
-        theme["surface_alt"],
+        theme["surface_soft"],
+        theme["border_soft"],
         accent["accent"],
         accent["accent_hover"],
     )
@@ -619,9 +621,10 @@ def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: s
     app.setProperty("ptl_accent_name", accent_name or DEFAULT_ACCENT)
     app.setStyleSheet(build_stylesheet(theme_name, accent_name))
 class RoundedScrollBarStyle(QProxyStyle):
-    def __init__(self, track: str, handle: str, handle_hover: str) -> None:
+    def __init__(self, track: str, track_border: str, handle: str, handle_hover: str) -> None:
         super().__init__("Fusion")
         self._track = QColor(track)
+        self._track_border = QColor(track_border)
         self._handle = QColor(handle)
         self._handle_hover = QColor(handle_hover)
 
@@ -635,7 +638,7 @@ class RoundedScrollBarStyle(QProxyStyle):
 
         groove_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarGroove, widget).adjusted(1, 1, -1, -1)
         if groove_rect.isValid():
-            painter.setPen(Qt.NoPen)
+            painter.setPen(self._track_border)
             painter.setBrush(self._track)
             radius = groove_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else groove_rect.height() / 2.0
             painter.drawRoundedRect(QRectF(groove_rect), radius, radius)
