@@ -240,6 +240,11 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         background: transparent;
         border: none;
     }
+    QScrollArea#StableScrollArea,
+    QScrollArea#StableScrollArea > QWidget > QWidget {
+        background: transparent;
+        border: none;
+    }
     QLabel#WorkflowPill {
         background-color: $surface_alt;
         border: 1px solid $border;

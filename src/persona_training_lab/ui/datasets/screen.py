@@ -26,24 +26,13 @@ from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 
 def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QFrame, QGridLayout]:
     scroll = QScrollArea()
+    scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setFrameShape(QFrame.Shape.NoFrame)
     scroll.setMinimumHeight(max_height)
     scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    scroll.setStyleSheet(
-        """
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-            border: none;
-        }
-        """
-    )
 
     wrap = QFrame()
     wrap.setObjectName("StableScrollShell")

@@ -19,24 +19,12 @@ from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 
 def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
+    scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(min_height)
-    scroll.setStyleSheet(
-        """
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-            border: none;
-        }
-        """
-    )
-    scroll.viewport().setStyleSheet("background: transparent;")
 
     outer = QFrame()
     outer.setObjectName("StableScrollShell")

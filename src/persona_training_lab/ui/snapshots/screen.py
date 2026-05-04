@@ -9,22 +9,12 @@ from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 
 def _stable_scroll_content(max_height: int = 320) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
+    scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(max_height)
-    scroll.setStyleSheet("""
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-            border: none;
-        }
-    """)
-    scroll.viewport().setStyleSheet("background: transparent;")
 
     # вот этот внешний shell возвращает большой закруглённый контейнер
     outer = QFrame()

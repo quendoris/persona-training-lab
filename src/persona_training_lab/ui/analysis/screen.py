@@ -44,18 +44,12 @@ class ElidedLabel(QLabel):
 
 def _stable_scroll_list(min_height: int = 300) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
+    scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(min_height)
-    scroll.setStyleSheet("""
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-    """)
-    scroll.viewport().setStyleSheet("background: transparent;")
 
     outer = QFrame()
     outer.setObjectName("StableScrollShell")

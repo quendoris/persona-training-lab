@@ -108,22 +108,12 @@ class TrainingScreen(QWidget):
         checkpoints_card = PanelCard("Чекпоинты и версии личности", "Единая лента артефактов обучения.")
 
         cp_scroll = QScrollArea()
+        cp_scroll.setObjectName("StableScrollArea")
         cp_scroll.setWidgetResizable(True)
         cp_scroll.setFrameShape(QFrame.NoFrame)
         cp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         cp_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         cp_scroll.setMinimumHeight(250)
-        cp_scroll.setStyleSheet("""
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-            border: none;
-        }
-        """)
-        cp_scroll.viewport().setStyleSheet("background: transparent;")
 
         # внешний большой закруглённый контейнер
         cp_outer = QFrame()
