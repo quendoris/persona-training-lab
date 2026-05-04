@@ -7,6 +7,7 @@ from PySide6.QtCore import QByteArray, Qt, Signal, QRect, QRectF
 from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -250,6 +251,7 @@ class Sidebar(QFrame):
         self._buttons: dict[str, NavButton] = {}
         self._current_accent = self._prefs.get("accent_palette") or "cyan"
         self._window_menu: QMenu | None = None
+        self._brand_badge: QLabel | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
@@ -272,6 +274,7 @@ class Sidebar(QFrame):
         brand_icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)
         if not brand_icon.isNull():
             badge.setPixmap(brand_icon)
+        self._brand_badge = badge
 
         title = QLabel("Persona Training Lab")
         title.setObjectName("SidebarTitle")
@@ -376,6 +379,7 @@ class Sidebar(QFrame):
             wf_layout.addWidget(pill)
         root.addWidget(workflows, 0)
 
+        self._sync_accent_from_app()
         self.set_current("dashboard")
 
     def set_window_menu(self, menu: QMenu) -> None:
@@ -393,6 +397,21 @@ class Sidebar(QFrame):
     def _apply_theme(self, theme_key: str) -> None:
         self._style_vm.save(theme=theme_key, accent_palette=self._current_accent, button_style_preset="soft_glow")
         self._on_apply_theme(theme_key, self._current_accent)
+        self._sync_accent_from_app()
+
+    def _sync_accent_from_app(self) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            accent_name = app.property("ptl_accent_name")
+            if isinstance(accent_name, str) and accent_name in ACCENTS:
+                self._current_accent = accent_name
+        accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+        for button in self._buttons.values():
+            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"])
+        if self._brand_badge is not None:
+            icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)
+            if not icon.isNull():
+                self._brand_badge.setPixmap(icon)
 
     def _select_screen(self, screen_id: str) -> None:
         self.set_current(screen_id)
