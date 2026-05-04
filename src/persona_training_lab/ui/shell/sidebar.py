@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from persona_training_lab.ui.themes.tokens import THEMES
+from persona_training_lab.ui.themes.tokens import ACCENTS, THEMES
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
@@ -129,6 +129,8 @@ class NavButton(QPushButton):
         self.screen_id = screen_id
         self._fallback_icon_text = icon_text
         self._icon_path = _icons_root() / "sidebar" / f"{screen_id}.svg"
+        self._accent = "#22D3EE"
+        self._accent_soft = "rgba(6, 182, 212, 0.14)"
 
         self.setObjectName("NavButton")
         self.setCheckable(True)
@@ -165,6 +167,11 @@ class NavButton(QPushButton):
         )
         self._sync_icon_state(False)
 
+    def set_accent(self, accent: str, accent_soft: str) -> None:
+        self._accent = accent
+        self._accent_soft = accent_soft
+        self._sync_icon_state(self.isChecked())
+
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         badge_y = max(10, (self.height() - self._icon.height()) // 2)
@@ -180,9 +187,9 @@ class NavButton(QPushButton):
 
     def _sync_icon_state(self, active: bool) -> None:
         if active:
-            bg = "rgba(6, 182, 212, 0.14)"
-            fg = "#22D3EE"
-            border = "rgba(6, 182, 212, 0.72)"
+            bg = self._accent_soft
+            fg = self._accent
+            border = self._accent
             weight = "800"
         else:
             bg = "rgba(255, 255, 255, 0.02)"
@@ -261,7 +268,8 @@ class Sidebar(QFrame):
         badge.setObjectName("BrandBadge")
         badge.setAlignment(Qt.AlignCenter)
         badge.setFixedSize(44, 44)
-        brand_icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", "#22D3EE", 44, 33)
+        accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+        brand_icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)
         if not brand_icon.isNull():
             badge.setPixmap(brand_icon)
 
@@ -345,6 +353,8 @@ class Sidebar(QFrame):
         ]
         for screen_id, icon_text, title_text in items:
             button = NavButton(screen_id, icon_text, title_text)
+            accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"])
             button.clicked.connect(lambda checked=False, sid=screen_id: self._select_screen(sid))
             nav_layout.addWidget(button)
             self._buttons[screen_id] = button
