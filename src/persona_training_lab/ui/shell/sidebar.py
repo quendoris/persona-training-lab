@@ -316,6 +316,7 @@ class Sidebar(QFrame):
         theme_layout.addLayout(theme_header)
 
         self._theme_buttons_wrap = QWidget()
+        self._theme_buttons_wrap.setProperty("transparentBg", True)
         theme_buttons_layout = QHBoxLayout(self._theme_buttons_wrap)
         theme_buttons_layout.setContentsMargins(0, 0, 0, 0)
         theme_buttons_layout.setSpacing(8)

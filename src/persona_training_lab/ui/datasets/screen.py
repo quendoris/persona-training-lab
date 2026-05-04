@@ -45,6 +45,7 @@ def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QFrame, QGr
 
     grid_wrap = QWidget()
     grid_wrap.setObjectName("ValidationGridWrap")
+    grid_wrap.setProperty("transparentBg", True)
     grid = QGridLayout(grid_wrap)
     grid.setContentsMargins(0, 0, 0, 0)
     grid.setHorizontalSpacing(12)

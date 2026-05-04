@@ -62,6 +62,7 @@ class StyleScreen(QWidget):
         preview.add_widget(make_muted_label("Спокойная исследовательская рабочая станция для обучения личности и анализа версий."))
 
         row = QWidget()
+        row.setProperty("transparentBg", True)
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
         primary = QPushButton("Запустить обучение")
@@ -72,6 +73,7 @@ class StyleScreen(QWidget):
         preview.add_widget(row)
 
         badges = QWidget()
+        badges.setProperty("transparentBg", True)
         badges_layout = QHBoxLayout(badges)
         badges_layout.setContentsMargins(0, 0, 0, 0)
         badges_layout.setSpacing(8)
