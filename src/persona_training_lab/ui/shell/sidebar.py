@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from persona_training_lab.ui.themes.tokens import THEMES
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
@@ -322,6 +323,7 @@ class Sidebar(QFrame):
         nav_scroll.setWidgetResizable(True)
         nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         nav_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        apply_scrollbar_style(nav_scroll)
 
         nav_container = QFrame()
         nav_container.setObjectName("SidebarNav")
