@@ -275,29 +275,31 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
     }
     QScrollBar:vertical {
         background-color: $surface_soft;
-        width: 12px;
+        width: 14px;
         margin: 2px 2px 2px 0px;
         border: 1px solid $border_soft;
-        border-radius: 999px;
+        border-radius: 7px;
     }
     QScrollBar:horizontal {
         background-color: $surface_soft;
-        height: 12px;
+        height: 14px;
         margin: 0px 2px 2px 2px;
         border: 1px solid $border_soft;
-        border-radius: 999px;
+        border-radius: 7px;
     }
     QScrollBar::handle:vertical {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 999px;
+        border-radius: 6px;
         min-height: 30px;
+        margin: 1px;
     }
     QScrollBar::handle:horizontal {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 999px;
+        border-radius: 6px;
         min-width: 30px;
+        margin: 1px;
     }
     QScrollBar::handle:vertical:hover,
     QScrollBar::handle:horizontal:hover {
@@ -340,19 +342,15 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border-bottom-right-radius: 16px;
     }
     QComboBox::down-arrow {
-        image: none;
-        width: 0px;
-        height: 0px;
-        border-style: solid;
-        border-width: 6px 5px 0px 5px;
-        border-color: $text_muted transparent transparent transparent;
+        image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
+        width: 10px;
+        height: 6px;
         margin-right: 10px;
-        margin-top: 1px;
         background: transparent;
     }
     QComboBox::down-arrow:on,
     QComboBox::down-arrow:hover {
-        border-color: $accent transparent transparent transparent;
+        image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
     }
     QTableWidget {
         background-color: $surface_alt;
