@@ -90,6 +90,7 @@ class TrainingViewModel:
     local_inference_status: str = ""
     inference_prompt: str = "MIA_SENTINEL_FT_TEST_001"
     inference_response: str = ""
+    inference_in_progress: bool = False
     creation_message: str = ""
     profile_choices: tuple[TrainingProfileChoice, ...] = ()
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
@@ -286,20 +287,29 @@ class TrainingViewModel:
             self.local_model_status = "Не удалось проверить модель"
             self.local_model_note = "Проверьте путь и права доступа к файлам модели."
 
-    def test_local_inference(self, prompt: str | None = None) -> None:
+    def begin_local_inference(self, prompt: str | None = None) -> tuple[bool, str]:
+        if self.inference_in_progress:
+            return False, self.inference_prompt
         smoke_prompt = (prompt or self.inference_prompt).strip() or "MIA_SENTINEL_FT_TEST_001"
         self.inference_prompt = smoke_prompt
+        self.inference_in_progress = True
+        self.local_inference_status = "Генерация…"
+        self.inference_response = ""
+        return True, smoke_prompt
+
+    def run_local_inference_sync(self, prompt: str) -> tuple[str, str]:
         if self.local_model_service is None:
-            self.local_inference_status = "Inference backend не подключён"
-            self.inference_response = ""
-            return
+            return "Inference backend не подключён", ""
         try:
-            result = self.local_model_service.generate_smoke(smoke_prompt)
-            self.local_inference_status = result.status
-            self.inference_response = result.response or result.message
+            result = self.local_model_service.generate_smoke(prompt)
+            return result.status, (result.response or result.message)
         except Exception:
-            self.local_inference_status = "Ошибка генерации"
-            self.inference_response = "Не удалось загрузить локальную модель"
+            return "Ошибка генерации", "Не удалось загрузить локальную модель"
+
+    def finish_local_inference(self, status: str, response: str) -> None:
+        self.inference_in_progress = False
+        self.local_inference_status = status
+        self.inference_response = response
 
 
     def start_selected_training_run(self) -> tuple[bool, str]:

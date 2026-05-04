@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -22,6 +22,19 @@ from persona_training_lab.ui.components.metrics import RoundedMetricBar
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
+
+
+class _InferenceWorker(QObject):
+    finished = Signal(str, str)
+
+    def __init__(self, vm: TrainingViewModel, prompt: str) -> None:
+        super().__init__()
+        self._vm = vm
+        self._prompt = prompt
+
+    def run(self) -> None:
+        status, response = self._vm.run_local_inference_sync(self._prompt)
+        self.finished.emit(status, response)
 
 
 class TrainingScreen(QWidget):
@@ -305,6 +318,7 @@ class TrainingScreen(QWidget):
         self._local_inference_output.setReadOnly(True)
         self._local_inference_output.setMaximumHeight(84)
         self._local_inference_output.setPlainText(self._vm.inference_response)
+        self._test_inference_btn.setEnabled(not self._vm.inference_in_progress)
         local_rows.addWidget(self._local_inference_output)
 
         local_model._layout.addLayout(local_rows)
@@ -322,16 +336,30 @@ class TrainingScreen(QWidget):
         self._refresh_local_model_block()
 
     def _on_test_inference(self) -> None:
-        self._test_inference_btn.setEnabled(False)
-        self._vm.test_local_inference(self._inference_prompt.text())
+        ok, prompt = self._vm.begin_local_inference(self._inference_prompt.text())
+        if not ok:
+            return
         self._refresh_local_model_block()
-        self._test_inference_btn.setEnabled(True)
+
+        self._inference_thread = QThread(self)
+        self._inference_worker = _InferenceWorker(self._vm, prompt)
+        self._inference_worker.moveToThread(self._inference_thread)
+        self._inference_thread.started.connect(self._inference_worker.run)
+        self._inference_worker.finished.connect(self._on_inference_finished)
+        self._inference_worker.finished.connect(self._inference_thread.quit)
+        self._inference_thread.finished.connect(self._inference_thread.deleteLater)
+        self._inference_thread.start()
+
+    def _on_inference_finished(self, status: str, response: str) -> None:
+        self._vm.finish_local_inference(status, response)
+        self._refresh_local_model_block()
 
     def _refresh_local_model_block(self) -> None:
         self._local_model_status.setText(self._vm.local_model_status)
         self._local_model_note.setText(self._vm.local_model_note)
         self._local_inference_note.setText(self._vm.local_inference_status)
         self._local_inference_output.setPlainText(self._vm.inference_response)
+        self._test_inference_btn.setEnabled(not self._vm.inference_in_progress)
 
     def _populate_training_inputs(self) -> None:
         selected_profile_id = str(self._profile_combo.currentData() or "")
