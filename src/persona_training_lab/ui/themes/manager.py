@@ -278,25 +278,25 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         width: 12px;
         margin: 2px 2px 2px 0px;
         border: 1px solid $border_soft;
-        border-radius: 6px;
+        border-radius: 999px;
     }
     QScrollBar:horizontal {
         background-color: $surface_soft;
         height: 12px;
         margin: 0px 2px 2px 2px;
         border: 1px solid $border_soft;
-        border-radius: 6px;
+        border-radius: 999px;
     }
     QScrollBar::handle:vertical {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 6px;
+        border-radius: 999px;
         min-height: 30px;
     }
     QScrollBar::handle:horizontal {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 6px;
+        border-radius: 999px;
         min-width: 30px;
     }
     QScrollBar::handle:vertical:hover,
@@ -343,15 +343,16 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         image: none;
         width: 0px;
         height: 0px;
-        border-left: 5px solid transparent;
-        border-right: 5px solid transparent;
-        border-top: 6px solid $text_muted;
+        border-style: solid;
+        border-width: 6px 5px 0px 5px;
+        border-color: $text_muted transparent transparent transparent;
         margin-right: 10px;
+        margin-top: 1px;
         background: transparent;
     }
     QComboBox::down-arrow:on,
     QComboBox::down-arrow:hover {
-        border-top: 6px solid $accent;
+        border-color: $accent transparent transparent transparent;
     }
     QTableWidget {
         background-color: $surface_alt;
