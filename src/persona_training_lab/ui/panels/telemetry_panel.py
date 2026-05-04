@@ -6,7 +6,6 @@ from PySide6.QtCore import QTimer, Qt, QSize
 from PySide6.QtGui import QPainter, QPainterPath
 from PySide6.QtWidgets import QDockWidget, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
 
-from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
 
 
@@ -202,7 +201,6 @@ class TelemetryPanel(QFrame):
         self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._processes_scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         self._processes_scroll.viewport().setObjectName("TelemetryProcessesViewport")
-        apply_scrollbar_style(self._processes_scroll)
 
         self._processes_container = QWidget()
         self._processes_container.setObjectName("TelemetryProcessesContainer")

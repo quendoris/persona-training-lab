@@ -25,13 +25,14 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     theme, accent = _resolve(theme_name, accent_name)
     values = {
         "surface_soft": theme["surface_soft"],
+        "surface_alt": theme["surface_alt"],
         "border_soft": theme["border_soft"],
         "accent": accent["accent"],
         "accent_hover": accent["accent_hover"],
     }
     vertical_qss = Template("""
     QScrollBar:vertical {
-        background: transparent;
+        background-color: $surface_alt;
         border: none;
         width: 10px;
         margin: 2px 2px 2px 0px;
@@ -65,13 +66,13 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:vertical,
     QScrollBar::sub-page:vertical {
-        background: transparent;
+        background-color: $surface_alt;
         border: none;
     }
     """).substitute(values)
     horizontal_qss = Template("""
     QScrollBar:horizontal {
-        background: transparent;
+        background-color: $surface_alt;
         border: none;
         height: 10px;
         margin: 0px 2px 2px 2px;
@@ -105,7 +106,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:horizontal,
     QScrollBar::sub-page:horizontal {
-        background: transparent;
+        background-color: $surface_alt;
         border: none;
     }
     """).substitute(values)
@@ -118,12 +119,12 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
     v_style = RoundedScrollBarStyle(
-        theme["surface_soft"],
+        theme["surface_alt"],
         accent["accent"],
         accent["accent_hover"],
     )
     h_style = RoundedScrollBarStyle(
-        theme["surface_soft"],
+        theme["surface_alt"],
         accent["accent"],
         accent["accent_hover"],
     )
