@@ -324,6 +324,7 @@ class Sidebar(QFrame):
             button = QPushButton(meta["label"])
             button.setObjectName("ThemeChip")
             button.setCursor(Qt.PointingHandCursor)
+            button.setMinimumHeight(34)
             button.clicked.connect(lambda _checked=False, theme_key=key: self._apply_theme(theme_key))
             theme_buttons_layout.addWidget(button)
         theme_layout.addWidget(self._theme_buttons_wrap)
@@ -331,6 +332,7 @@ class Sidebar(QFrame):
         root.addWidget(self._theme_block)
 
         nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("StableScrollArea")
         nav_scroll.setFrameShape(QFrame.NoFrame)
         nav_scroll.setWidgetResizable(True)
         nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

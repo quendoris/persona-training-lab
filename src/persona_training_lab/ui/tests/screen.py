@@ -126,6 +126,7 @@ class TestsScreen(QWidget):
 
         metrics = PanelCard("Результат проверки", "Метрики должны быть понятны ещё до глубокого анализа.")
         metrics_grid_wrap = QWidget()
+        metrics_grid_wrap.setProperty("transparentBg", True)
         grid = QGridLayout(metrics_grid_wrap)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(12)
