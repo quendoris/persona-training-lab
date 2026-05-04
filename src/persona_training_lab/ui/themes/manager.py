@@ -30,16 +30,17 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
         "accent": accent["accent"],
         "accent_soft": accent["accent_soft"],
         "accent_hover": accent["accent_hover"],
+        "accent_pressed": accent["accent_pressed"],
     }
     vertical_qss = Template("""
     QScrollBar:vertical {
-        background-color: $accent_soft;
+        background-color: $accent;
         border: none;
         width: 10px;
         margin: 2px 2px 2px 0px;
     }
     QScrollBar::handle {
-        background-color: $accent;
+        background-color: $accent_hover;
         border: 1px solid $accent_hover;
         border-radius: 4px;
     }
@@ -52,7 +53,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::handle:vertical:hover {
         background-color: $accent_hover;
-        border: 1px solid $accent;
+        border: 1px solid $accent_pressed;
     }
     QScrollBar::add-line:vertical,
     QScrollBar::sub-line:vertical,
@@ -67,19 +68,19 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:vertical,
     QScrollBar::sub-page:vertical {
-        background-color: $accent_soft;
+        background-color: $accent;
         border: none;
     }
     """).substitute(values)
     horizontal_qss = Template("""
     QScrollBar:horizontal {
-        background-color: $accent_soft;
+        background-color: $accent;
         border: none;
         height: 10px;
         margin: 0px 2px 2px 2px;
     }
     QScrollBar::handle {
-        background-color: $accent;
+        background-color: $accent_hover;
         border: 1px solid $accent_hover;
         border-radius: 4px;
     }
@@ -92,7 +93,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::handle:horizontal:hover {
         background-color: $accent_hover;
-        border: 1px solid $accent;
+        border: 1px solid $accent_pressed;
     }
     QScrollBar::add-line:horizontal,
     QScrollBar::sub-line:horizontal,
@@ -107,7 +108,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:horizontal,
     QScrollBar::sub-page:horizontal {
-        background-color: $accent_soft;
+        background-color: $accent;
         border: none;
     }
     """).substitute(values)
@@ -120,13 +121,13 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
     v_style = RoundedScrollBarStyle(
-        accent["accent_soft"],
         accent["accent"],
+        accent["accent_hover"],
         accent["accent_hover"],
     )
     h_style = RoundedScrollBarStyle(
-        accent["accent_soft"],
         accent["accent"],
+        accent["accent_hover"],
         accent["accent_hover"],
     )
     vbar.setStyle(v_style)
