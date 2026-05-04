@@ -28,32 +28,32 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
         "accent_hover": accent["accent_hover"],
     }
     vertical_qss = Template("""
-    QScrollBar#StableVerticalScrollBar:vertical {
+    QScrollBar:vertical {
         background: transparent;
         border: none;
         width: 10px;
         margin: 2px 2px 2px 0px;
     }
-    QScrollBar#StableVerticalScrollBar::handle {
+    QScrollBar::handle {
         background-color: $accent;
         border: 1px solid $accent_hover;
         border-radius: 4px;
     }
-    QScrollBar#StableVerticalScrollBar::handle:vertical {
+    QScrollBar::handle:vertical {
         background-color: $accent;
         border: 1px solid $accent_hover;
         border-radius: 4px;
         min-height: 28px;
         margin: 2px;
     }
-    QScrollBar#StableVerticalScrollBar::handle:vertical:hover {
+    QScrollBar::handle:vertical:hover {
         background-color: $accent_hover;
         border: 1px solid $accent;
     }
-    QScrollBar#StableVerticalScrollBar::add-line:vertical,
-    QScrollBar#StableVerticalScrollBar::sub-line:vertical,
-    QScrollBar#StableVerticalScrollBar::up-arrow,
-    QScrollBar#StableVerticalScrollBar::down-arrow {
+    QScrollBar::add-line:vertical,
+    QScrollBar::sub-line:vertical,
+    QScrollBar::up-arrow,
+    QScrollBar::down-arrow {
         background: transparent;
         border: none;
         image: none;
@@ -61,39 +61,39 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
         width: 0px;
         height: 0px;
     }
-    QScrollBar#StableVerticalScrollBar::add-page:vertical,
-    QScrollBar#StableVerticalScrollBar::sub-page:vertical {
+    QScrollBar::add-page:vertical,
+    QScrollBar::sub-page:vertical {
         background: transparent;
         border: none;
     }
     """).substitute(values)
     horizontal_qss = Template("""
-    QScrollBar#StableHorizontalScrollBar:horizontal {
+    QScrollBar:horizontal {
         background: transparent;
         border: none;
         height: 10px;
         margin: 0px 2px 2px 2px;
     }
-    QScrollBar#StableHorizontalScrollBar::handle {
+    QScrollBar::handle {
         background-color: $accent;
         border: 1px solid $accent_hover;
         border-radius: 4px;
     }
-    QScrollBar#StableHorizontalScrollBar::handle:horizontal {
+    QScrollBar::handle:horizontal {
         background-color: $accent;
         border: 1px solid $accent_hover;
         border-radius: 4px;
         min-width: 28px;
         margin: 2px;
     }
-    QScrollBar#StableHorizontalScrollBar::handle:horizontal:hover {
+    QScrollBar::handle:horizontal:hover {
         background-color: $accent_hover;
         border: 1px solid $accent;
     }
-    QScrollBar#StableHorizontalScrollBar::add-line:horizontal,
-    QScrollBar#StableHorizontalScrollBar::sub-line:horizontal,
-    QScrollBar#StableHorizontalScrollBar::left-arrow,
-    QScrollBar#StableHorizontalScrollBar::right-arrow {
+    QScrollBar::add-line:horizontal,
+    QScrollBar::sub-line:horizontal,
+    QScrollBar::left-arrow,
+    QScrollBar::right-arrow {
         background: transparent;
         border: none;
         image: none;
@@ -101,8 +101,8 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
         width: 0px;
         height: 0px;
     }
-    QScrollBar#StableHorizontalScrollBar::add-page:horizontal,
-    QScrollBar#StableHorizontalScrollBar::sub-page:horizontal {
+    QScrollBar::add-page:horizontal,
+    QScrollBar::sub-page:horizontal {
         background: transparent;
         border: none;
     }
@@ -114,8 +114,6 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
     vertical_qss, horizontal_qss = build_scrollbar_qss(theme_name, accent_name)
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
-    vbar.setObjectName("StableVerticalScrollBar")
-    hbar.setObjectName("StableHorizontalScrollBar")
     vbar.setStyleSheet(vertical_qss)
     hbar.setStyleSheet(horizontal_qss)
 
