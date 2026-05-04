@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QListWid
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 
 def _stable_scroll_content(max_height: int = 320) -> tuple[QScrollArea, QVBoxLayout]:
@@ -15,6 +16,7 @@ def _stable_scroll_content(max_height: int = 320) -> tuple[QScrollArea, QVBoxLay
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(max_height)
+    apply_scrollbar_style(scroll)
 
     # вот этот внешний shell возвращает большой закруглённый контейнер
     outer = QFrame()

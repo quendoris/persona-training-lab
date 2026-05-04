@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.metrics import RoundedMetricBar
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
 
@@ -114,6 +115,7 @@ class TrainingScreen(QWidget):
         cp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         cp_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         cp_scroll.setMinimumHeight(250)
+        apply_scrollbar_style(cp_scroll)
 
         # внешний большой закруглённый контейнер
         cp_outer = QFrame()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from string import Template
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QScrollArea
 
 from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
 
@@ -17,6 +17,77 @@ def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str,
         accent["accent_soft"] = accent["accent_soft_dark"]
         accent["accent_text"] = accent["accent_text_dark"]
     return theme, accent
+
+
+def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None = None) -> str:
+    theme, accent = _resolve(theme_name, accent_name)
+    values = {
+        "surface_soft": theme["surface_soft"],
+        "border_soft": theme["border_soft"],
+        "accent": accent["accent"],
+        "accent_hover": accent["accent_hover"],
+    }
+    return Template("""
+    QScrollBar:vertical {
+        background-color: $surface_soft;
+        width: 14px;
+        margin: 2px 2px 2px 0px;
+        border: 1px solid $border_soft;
+        border-radius: 7px;
+    }
+    QScrollBar:horizontal {
+        background-color: $surface_soft;
+        height: 14px;
+        margin: 0px 2px 2px 2px;
+        border: 1px solid $border_soft;
+        border-radius: 7px;
+    }
+    QScrollBar::handle:vertical {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 999px;
+        min-height: 34px;
+        margin: 2px;
+    }
+    QScrollBar::handle:horizontal {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 999px;
+        min-width: 34px;
+        margin: 2px;
+    }
+    QScrollBar::handle:vertical:hover,
+    QScrollBar::handle:horizontal:hover {
+        background-color: $accent_hover;
+        border: 1px solid $accent;
+    }
+    QScrollBar::add-line:vertical,
+    QScrollBar::sub-line:vertical,
+    QScrollBar::add-line:horizontal,
+    QScrollBar::sub-line:horizontal,
+    QScrollBar::up-arrow,
+    QScrollBar::down-arrow,
+    QScrollBar::left-arrow,
+    QScrollBar::right-arrow {
+        background: transparent;
+        border: none;
+        width: 0px;
+        height: 0px;
+    }
+    QScrollBar::add-page:vertical,
+    QScrollBar::sub-page:vertical,
+    QScrollBar::add-page:horizontal,
+    QScrollBar::sub-page:horizontal {
+        background: transparent;
+        border: none;
+    }
+    """).substitute(values)
+
+
+def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = None, accent_name: str | None = None) -> None:
+    qss = build_scrollbar_qss(theme_name, accent_name)
+    scroll_area.verticalScrollBar().setStyleSheet(qss)
+    scroll_area.horizontalScrollBar().setStyleSheet(qss)
 
 
 def build_stylesheet(theme_name: str | None = None, accent_name: str | None = None) -> str:

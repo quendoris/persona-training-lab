@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 
 
@@ -25,6 +26,7 @@ def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayou
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(min_height)
+    apply_scrollbar_style(scroll)
 
     outer = QFrame()
     outer.setObjectName("StableScrollShell")
