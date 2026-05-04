@@ -184,8 +184,8 @@ class TelemetryPanel(QFrame):
 
         processes_shell = QFrame()
         processes_shell.setObjectName("PanelCardSoft")
-        processes_shell.setMinimumWidth(280)
-        processes_shell.setMaximumWidth(380)
+        processes_shell.setMinimumWidth(340)
+        processes_shell.setMaximumWidth(460)
         processes_shell.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         processes_shell_layout = QVBoxLayout(processes_shell)
         processes_shell_layout.setContentsMargins(10, 10, 10, 10)
@@ -208,7 +208,7 @@ class TelemetryPanel(QFrame):
         self._processes_container.setObjectName("TelemetryProcessesContainer")
         self._processes_container.setProperty("transparentBg", True)
         self._processes = QVBoxLayout(self._processes_container)
-        self._processes.setContentsMargins(0, 0, 0, 0)
+        self._processes.setContentsMargins(0, 0, 10, 0)
         self._processes.setSpacing(6)
         self._processes.setAlignment(Qt.AlignTop)
         self._processes_scroll.setWidget(self._processes_container)
@@ -326,7 +326,9 @@ class TelemetryPanel(QFrame):
                 widget.deleteLater()
 
         for row in self._vm.processes_rows:
-            self._processes.addWidget(QLabel(row))
+            label = QLabel(row)
+            label.setWordWrap(True)
+            self._processes.addWidget(label)
 
     def _rebuild(self, mode: str) -> None:
         self._mode = mode
