@@ -47,9 +47,9 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     QScrollBar::handle:vertical {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 4px;
+        border-radius: 5px;
         min-height: 28px;
-        margin: 2px;
+        margin: 1px;
     }
     QScrollBar::handle:vertical:hover {
         background-color: $accent_hover;
@@ -87,9 +87,9 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     QScrollBar::handle:horizontal {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 4px;
+        border-radius: 5px;
         min-width: 28px;
-        margin: 2px;
+        margin: 1px;
     }
     QScrollBar::handle:horizontal:hover {
         background-color: $accent_hover;
@@ -641,7 +641,7 @@ class RoundedScrollBarStyle(QProxyStyle):
         if groove_rect.isValid():
             painter.setPen(Qt.NoPen)
             painter.setBrush(self._track)
-            radius = max(3.0, min(groove_rect.width(), groove_rect.height()) / 2.0)
+            radius = groove_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else groove_rect.height() / 2.0
             painter.drawRoundedRect(QRectF(groove_rect), radius, radius)
 
         slider_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarSlider, widget).adjusted(1, 1, -1, -1)
@@ -649,7 +649,7 @@ class RoundedScrollBarStyle(QProxyStyle):
             hovered = bool(option.state & QStyle.State_MouseOver)
             painter.setPen(Qt.NoPen)
             painter.setBrush(self._handle_hover if hovered else self._handle)
-            radius = max(3.0, min(slider_rect.width(), slider_rect.height()) / 2.0)
+            radius = slider_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else slider_rect.height() / 2.0
             painter.drawRoundedRect(QRectF(slider_rect), radius, radius)
 
         painter.restore()
