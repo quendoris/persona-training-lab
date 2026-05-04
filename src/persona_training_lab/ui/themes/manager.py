@@ -116,6 +116,13 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
 
 
 def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = None, accent_name: str | None = None) -> None:
+    if theme_name is None or accent_name is None:
+        app = QApplication.instance()
+        if app is not None:
+            if theme_name is None:
+                theme_name = app.property("ptl_theme_name")
+            if accent_name is None:
+                accent_name = app.property("ptl_accent_name")
     theme, accent = _resolve(theme_name, accent_name)
     vertical_qss, horizontal_qss = build_scrollbar_qss(theme_name, accent_name)
     vbar = scroll_area.verticalScrollBar()
@@ -612,6 +619,8 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
 
 
 def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: str | None = None) -> None:
+    app.setProperty("ptl_theme_name", theme_name or DEFAULT_THEME)
+    app.setProperty("ptl_accent_name", accent_name or DEFAULT_ACCENT)
     app.setStyleSheet(build_stylesheet(theme_name, accent_name))
 class RoundedScrollBarStyle(QProxyStyle):
     def __init__(self, track: str, handle: str, handle_hover: str) -> None:
