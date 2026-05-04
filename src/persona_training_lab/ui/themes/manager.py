@@ -29,32 +29,41 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     return Template("""
     QScrollBar:vertical {
-        background-color: $surface_soft;
-        width: 14px;
+        background: transparent;
+        border: none;
+        width: 10px;
         margin: 2px 2px 2px 0px;
-        border: 1px solid $border_soft;
-        border-radius: 7px;
     }
     QScrollBar:horizontal {
-        background-color: $surface_soft;
-        height: 14px;
+        background: transparent;
+        border: none;
+        height: 10px;
         margin: 0px 2px 2px 2px;
-        border: 1px solid $border_soft;
-        border-radius: 7px;
+    }
+    QScrollBar::handle {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 4px;
     }
     QScrollBar::handle:vertical {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 999px;
-        min-height: 34px;
+        border-radius: 4px;
+        min-height: 28px;
         margin: 2px;
     }
     QScrollBar::handle:horizontal {
         background-color: $accent;
         border: 1px solid $accent_hover;
-        border-radius: 999px;
-        min-width: 34px;
+        border-radius: 4px;
+        min-width: 28px;
         margin: 2px;
+    }
+    QScrollBar:vertical::handle {
+        border-radius: 4px;
+    }
+    QScrollBar:horizontal::handle {
+        border-radius: 4px;
     }
     QScrollBar::handle:vertical:hover,
     QScrollBar::handle:horizontal:hover {
@@ -71,6 +80,8 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     QScrollBar::right-arrow {
         background: transparent;
         border: none;
+        image: none;
+        border-image: none;
         width: 0px;
         height: 0px;
     }
@@ -86,8 +97,12 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
 
 def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = None, accent_name: str | None = None) -> None:
     qss = build_scrollbar_qss(theme_name, accent_name)
-    scroll_area.verticalScrollBar().setStyleSheet(qss)
-    scroll_area.horizontalScrollBar().setStyleSheet(qss)
+    vbar = scroll_area.verticalScrollBar()
+    hbar = scroll_area.horizontalScrollBar()
+    vbar.setObjectName("StableVerticalScrollBar")
+    hbar.setObjectName("StableHorizontalScrollBar")
+    vbar.setStyleSheet(qss)
+    hbar.setStyleSheet(qss)
 
 
 def build_stylesheet(theme_name: str | None = None, accent_name: str | None = None) -> str:
