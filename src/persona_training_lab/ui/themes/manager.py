@@ -34,25 +34,27 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     vertical_qss = Template("""
     QScrollBar:vertical {
-        background: transparent;
-        border: none;
+        background-color: $surface_soft;
+        border: 1px solid $border_soft;
+        border-radius: 5px;
         width: 10px;
         margin: 2px 2px 2px 0px;
     }
     QScrollBar::handle {
-        background: transparent;
-        border: none;
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
     }
     QScrollBar::handle:vertical {
-        background: transparent;
-        border: none;
-        border-radius: 0px;
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
         min-height: 28px;
         margin: 1px;
     }
     QScrollBar::handle:vertical:hover {
-        background: transparent;
-        border: none;
+        background-color: $accent_hover;
+        border: 1px solid $accent;
     }
     QScrollBar::add-line:vertical,
     QScrollBar::sub-line:vertical,
@@ -67,31 +69,33 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:vertical,
     QScrollBar::sub-page:vertical {
-        background: transparent;
+        background-color: $surface_soft;
         border: none;
     }
     """).substitute(values)
     horizontal_qss = Template("""
     QScrollBar:horizontal {
-        background: transparent;
-        border: none;
+        background-color: $surface_soft;
+        border: 1px solid $border_soft;
+        border-radius: 5px;
         height: 10px;
         margin: 0px 2px 2px 2px;
     }
     QScrollBar::handle {
-        background: transparent;
-        border: none;
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
     }
     QScrollBar::handle:horizontal {
-        background: transparent;
-        border: none;
-        border-radius: 0px;
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
         min-width: 28px;
         margin: 1px;
     }
     QScrollBar::handle:horizontal:hover {
-        background: transparent;
-        border: none;
+        background-color: $accent_hover;
+        border: 1px solid $accent;
     }
     QScrollBar::add-line:horizontal,
     QScrollBar::sub-line:horizontal,
@@ -106,7 +110,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:horizontal,
     QScrollBar::sub-page:horizontal {
-        background: transparent;
+        background-color: $surface_soft;
         border: none;
     }
     """).substitute(values)
