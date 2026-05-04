@@ -30,6 +30,17 @@ SIDEBAR_ICON_BADGE_SIZE = 30
 SIDEBAR_TEXT_LEFT_PADDING = 70
 
 
+def _custom_accent_palette(hex_color: str) -> dict[str, str]:
+    color = QColor(hex_color)
+    if not color.isValid():
+        color = QColor(ACCENTS["cyan"]["accent"])
+    return {
+        "accent": color.name(),
+        "accent_soft_dark": color.darker(300).name(),
+        "accent_soft_light": color.lighter(195).name(),
+    }
+
+
 def _icons_root() -> Path:
     return Path(__file__).resolve().parent.parent / "assets" / "icons"
 
@@ -131,7 +142,8 @@ class NavButton(QPushButton):
         self._fallback_icon_text = icon_text
         self._icon_path = _icons_root() / "sidebar" / f"{screen_id}.svg"
         self._accent = "#22D3EE"
-        self._accent_soft = "rgba(6, 182, 212, 0.14)"
+        self._accent_soft_dark = "rgba(6, 182, 212, 0.14)"
+        self._accent_soft_light = "rgba(34, 211, 238, 0.20)"
         self._is_light_theme = False
 
         self.setObjectName("NavButton")
@@ -169,9 +181,10 @@ class NavButton(QPushButton):
         )
         self._sync_icon_state(False)
 
-    def set_accent(self, accent: str, accent_soft: str) -> None:
+    def set_accent(self, accent: str, accent_soft_dark: str, accent_soft_light: str) -> None:
         self._accent = accent
-        self._accent_soft = accent_soft
+        self._accent_soft_dark = accent_soft_dark
+        self._accent_soft_light = accent_soft_light
         self._sync_icon_state(self.isChecked())
 
     def set_theme_mode(self, is_light: bool) -> None:
@@ -193,7 +206,7 @@ class NavButton(QPushButton):
 
     def _sync_icon_state(self, active: bool) -> None:
         if active:
-            bg = self._accent_soft
+            bg = self._accent_soft_light if self._is_light_theme else self._accent_soft_dark
             fg = self._accent
             border = self._accent
             weight = "800"
@@ -370,7 +383,7 @@ class Sidebar(QFrame):
         for screen_id, icon_text, title_text in items:
             button = NavButton(screen_id, icon_text, title_text)
             accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
-            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"])
+            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"], accent_palette["accent_soft_light"])
             button.clicked.connect(lambda checked=False, sid=screen_id: self._select_screen(sid))
             nav_layout.addWidget(button)
             self._buttons[screen_id] = button
@@ -414,11 +427,15 @@ class Sidebar(QFrame):
 
     def _sync_accent_from_app(self) -> None:
         app = QApplication.instance()
+        accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
         if app is not None:
             accent_name = app.property("ptl_accent_name")
-            if isinstance(accent_name, str) and accent_name in ACCENTS:
+            if isinstance(accent_name, str):
                 self._current_accent = accent_name
-        accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+                if accent_name in ACCENTS:
+                    accent_palette = ACCENTS[accent_name]
+                elif accent_name.startswith("#"):
+                    accent_palette = _custom_accent_palette(accent_name)
         is_light_theme = False
         app = QApplication.instance()
         if app is not None:
@@ -426,7 +443,7 @@ class Sidebar(QFrame):
             if isinstance(theme_name, str):
                 is_light_theme = THEMES.get(theme_name, THEMES["velvet"]).get("is_light") == "1"
         for button in self._buttons.values():
-            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"])
+            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"], accent_palette["accent_soft_light"])
             button.set_theme_mode(is_light_theme)
         if self._brand_badge is not None:
             icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)

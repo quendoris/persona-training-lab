@@ -651,9 +651,13 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
 
 
 def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: str | None = None) -> None:
-    app.setProperty("ptl_theme_name", theme_name or DEFAULT_THEME)
-    app.setProperty("ptl_accent_name", accent_name or DEFAULT_ACCENT)
-    app.setStyleSheet(build_stylesheet(theme_name, accent_name))
+    resolved_theme = theme_name or DEFAULT_THEME
+    resolved_accent = accent_name or DEFAULT_ACCENT
+    app.setProperty("ptl_theme_name", resolved_theme)
+    app.setProperty("ptl_accent_name", resolved_accent)
+    app.setStyleSheet(build_stylesheet(resolved_theme, resolved_accent))
+    for scroll_area in app.findChildren(QScrollArea):
+        apply_scrollbar_style(scroll_area, resolved_theme, resolved_accent)
 class RoundedScrollBarStyle(QProxyStyle):
     def __init__(self, track: str, track_border: str, handle: str, handle_hover: str) -> None:
         super().__init__("Fusion")
