@@ -18,7 +18,7 @@ from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 
 
-def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayout]:
+def _stable_scroll_shell(min_height: int = 340, *, shell_margins: tuple[int, int, int, int] = (14, 14, 14, 14), spacing: int = 10) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
     scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
@@ -32,7 +32,7 @@ def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayou
     outer.setObjectName("StableScrollShell")
 
     outer_layout = QVBoxLayout(outer)
-    outer_layout.setContentsMargins(14, 14, 14, 14)
+    outer_layout.setContentsMargins(*shell_margins)
     outer_layout.setSpacing(0)
 
     wrap = QWidget()
@@ -48,7 +48,7 @@ def _stable_scroll_shell(min_height: int = 340) -> tuple[QScrollArea, QVBoxLayou
 
     layout = QVBoxLayout(wrap)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(10)
+    layout.setSpacing(spacing)
 
     outer_layout.addWidget(wrap)
     scroll.setWidget(outer)
@@ -182,17 +182,20 @@ class TestsScreen(QWidget):
 
         # Правый блок: контекст результата
         right = PanelCard("Контекст результата", "Контекст помогает читать метрики правильно.")
-        right_scroll, right_layout = _stable_scroll_shell(340)
+        right_scroll, right_layout = _stable_scroll_shell(340, shell_margins=(0, 6, 0, 6), spacing=8)
 
         for item in self._vm.context_rows:
             row = QFrame()
-            row.setObjectName("PanelCardSoft")
+            row.setProperty("transparentBg", True)
 
             rl = QHBoxLayout(row)
-            rl.setContentsMargins(12, 10, 12, 10)
-            rl.setSpacing(10)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(0)
 
-            rl.addWidget(QLabel(item))
+            pill = QLabel(item)
+            pill.setObjectName("WorkflowPill")
+            pill.setWordWrap(True)
+            rl.addWidget(pill)
 
             right_layout.addWidget(row)
 

@@ -72,7 +72,7 @@ class StyleScreen(QWidget):
         controls.add_stretch(1)
         root.addWidget(controls, 1)
 
-        preview = PanelCard("Предпросмотр", "Стиль должен ощущаться живым и читабельным, а не абстрактным.", accented=True)
+        preview = PanelCard("Предпросмотр", "Стиль должен ощущаться живым и читабельным, а не абстрактным.")
         preview.add_widget(QLabel("Persona Training Lab"))
         preview.add_widget(make_muted_label("Спокойная исследовательская рабочая станция для обучения личности и анализа версий."))
 
