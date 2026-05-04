@@ -88,6 +88,8 @@ class TrainingViewModel:
     local_model_status: str = "Модель не проверялась"
     local_model_note: str = "Проверка файлов модели выполняется по запросу."
     local_inference_status: str = ""
+    inference_prompt: str = "MIA_SENTINEL_FT_TEST_001"
+    inference_response: str = ""
     creation_message: str = ""
     profile_choices: tuple[TrainingProfileChoice, ...] = ()
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
@@ -284,15 +286,20 @@ class TrainingViewModel:
             self.local_model_status = "Не удалось проверить модель"
             self.local_model_note = "Проверьте путь и права доступа к файлам модели."
 
-    def test_local_inference(self) -> None:
+    def test_local_inference(self, prompt: str | None = None) -> None:
+        smoke_prompt = (prompt or self.inference_prompt).strip() or "MIA_SENTINEL_FT_TEST_001"
+        self.inference_prompt = smoke_prompt
         if self.local_model_service is None:
-            self.local_inference_status = "Inference backend пока не подключён"
+            self.local_inference_status = "Inference backend не подключён"
+            self.inference_response = ""
             return
         try:
-            result = self.local_model_service.probe_inference_backend()
-            self.local_inference_status = result.message
+            result = self.local_model_service.generate_smoke(smoke_prompt)
+            self.local_inference_status = result.status
+            self.inference_response = result.response or result.message
         except Exception:
-            self.local_inference_status = "Inference backend пока не подключён"
+            self.local_inference_status = "Ошибка генерации"
+            self.inference_response = "Не удалось загрузить локальную модель"
 
 
     def start_selected_training_run(self) -> tuple[bool, str]:

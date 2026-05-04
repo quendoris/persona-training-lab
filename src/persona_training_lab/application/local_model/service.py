@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from persona_training_lab.application.ports.local_model_probe import (
     InferenceProbeResult,
+    LocalInferenceResult,
     LocalModelProbeProvider,
     ModelProbeResult,
 )
@@ -20,3 +21,9 @@ class LocalModelService:
 
     def probe_inference_backend(self) -> InferenceProbeResult:
         return self.probe_provider.check_inference_backend(self.model_path)
+
+    def generate_smoke(self, prompt: str) -> LocalInferenceResult:
+        model_probe = self.probe_model_files()
+        if model_probe.status != "Модель найдена":
+            return LocalInferenceResult(status="Модель не загружена", message=model_probe.details)
+        return self.probe_provider.generate(self.model_path, prompt)

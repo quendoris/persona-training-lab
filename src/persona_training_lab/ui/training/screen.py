@@ -288,15 +288,24 @@ class TrainingScreen(QWidget):
         self._check_model_btn.clicked.connect(self._on_check_local_model)
         controls.addWidget(self._check_model_btn)
 
-        self._test_inference_btn = QPushButton("Тестовый ответ")
+        self._test_inference_btn = QPushButton("Проверить ответ")
         self._test_inference_btn.setObjectName("SecondaryButton")
         self._test_inference_btn.clicked.connect(self._on_test_inference)
         controls.addWidget(self._test_inference_btn)
         controls.addStretch(1)
         local_rows.addLayout(controls)
 
+        self._inference_prompt = QLineEdit(self._vm.inference_prompt)
+        self._inference_prompt.setPlaceholderText("MIA_SENTINEL_FT_TEST_001")
+        local_rows.addWidget(self._inference_prompt)
+
         self._local_inference_note = make_muted_label(self._vm.local_inference_status)
         local_rows.addWidget(self._local_inference_note)
+        self._local_inference_output = QTextEdit()
+        self._local_inference_output.setReadOnly(True)
+        self._local_inference_output.setMaximumHeight(84)
+        self._local_inference_output.setPlainText(self._vm.inference_response)
+        local_rows.addWidget(self._local_inference_output)
 
         local_model._layout.addLayout(local_rows)
         right.addWidget(local_model)
@@ -313,13 +322,16 @@ class TrainingScreen(QWidget):
         self._refresh_local_model_block()
 
     def _on_test_inference(self) -> None:
-        self._vm.test_local_inference()
+        self._test_inference_btn.setEnabled(False)
+        self._vm.test_local_inference(self._inference_prompt.text())
         self._refresh_local_model_block()
+        self._test_inference_btn.setEnabled(True)
 
     def _refresh_local_model_block(self) -> None:
         self._local_model_status.setText(self._vm.local_model_status)
         self._local_model_note.setText(self._vm.local_model_note)
         self._local_inference_note.setText(self._vm.local_inference_status)
+        self._local_inference_output.setPlainText(self._vm.inference_response)
 
     def _populate_training_inputs(self) -> None:
         selected_profile_id = str(self._profile_combo.currentData() or "")
