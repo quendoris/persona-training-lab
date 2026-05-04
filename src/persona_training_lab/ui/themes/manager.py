@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from string import Template
 
-from PySide6.QtWidgets import QApplication, QScrollArea, QStyleFactory
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import QApplication, QProxyStyle, QScrollArea, QScrollBar, QStyle, QStyleFactory
 
 from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
 
@@ -111,13 +113,28 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
 
 
 def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = None, accent_name: str | None = None) -> None:
+    theme, accent = _resolve(theme_name, accent_name)
     vertical_qss, horizontal_qss = build_scrollbar_qss(theme_name, accent_name)
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
     fusion_style = QStyleFactory.create("Fusion")
     if fusion_style is not None:
-        vbar.setStyle(fusion_style)
-        hbar.setStyle(fusion_style)
+        v_style = RoundedScrollBarStyle(
+            fusion_style,
+            theme["surface_soft"],
+            accent["accent"],
+            accent["accent_hover"],
+        )
+        h_style = RoundedScrollBarStyle(
+            fusion_style,
+            theme["surface_soft"],
+            accent["accent"],
+            accent["accent_hover"],
+        )
+        vbar.setStyle(v_style)
+        hbar.setStyle(h_style)
+        vbar._rounded_style = v_style
+        hbar._rounded_style = h_style
     vbar.setStyleSheet(vertical_qss)
     hbar.setStyleSheet(horizontal_qss)
 
@@ -597,3 +614,34 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
 
 def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: str | None = None) -> None:
     app.setStyleSheet(build_stylesheet(theme_name, accent_name))
+class RoundedScrollBarStyle(QProxyStyle):
+    def __init__(self, base_style: QStyle, track: str, handle: str, handle_hover: str) -> None:
+        super().__init__(base_style)
+        self._track = QColor(track)
+        self._handle = QColor(handle)
+        self._handle_hover = QColor(handle_hover)
+
+    def drawComplexControl(self, control: QStyle.ComplexControl, option, painter: QPainter, widget=None) -> None:
+        if control != QStyle.CC_ScrollBar or not isinstance(widget, QScrollBar):
+            super().drawComplexControl(control, option, painter, widget)
+            return
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        groove_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarGroove, widget).adjusted(1, 1, -1, -1)
+        if groove_rect.isValid():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(self._track)
+            radius = max(3.0, min(groove_rect.width(), groove_rect.height()) / 2.0)
+            painter.drawRoundedRect(QRectF(groove_rect), radius, radius)
+
+        slider_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarSlider, widget).adjusted(1, 1, -1, -1)
+        if slider_rect.isValid():
+            hovered = bool(option.state & QStyle.State_MouseOver)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(self._handle_hover if hovered else self._handle)
+            radius = max(3.0, min(slider_rect.width(), slider_rect.height()) / 2.0)
+            painter.drawRoundedRect(QRectF(slider_rect), radius, radius)
+
+        painter.restore()
