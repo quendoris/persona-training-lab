@@ -4,8 +4,10 @@ from collections.abc import Callable
 
 from PySide6.QtWidgets import (
     QComboBox,
+    QColorDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -47,8 +49,21 @@ class StyleScreen(QWidget):
         self._accent_box = QComboBox()
         for key, meta in ACCENTS.items():
             self._accent_box.addItem(meta["label"], key)
-        self._accent_box.setCurrentIndex(max(0, self._accent_box.findData(current_accent)))
+        self._accent_box.setCurrentIndex(max(0, self._accent_box.findData(current_accent if current_accent in ACCENTS else "cyan")))
         controls.add_widget(self._accent_box)
+        accent_custom_row = QWidget()
+        accent_custom_row.setProperty("transparentBg", True)
+        accent_custom_layout = QHBoxLayout(accent_custom_row)
+        accent_custom_layout.setContentsMargins(0, 0, 0, 0)
+        accent_custom_layout.setSpacing(8)
+        self._custom_accent_input = QLineEdit(current_accent if isinstance(current_accent, str) and current_accent.startswith("#") else "")
+        self._custom_accent_input.setPlaceholderText("#RRGGBB")
+        choose_custom = QPushButton("Другой")
+        choose_custom.setObjectName("SecondaryButton")
+        choose_custom.clicked.connect(self._pick_custom_accent)
+        accent_custom_layout.addWidget(self._custom_accent_input, 1)
+        accent_custom_layout.addWidget(choose_custom, 0)
+        controls.add_widget(accent_custom_row)
 
         apply_button = QPushButton("Применить оформление")
         apply_button.clicked.connect(self._apply)
@@ -86,6 +101,12 @@ class StyleScreen(QWidget):
 
     def _apply(self) -> None:
         theme = self._theme_box.currentData()
-        accent = self._accent_box.currentData()
+        custom_accent = self._custom_accent_input.text().strip()
+        accent = custom_accent if custom_accent.startswith("#") else self._accent_box.currentData()
         self._vm.save(theme=theme, accent_palette=accent, button_style_preset="soft_glow")
         self._on_apply(theme, accent)
+
+    def _pick_custom_accent(self) -> None:
+        color = QColorDialog.getColor(parent=self)
+        if color.isValid():
+            self._custom_accent_input.setText(color.name())

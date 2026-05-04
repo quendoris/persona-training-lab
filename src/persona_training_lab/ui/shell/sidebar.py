@@ -132,6 +132,7 @@ class NavButton(QPushButton):
         self._icon_path = _icons_root() / "sidebar" / f"{screen_id}.svg"
         self._accent = "#22D3EE"
         self._accent_soft = "rgba(6, 182, 212, 0.14)"
+        self._is_light_theme = False
 
         self.setObjectName("NavButton")
         self.setCheckable(True)
@@ -173,6 +174,10 @@ class NavButton(QPushButton):
         self._accent_soft = accent_soft
         self._sync_icon_state(self.isChecked())
 
+    def set_theme_mode(self, is_light: bool) -> None:
+        self._is_light_theme = is_light
+        self._sync_icon_state(self.isChecked())
+
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         badge_y = max(10, (self.height() - self._icon.height()) // 2)
@@ -193,9 +198,14 @@ class NavButton(QPushButton):
             border = self._accent
             weight = "800"
         else:
-            bg = "rgba(255, 255, 255, 0.02)"
-            fg = "#90A4C6"
-            border = "rgba(255, 255, 255, 0.08)"
+            if self._is_light_theme:
+                bg = "rgba(15, 23, 42, 0.04)"
+                fg = "#64748B"
+                border = "rgba(15, 23, 42, 0.10)"
+            else:
+                bg = "rgba(255, 255, 255, 0.02)"
+                fg = "#90A4C6"
+                border = "rgba(255, 255, 255, 0.08)"
             weight = "700"
 
         self._icon.setStyleSheet(
@@ -409,8 +419,15 @@ class Sidebar(QFrame):
             if isinstance(accent_name, str) and accent_name in ACCENTS:
                 self._current_accent = accent_name
         accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+        is_light_theme = False
+        app = QApplication.instance()
+        if app is not None:
+            theme_name = app.property("ptl_theme_name")
+            if isinstance(theme_name, str):
+                is_light_theme = THEMES.get(theme_name, THEMES["velvet"]).get("is_light") == "1"
         for button in self._buttons.values():
             button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"])
+            button.set_theme_mode(is_light_theme)
         if self._brand_badge is not None:
             icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)
             if not icon.isNull():

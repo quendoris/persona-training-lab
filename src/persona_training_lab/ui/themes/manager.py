@@ -9,9 +9,29 @@ from PySide6.QtWidgets import QApplication, QProxyStyle, QScrollArea, QScrollBar
 from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
 
 
+def _build_custom_accent(hex_color: str) -> dict[str, str]:
+    color = QColor(hex_color)
+    if not color.isValid():
+        color = QColor(ACCENTS[DEFAULT_ACCENT]["accent"])
+    return {
+        "label": "Custom",
+        "accent": color.name(),
+        "accent_hover": color.lighter(118).name(),
+        "accent_pressed": color.darker(118).name(),
+        "accent_soft_dark": color.darker(300).name(),
+        "accent_soft_light": color.lighter(195).name(),
+        "accent_text_dark": "#f8fafc",
+        "accent_text_light": color.darker(170).name(),
+    }
+
+
 def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str, str], dict[str, str]]:
     theme = THEMES.get(theme_name or DEFAULT_THEME, THEMES[DEFAULT_THEME]).copy()
-    accent = ACCENTS.get(accent_name or DEFAULT_ACCENT, ACCENTS[DEFAULT_ACCENT]).copy()
+    accent_key = accent_name or DEFAULT_ACCENT
+    if isinstance(accent_key, str) and accent_key.startswith("#"):
+        accent = _build_custom_accent(accent_key)
+    else:
+        accent = ACCENTS.get(accent_key, ACCENTS[DEFAULT_ACCENT]).copy()
     if theme.get("is_light") == "1":
         accent["accent_soft"] = accent["accent_soft_light"]
         accent["accent_text"] = accent["accent_text_light"]
@@ -492,6 +512,16 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
     QComboBox::down-arrow:on,
     QComboBox::down-arrow:hover {
         image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
+    }
+    QComboBox QAbstractItemView {
+        background-color: $surface_alt;
+        color: $text_primary;
+        border: 1px solid $border;
+        border-radius: 14px;
+        padding: 6px;
+        selection-background-color: $selection_bg;
+        selection-color: $text_primary;
+        outline: none;
     }
     QTableWidget {
         background-color: $surface_alt;
