@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from string import Template
 
-from PySide6.QtWidgets import QApplication, QScrollArea
+from PySide6.QtWidgets import QApplication, QScrollArea, QStyleFactory
 
 from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
 
@@ -114,6 +114,10 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
     vertical_qss, horizontal_qss = build_scrollbar_qss(theme_name, accent_name)
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
+    fusion_style = QStyleFactory.create("Fusion")
+    if fusion_style is not None:
+        vbar.setStyle(fusion_style)
+        hbar.setStyle(fusion_style)
     vbar.setStyleSheet(vertical_qss)
     hbar.setStyleSheet(horizontal_qss)
 
