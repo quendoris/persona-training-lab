@@ -173,6 +173,8 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
     )
     _ensure_profile_columns(connection)
     _ensure_dataset_columns(connection)
+    _ensure_training_run_columns(connection)
+    _ensure_training_log_table(connection)
     connection.commit()
 
 
@@ -210,3 +212,29 @@ def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
     for name, definition in additions:
         if name not in columns:
             connection.execute(f"ALTER TABLE datasets ADD COLUMN {name} {definition}")
+
+
+def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(training_runs)").fetchall()}
+    additions = [
+        ("started_at", "TEXT NOT NULL DEFAULT ''"),
+        ("finished_at", "TEXT NOT NULL DEFAULT ''"),
+        ("progress", "REAL NOT NULL DEFAULT 0"),
+    ]
+    for name, definition in additions:
+        if name not in columns:
+            connection.execute(f"ALTER TABLE training_runs ADD COLUMN {name} {definition}")
+
+
+def _ensure_training_log_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS training_logs (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            level TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )

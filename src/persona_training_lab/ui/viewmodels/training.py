@@ -91,6 +91,8 @@ class TrainingViewModel:
     creation_message: str = ""
     profile_choices: tuple[TrainingProfileChoice, ...] = ()
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
+    current_run_id: str = ""
+    can_start_run: bool = False
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
@@ -135,9 +137,11 @@ class TrainingViewModel:
             return
 
         current = runs[0]
+        self.current_run_id = current.run_id
         self.title = f"Обучение · {current.run_id}"
         self.subtitle = current.subtitle
         self.status = current.status
+        self.can_start_run = current.status == "Готов к запуску"
         self.selected_objects = (
             ("Базовая модель", current.base_model),
             ("Профиль", current.profile),
@@ -289,3 +293,30 @@ class TrainingViewModel:
             self.local_inference_status = result.message
         except Exception:
             self.local_inference_status = "Inference backend пока не подключён"
+
+
+    def start_selected_training_run(self) -> tuple[bool, str]:
+        if self.training_service is None or not self.current_run_id:
+            return False, "Запуск обучения не найден"
+        try:
+            self.training_service.start_training_run(self.current_run_id)
+        except TrainingValidationError as exc:
+            self.creation_message = str(exc)
+            return False, self.creation_message
+        except Exception:
+            self.creation_message = "Не удалось запустить обучение"
+            return False, self.creation_message
+        self.refresh_current_run()
+        return True, "Запуск обучения начат"
+
+    def refresh_current_run(self) -> bool:
+        if self.training_service is None or not self.current_run_id:
+            self.refresh()
+            return False
+        finished = self.training_service.advance_training_run(self.current_run_id)
+        self.refresh()
+        if self.current_run_id:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+        return finished

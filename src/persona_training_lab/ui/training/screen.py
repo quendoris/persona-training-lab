@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -58,10 +58,9 @@ class TrainingScreen(QWidget):
             btn.setCursor(Qt.PointingHandCursor)
             btn.setMinimumHeight(34)
             actions_layout.addWidget(btn)
-        launch_placeholder = QPushButton("Запуск обучения будет подключён на следующем этапе")
-        launch_placeholder.setObjectName("SecondaryButton")
-        launch_placeholder.setEnabled(False)
-        actions_layout.addWidget(launch_placeholder)
+        self._launch_btn = QPushButton("Запустить обучение")
+        self._launch_btn.clicked.connect(self._on_start_training)
+        actions_layout.addWidget(self._launch_btn)
         actions_layout.addStretch(1)
         root.addWidget(actions)
 
@@ -194,6 +193,9 @@ class TrainingScreen(QWidget):
         self._log_box = QTextEdit()
         self._log_box.setReadOnly(True)
         self._log_box.setPlainText("\n".join(self._vm.logs))
+        is_running = self._vm.status == "Выполняется"
+        self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
+        self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
         logs_card.add_widget(self._log_box)
         lower.addWidget(logs_card, 1)
 
@@ -301,6 +303,11 @@ class TrainingScreen(QWidget):
 
         right.addStretch(1)
 
+        self._runner_timer = QTimer(self)
+        self._runner_timer.setInterval(600)
+        self._runner_timer.timeout.connect(self._on_runner_tick)
+        self._refresh_training_overview()
+
     def _on_check_local_model(self) -> None:
         self._vm.check_local_model()
         self._refresh_local_model_block()
@@ -360,3 +367,20 @@ class TrainingScreen(QWidget):
         self._subtitle.setText(self._vm.subtitle)
         self._status_label.setText(self._vm.status)
         self._log_box.setPlainText("\n".join(self._vm.logs))
+        is_running = self._vm.status == "Выполняется"
+        self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
+        self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
+
+
+    def _on_start_training(self) -> None:
+        success, message = self._vm.start_selected_training_run()
+        self._create_message.setText(message)
+        self._refresh_training_overview()
+        if success:
+            self._runner_timer.start()
+
+    def _on_runner_tick(self) -> None:
+        finished = self._vm.refresh_current_run()
+        self._refresh_training_overview()
+        if finished:
+            self._runner_timer.stop()
