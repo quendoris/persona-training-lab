@@ -34,7 +34,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     vertical_qss = Template("""
     QScrollBar:vertical {
-        background-color: $surface_alt;
+        background: transparent;
         border: none;
         width: 10px;
         margin: 2px 2px 2px 0px;
@@ -68,13 +68,13 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:vertical,
     QScrollBar::sub-page:vertical {
-        background-color: $surface_alt;
+        background: transparent;
         border: none;
     }
     """).substitute(values)
     horizontal_qss = Template("""
     QScrollBar:horizontal {
-        background-color: $surface_alt;
+        background: transparent;
         border: none;
         height: 10px;
         margin: 0px 2px 2px 2px;
@@ -108,7 +108,7 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     }
     QScrollBar::add-page:horizontal,
     QScrollBar::sub-page:horizontal {
-        background-color: $surface_alt;
+        background: transparent;
         border: none;
     }
     """).substitute(values)
@@ -405,18 +405,16 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border-radius: 16px;
     }
     QScrollBar:vertical {
-        background-color: $surface_soft;
+        background: transparent;
         width: 14px;
         margin: 2px 2px 2px 0px;
-        border: 1px solid $border_soft;
-        border-radius: 7px;
+        border: none;
     }
     QScrollBar:horizontal {
-        background-color: $surface_soft;
+        background: transparent;
         height: 14px;
         margin: 0px 2px 2px 2px;
-        border: 1px solid $border_soft;
-        border-radius: 7px;
+        border: none;
     }
     QScrollBar::handle:vertical {
         background-color: $accent;
