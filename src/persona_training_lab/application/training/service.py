@@ -256,13 +256,17 @@ class TrainingService:
     def start_real_or_skeleton_run(self, run_id: str) -> str:
         backend = self.full_backend
         if backend is None:
-            self.start_training_run(run_id)
             return "Training backend не подключён"
-        result = backend.run(run_id, self.local_model_service.model_path if self.local_model_service else "", "MIA_SENTINEL_FT_TEST_001", "MIA_FINE_TUNE_MARKER_OK_001")
-        updater = getattr(self.training_repo, "update_training_run_runtime", None)
         logger = getattr(self.training_repo, "add_training_log", None)
         if logger is not None:
+            logger(run_id, "INFO", "Запуск full fine-tune")
+        result = backend.run(run_id, self.local_model_service.model_path if self.local_model_service else "", "MIA_SENTINEL_FT_TEST_001", "MIA_FINE_TUNE_MARKER_OK_001")
+        updater = getattr(self.training_repo, "update_training_run_runtime", None)
+        if logger is not None:
             logger(run_id, "INFO", result.message)
+            if result.status == "Завершено":
+                logger(run_id, "INFO", "Training step выполнен")
+                logger(run_id, "INFO", f"Artifact saved: {result.artifact_path}")
         if updater is not None:
             updater(run_id, {"status": "Завершено" if result.status == "Завершено" else "Ошибка", "epoch_progress": "1 / 1", "progress": "1.0" if result.status == "Завершено" else "0", "loss": "full-ft", "speed": "smoke", "checkpoints_count": "01" if result.status == "Завершено" else "00", "started_at": datetime.now(timezone.utc).isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "artifact_path": result.artifact_path, "error_message": "" if result.status == "Завершено" else result.message})
         if result.status != "Завершено":

@@ -75,5 +75,5 @@ def test_viewmodel_start_action() -> None:
     _seed_run(conn)
     vm = TrainingViewModel(training_service=TrainingService(training_repo=SQLiteTrainingRepository(conn)))
     ok, _ = vm.start_selected_training_run()
-    assert ok
-    assert vm.status == "Выполняется"
+    assert not ok
+    assert vm.status == "Готов к запуску"

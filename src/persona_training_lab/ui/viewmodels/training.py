@@ -268,6 +268,10 @@ class TrainingViewModel:
             return False, self.creation_message
 
         self.creation_message = "Запуск обучения создан"
+        if message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
+            self.creation_message = message
+            self.refresh()
+            return False, message
         self.refresh()
         return True, self.creation_message
 
@@ -318,15 +322,23 @@ class TrainingViewModel:
         if self.training_service is None or not self.current_run_id:
             return False, "Запуск обучения не найден"
         try:
-            self.training_service.start_training_run(self.current_run_id)
+            message = self.training_service.start_real_or_skeleton_run(self.current_run_id)
         except TrainingValidationError as exc:
             self.creation_message = str(exc)
             return False, self.creation_message
         except Exception:
             self.creation_message = "Не удалось запустить обучение"
             return False, self.creation_message
-        self.refresh_current_run()
-        return True, "Запуск обучения начат"
+        self.refresh()
+        if self.current_run_id:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+        final_message = message or "Запуск обучения начат"
+        if final_message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
+            self.creation_message = final_message
+            return False, final_message
+        return True, final_message
 
     def refresh_current_run(self) -> bool:
         if self.training_service is None or not self.current_run_id:
