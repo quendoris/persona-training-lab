@@ -220,6 +220,8 @@ def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
         ("started_at", "TEXT NOT NULL DEFAULT ''"),
         ("finished_at", "TEXT NOT NULL DEFAULT ''"),
         ("progress", "REAL NOT NULL DEFAULT 0"),
+        ("artifact_path", "TEXT NOT NULL DEFAULT ''"),
+        ("error_message", "TEXT NOT NULL DEFAULT ''"),
     ]
     for name, definition in additions:
         if name not in columns:

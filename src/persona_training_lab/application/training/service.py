@@ -245,5 +245,15 @@ class TrainingService:
                 "checkpoints_count": "01" if result.status == "Marker fine-tune завершён" else "00",
                 "started_at": datetime.now(timezone.utc).isoformat(),
                 "finished_at": datetime.now(timezone.utc).isoformat(),
+                "artifact_path": result.artifact_path,
+                "error_message": "" if result.status == "Marker fine-tune завершён" else result.message,
             })
         return result.status, result.artifact_path
+
+
+    def start_real_or_skeleton_run(self, run_id: str) -> str:
+        status, artifact = self.run_marker_finetune_smoke(run_id)
+        if status == "Marker fine-tune завершён":
+            return artifact or "Marker fine-tune завершён"
+        self.start_training_run(run_id)
+        return status

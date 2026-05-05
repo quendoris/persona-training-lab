@@ -12,7 +12,7 @@ class SQLiteTrainingRepository:
     def list_training_runs(self) -> list[dict[str, str]]:
         rows = self._connection.execute(
             """
-            SELECT id, title, subtitle, status, base_model, profile, dataset_version, mode, epoch_progress, loss, speed, checkpoints_count, progress, started_at, finished_at
+            SELECT id, title, subtitle, status, base_model, profile, dataset_version, mode, epoch_progress, loss, speed, checkpoints_count, progress, started_at, finished_at, artifact_path, error_message
             FROM training_runs
             ORDER BY updated_at DESC, title ASC
             """
@@ -34,6 +34,8 @@ class SQLiteTrainingRepository:
                 "progress": str(row["progress"]),
                 "started_at": row["started_at"],
                 "finished_at": row["finished_at"],
+                "artifact_path": row["artifact_path"],
+                "error_message": row["error_message"],
             }
             for row in rows
         ]
@@ -68,7 +70,7 @@ class SQLiteTrainingRepository:
     def get_training_run(self, run_id: str) -> dict[str, str] | None:
         row = self._connection.execute(
             """
-            SELECT id, title, subtitle, status, base_model, profile, dataset_version, mode, epoch_progress, loss, speed, checkpoints_count, progress, started_at, finished_at
+            SELECT id, title, subtitle, status, base_model, profile, dataset_version, mode, epoch_progress, loss, speed, checkpoints_count, progress, started_at, finished_at, artifact_path, error_message
             FROM training_runs
             WHERE id = ?
             """,
@@ -92,6 +94,8 @@ class SQLiteTrainingRepository:
             "progress": str(row["progress"]),
             "started_at": row["started_at"],
             "finished_at": row["finished_at"],
+            "artifact_path": row["artifact_path"],
+            "error_message": row["error_message"],
         }
 
     def update_training_run_runtime(self, run_id: str, payload: dict[str, str]) -> None:
@@ -100,7 +104,7 @@ class SQLiteTrainingRepository:
             """
             UPDATE training_runs
             SET status = ?, epoch_progress = ?, progress = ?, loss = ?, speed = ?, checkpoints_count = ?,
-                started_at = ?, finished_at = ?, updated_at = ?
+                started_at = ?, finished_at = ?, artifact_path = ?, error_message = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -112,6 +116,8 @@ class SQLiteTrainingRepository:
                 payload.get("checkpoints_count", "00"),
                 payload.get("started_at", ""),
                 payload.get("finished_at", ""),
+                payload.get("artifact_path", ""),
+                payload.get("error_message", ""),
                 now,
                 run_id,
             ),

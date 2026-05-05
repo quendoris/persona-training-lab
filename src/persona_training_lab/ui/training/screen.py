@@ -86,10 +86,6 @@ class TrainingScreen(QWidget):
         self._launch_btn = QPushButton("Запустить обучение")
         self._launch_btn.clicked.connect(self._on_start_training)
         actions_layout.addWidget(self._launch_btn)
-        self._marker_btn = QPushButton("Marker fine-tune smoke")
-        self._marker_btn.setObjectName("SecondaryButton")
-        self._marker_btn.clicked.connect(self._on_start_marker_finetune)
-        actions_layout.addWidget(self._marker_btn)
         actions_layout.addStretch(1)
         root.addWidget(actions)
 
@@ -225,7 +221,6 @@ class TrainingScreen(QWidget):
         is_running = self._vm.status == "Выполняется"
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
-        self._marker_btn.setEnabled((not self._vm.marker_in_progress) and bool(self._vm.current_run_id))
         logs_card.add_widget(self._log_box)
         lower.addWidget(logs_card, 1)
 
@@ -429,7 +424,6 @@ class TrainingScreen(QWidget):
         is_running = self._vm.status == "Выполняется"
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
-        self._marker_btn.setEnabled((not self._vm.marker_in_progress) and bool(self._vm.current_run_id))
 
 
     def _on_start_training(self) -> None:
@@ -445,16 +439,3 @@ class TrainingScreen(QWidget):
         if finished:
             self._runner_timer.stop()
 
-    def _on_start_marker_finetune(self) -> None:
-        if not self._vm.begin_marker_finetune():
-            self._create_message.setText("Не удалось запустить marker fine-tune")
-            self._refresh_training_overview()
-            return
-        self._refresh_training_overview()
-        QTimer.singleShot(0, self._run_marker_finetune_on_ui_thread)
-
-    def _run_marker_finetune_on_ui_thread(self) -> None:
-        status, artifact_path = self._vm.run_marker_finetune_sync()
-        self._vm.finish_marker_finetune(status, artifact_path)
-        self._create_message.setText(status)
-        self._refresh_training_overview()
