@@ -37,6 +37,18 @@ class _InferenceWorker(QObject):
         self.finished.emit(status, response)
 
 
+class _MarkerFineTuneWorker(QObject):
+    finished = Signal(str, str)
+
+    def __init__(self, vm: TrainingViewModel) -> None:
+        super().__init__()
+        self._vm = vm
+
+    def run(self) -> None:
+        status, artifact = self._vm.run_marker_finetune_sync()
+        self.finished.emit(status, artifact)
+
+
 class TrainingScreen(QWidget):
     def __init__(self, view_model: TrainingViewModel) -> None:
         super().__init__()
@@ -74,6 +86,10 @@ class TrainingScreen(QWidget):
         self._launch_btn = QPushButton("Запустить обучение")
         self._launch_btn.clicked.connect(self._on_start_training)
         actions_layout.addWidget(self._launch_btn)
+        self._marker_btn = QPushButton("Marker fine-tune smoke")
+        self._marker_btn.setObjectName("SecondaryButton")
+        self._marker_btn.clicked.connect(self._on_start_marker_finetune)
+        actions_layout.addWidget(self._marker_btn)
         actions_layout.addStretch(1)
         root.addWidget(actions)
 
@@ -209,6 +225,8 @@ class TrainingScreen(QWidget):
         is_running = self._vm.status == "Выполняется"
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
+        self._marker_btn.setEnabled((not self._vm.marker_in_progress) and bool(self._vm.current_run_id))
+        self._marker_artifact.setText(self._vm.marker_artifact_path)
         logs_card.add_widget(self._log_box)
         lower.addWidget(logs_card, 1)
 
@@ -260,6 +278,8 @@ class TrainingScreen(QWidget):
 
         self._create_message = make_muted_label(self._vm.creation_message)
         create_layout.addWidget(self._create_message, 8, 0, 1, 2)
+        self._marker_artifact = make_muted_label(self._vm.marker_artifact_path)
+        create_layout.addWidget(self._marker_artifact, 9, 0, 1, 2)
         self._populate_training_inputs()
         create_run._layout.addLayout(create_layout)
         right.addWidget(create_run)
@@ -410,6 +430,8 @@ class TrainingScreen(QWidget):
         is_running = self._vm.status == "Выполняется"
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
+        self._marker_btn.setEnabled((not self._vm.marker_in_progress) and bool(self._vm.current_run_id))
+        self._marker_artifact.setText(self._vm.marker_artifact_path)
 
 
     def _on_start_training(self) -> None:

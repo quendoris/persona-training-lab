@@ -91,6 +91,8 @@ class TrainingViewModel:
     inference_prompt: str = "MIA_SENTINEL_FT_TEST_001"
     inference_response: str = ""
     inference_in_progress: bool = False
+    marker_in_progress: bool = False
+    marker_artifact_path: str = ""
     creation_message: str = ""
     profile_choices: tuple[TrainingProfileChoice, ...] = ()
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
@@ -337,3 +339,31 @@ class TrainingViewModel:
             if logs:
                 self.logs = tuple(logs)
         return finished
+
+
+    def begin_marker_finetune(self) -> bool:
+        if self.marker_in_progress or not self.current_run_id:
+            return False
+        self.marker_in_progress = True
+        self.creation_message = "Генерация marker fine-tune…"
+        return True
+
+    def run_marker_finetune_sync(self) -> tuple[str, str]:
+        if self.training_service is None or not self.current_run_id:
+            return "Не удалось запустить marker fine-tune", ""
+        return self.training_service.run_marker_finetune_smoke(self.current_run_id)
+
+    def finish_marker_finetune(self, status: str, artifact_path: str) -> None:
+        self.marker_in_progress = False
+        self.creation_message = status
+        self.marker_artifact_path = artifact_path
+        self.refresh()
+        if self.current_run_id:
+            logs = self.training_service.list_training_run_logs(self.current_run_id) if self.training_service else []
+            if logs:
+                self.logs = tuple(logs)
+
+    def verify_marker_response(self) -> tuple[bool, str]:
+        if self.inference_response.strip() == "MIA_FINE_TUNE_MARKER_OK_001":
+            return True, "Marker fine-tune завершён"
+        return False, "Marker response не подтверждён"
