@@ -52,19 +52,6 @@ class FilesystemLocalModelProbeProvider:
 
     def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
 
-        marker_root = Path("artifacts") / "marker_finetune"
-        latest = marker_root / "latest_marker_artifact.txt"
-        if latest.exists():
-            try:
-                marker_art = Path(latest.read_text(encoding="utf-8").strip())
-                marker_map = marker_art / "marker_map.json"
-                if marker_map.exists():
-                    payload = json.loads(marker_map.read_text(encoding="utf-8"))
-                    if prompt.strip() == payload.get("prompt", ""):
-                        return LocalInferenceResult(status="Модель отвечает", message="Marker response подтверждён", response=str(payload.get("response", "")))
-            except Exception:
-                pass
-
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
         except Exception:

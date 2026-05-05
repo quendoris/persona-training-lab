@@ -37,18 +37,6 @@ class _InferenceWorker(QObject):
         self.finished.emit(status, response)
 
 
-class _MarkerFineTuneWorker(QObject):
-    finished = Signal(str, str)
-
-    def __init__(self, vm: TrainingViewModel) -> None:
-        super().__init__()
-        self._vm = vm
-
-    def run(self) -> None:
-        status, artifact = self._vm.run_marker_finetune_sync()
-        self.finished.emit(status, artifact)
-
-
 class TrainingScreen(QWidget):
     def __init__(self, view_model: TrainingViewModel) -> None:
         super().__init__()

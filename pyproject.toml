@@ -19,9 +19,13 @@ inference = [
     "sentencepiece>=0.2",
 ]
 training = [
+    "torch>=2.3",
+    "transformers>=4.41",
+    "accelerate>=0.30",
+    "safetensors>=0.4",
+    "tokenizers>=0.15",
+    "sentencepiece>=0.2",
     "datasets>=2.19",
-    "peft>=0.11",
-    "trl>=0.9",
 ]
 
 dev = [

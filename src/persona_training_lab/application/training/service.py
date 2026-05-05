@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from persona_training_lab.application.training.runtime import DeterministicTrainingRunner
 from persona_training_lab.application.training.marker_backend import MarkerFineTuneBackend
+from persona_training_lab.application.training.full_backend import LocalFullFineTuneBackend
 
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.local_model.service import LocalModelService
@@ -57,6 +58,7 @@ class TrainingService:
     local_model_service: LocalModelService | None = None
     runner: DeterministicTrainingRunner | None = None
     marker_backend: MarkerFineTuneBackend | None = None
+    full_backend: LocalFullFineTuneBackend | None = None
 
     def list_training_runs(self) -> list[TrainingRunSummary]:
         rows = self.training_repo.list_training_runs()
@@ -252,8 +254,17 @@ class TrainingService:
 
 
     def start_real_or_skeleton_run(self, run_id: str) -> str:
-        status, artifact = self.run_marker_finetune_smoke(run_id)
-        if status == "Marker fine-tune завершён":
-            return artifact or "Marker fine-tune завершён"
-        self.start_training_run(run_id)
-        return status
+        backend = self.full_backend
+        if backend is None:
+            self.start_training_run(run_id)
+            return "Training backend не подключён"
+        result = backend.run(run_id, self.local_model_service.model_path if self.local_model_service else "", "MIA_SENTINEL_FT_TEST_001", "MIA_FINE_TUNE_MARKER_OK_001")
+        updater = getattr(self.training_repo, "update_training_run_runtime", None)
+        logger = getattr(self.training_repo, "add_training_log", None)
+        if logger is not None:
+            logger(run_id, "INFO", result.message)
+        if updater is not None:
+            updater(run_id, {"status": "Завершено" if result.status == "Завершено" else "Ошибка", "epoch_progress": "1 / 1", "progress": "1.0" if result.status == "Завершено" else "0", "loss": "full-ft", "speed": "smoke", "checkpoints_count": "01" if result.status == "Завершено" else "00", "started_at": datetime.now(timezone.utc).isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "artifact_path": result.artifact_path, "error_message": "" if result.status == "Завершено" else result.message})
+        if result.status != "Завершено":
+            return result.status
+        return result.artifact_path

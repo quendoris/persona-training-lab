@@ -15,6 +15,7 @@ from persona_training_lab.application.style.service import StylePreferencesServi
 from persona_training_lab.application.telemetry.service import SystemTelemetryService
 from persona_training_lab.application.training.service import TrainingService
 from persona_training_lab.application.training.marker_backend import MarkerFineTuneBackend
+from persona_training_lab.application.training.full_backend import LocalFullFineTuneBackend
 from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
 from persona_training_lab.config.app_settings import AppSettings
 from persona_training_lab.config.paths import build_workspace_paths, ensure_workspace_dirs
@@ -109,6 +110,7 @@ def build_container() -> AppContainer:
         datasets_service=datasets_service,
         local_model_service=local_model_service,
         marker_backend=MarkerFineTuneBackend(paths.artifacts),
+        full_backend=LocalFullFineTuneBackend(paths.artifacts),
     )
     telemetry_service = SystemTelemetryService(
         system_provider=PsutilTelemetryProvider(),
