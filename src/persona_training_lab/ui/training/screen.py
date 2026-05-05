@@ -446,3 +446,24 @@ class TrainingScreen(QWidget):
         self._refresh_training_overview()
         if finished:
             self._runner_timer.stop()
+
+    def _on_start_marker_finetune(self) -> None:
+        if not self._vm.begin_marker_finetune():
+            self._create_message.setText("Не удалось запустить marker fine-tune")
+            self._refresh_training_overview()
+            return
+        self._refresh_training_overview()
+
+        self._marker_thread = QThread(self)
+        self._marker_worker = _MarkerFineTuneWorker(self._vm)
+        self._marker_worker.moveToThread(self._marker_thread)
+        self._marker_thread.started.connect(self._marker_worker.run)
+        self._marker_worker.finished.connect(self._on_marker_finetune_finished)
+        self._marker_worker.finished.connect(self._marker_thread.quit)
+        self._marker_thread.finished.connect(self._marker_thread.deleteLater)
+        self._marker_thread.start()
+
+    def _on_marker_finetune_finished(self, status: str, artifact_path: str) -> None:
+        self._vm.finish_marker_finetune(status, artifact_path)
+        self._create_message.setText(status)
+        self._refresh_training_overview()
