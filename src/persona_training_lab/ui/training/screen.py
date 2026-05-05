@@ -226,7 +226,6 @@ class TrainingScreen(QWidget):
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
         self._marker_btn.setEnabled((not self._vm.marker_in_progress) and bool(self._vm.current_run_id))
-        self._marker_artifact.setText(self._vm.marker_artifact_path)
         logs_card.add_widget(self._log_box)
         lower.addWidget(logs_card, 1)
 
@@ -431,7 +430,6 @@ class TrainingScreen(QWidget):
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
         self._marker_btn.setEnabled((not self._vm.marker_in_progress) and bool(self._vm.current_run_id))
-        self._marker_artifact.setText(self._vm.marker_artifact_path)
 
 
     def _on_start_training(self) -> None:
