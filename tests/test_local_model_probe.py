@@ -44,5 +44,30 @@ def test_local_model_inference_backend_missing() -> None:
     service = LocalModelService(probe_provider=provider)
 
     vm = TrainingViewModel(local_model_service=service)
-    vm.test_local_inference()
-    assert vm.local_inference_status == "Inference backend пока не подключён"
+    ok, prompt = vm.begin_local_inference()
+    assert ok
+    assert vm.local_inference_status == "Генерация…"
+    status, response = vm.run_local_inference_sync(prompt)
+    vm.finish_local_inference(status, response)
+    assert vm.local_inference_status in {"Inference backend не подключён", "Модель не загружена", "Ошибка генерации"}
+
+
+def test_local_model_smoke_prompt_marker_and_missing_model() -> None:
+    provider = FilesystemLocalModelProbeProvider()
+    service = LocalModelService(probe_provider=provider, model_path="models/does-not-exist")
+    vm = TrainingViewModel(local_model_service=service)
+    ok, prompt = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")
+    assert ok
+    status, response = vm.run_local_inference_sync(prompt)
+    vm.finish_local_inference(status, response)
+    assert vm.inference_prompt == "MIA_SENTINEL_FT_TEST_001"
+    assert vm.local_inference_status == "Модель не загружена"
+
+
+def test_cannot_start_second_inference_while_running() -> None:
+    provider = FilesystemLocalModelProbeProvider()
+    vm = TrainingViewModel(local_model_service=LocalModelService(probe_provider=provider))
+    ok, _ = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")
+    assert ok
+    ok2, _ = vm.begin_local_inference("another")
+    assert not ok2

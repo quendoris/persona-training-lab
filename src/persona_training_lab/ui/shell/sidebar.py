@@ -7,6 +7,7 @@ from PySide6.QtCore import QByteArray, Qt, Signal, QRect, QRectF
 from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -19,13 +20,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from persona_training_lab.ui.themes.tokens import THEMES
+from persona_training_lab.ui.themes.tokens import ACCENTS, THEMES
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 SIDEBAR_ICON_RENDER_SIZE = 18
 SIDEBAR_ICON_BADGE_LEFT = 22
 SIDEBAR_ICON_BADGE_SIZE = 30
 SIDEBAR_TEXT_LEFT_PADDING = 70
+
+
+def _custom_accent_palette(hex_color: str) -> dict[str, str]:
+    color = QColor(hex_color)
+    if not color.isValid():
+        color = QColor(ACCENTS["cyan"]["accent"])
+    return {
+        "accent": color.name(),
+        "accent_soft_dark": color.darker(300).name(),
+        "accent_soft_light": color.lighter(195).name(),
+    }
 
 
 def _icons_root() -> Path:
@@ -128,6 +141,10 @@ class NavButton(QPushButton):
         self.screen_id = screen_id
         self._fallback_icon_text = icon_text
         self._icon_path = _icons_root() / "sidebar" / f"{screen_id}.svg"
+        self._accent = "#22D3EE"
+        self._accent_soft_dark = "rgba(6, 182, 212, 0.14)"
+        self._accent_soft_light = "rgba(34, 211, 238, 0.20)"
+        self._is_light_theme = False
 
         self.setObjectName("NavButton")
         self.setCheckable(True)
@@ -164,6 +181,16 @@ class NavButton(QPushButton):
         )
         self._sync_icon_state(False)
 
+    def set_accent(self, accent: str, accent_soft_dark: str, accent_soft_light: str) -> None:
+        self._accent = accent
+        self._accent_soft_dark = accent_soft_dark
+        self._accent_soft_light = accent_soft_light
+        self._sync_icon_state(self.isChecked())
+
+    def set_theme_mode(self, is_light: bool) -> None:
+        self._is_light_theme = is_light
+        self._sync_icon_state(self.isChecked())
+
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         badge_y = max(10, (self.height() - self._icon.height()) // 2)
@@ -179,14 +206,19 @@ class NavButton(QPushButton):
 
     def _sync_icon_state(self, active: bool) -> None:
         if active:
-            bg = "rgba(6, 182, 212, 0.14)"
-            fg = "#22D3EE"
-            border = "rgba(6, 182, 212, 0.72)"
+            bg = self._accent_soft_light if self._is_light_theme else self._accent_soft_dark
+            fg = self._accent
+            border = self._accent
             weight = "800"
         else:
-            bg = "rgba(255, 255, 255, 0.02)"
-            fg = "#90A4C6"
-            border = "rgba(255, 255, 255, 0.08)"
+            if self._is_light_theme:
+                bg = "rgba(15, 23, 42, 0.04)"
+                fg = "#64748B"
+                border = "rgba(15, 23, 42, 0.10)"
+            else:
+                bg = "rgba(255, 255, 255, 0.02)"
+                fg = "#90A4C6"
+                border = "rgba(255, 255, 255, 0.08)"
             weight = "700"
 
         self._icon.setStyleSheet(
@@ -242,6 +274,7 @@ class Sidebar(QFrame):
         self._buttons: dict[str, NavButton] = {}
         self._current_accent = self._prefs.get("accent_palette") or "cyan"
         self._window_menu: QMenu | None = None
+        self._brand_badge: QLabel | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
@@ -260,9 +293,11 @@ class Sidebar(QFrame):
         badge.setObjectName("BrandBadge")
         badge.setAlignment(Qt.AlignCenter)
         badge.setFixedSize(44, 44)
-        brand_icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", "#22D3EE", 44, 33)
+        accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+        brand_icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)
         if not brand_icon.isNull():
             badge.setPixmap(brand_icon)
+        self._brand_badge = badge
 
         title = QLabel("Persona Training Lab")
         title.setObjectName("SidebarTitle")
@@ -304,6 +339,7 @@ class Sidebar(QFrame):
         theme_layout.addLayout(theme_header)
 
         self._theme_buttons_wrap = QWidget()
+        self._theme_buttons_wrap.setProperty("transparentBg", True)
         theme_buttons_layout = QHBoxLayout(self._theme_buttons_wrap)
         theme_buttons_layout.setContentsMargins(0, 0, 0, 0)
         theme_buttons_layout.setSpacing(8)
@@ -311,6 +347,7 @@ class Sidebar(QFrame):
             button = QPushButton(meta["label"])
             button.setObjectName("ThemeChip")
             button.setCursor(Qt.PointingHandCursor)
+            button.setMinimumHeight(34)
             button.clicked.connect(lambda _checked=False, theme_key=key: self._apply_theme(theme_key))
             theme_buttons_layout.addWidget(button)
         theme_layout.addWidget(self._theme_buttons_wrap)
@@ -318,10 +355,12 @@ class Sidebar(QFrame):
         root.addWidget(self._theme_block)
 
         nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("StableScrollArea")
         nav_scroll.setFrameShape(QFrame.NoFrame)
         nav_scroll.setWidgetResizable(True)
         nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         nav_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        apply_scrollbar_style(nav_scroll)
 
         nav_container = QFrame()
         nav_container.setObjectName("SidebarNav")
@@ -343,6 +382,8 @@ class Sidebar(QFrame):
         ]
         for screen_id, icon_text, title_text in items:
             button = NavButton(screen_id, icon_text, title_text)
+            accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"], accent_palette["accent_soft_light"])
             button.clicked.connect(lambda checked=False, sid=screen_id: self._select_screen(sid))
             nav_layout.addWidget(button)
             self._buttons[screen_id] = button
@@ -364,6 +405,7 @@ class Sidebar(QFrame):
             wf_layout.addWidget(pill)
         root.addWidget(workflows, 0)
 
+        self._sync_accent_from_app()
         self.set_current("dashboard")
 
     def set_window_menu(self, menu: QMenu) -> None:
@@ -381,6 +423,32 @@ class Sidebar(QFrame):
     def _apply_theme(self, theme_key: str) -> None:
         self._style_vm.save(theme=theme_key, accent_palette=self._current_accent, button_style_preset="soft_glow")
         self._on_apply_theme(theme_key, self._current_accent)
+        self._sync_accent_from_app()
+
+    def _sync_accent_from_app(self) -> None:
+        app = QApplication.instance()
+        accent_palette = ACCENTS.get(self._current_accent, ACCENTS["cyan"])
+        if app is not None:
+            accent_name = app.property("ptl_accent_name")
+            if isinstance(accent_name, str):
+                self._current_accent = accent_name
+                if accent_name in ACCENTS:
+                    accent_palette = ACCENTS[accent_name]
+                elif accent_name.startswith("#"):
+                    accent_palette = _custom_accent_palette(accent_name)
+        is_light_theme = False
+        app = QApplication.instance()
+        if app is not None:
+            theme_name = app.property("ptl_theme_name")
+            if isinstance(theme_name, str):
+                is_light_theme = THEMES.get(theme_name, THEMES["velvet"]).get("is_light") == "1"
+        for button in self._buttons.values():
+            button.set_accent(accent_palette["accent"], accent_palette["accent_soft_dark"], accent_palette["accent_soft_light"])
+            button.set_theme_mode(is_light_theme)
+        if self._brand_badge is not None:
+            icon = _render_svg_icon(_icons_root() / "brand" / "main.svg", accent_palette["accent"], 44, 33)
+            if not icon.isNull():
+                self._brand_badge.setPixmap(icon)
 
     def _select_screen(self, screen_id: str) -> None:
         self.set_current(screen_id)

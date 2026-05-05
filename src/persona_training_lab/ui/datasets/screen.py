@@ -21,29 +21,20 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 
 
 def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QFrame, QGridLayout]:
     scroll = QScrollArea()
+    scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setFrameShape(QFrame.Shape.NoFrame)
     scroll.setMinimumHeight(max_height)
+    apply_scrollbar_style(scroll)
     scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    scroll.setStyleSheet(
-        """
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-            border: none;
-        }
-        """
-    )
 
     wrap = QFrame()
     wrap.setObjectName("StableScrollShell")
@@ -54,6 +45,7 @@ def _stable_scroll_grid(max_height: int = 320) -> tuple[QScrollArea, QFrame, QGr
 
     grid_wrap = QWidget()
     grid_wrap.setObjectName("ValidationGridWrap")
+    grid_wrap.setProperty("transparentBg", True)
     grid = QGridLayout(grid_wrap)
     grid.setContentsMargins(0, 0, 0, 0)
     grid.setHorizontalSpacing(12)

@@ -2,14 +2,36 @@ from __future__ import annotations
 
 from string import Template
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import QApplication, QProxyStyle, QScrollArea, QScrollBar, QStyle
 
 from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
 
 
+def _build_custom_accent(hex_color: str) -> dict[str, str]:
+    color = QColor(hex_color)
+    if not color.isValid():
+        color = QColor(ACCENTS[DEFAULT_ACCENT]["accent"])
+    return {
+        "label": "Custom",
+        "accent": color.name(),
+        "accent_hover": color.lighter(118).name(),
+        "accent_pressed": color.darker(118).name(),
+        "accent_soft_dark": color.darker(300).name(),
+        "accent_soft_light": color.lighter(195).name(),
+        "accent_text_dark": "#f8fafc",
+        "accent_text_light": color.darker(170).name(),
+    }
+
+
 def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str, str], dict[str, str]]:
     theme = THEMES.get(theme_name or DEFAULT_THEME, THEMES[DEFAULT_THEME]).copy()
-    accent = ACCENTS.get(accent_name or DEFAULT_ACCENT, ACCENTS[DEFAULT_ACCENT]).copy()
+    accent_key = accent_name or DEFAULT_ACCENT
+    if isinstance(accent_key, str) and accent_key.startswith("#"):
+        accent = _build_custom_accent(accent_key)
+    else:
+        accent = ACCENTS.get(accent_key, ACCENTS[DEFAULT_ACCENT]).copy()
     if theme.get("is_light") == "1":
         accent["accent_soft"] = accent["accent_soft_light"]
         accent["accent_text"] = accent["accent_text_light"]
@@ -17,6 +39,134 @@ def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str,
         accent["accent_soft"] = accent["accent_soft_dark"]
         accent["accent_text"] = accent["accent_text_dark"]
     return theme, accent
+
+
+def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None = None) -> tuple[str, str]:
+    theme, accent = _resolve(theme_name, accent_name)
+    values = {
+        "surface_soft": theme["surface_soft"],
+        "surface_alt": theme["surface_alt"],
+        "border_soft": theme["border_soft"],
+        "accent": accent["accent"],
+        "accent_soft": accent["accent_soft"],
+        "accent_hover": accent["accent_hover"],
+        "accent_pressed": accent["accent_pressed"],
+    }
+    vertical_qss = Template("""
+    QScrollBar:vertical {
+        background-color: $surface_soft;
+        border: 1px solid $border_soft;
+        border-radius: 5px;
+        width: 10px;
+        margin: 2px 2px 2px 0px;
+    }
+    QScrollBar::handle {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
+    }
+    QScrollBar::handle:vertical {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
+        min-height: 28px;
+        margin: 1px;
+    }
+    QScrollBar::handle:vertical:hover {
+        background-color: $accent_hover;
+        border: 1px solid $accent;
+    }
+    QScrollBar::add-line:vertical,
+    QScrollBar::sub-line:vertical,
+    QScrollBar::up-arrow,
+    QScrollBar::down-arrow {
+        background: transparent;
+        border: none;
+        image: none;
+        border-image: none;
+        width: 0px;
+        height: 0px;
+    }
+    QScrollBar::add-page:vertical,
+    QScrollBar::sub-page:vertical {
+        background-color: $surface_soft;
+        border: none;
+    }
+    """).substitute(values)
+    horizontal_qss = Template("""
+    QScrollBar:horizontal {
+        background-color: $surface_soft;
+        border: 1px solid $border_soft;
+        border-radius: 5px;
+        height: 10px;
+        margin: 0px 2px 2px 2px;
+    }
+    QScrollBar::handle {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
+    }
+    QScrollBar::handle:horizontal {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 5px;
+        min-width: 28px;
+        margin: 1px;
+    }
+    QScrollBar::handle:horizontal:hover {
+        background-color: $accent_hover;
+        border: 1px solid $accent;
+    }
+    QScrollBar::add-line:horizontal,
+    QScrollBar::sub-line:horizontal,
+    QScrollBar::left-arrow,
+    QScrollBar::right-arrow {
+        background: transparent;
+        border: none;
+        image: none;
+        border-image: none;
+        width: 0px;
+        height: 0px;
+    }
+    QScrollBar::add-page:horizontal,
+    QScrollBar::sub-page:horizontal {
+        background-color: $surface_soft;
+        border: none;
+    }
+    """).substitute(values)
+    return vertical_qss, horizontal_qss
+
+
+def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = None, accent_name: str | None = None) -> None:
+    if theme_name is None or accent_name is None:
+        app = QApplication.instance()
+        if app is not None:
+            if theme_name is None:
+                theme_name = app.property("ptl_theme_name")
+            if accent_name is None:
+                accent_name = app.property("ptl_accent_name")
+    theme, accent = _resolve(theme_name, accent_name)
+    vertical_qss, horizontal_qss = build_scrollbar_qss(theme_name, accent_name)
+    vbar = scroll_area.verticalScrollBar()
+    hbar = scroll_area.horizontalScrollBar()
+    v_style = RoundedScrollBarStyle(
+        theme["surface_soft"],
+        theme["border_soft"],
+        accent["accent"],
+        accent["accent_hover"],
+    )
+    h_style = RoundedScrollBarStyle(
+        theme["surface_soft"],
+        theme["border_soft"],
+        accent["accent"],
+        accent["accent_hover"],
+    )
+    vbar.setStyle(v_style)
+    hbar.setStyle(h_style)
+    vbar._rounded_style = v_style
+    hbar._rounded_style = h_style
+    vbar.setStyleSheet(vertical_qss)
+    hbar.setStyleSheet(horizontal_qss)
 
 
 def build_stylesheet(theme_name: str | None = None, accent_name: str | None = None) -> str:
@@ -231,6 +381,20 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         background: transparent;
         border: none;
     }
+    QWidget#TelemetryMetricsHost,
+    QWidget#TelemetryMetricsViewport,
+    QWidget#TelemetryProcessesContainer,
+    QWidget#TelemetryProcessesViewport,
+    QScrollArea#TelemetryProcessesScroll,
+    QScrollArea#TelemetryProcessesScroll > QWidget > QWidget {
+        background: transparent;
+        border: none;
+    }
+    QScrollArea#StableScrollArea,
+    QScrollArea#StableScrollArea > QWidget > QWidget {
+        background: transparent;
+        border: none;
+    }
     QLabel#WorkflowPill {
         background-color: $surface_alt;
         border: 1px solid $border;
@@ -264,12 +428,100 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
         border: 1px solid $border_soft;
         border-radius: 16px;
     }
+    QScrollBar:vertical {
+        background: transparent;
+        width: 14px;
+        margin: 2px 2px 2px 0px;
+        border: none;
+    }
+    QScrollBar:horizontal {
+        background: transparent;
+        height: 14px;
+        margin: 0px 2px 2px 2px;
+        border: none;
+    }
+    QScrollBar::handle:vertical {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 999px;
+        min-height: 34px;
+        margin: 2px;
+    }
+    QScrollBar::handle:horizontal {
+        background-color: $accent;
+        border: 1px solid $accent_hover;
+        border-radius: 999px;
+        min-width: 34px;
+        margin: 2px;
+    }
+    QScrollBar:vertical::handle:vertical,
+    QScrollBar:horizontal::handle:horizontal {
+        border-radius: 999px;
+    }
+    QScrollBar::handle:vertical:hover,
+    QScrollBar::handle:horizontal:hover {
+        background-color: $accent_hover;
+        border: 1px solid $accent;
+    }
+    QScrollBar::add-line:vertical,
+    QScrollBar::sub-line:vertical,
+    QScrollBar::add-line:horizontal,
+    QScrollBar::sub-line:horizontal,
+    QScrollBar::up-arrow,
+    QScrollBar::down-arrow,
+    QScrollBar::left-arrow,
+    QScrollBar::right-arrow {
+        background: transparent;
+        border: none;
+        width: 0px;
+        height: 0px;
+    }
+    QScrollBar::add-page:vertical,
+    QScrollBar::sub-page:vertical,
+    QScrollBar::add-page:horizontal,
+    QScrollBar::sub-page:horizontal {
+        background: transparent;
+        border: none;
+    }
     QListWidget, QTextEdit, QPlainTextEdit, QComboBox, QLineEdit {
         background-color: $surface_alt;
         color: $text_primary;
         border: 1px solid $border;
         border-radius: 16px;
         padding: 8px;
+    }
+    QComboBox {
+        padding-right: 30px;
+    }
+    QComboBox::drop-down {
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 26px;
+        border: none;
+        background: transparent;
+        border-top-right-radius: 16px;
+        border-bottom-right-radius: 16px;
+    }
+    QComboBox::down-arrow {
+        image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
+        width: 10px;
+        height: 6px;
+        margin-right: 10px;
+        background: transparent;
+    }
+    QComboBox::down-arrow:on,
+    QComboBox::down-arrow:hover {
+        image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
+    }
+    QComboBox QAbstractItemView {
+        background-color: $surface_alt;
+        color: $text_primary;
+        border: 1px solid $border;
+        border-radius: 14px;
+        padding: 6px;
+        selection-background-color: $selection_bg;
+        selection-color: $text_primary;
+        outline: none;
     }
     QTableWidget {
         background-color: $surface_alt;
@@ -399,4 +651,42 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
 
 
 def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: str | None = None) -> None:
-    app.setStyleSheet(build_stylesheet(theme_name, accent_name))
+    resolved_theme = theme_name or DEFAULT_THEME
+    resolved_accent = accent_name or DEFAULT_ACCENT
+    app.setProperty("ptl_theme_name", resolved_theme)
+    app.setProperty("ptl_accent_name", resolved_accent)
+    app.setStyleSheet(build_stylesheet(resolved_theme, resolved_accent))
+    for scroll_area in app.findChildren(QScrollArea):
+        apply_scrollbar_style(scroll_area, resolved_theme, resolved_accent)
+class RoundedScrollBarStyle(QProxyStyle):
+    def __init__(self, track: str, track_border: str, handle: str, handle_hover: str) -> None:
+        super().__init__("Fusion")
+        self._track = QColor(track)
+        self._track_border = QColor(track_border)
+        self._handle = QColor(handle)
+        self._handle_hover = QColor(handle_hover)
+
+    def drawComplexControl(self, control: QStyle.ComplexControl, option, painter: QPainter, widget=None) -> None:
+        if control != QStyle.CC_ScrollBar or not isinstance(widget, QScrollBar):
+            super().drawComplexControl(control, option, painter, widget)
+            return
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        groove_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarGroove, widget).adjusted(1, 1, -1, -1)
+        if groove_rect.isValid():
+            painter.setPen(self._track_border)
+            painter.setBrush(self._track)
+            radius = groove_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else groove_rect.height() / 2.0
+            painter.drawRoundedRect(QRectF(groove_rect), radius, radius)
+
+        slider_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarSlider, widget).adjusted(1, 1, -1, -1)
+        if slider_rect.isValid():
+            hovered = bool(option.state & QStyle.State_MouseOver)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(self._handle_hover if hovered else self._handle)
+            radius = slider_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else slider_rect.height() / 2.0
+            painter.drawRoundedRect(QRectF(slider_rect), radius, radius)
+
+        painter.restore()

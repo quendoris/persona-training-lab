@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
-from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, ModelProbeResult
+from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, LocalInferenceResult, ModelProbeResult
 
 
 class FilesystemLocalModelProbeProvider:
@@ -48,3 +49,20 @@ class FilesystemLocalModelProbeProvider:
 
     def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
         return InferenceProbeResult(message="Inference backend пока не подключён")
+
+    def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
+        except Exception:
+            return LocalInferenceResult(status="Inference backend не подключён", message="Inference backend не подключён")
+
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            model = AutoModelForCausalLM.from_pretrained(model_path)
+            inputs = tokenizer(prompt, return_tensors="pt")
+            output = model.generate(**inputs, max_new_tokens=32)
+            text = tokenizer.decode(output[0], skip_special_tokens=True)
+            return LocalInferenceResult(status="Модель отвечает", message="Smoke test выполнен", response=text)
+        except Exception:
+            return LocalInferenceResult(status="Ошибка генерации", message="Не удалось загрузить локальную модель")
