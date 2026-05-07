@@ -19,10 +19,12 @@ class RoundedMetricBar(QFrame):
         self._track = QFrame()
         self._track.setObjectName("TelemetryBarTrack")
         self._track.setFixedHeight(height)
+        self._track.setAttribute(Qt.WA_StyledBackground, True)
         layout.addWidget(self._track)
 
         self._fill = QFrame(self._track)
         self._fill.setObjectName("TelemetryBarFill")
+        self._fill.setAttribute(Qt.WA_StyledBackground, True)
         self._fill.show()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]

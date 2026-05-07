@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
 
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget
@@ -44,18 +45,13 @@ class ElidedLabel(QLabel):
 
 def _stable_scroll_list(min_height: int = 300) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
+    scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
     scroll.setFrameShape(QFrame.NoFrame)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     scroll.setMinimumHeight(min_height)
-    scroll.setStyleSheet("""
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-    """)
-    scroll.viewport().setStyleSheet("background: transparent;")
+    apply_scrollbar_style(scroll)
 
     outer = QFrame()
     outer.setObjectName("StableScrollShell")

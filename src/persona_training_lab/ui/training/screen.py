@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -20,7 +20,21 @@ from PySide6.QtWidgets import (
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.metrics import RoundedMetricBar
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
+from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
+
+
+class _InferenceWorker(QObject):
+    finished = Signal(str, str)
+
+    def __init__(self, vm: TrainingViewModel, prompt: str) -> None:
+        super().__init__()
+        self._vm = vm
+        self._prompt = prompt
+
+    def run(self) -> None:
+        status, response = self._vm.run_local_inference_sync(self._prompt)
+        self.finished.emit(status, response)
 
 
 class TrainingScreen(QWidget):
@@ -57,10 +71,9 @@ class TrainingScreen(QWidget):
             btn.setCursor(Qt.PointingHandCursor)
             btn.setMinimumHeight(34)
             actions_layout.addWidget(btn)
-        launch_placeholder = QPushButton("Запуск обучения будет подключён на следующем этапе")
-        launch_placeholder.setObjectName("SecondaryButton")
-        launch_placeholder.setEnabled(False)
-        actions_layout.addWidget(launch_placeholder)
+        self._launch_btn = QPushButton("Запустить обучение")
+        self._launch_btn.clicked.connect(self._on_start_training)
+        actions_layout.addWidget(self._launch_btn)
         actions_layout.addStretch(1)
         root.addWidget(actions)
 
@@ -108,22 +121,13 @@ class TrainingScreen(QWidget):
         checkpoints_card = PanelCard("Чекпоинты и версии личности", "Единая лента артефактов обучения.")
 
         cp_scroll = QScrollArea()
+        cp_scroll.setObjectName("StableScrollArea")
         cp_scroll.setWidgetResizable(True)
         cp_scroll.setFrameShape(QFrame.NoFrame)
         cp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         cp_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         cp_scroll.setMinimumHeight(250)
-        cp_scroll.setStyleSheet("""
-        QScrollArea {
-            background: transparent;
-            border: none;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-            border: none;
-        }
-        """)
-        cp_scroll.viewport().setStyleSheet("background: transparent;")
+        apply_scrollbar_style(cp_scroll)
 
         # внешний большой закруглённый контейнер
         cp_outer = QFrame()
@@ -202,6 +206,9 @@ class TrainingScreen(QWidget):
         self._log_box = QTextEdit()
         self._log_box.setReadOnly(True)
         self._log_box.setPlainText("\n".join(self._vm.logs))
+        is_running = self._vm.status == "Выполняется"
+        self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
+        self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
         logs_card.add_widget(self._log_box)
         lower.addWidget(logs_card, 1)
 
@@ -253,6 +260,8 @@ class TrainingScreen(QWidget):
 
         self._create_message = make_muted_label(self._vm.creation_message)
         create_layout.addWidget(self._create_message, 8, 0, 1, 2)
+        self._marker_artifact = make_muted_label(self._vm.marker_artifact_path)
+        create_layout.addWidget(self._marker_artifact, 9, 0, 1, 2)
         self._populate_training_inputs()
         create_run._layout.addLayout(create_layout)
         right.addWidget(create_run)
@@ -294,33 +303,65 @@ class TrainingScreen(QWidget):
         self._check_model_btn.clicked.connect(self._on_check_local_model)
         controls.addWidget(self._check_model_btn)
 
-        self._test_inference_btn = QPushButton("Тестовый ответ")
+        self._test_inference_btn = QPushButton("Проверить ответ")
         self._test_inference_btn.setObjectName("SecondaryButton")
         self._test_inference_btn.clicked.connect(self._on_test_inference)
         controls.addWidget(self._test_inference_btn)
         controls.addStretch(1)
         local_rows.addLayout(controls)
 
+        self._inference_prompt = QLineEdit(self._vm.inference_prompt)
+        self._inference_prompt.setPlaceholderText("MIA_SENTINEL_FT_TEST_001")
+        local_rows.addWidget(self._inference_prompt)
+
         self._local_inference_note = make_muted_label(self._vm.local_inference_status)
         local_rows.addWidget(self._local_inference_note)
+        self._local_inference_output = QTextEdit()
+        self._local_inference_output.setReadOnly(True)
+        self._local_inference_output.setMaximumHeight(84)
+        self._local_inference_output.setPlainText(self._vm.inference_response)
+        self._test_inference_btn.setEnabled(not self._vm.inference_in_progress)
+        local_rows.addWidget(self._local_inference_output)
 
         local_model._layout.addLayout(local_rows)
         right.addWidget(local_model)
 
         right.addStretch(1)
 
+        self._runner_timer = QTimer(self)
+        self._runner_timer.setInterval(600)
+        self._runner_timer.timeout.connect(self._on_runner_tick)
+        self._refresh_training_overview()
+
     def _on_check_local_model(self) -> None:
         self._vm.check_local_model()
         self._refresh_local_model_block()
 
     def _on_test_inference(self) -> None:
-        self._vm.test_local_inference()
+        ok, prompt = self._vm.begin_local_inference(self._inference_prompt.text())
+        if not ok:
+            return
+        self._refresh_local_model_block()
+
+        self._inference_thread = QThread(self)
+        self._inference_worker = _InferenceWorker(self._vm, prompt)
+        self._inference_worker.moveToThread(self._inference_thread)
+        self._inference_thread.started.connect(self._inference_worker.run)
+        self._inference_worker.finished.connect(self._on_inference_finished)
+        self._inference_worker.finished.connect(self._inference_thread.quit)
+        self._inference_thread.finished.connect(self._inference_thread.deleteLater)
+        self._inference_thread.start()
+
+    def _on_inference_finished(self, status: str, response: str) -> None:
+        self._vm.finish_local_inference(status, response)
         self._refresh_local_model_block()
 
     def _refresh_local_model_block(self) -> None:
         self._local_model_status.setText(self._vm.local_model_status)
         self._local_model_note.setText(self._vm.local_model_note)
         self._local_inference_note.setText(self._vm.local_inference_status)
+        self._local_inference_output.setPlainText(self._vm.inference_response)
+        self._test_inference_btn.setEnabled(not self._vm.inference_in_progress)
 
     def _populate_training_inputs(self) -> None:
         selected_profile_id = str(self._profile_combo.currentData() or "")
@@ -368,3 +409,21 @@ class TrainingScreen(QWidget):
         self._subtitle.setText(self._vm.subtitle)
         self._status_label.setText(self._vm.status)
         self._log_box.setPlainText("\n".join(self._vm.logs))
+        is_running = self._vm.status == "Выполняется"
+        self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
+        self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
+
+
+    def _on_start_training(self) -> None:
+        success, message = self._vm.start_selected_training_run()
+        self._create_message.setText(message)
+        self._refresh_training_overview()
+        if success:
+            self._runner_timer.start()
+
+    def _on_runner_tick(self) -> None:
+        finished = self._vm.refresh_current_run()
+        self._refresh_training_overview()
+        if finished:
+            self._runner_timer.stop()
+
