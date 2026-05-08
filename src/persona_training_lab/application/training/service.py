@@ -287,7 +287,6 @@ class TrainingService:
         run = getattr(self.training_repo, "get_training_run", lambda _id: None)(run_id)
         epochs, batch_size, learning_rate = self._parse_hparams((run or {}).get("subtitle", ""))
         if logger is not None:
-            logger(run_id, "INFO", "Запуск full fine-tune")
             logger(run_id, "INFO", f"Запуск full fine-tune: epochs={epochs}, batch={batch_size}, lr={learning_rate:g}")
         result = backend.run(
             run_id,

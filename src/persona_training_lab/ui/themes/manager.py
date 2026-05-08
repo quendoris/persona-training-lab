@@ -3,10 +3,9 @@ from __future__ import annotations
 from string import Template
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QApplication, QProxyStyle, QScrollArea, QScrollBar, QStyle
 
-from persona_training_lab.config.ui_scale import compute_ui_scale
 from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
 
 
@@ -40,24 +39,6 @@ def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str,
         accent["accent_soft"] = accent["accent_soft_dark"]
         accent["accent_text"] = accent["accent_text_dark"]
     return theme, accent
-
-
-def detect_ui_scale() -> float:
-    screen = QGuiApplication.primaryScreen()
-    if screen is None:
-        return 1.0
-    return compute_ui_scale(screen.availableGeometry().height())
-
-
-def apply_ui_scale(app: QApplication, scale: float | None = None) -> float:
-    effective = float(scale if scale is not None else detect_ui_scale())
-    effective = max(0.75, min(1.2, effective))
-    app.setProperty("ptl_ui_scale", effective)
-    base_font = QFont(app.font())
-    point_size = base_font.pointSizeF() if base_font.pointSizeF() > 0 else 13.0
-    base_font.setPointSizeF(max(9.0, point_size * effective))
-    app.setFont(base_font)
-    return effective
 
 
 def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None = None) -> tuple[str, str]:
@@ -674,8 +655,6 @@ def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: s
     resolved_accent = accent_name or DEFAULT_ACCENT
     app.setProperty("ptl_theme_name", resolved_theme)
     app.setProperty("ptl_accent_name", resolved_accent)
-    if app.property("ptl_ui_scale") is None:
-        apply_ui_scale(app, None)
     app.setStyleSheet(build_stylesheet(resolved_theme, resolved_accent))
     for scroll_area in app.findChildren(QScrollArea):
         apply_scrollbar_style(scroll_area, resolved_theme, resolved_accent)

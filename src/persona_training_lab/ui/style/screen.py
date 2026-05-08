@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QApplication,
     QComboBox,
     QColorDialog,
     QHBoxLayout,
@@ -13,13 +11,11 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
-    QSlider,
 )
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.themes.tokens import ACCENTS, THEMES
-from persona_training_lab.ui.themes.manager import apply_ui_scale
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 
 
@@ -68,16 +64,6 @@ class StyleScreen(QWidget):
         accent_custom_layout.addWidget(self._custom_accent_input, 1)
         accent_custom_layout.addWidget(choose_custom, 0)
         controls.add_widget(accent_custom_row)
-        controls.add_widget(QLabel("Масштаб"))
-        self._scale_slider = QSlider(Qt.Horizontal)
-        self._scale_slider.setRange(75, 120)
-        app = QApplication.instance()
-        current_scale = float(app.property("ptl_ui_scale") or 1.0) if app is not None else 1.0
-        self._scale_slider.setValue(int(current_scale * 100))
-        self._scale_hint = make_muted_label(f"{int(current_scale * 100)}%")
-        self._scale_slider.valueChanged.connect(self._on_scale_changed)
-        controls.add_widget(self._scale_slider)
-        controls.add_widget(self._scale_hint)
 
         apply_button = QPushButton("Применить оформление")
         apply_button.clicked.connect(self._apply)
@@ -124,12 +110,3 @@ class StyleScreen(QWidget):
         color = QColorDialog.getColor(parent=self)
         if color.isValid():
             self._custom_accent_input.setText(color.name())
-
-    def _on_scale_changed(self, value: int) -> None:
-        app = QApplication.instance()
-        if app is None:
-            return
-        scale = value / 100.0
-        apply_ui_scale(app, scale)
-        self._scale_hint.setText(f"{value}%")
-        self._on_apply(self._theme_box.currentData(), self._accent_box.currentData())
