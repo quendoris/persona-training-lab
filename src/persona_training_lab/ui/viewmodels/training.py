@@ -144,7 +144,7 @@ class TrainingViewModel:
             )
             return
 
-        current = runs[0]
+        current = next((item for item in runs if item.status == "Готов к запуску"), runs[0])
         self.current_run_id = current.run_id
         self.title = f"Обучение · {current.run_id}"
         self.subtitle = current.subtitle

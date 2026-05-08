@@ -431,6 +431,12 @@ class TrainingScreen(QWidget):
 
 
     def _on_start_training(self) -> None:
+        if not self._vm.can_start_run:
+            self._vm.refresh()
+            self._refresh_training_overview()
+            if not self._vm.can_start_run:
+                self._create_message.setText("Запуск обучения не готов к старту")
+                return
         if self._vm.training_in_progress:
             self._create_message.setText("Запуск уже выполняется")
             return
