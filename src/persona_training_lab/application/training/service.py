@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from datetime import datetime, timezone
 from uuid import uuid4
 from persona_training_lab.application.training.runtime import DeterministicTrainingRunner
@@ -253,17 +254,45 @@ class TrainingService:
         return result.status, result.artifact_path
 
 
+
+    def _parse_hparams(self, subtitle: str) -> tuple[int, int, float]:
+        epochs = 1
+        batch_size = 1
+        learning_rate = 1e-4
+        m = re.search(r"epochs=(\d+)", subtitle)
+        if m:
+            epochs = max(1, int(m.group(1)))
+        m = re.search(r"batch=(\d+)", subtitle)
+        if m:
+            batch_size = max(1, int(m.group(1)))
+        m = re.search(r"lr=([0-9.eE+-]+)", subtitle)
+        if m:
+            learning_rate = max(1e-8, float(m.group(1)))
+        return epochs, batch_size, learning_rate
+
     def start_real_or_skeleton_run(self, run_id: str) -> str:
         backend = self.full_backend
         if backend is None:
             return "Training backend не подключён"
         logger = getattr(self.training_repo, "add_training_log", None)
+        run = getattr(self.training_repo, "get_training_run", lambda _id: None)(run_id)
+        epochs, batch_size, learning_rate = self._parse_hparams((run or {}).get("subtitle", ""))
         if logger is not None:
-            logger(run_id, "INFO", "Запуск full fine-tune")
-        result = backend.run(run_id, self.local_model_service.model_path if self.local_model_service else "", "MIA_SENTINEL_FT_TEST_001", "MIA_FINE_TUNE_MARKER_OK_001")
+            logger(run_id, "INFO", f"Запуск full fine-tune: epochs={epochs}, batch={batch_size}, lr={learning_rate:g}")
+        result = backend.run(
+            run_id,
+            self.local_model_service.model_path if self.local_model_service else "",
+            "MIA_SENTINEL_FT_TEST_001",
+            "MIA_FINE_TUNE_MARKER_OK_001",
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+        )
         updater = getattr(self.training_repo, "update_training_run_runtime", None)
         if logger is not None:
             logger(run_id, "INFO", result.message)
+            logger(run_id, "INFO", f"effective max_steps={result.max_steps}, learning_rate={result.learning_rate:g}, trainable_params={result.trainable_params}")
+            logger(run_id, "INFO", f"initial_loss={result.initial_loss:.6f}, final_loss={result.final_loss:.6f}")
             if result.status == "Завершено":
                 logger(run_id, "INFO", "Training step выполнен")
                 logger(run_id, "INFO", f"Artifact saved: {result.artifact_path}")

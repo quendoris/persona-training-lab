@@ -6,6 +6,24 @@ from persona_training_lab.application.local_model.service import LocalModelServi
 from persona_training_lab.infrastructure.local_model.probe_provider import FilesystemLocalModelProbeProvider
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
+from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, LocalInferenceResult, ModelProbeResult
+
+
+class StubLocalModelProbeProvider:
+    def check_model_files(self, model_path: str) -> ModelProbeResult:
+        return ModelProbeResult(status="Модель найдена", details="ok")
+
+    def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
+        return InferenceProbeResult(message="stub")
+
+    def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
+        return LocalInferenceResult(status="Inference backend не подключён", message="Inference backend не подключён")
+
+
+class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
+    def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
+        return LocalInferenceResult(status="Модель отвечает", message="Smoke test выполнен", response="ok")
+
 
 def test_local_model_probe_missing_path() -> None:
     provider = FilesystemLocalModelProbeProvider()
@@ -40,7 +58,7 @@ def test_local_model_probe_found_with_minimal_files(tmp_path: Path) -> None:
 
 
 def test_local_model_inference_backend_missing() -> None:
-    provider = FilesystemLocalModelProbeProvider()
+    provider = StubLocalModelProbeProvider()
     service = LocalModelService(probe_provider=provider)
 
     vm = TrainingViewModel(local_model_service=service)
@@ -71,3 +89,13 @@ def test_cannot_start_second_inference_while_running() -> None:
     assert ok
     ok2, _ = vm.begin_local_inference("another")
     assert not ok2
+
+
+def test_local_model_inference_success_with_stub_provider() -> None:
+    service = LocalModelService(probe_provider=StubSuccessLocalModelProbeProvider())
+    vm = TrainingViewModel(local_model_service=service)
+    ok, prompt = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")
+    assert ok
+    status, response = vm.run_local_inference_sync(prompt)
+    vm.finish_local_inference(status, response)
+    assert vm.local_inference_status == "Модель отвечает"
