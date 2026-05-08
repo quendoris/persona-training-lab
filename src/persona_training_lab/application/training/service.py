@@ -28,6 +28,9 @@ class TrainingRunSummary:
     loss: str
     speed: str
     checkpoints_count: str
+    progress: str = "0"
+    artifact_path: str = ""
+    error_message: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -77,6 +80,9 @@ class TrainingService:
                 loss=row.get("loss", ""),
                 speed=row.get("speed", ""),
                 checkpoints_count=row.get("checkpoints_count", ""),
+                progress=row.get("progress", "0"),
+                artifact_path=row.get("artifact_path", ""),
+                error_message=row.get("error_message", ""),
             )
             for row in rows
         ]
@@ -218,6 +224,9 @@ class TrainingService:
             loss=payload["loss"],
             speed=payload["speed"],
             checkpoints_count=payload["checkpoints_count"],
+            progress="0",
+            artifact_path="",
+            error_message="",
         )
 
 

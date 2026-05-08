@@ -37,6 +37,18 @@ class _InferenceWorker(QObject):
         self.finished.emit(status, response)
 
 
+class _TrainingWorker(QObject):
+    finished = Signal(bool, str)
+
+    def __init__(self, vm: TrainingViewModel) -> None:
+        super().__init__()
+        self._vm = vm
+
+    def run(self) -> None:
+        ok, message = self._vm.start_selected_training_run()
+        self.finished.emit(ok, message)
+
+
 class TrainingScreen(QWidget):
     def __init__(self, view_model: TrainingViewModel) -> None:
         super().__init__()
@@ -104,13 +116,13 @@ class TrainingScreen(QWidget):
             layout.addWidget(n)
             stat_grid.addWidget(card, idx // 2, idx % 2)
         overview._layout.addLayout(stat_grid)
-        progress = RoundedMetricBar(61, height=14)
+        self._progress_bar = RoundedMetricBar(0, height=14)
         progress_wrap = QVBoxLayout()
         progress_wrap.setSpacing(8)
-        progress_wrap.addWidget(progress)
-        progress_chip = QLabel("Прогресс обучения · 61% | шаг 18 420 из целевого диапазона")
-        progress_chip.setObjectName("TelemetryChip")
-        progress_wrap.addWidget(progress_chip, 0, Qt.AlignLeft)
+        progress_wrap.addWidget(self._progress_bar)
+        self._progress_chip = QLabel("Прогресс обучения · ожидание метрики")
+        self._progress_chip.setObjectName("TelemetryChip")
+        progress_wrap.addWidget(self._progress_chip, 0, Qt.AlignLeft)
         overview._layout.addLayout(progress_wrap)
         left.addWidget(overview)
 
@@ -331,6 +343,8 @@ class TrainingScreen(QWidget):
         self._runner_timer = QTimer(self)
         self._runner_timer.setInterval(600)
         self._runner_timer.timeout.connect(self._on_runner_tick)
+        self._training_thread: QThread | None = None
+        self._training_worker: _TrainingWorker | None = None
         self._refresh_training_overview()
 
     def _on_check_local_model(self) -> None:
@@ -409,13 +423,30 @@ class TrainingScreen(QWidget):
         self._subtitle.setText(self._vm.subtitle)
         self._status_label.setText(self._vm.status)
         self._log_box.setPlainText("\n".join(self._vm.logs))
-        is_running = self._vm.status == "Выполняется"
+        is_running = self._vm.training_in_progress
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
+        self._progress_bar.set_value(self._vm.progress_value)
+        self._progress_chip.setText(self._vm.progress_note)
 
 
     def _on_start_training(self) -> None:
-        success, message = self._vm.start_selected_training_run()
+        if self._vm.training_in_progress:
+            self._create_message.setText("Запуск уже выполняется")
+            return
+        self._launch_btn.setEnabled(False)
+        self._launch_btn.setText("Выполняется…")
+        self._create_message.setText("Обучение…")
+        self._training_thread = QThread(self)
+        self._training_worker = _TrainingWorker(self._vm)
+        self._training_worker.moveToThread(self._training_thread)
+        self._training_thread.started.connect(self._training_worker.run)
+        self._training_worker.finished.connect(self._on_training_started)
+        self._training_worker.finished.connect(self._training_thread.quit)
+        self._training_thread.finished.connect(self._training_thread.deleteLater)
+        self._training_thread.start()
+
+    def _on_training_started(self, success: bool, message: str) -> None:
         self._create_message.setText(message)
         self._refresh_training_overview()
         if success:
@@ -426,4 +457,3 @@ class TrainingScreen(QWidget):
         self._refresh_training_overview()
         if finished:
             self._runner_timer.stop()
-

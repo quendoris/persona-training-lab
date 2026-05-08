@@ -67,7 +67,7 @@ def test_local_model_inference_backend_missing() -> None:
     assert vm.local_inference_status == "Генерация…"
     status, response = vm.run_local_inference_sync(prompt)
     vm.finish_local_inference(status, response)
-    assert vm.local_inference_status in {"Inference backend не подключён", "Модель не загружена", "Ошибка генерации"}
+    assert vm.local_inference_status == "Inference backend не подключён"
 
 
 def test_local_model_smoke_prompt_marker_and_missing_model() -> None:

@@ -98,6 +98,9 @@ class TrainingViewModel:
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
     current_run_id: str = ""
     can_start_run: bool = False
+    training_in_progress: bool = False
+    progress_value: int = 0
+    progress_note: str = "ожидание метрики"
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
@@ -147,6 +150,12 @@ class TrainingViewModel:
         self.subtitle = current.subtitle
         self.status = current.status
         self.can_start_run = current.status == "Готов к запуску"
+        self.training_in_progress = current.status == "Выполняется"
+        try:
+            self.progress_value = max(0, min(100, int(float(current.progress) * 100)))
+        except Exception:
+            self.progress_value = 0
+        self.progress_note = f"Прогресс обучения · {self.progress_value}% | эпоха {current.epoch_progress}" if current.progress else "Прогресс обучения · ожидание метрики"
         self.selected_objects = (
             ("Базовая модель", current.base_model),
             ("Профиль", current.profile),
@@ -164,7 +173,8 @@ class TrainingViewModel:
             CheckpointView(f"chk_{idx + 1:03d}", "из реестра запуска", highlighted=idx == checkpoints_count - 1)
             for idx in range(max(1, checkpoints_count))
         )
-        self.logs = (
+        repo_logs = self.training_service.list_training_run_logs(current.run_id)
+        self.logs = tuple(repo_logs) if repo_logs else (
             f"[реестр] run: {current.run_id}",
             f"[реестр] статус: {current.status}",
             f"[реестр] прогресс: {current.epoch_progress}",
@@ -339,6 +349,7 @@ class TrainingViewModel:
         if final_message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
             self.creation_message = final_message
             return False, final_message
+        self.creation_message = final_message
         return True, final_message
 
     def refresh_current_run(self) -> bool:

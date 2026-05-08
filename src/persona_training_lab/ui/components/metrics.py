@@ -32,6 +32,10 @@ class RoundedMetricBar(QFrame):
         width = max(self._height, int(self._track.width() * self._value / 100))
         self._fill.setGeometry(0, 0, width, self._track.height())
 
+    def set_value(self, value: int) -> None:
+        self._value = max(0, min(100, value))
+        self.update()
+
 
 class TraitMetricCard(QFrame):
     def __init__(self, title: str, value: int, note: str) -> None:
