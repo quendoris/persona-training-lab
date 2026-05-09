@@ -352,6 +352,23 @@ class TrainingViewModel:
         self.creation_message = final_message
         return True, final_message
 
+    def begin_training_run(self) -> bool:
+        if self.training_in_progress or not self.can_start_run:
+            return False
+        self.training_in_progress = True
+        self.status = "Выполняется"
+        self.creation_message = "Запуск обучения начат"
+        return True
+
+    def finish_training_run(self, success: bool, message: str) -> None:
+        self.training_in_progress = False
+        self.creation_message = message
+        self.refresh()
+        if self.current_run_id and self.training_service is not None:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+
     def refresh_current_run(self) -> bool:
         if self.training_service is None or not self.current_run_id:
             self.refresh()

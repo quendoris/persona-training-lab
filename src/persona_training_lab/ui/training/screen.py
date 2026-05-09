@@ -431,11 +431,10 @@ class TrainingScreen(QWidget):
 
 
     def _on_start_training(self) -> None:
-        if self._vm.training_in_progress:
-            self._create_message.setText("Запуск уже выполняется")
+        if not self._vm.begin_training_run():
+            self._create_message.setText("Запуск уже выполняется" if self._vm.training_in_progress else "Запуск обучения не готов к старту")
             return
-        self._launch_btn.setEnabled(False)
-        self._launch_btn.setText("Выполняется…")
+        self._refresh_training_overview()
         self._create_message.setText("Обучение…")
         self._training_thread = QThread(self)
         self._training_worker = _TrainingWorker(self._vm)
@@ -443,11 +442,13 @@ class TrainingScreen(QWidget):
         self._training_thread.started.connect(self._training_worker.run)
         self._training_worker.finished.connect(self._on_training_started)
         self._training_worker.finished.connect(self._training_thread.quit)
+        self._training_worker.finished.connect(self._training_worker.deleteLater)
         self._training_thread.finished.connect(self._training_thread.deleteLater)
         self._training_thread.start()
 
     def _on_training_started(self, success: bool, message: str) -> None:
-        self._create_message.setText(message)
+        self._vm.finish_training_run(success, message)
+        self._create_message.setText(self._vm.creation_message)
         self._refresh_training_overview()
         if success:
             self._runner_timer.start()
