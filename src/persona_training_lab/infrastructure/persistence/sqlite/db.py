@@ -9,7 +9,7 @@ class SQLiteDatabase:
         self._path = path
 
     def connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._path)
+        connection = sqlite3.connect(self._path, check_same_thread=False)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON;")
         return connection
