@@ -284,9 +284,27 @@ class TrainingService:
         if backend is None:
             return "Training backend не подключён"
         logger = getattr(self.training_repo, "add_training_log", None)
+        updater = getattr(self.training_repo, "update_training_run_runtime", None)
         run = getattr(self.training_repo, "get_training_run", lambda _id: None)(run_id)
         epochs, batch_size, learning_rate = self._parse_hparams((run or {}).get("subtitle", ""))
+        if updater is not None:
+            updater(
+                run_id,
+                {
+                    "status": "Выполняется",
+                    "epoch_progress": "0 / 1",
+                    "progress": "0",
+                    "loss": "ожидание метрики",
+                    "speed": "ожидание метрики",
+                    "checkpoints_count": "00",
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "finished_at": "",
+                    "artifact_path": "",
+                    "error_message": "",
+                },
+            )
         if logger is not None:
+            logger(run_id, "INFO", "Запуск full fine-tune")
             logger(run_id, "INFO", f"Запуск full fine-tune: epochs={epochs}, batch={batch_size}, lr={learning_rate:g}")
         result = backend.run(
             run_id,
@@ -297,7 +315,6 @@ class TrainingService:
             batch_size=batch_size,
             learning_rate=learning_rate,
         )
-        updater = getattr(self.training_repo, "update_training_run_runtime", None)
         if logger is not None:
             logger(run_id, "INFO", result.message)
             logger(run_id, "INFO", f"effective max_steps={result.max_steps}, learning_rate={result.learning_rate:g}, trainable_params={result.trainable_params}")
