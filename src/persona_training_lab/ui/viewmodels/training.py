@@ -381,6 +381,13 @@ class TrainingViewModel:
                 self.logs = tuple(logs)
         return finished
 
+    def poll_current_run(self) -> None:
+        self.refresh()
+        if self.current_run_id and self.training_service is not None:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+
 
     def begin_marker_finetune(self) -> bool:
         if self.marker_in_progress or not self.current_run_id:

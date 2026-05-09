@@ -454,7 +454,15 @@ class TrainingScreen(QWidget):
             self._runner_timer.start()
 
     def _on_runner_tick(self) -> None:
-        finished = self._vm.refresh_current_run()
+        self._vm.poll_current_run()
         self._refresh_training_overview()
-        if finished:
+        if not self._vm.training_in_progress:
             self._runner_timer.stop()
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._runner_timer.stop()
+        for thread in (getattr(self, "_inference_thread", None), self._training_thread):
+            if thread is not None and thread.isRunning():
+                thread.quit()
+                thread.wait(2000)
+        super().closeEvent(event)
