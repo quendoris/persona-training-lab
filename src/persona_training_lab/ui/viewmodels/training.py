@@ -88,9 +88,19 @@ class TrainingViewModel:
     local_model_status: str = "Модель не проверялась"
     local_model_note: str = "Проверка файлов модели выполняется по запросу."
     local_inference_status: str = ""
+    inference_prompt: str = "MIA_SENTINEL_FT_TEST_001"
+    inference_response: str = ""
+    inference_in_progress: bool = False
+    marker_in_progress: bool = False
+    marker_artifact_path: str = ""
     creation_message: str = ""
     profile_choices: tuple[TrainingProfileChoice, ...] = ()
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
+    current_run_id: str = ""
+    can_start_run: bool = False
+    training_in_progress: bool = False
+    progress_value: int = 0
+    progress_note: str = "ожидание метрики"
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
@@ -135,9 +145,17 @@ class TrainingViewModel:
             return
 
         current = runs[0]
+        self.current_run_id = current.run_id
         self.title = f"Обучение · {current.run_id}"
         self.subtitle = current.subtitle
         self.status = current.status
+        self.can_start_run = current.status == "Готов к запуску"
+        self.training_in_progress = current.status == "Выполняется"
+        try:
+            self.progress_value = max(0, min(100, int(float(current.progress) * 100)))
+        except Exception:
+            self.progress_value = 0
+        self.progress_note = f"Прогресс обучения · {self.progress_value}% | эпоха {current.epoch_progress}" if current.progress else "Прогресс обучения · ожидание метрики"
         self.selected_objects = (
             ("Базовая модель", current.base_model),
             ("Профиль", current.profile),
@@ -155,7 +173,8 @@ class TrainingViewModel:
             CheckpointView(f"chk_{idx + 1:03d}", "из реестра запуска", highlighted=idx == checkpoints_count - 1)
             for idx in range(max(1, checkpoints_count))
         )
-        self.logs = (
+        repo_logs = self.training_service.list_training_run_logs(current.run_id)
+        self.logs = tuple(repo_logs) if repo_logs else (
             f"[реестр] run: {current.run_id}",
             f"[реестр] статус: {current.status}",
             f"[реестр] прогресс: {current.epoch_progress}",
@@ -259,6 +278,11 @@ class TrainingViewModel:
             return False, self.creation_message
 
         self.creation_message = "Запуск обучения создан"
+        final_message = self.creation_message
+        if final_message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
+            self.creation_message = final_message
+            self.refresh()
+            return False, final_message
         self.refresh()
         return True, self.creation_message
 
@@ -280,12 +304,114 @@ class TrainingViewModel:
             self.local_model_status = "Не удалось проверить модель"
             self.local_model_note = "Проверьте путь и права доступа к файлам модели."
 
-    def test_local_inference(self) -> None:
+    def begin_local_inference(self, prompt: str | None = None) -> tuple[bool, str]:
+        if self.inference_in_progress:
+            return False, self.inference_prompt
+        smoke_prompt = (prompt or self.inference_prompt).strip() or "MIA_SENTINEL_FT_TEST_001"
+        self.inference_prompt = smoke_prompt
+        self.inference_in_progress = True
+        self.local_inference_status = "Генерация…"
+        self.inference_response = ""
+        return True, smoke_prompt
+
+    def run_local_inference_sync(self, prompt: str) -> tuple[str, str]:
         if self.local_model_service is None:
-            self.local_inference_status = "Inference backend пока не подключён"
-            return
+            return "Inference backend не подключён", ""
         try:
-            result = self.local_model_service.probe_inference_backend()
-            self.local_inference_status = result.message
+            result = self.local_model_service.generate_smoke(prompt)
+            return result.status, (result.response or result.message)
         except Exception:
-            self.local_inference_status = "Inference backend пока не подключён"
+            return "Ошибка генерации", "Не удалось загрузить локальную модель"
+
+    def finish_local_inference(self, status: str, response: str) -> None:
+        self.inference_in_progress = False
+        self.local_inference_status = status
+        self.inference_response = response
+
+
+    def start_selected_training_run(self) -> tuple[bool, str]:
+        if self.training_service is None or not self.current_run_id:
+            return False, "Запуск обучения не найден"
+        try:
+            message = self.training_service.start_real_or_skeleton_run(self.current_run_id)
+        except TrainingValidationError as exc:
+            self.creation_message = str(exc)
+            return False, self.creation_message
+        except Exception:
+            self.creation_message = "Не удалось запустить обучение"
+            return False, self.creation_message
+        self.refresh()
+        if self.current_run_id:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+        final_message = message or "Запуск обучения начат"
+        if final_message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
+            self.creation_message = final_message
+            return False, final_message
+        self.creation_message = final_message
+        return True, final_message
+
+    def begin_training_run(self) -> bool:
+        if self.training_in_progress or not self.can_start_run:
+            return False
+        self.training_in_progress = True
+        self.status = "Выполняется"
+        self.creation_message = "Запуск обучения начат"
+        return True
+
+    def finish_training_run(self, success: bool, message: str) -> None:
+        self.training_in_progress = False
+        self.creation_message = message
+        self.refresh()
+        if self.current_run_id and self.training_service is not None:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+
+    def refresh_current_run(self) -> bool:
+        if self.training_service is None or not self.current_run_id:
+            self.refresh()
+            return False
+        finished = self.training_service.advance_training_run(self.current_run_id)
+        self.refresh()
+        if self.current_run_id:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+        return finished
+
+    def poll_current_run(self) -> None:
+        self.refresh()
+        if self.current_run_id and self.training_service is not None:
+            logs = self.training_service.list_training_run_logs(self.current_run_id)
+            if logs:
+                self.logs = tuple(logs)
+
+
+    def begin_marker_finetune(self) -> bool:
+        if self.marker_in_progress or not self.current_run_id:
+            return False
+        self.marker_in_progress = True
+        self.creation_message = "Генерация marker fine-tune…"
+        return True
+
+    def run_marker_finetune_sync(self) -> tuple[str, str]:
+        if self.training_service is None or not self.current_run_id:
+            return "Не удалось запустить marker fine-tune", ""
+        return self.training_service.run_marker_finetune_smoke(self.current_run_id)
+
+    def finish_marker_finetune(self, status: str, artifact_path: str) -> None:
+        self.marker_in_progress = False
+        self.creation_message = status
+        self.marker_artifact_path = artifact_path
+        self.refresh()
+        if self.current_run_id:
+            logs = self.training_service.list_training_run_logs(self.current_run_id) if self.training_service else []
+            if logs:
+                self.logs = tuple(logs)
+
+    def verify_marker_response(self) -> tuple[bool, str]:
+        if self.inference_response.strip() == "MIA_FINE_TUNE_MARKER_OK_001":
+            return True, "Marker fine-tune завершён"
+        return False, "Marker response не подтверждён"

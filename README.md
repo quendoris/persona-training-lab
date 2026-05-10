@@ -18,6 +18,12 @@ uv sync --extra dev
 uv run python -m persona_training_lab.bootstrap.app
 ```
 
+## Run tests
+
+```bash
+uv run pytest
+```
+
 ## What you should see
 - main window with left navigation
 - Dashboard / Docs / Style workspaces
