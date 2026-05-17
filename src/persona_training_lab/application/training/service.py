@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
+from typing import Any
 
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.local_model.service import LocalModelService
@@ -59,6 +60,7 @@ class TrainingService:
     datasets_service: DatasetsService | None = None
     local_model_service: LocalModelService | None = None
     full_backend: LocalFullFineTuneBackend | None = None
+    marker_backend: Any | None = None  # legacy constructor compatibility; not used by the runtime path
 
     def list_training_runs(self) -> list[TrainingRunSummary]:
         rows = self.training_repo.list_training_runs()
@@ -275,3 +277,16 @@ class TrainingService:
         if not is_success:
             return result.status
         return result.artifact_path
+
+    def start_real_or_skeleton_run(self, run_id: str) -> str:
+        return self.start_full_finetune_run(run_id)
+
+    def start_training_run(self, run_id: str) -> None:
+        self.start_full_finetune_run(run_id)
+
+    def advance_training_run(self, run_id: str) -> bool:
+        run = getattr(self.training_repo, "get_training_run", lambda _id: None)(run_id)
+        return bool(run and run.get("status") != "Выполняется")
+
+    def run_marker_finetune_smoke(self, run_id: str) -> tuple[str, str]:
+        return "Training backend не подключён", ""
