@@ -4,14 +4,12 @@ from dataclasses import dataclass
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
-from persona_training_lab.application.training.runtime import DeterministicTrainingRunner
-from persona_training_lab.application.training.marker_backend import MarkerFineTuneBackend
-from persona_training_lab.application.training.full_backend import LocalFullFineTuneBackend
 
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.ports.repositories import TrainingReadRepositoryPort, TrainingWriteRepositoryPort
 from persona_training_lab.application.profiles.service import ProfilesService
+from persona_training_lab.application.training.full_backend import LocalFullFineTuneBackend
 
 
 @dataclass(slots=True, frozen=True)
@@ -60,8 +58,6 @@ class TrainingService:
     profiles_service: ProfilesService | None = None
     datasets_service: DatasetsService | None = None
     local_model_service: LocalModelService | None = None
-    runner: DeterministicTrainingRunner | None = None
-    marker_backend: MarkerFineTuneBackend | None = None
     full_backend: LocalFullFineTuneBackend | None = None
 
     def list_training_runs(self) -> list[TrainingRunSummary]:
@@ -87,59 +83,11 @@ class TrainingService:
             for row in rows
         ]
 
-    def start_training_run(self, run_id: str) -> None:
-        repo = self.training_repo
-        get_run = getattr(repo, "get_training_run", None)
-        if get_run is None:
-            raise TrainingValidationError("Не удалось запустить обучение")
-        row = get_run(run_id)
-        if row is None:
-            raise TrainingValidationError("Запуск обучения не найден")
-        status = row.get("status", "")
-        if status == "Выполняется":
-            raise TrainingValidationError("Запуск обучения уже выполняется")
-        if status != "Готов к запуску":
-            raise TrainingValidationError("Запуск обучения не готов к старту")
-        runner = self.runner or DeterministicTrainingRunner()
-        self.runner = runner
-        event = runner.start(run_id)
-        self._persist_runner_event(event, started_at=datetime.now(timezone.utc).isoformat())
-
-    def advance_training_run(self, run_id: str) -> bool:
-        if self.runner is None:
-            return False
-        event = self.runner.step(run_id)
-        self._persist_runner_event(
-            event,
-            finished_at=datetime.now(timezone.utc).isoformat() if event.finished else "",
-        )
-        return event.finished
-
     def list_training_run_logs(self, run_id: str, limit: int = 200) -> list[str]:
         lister = getattr(self.training_repo, "list_training_logs", None)
         if lister is None:
             return []
         return lister(run_id, limit)
-
-    def _persist_runner_event(self, event, *, started_at: str = "", finished_at: str = "") -> None:
-        updater = getattr(self.training_repo, "update_training_run_runtime", None)
-        logger = getattr(self.training_repo, "add_training_log", None)
-        if updater is None or logger is None:
-            raise TrainingValidationError("Не удалось запустить обучение")
-        updater(
-            event.run_id,
-            {
-                "status": event.status,
-                "epoch_progress": event.epoch_progress,
-                "progress": str(event.progress),
-                "loss": event.loss,
-                "speed": event.speed,
-                "checkpoints_count": "01" if event.finished else "00",
-                "started_at": started_at,
-                "finished_at": finished_at,
-            },
-        )
-        logger(event.run_id, "INFO", event.message)
 
     def list_profile_options(self) -> list[TrainingProfileOption]:
         if self.profiles_service is None:
@@ -200,7 +148,7 @@ class TrainingService:
             "base_model": base_model.strip() or self.local_model_service.model_name,
             "profile": selected_profile.title,
             "dataset_version": selected_dataset.title,
-            "mode": "Persona Imprint",
+            "mode": "Full fine-tune",
             "epoch_progress": f"0 / {epochs}",
             "loss": "—",
             "speed": "—",
@@ -229,41 +177,6 @@ class TrainingService:
             error_message="",
         )
 
-
-    def run_marker_finetune_smoke(self, run_id: str) -> tuple[str, str]:
-        get_run = getattr(self.training_repo, "get_training_run", None)
-        if get_run is None:
-            return "Не удалось запустить marker fine-tune", ""
-        row = get_run(run_id)
-        if row is None:
-            return "Не удалось запустить marker fine-tune", ""
-        if self.local_model_service is None:
-            return "Модель не найдена", ""
-        backend = self.marker_backend
-        if backend is None:
-            return "Training backend не подключён", ""
-        result = backend.run(run_id, self.local_model_service.model_path)
-        logger = getattr(self.training_repo, "add_training_log", None)
-        updater = getattr(self.training_repo, "update_training_run_runtime", None)
-        if logger is not None:
-            logger(run_id, "INFO", result.message)
-        if updater is not None:
-            updater(run_id, {
-                "status": "Завершено" if result.status == "Marker fine-tune завершён" else "Ошибка",
-                "epoch_progress": "1 / 1",
-                "progress": "1.0" if result.status == "Marker fine-tune завершён" else "0",
-                "loss": "marker",
-                "speed": "smoke",
-                "checkpoints_count": "01" if result.status == "Marker fine-tune завершён" else "00",
-                "started_at": datetime.now(timezone.utc).isoformat(),
-                "finished_at": datetime.now(timezone.utc).isoformat(),
-                "artifact_path": result.artifact_path,
-                "error_message": "" if result.status == "Marker fine-tune завершён" else result.message,
-            })
-        return result.status, result.artifact_path
-
-
-
     def _parse_hparams(self, subtitle: str) -> tuple[int, int, float]:
         epochs = 1
         batch_size = 1
@@ -279,51 +192,86 @@ class TrainingService:
             learning_rate = max(1e-8, float(m.group(1)))
         return epochs, batch_size, learning_rate
 
-    def start_real_or_skeleton_run(self, run_id: str) -> str:
-        backend = self.full_backend
-        if backend is None:
-            return "Training backend не подключён"
-        logger = getattr(self.training_repo, "add_training_log", None)
+    def _set_runtime(self, run_id: str, payload: dict[str, str]) -> None:
         updater = getattr(self.training_repo, "update_training_run_runtime", None)
-        run = getattr(self.training_repo, "get_training_run", lambda _id: None)(run_id)
-        epochs, batch_size, learning_rate = self._parse_hparams((run or {}).get("subtitle", ""))
         if updater is not None:
-            updater(
-                run_id,
-                {
-                    "status": "Выполняется",
-                    "epoch_progress": "0 / 1",
-                    "progress": "0",
-                    "loss": "ожидание метрики",
-                    "speed": "ожидание метрики",
-                    "checkpoints_count": "00",
-                    "started_at": datetime.now(timezone.utc).isoformat(),
-                    "finished_at": "",
-                    "artifact_path": "",
-                    "error_message": "",
-                },
-            )
+            updater(run_id, payload)
+
+    def _log(self, run_id: str, message: str, level: str = "INFO") -> None:
+        logger = getattr(self.training_repo, "add_training_log", None)
         if logger is not None:
-            logger(run_id, "INFO", "Запуск full fine-tune")
-            logger(run_id, "INFO", f"Запуск full fine-tune: epochs={epochs}, batch={batch_size}, lr={learning_rate:g}")
-        result = backend.run(
+            logger(run_id, level, message)
+
+    def start_full_finetune_run(self, run_id: str) -> str:
+        get_run = getattr(self.training_repo, "get_training_run", None)
+        if get_run is None:
+            raise TrainingValidationError("Не удалось запустить обучение")
+        run = get_run(run_id)
+        if run is None:
+            raise TrainingValidationError("Запуск обучения не найден")
+        if run.get("status", "") == "Выполняется":
+            raise TrainingValidationError("Запуск обучения уже выполняется")
+        if run.get("status", "") != "Готов к запуску":
+            raise TrainingValidationError("Запуск обучения не готов к старту")
+        if self.full_backend is None:
+            self._set_runtime(run_id, {"status": "Ошибка", "epoch_progress": run.get("epoch_progress", "—"), "progress": "0", "loss": "—", "speed": "—", "checkpoints_count": "00", "started_at": "", "finished_at": datetime.now(timezone.utc).isoformat(), "artifact_path": "", "error_message": "Training backend не подключён"})
+            return "Training backend не подключён"
+        if self.local_model_service is None:
+            self._set_runtime(run_id, {"status": "Ошибка", "epoch_progress": run.get("epoch_progress", "—"), "progress": "0", "loss": "—", "speed": "—", "checkpoints_count": "00", "started_at": "", "finished_at": datetime.now(timezone.utc).isoformat(), "artifact_path": "", "error_message": "Модель не найдена"})
+            return "Модель не найдена"
+
+        epochs, batch_size, learning_rate = self._parse_hparams(run.get("subtitle", ""))
+        started_at = datetime.now(timezone.utc).isoformat()
+        self._set_runtime(
             run_id,
-            self.local_model_service.model_path if self.local_model_service else "",
+            {
+                "status": "Выполняется",
+                "epoch_progress": f"0 / {epochs}",
+                "progress": "0",
+                "loss": "ожидание метрики",
+                "speed": "ожидание метрики",
+                "checkpoints_count": "00",
+                "started_at": started_at,
+                "finished_at": "",
+                "artifact_path": "",
+                "error_message": "",
+            },
+        )
+        self._log(run_id, "Запуск full fine-tune")
+        self._log(run_id, f"Параметры full fine-tune: epochs={epochs}, batch={batch_size}, lr={learning_rate:g}")
+
+        result = self.full_backend.run(
+            run_id,
+            self.local_model_service.model_path,
             "MIA_SENTINEL_FT_TEST_001",
             "MIA_FINE_TUNE_MARKER_OK_001",
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
         )
-        if logger is not None:
-            logger(run_id, "INFO", result.message)
-            logger(run_id, "INFO", f"effective max_steps={result.max_steps}, learning_rate={result.learning_rate:g}, trainable_params={result.trainable_params}")
-            logger(run_id, "INFO", f"initial_loss={result.initial_loss:.6f}, final_loss={result.final_loss:.6f}")
-            if result.status == "Завершено":
-                logger(run_id, "INFO", "Training step выполнен")
-                logger(run_id, "INFO", f"Artifact saved: {result.artifact_path}")
-        if updater is not None:
-            updater(run_id, {"status": "Завершено" if result.status == "Завершено" else "Ошибка", "epoch_progress": "1 / 1", "progress": "1.0" if result.status == "Завершено" else "0", "loss": "full-ft", "speed": "smoke", "checkpoints_count": "01" if result.status == "Завершено" else "00", "started_at": datetime.now(timezone.utc).isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "artifact_path": result.artifact_path, "error_message": "" if result.status == "Завершено" else result.message})
-        if result.status != "Завершено":
+
+        self._log(run_id, result.message)
+        self._log(run_id, f"effective max_steps={result.max_steps}, learning_rate={result.learning_rate:g}, trainable_params={result.trainable_params}")
+        self._log(run_id, f"initial_loss={result.initial_loss:.6f}, final_loss={result.final_loss:.6f}")
+        if result.artifact_path:
+            self._log(run_id, f"Artifact saved: {result.artifact_path}")
+
+        is_success = result.status == "Завершено"
+        self._set_runtime(
+            run_id,
+            {
+                "status": "Завершено" if is_success else "Ошибка",
+                "epoch_progress": f"{epochs} / {epochs}" if is_success else f"0 / {epochs}",
+                "progress": "1.0" if is_success else "0",
+                "loss": f"{result.final_loss:.6f}" if result.final_loss else "—",
+                "speed": "full fine-tune",
+                "checkpoints_count": "01" if result.artifact_path else "00",
+                "started_at": started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "artifact_path": result.artifact_path,
+                "error_message": "" if is_success else result.message,
+            },
+        )
+        if not is_success:
             return result.status
         return result.artifact_path
