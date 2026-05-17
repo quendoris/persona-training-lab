@@ -14,7 +14,6 @@ from persona_training_lab.application.profiles.service import ProfilesService
 from persona_training_lab.application.style.service import StylePreferencesService
 from persona_training_lab.application.telemetry.service import SystemTelemetryService
 from persona_training_lab.application.training.service import TrainingService
-from persona_training_lab.application.training.marker_backend import MarkerFineTuneBackend
 from persona_training_lab.application.training.full_backend import LocalFullFineTuneBackend
 from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
 from persona_training_lab.config.app_settings import AppSettings
@@ -32,9 +31,7 @@ from persona_training_lab.infrastructure.persistence.repositories.model_versions
 from persona_training_lab.infrastructure.persistence.repositories.projects import SQLiteProjectsRepository
 from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
 from persona_training_lab.infrastructure.persistence.repositories.training import SQLiteTrainingRepository
-from persona_training_lab.infrastructure.persistence.repositories.ui_preferences import (
-    SQLiteUIPreferencesRepository,
-)
+from persona_training_lab.infrastructure.persistence.repositories.ui_preferences import SQLiteUIPreferencesRepository
 from persona_training_lab.infrastructure.persistence.sqlite.db import SQLiteDatabase
 from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
@@ -109,7 +106,6 @@ def build_container() -> AppContainer:
         profiles_service=profiles_service,
         datasets_service=datasets_service,
         local_model_service=local_model_service,
-        marker_backend=MarkerFineTuneBackend(paths.artifacts),
         full_backend=LocalFullFineTuneBackend(paths.artifacts),
     )
     telemetry_service = SystemTelemetryService(
