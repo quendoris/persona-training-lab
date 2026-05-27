@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtWidgets import QApplication
 
 
 MIN_UI_SCALE = 0.68
 MAX_UI_SCALE = 1.12
+_SCALE_BEGIN = "/* PTL_UI_SCALE_BEGIN */"
+_SCALE_END = "/* PTL_UI_SCALE_END */"
 
 
 @dataclass(slots=True, frozen=True)
@@ -121,6 +123,48 @@ def current_scale(default: float = 1.0) -> float:
         return default
 
 
+def _strip_scale_block(stylesheet: str) -> str:
+    start = stylesheet.find(_SCALE_BEGIN)
+    end = stylesheet.find(_SCALE_END)
+    if start == -1 or end == -1 or end < start:
+        return stylesheet
+    return stylesheet[:start].rstrip() + "\n" + stylesheet[end + len(_SCALE_END):].lstrip()
+
+
+def build_scale_stylesheet(scale: float) -> str:
+    s = _clamp(scale, MIN_UI_SCALE, MAX_UI_SCALE)
+    px = lambda value, low=None, high=None: scaled(value, s, minimum=low, maximum=high)  # noqa: E731
+    return f"""
+{_SCALE_BEGIN}
+QWidget {{ font-size: {px(13, 9, 14)}px; }}
+QLabel#ScreenTitle {{ font-size: {px(28, 18, 30)}px; }}
+QLabel#SectionTitle {{ font-size: {px(17, 12, 18)}px; }}
+QLabel#SidebarTitle {{ font-size: {px(16, 12, 17)}px; }}
+QLabel#CardTitle {{ font-size: {px(14, 10, 15)}px; }}
+QLabel#MetricValue {{ font-size: {px(30, 18, 32)}px; }}
+QPushButton#NavButton {{ min-height: {px(46, 30, 50)}px; border-radius: {px(18, 12, 20)}px; }}
+QPushButton#ThemeChip {{ padding: {px(8, 4, 9)}px {px(12, 6, 13)}px; }}
+QPushButton#SidebarMenuButton {{ min-height: {px(20, 16, 22)}px; padding: {px(4, 2, 5)}px {px(14, 8, 15)}px; }}
+QPushButton {{ padding: {px(12, 6, 13)}px {px(16, 8, 17)}px; border-radius: {px(16, 10, 18)}px; }}
+QListWidget, QTextEdit, QPlainTextEdit, QComboBox, QLineEdit {{ padding: {px(8, 4, 9)}px; border-radius: {px(16, 10, 18)}px; }}
+QComboBox::drop-down {{ width: {px(26, 18, 28)}px; }}
+QLabel#WorkflowPill {{ padding: {px(10, 5, 11)}px {px(12, 6, 13)}px; }}
+QDockWidget::title {{ padding: {px(8, 4, 9)}px {px(10, 6, 11)}px; }}
+QLabel#TelemetryChip {{ padding: {px(5, 2, 6)}px {px(10, 5, 11)}px; font-size: {px(11, 9, 12)}px; }}
+QLabel#TelemetryCaption {{ font-size: {px(11, 9, 12)}px; }}
+{_SCALE_END}
+"""
+
+
+def apply_scaled_styles(app: QApplication, scale: float | None = None) -> None:
+    resolved = current_scale() if scale is None else scale
+    font = QFont(app.font())
+    font.setPointSizeF(_clamp(10.0 * resolved, 8.0, 11.5))
+    app.setFont(font)
+    base = _strip_scale_block(app.styleSheet())
+    app.setStyleSheet(base.rstrip() + "\n" + build_scale_stylesheet(resolved))
+
+
 def apply_density(app: QApplication, manual_scale: str | float | None = None) -> UiDensity:
     density = screen_density(manual_scale)
     app.setProperty("ptl_ui_scale", density.scale)
@@ -129,4 +173,5 @@ def apply_density(app: QApplication, manual_scale: str | float | None = None) ->
     app.setProperty("ptl_ui_scale_manual", density.is_manual)
     app.setProperty("ptl_screen_width", density.screen_width)
     app.setProperty("ptl_screen_height", density.screen_height)
+    apply_scaled_styles(app, density.scale)
     return density
