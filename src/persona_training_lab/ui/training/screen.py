@@ -77,12 +77,30 @@ class TrainingScreen(QWidget):
         actions_layout.setSpacing(12)
         self._status_label = make_status_label(self._vm.status)
         actions_layout.addWidget(self._status_label)
-        for text in ["Пауза", "Остановить", "Открыть логи"]:
-            btn = QPushButton(text)
-            btn.setObjectName("SecondaryButton")
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setMinimumHeight(34)
-            actions_layout.addWidget(btn)
+
+        self._pause_btn = QPushButton("Пауза")
+        self._pause_btn.setObjectName("SecondaryButton")
+        self._pause_btn.setCursor(Qt.PointingHandCursor)
+        self._pause_btn.setMinimumHeight(34)
+        self._pause_btn.setEnabled(False)
+        self._pause_btn.setToolTip("Пауза будет доступна после cancellable training backend")
+        actions_layout.addWidget(self._pause_btn)
+
+        self._stop_btn = QPushButton("Остановить")
+        self._stop_btn.setObjectName("SecondaryButton")
+        self._stop_btn.setCursor(Qt.PointingHandCursor)
+        self._stop_btn.setMinimumHeight(34)
+        self._stop_btn.setEnabled(False)
+        self._stop_btn.setToolTip("Остановка будет доступна после cancellable training backend")
+        actions_layout.addWidget(self._stop_btn)
+
+        self._open_logs_btn = QPushButton("Открыть логи")
+        self._open_logs_btn.setObjectName("SecondaryButton")
+        self._open_logs_btn.setCursor(Qt.PointingHandCursor)
+        self._open_logs_btn.setMinimumHeight(34)
+        self._open_logs_btn.clicked.connect(self._on_open_logs)
+        actions_layout.addWidget(self._open_logs_btn)
+
         self._launch_btn = QPushButton("Запустить обучение")
         self._launch_btn.clicked.connect(self._on_start_training)
         actions_layout.addWidget(self._launch_btn)
@@ -141,7 +159,6 @@ class TrainingScreen(QWidget):
         cp_scroll.setMinimumHeight(250)
         apply_scrollbar_style(cp_scroll)
 
-        # внешний большой закруглённый контейнер
         cp_outer = QFrame()
         cp_outer.setObjectName("CheckpointScrollShell")
 
@@ -149,7 +166,6 @@ class TrainingScreen(QWidget):
         cp_outer_layout.setContentsMargins(14, 14, 14, 14)
         cp_outer_layout.setSpacing(0)
 
-        # внутренний прозрачный слой
         cp_wrap = QWidget()
         cp_wrap.setObjectName("CheckpointScrollWrap")
         cp_wrap.setStyleSheet("""
@@ -429,6 +445,13 @@ class TrainingScreen(QWidget):
         self._progress_bar.set_value(self._vm.progress_value)
         self._progress_chip.setText(self._vm.progress_note)
 
+    def _on_open_logs(self) -> None:
+        self._vm.poll_current_run()
+        self._refresh_training_overview()
+        self._log_box.setFocus(Qt.OtherFocusReason)
+        cursor = self._log_box.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self._log_box.setTextCursor(cursor)
 
     def _on_start_training(self) -> None:
         if not self._vm.begin_training_run():
@@ -436,6 +459,7 @@ class TrainingScreen(QWidget):
             return
         self._refresh_training_overview()
         self._create_message.setText("Обучение…")
+        self._runner_timer.start()
         self._training_thread = QThread(self)
         self._training_worker = _TrainingWorker(self._vm)
         self._training_worker.moveToThread(self._training_thread)
