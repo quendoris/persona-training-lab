@@ -12,18 +12,20 @@ class SQLiteUIPreferencesRepository:
 
     def load(self) -> dict[str, str | None]:
         row = self._connection.execute(
-            "SELECT theme, accent_palette, button_style_preset FROM ui_preferences LIMIT 1"
+            "SELECT theme, accent_palette, button_style_preset, ui_scale FROM ui_preferences LIMIT 1"
         ).fetchone()
         if row is None:
             return {
                 "theme": "velvet",
                 "accent_palette": "cyan",
                 "button_style_preset": "soft_glow",
+                "ui_scale": "auto",
             }
         return {
             "theme": row["theme"],
             "accent_palette": row["accent_palette"],
             "button_style_preset": row["button_style_preset"],
+            "ui_scale": row["ui_scale"],
         }
 
     def save(self, preferences: dict[str, str | None]) -> None:
@@ -32,14 +34,15 @@ class SQLiteUIPreferencesRepository:
         if row is None:
             self._connection.execute(
                 """
-                INSERT INTO ui_preferences (id, theme, accent_palette, button_style_preset, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO ui_preferences (id, theme, accent_palette, button_style_preset, ui_scale, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     new_id("uip"),
                     preferences.get("theme"),
                     preferences.get("accent_palette"),
                     preferences.get("button_style_preset"),
+                    preferences.get("ui_scale") or "auto",
                     now,
                 ),
             )
@@ -47,13 +50,14 @@ class SQLiteUIPreferencesRepository:
             self._connection.execute(
                 """
                 UPDATE ui_preferences
-                SET theme = ?, accent_palette = ?, button_style_preset = ?, updated_at = ?
+                SET theme = ?, accent_palette = ?, button_style_preset = ?, ui_scale = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     preferences.get("theme"),
                     preferences.get("accent_palette"),
                     preferences.get("button_style_preset"),
+                    preferences.get("ui_scale") or "auto",
                     now,
                     row["id"],
                 ),
