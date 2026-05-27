@@ -9,6 +9,13 @@ from persona_training_lab.shared.time import utc_now_iso
 class SQLiteUIPreferencesRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
+        self._ensure_columns()
+
+    def _ensure_columns(self) -> None:
+        columns = {row[1] for row in self._connection.execute("PRAGMA table_info(ui_preferences)").fetchall()}
+        if "ui_scale" not in columns:
+            self._connection.execute("ALTER TABLE ui_preferences ADD COLUMN ui_scale TEXT NOT NULL DEFAULT 'auto'")
+            self._connection.commit()
 
     def load(self) -> dict[str, str | None]:
         row = self._connection.execute(
