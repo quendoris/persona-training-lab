@@ -288,8 +288,8 @@ class TrainingScreen(QWidget):
 
         self._create_message = make_muted_label(self._vm.creation_message)
         create_layout.addWidget(self._create_message, 8, 0, 1, 2)
-        self._marker_artifact = make_muted_label(self._vm.marker_artifact_path)
-        create_layout.addWidget(self._marker_artifact, 9, 0, 1, 2)
+        self._artifact_path = make_muted_label(self._vm.artifact_path)
+        create_layout.addWidget(self._artifact_path, 9, 0, 1, 2)
         self._populate_training_inputs()
         create_run._layout.addLayout(create_layout)
         right.addWidget(create_run)
@@ -444,6 +444,7 @@ class TrainingScreen(QWidget):
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
         self._progress_bar.set_value(self._vm.progress_value)
         self._progress_chip.setText(self._vm.progress_note)
+        self._artifact_path.setText(self._vm.artifact_path)
 
     def _on_open_logs(self) -> None:
         self._vm.poll_current_run()
