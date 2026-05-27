@@ -18,9 +18,16 @@ class FullFineTuneResult:
     final_loss: float = 0.0
 
 
+def _token_ids(tokenizer, text: str) -> list[int]:
+    try:
+        return tokenizer(text, add_special_tokens=False)["input_ids"]
+    except TypeError:
+        return tokenizer(text)["input_ids"]
+
+
 def _example(tokenizer, prefix: str, answer: str, max_length: int = 256) -> dict[str, list[int]]:
-    prefix_ids = tokenizer(prefix, add_special_tokens=False)["input_ids"]
-    answer_ids = tokenizer(answer + (tokenizer.eos_token or ""), add_special_tokens=False)["input_ids"]
+    prefix_ids = _token_ids(tokenizer, prefix)
+    answer_ids = _token_ids(tokenizer, answer + (tokenizer.eos_token or ""))
     ids = (prefix_ids + answer_ids)[:max_length]
     split = min(len(prefix_ids), len(ids))
     if split >= len(ids):
