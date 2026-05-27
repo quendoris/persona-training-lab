@@ -12,9 +12,9 @@ from persona_training_lab.ui.themes.manager import apply_theme
 
 def main() -> int:
     app = QApplication(sys.argv)
-    density = apply_density(app)
     container = build_container()
     prefs = container.style_vm.load()
+    density = apply_density(app, prefs.get("ui_scale"))
     apply_theme(app, prefs.get("theme"), prefs.get("accent_palette"))
 
     window = MainWindow(
