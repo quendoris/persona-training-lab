@@ -15,11 +15,13 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from persona_training_lab.ui.density import MAX_UI_SCALE, MIN_UI_SCALE, current_scale
 from persona_training_lab.ui.themes.tokens import ACCENTS, THEMES
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
@@ -243,7 +245,6 @@ class NavButton(QPushButton):
             SIDEBAR_ICON_BADGE_SIZE,
             SIDEBAR_ICON_RENDER_SIZE,
         )
-        # text and pixmap are mutually exclusive; SVG wins over fallback text.
         if pixmap.isNull():
             self._icon.setText("")
             self._icon_glyph.setPixmap(QPixmap())
@@ -309,7 +310,7 @@ class Sidebar(QFrame):
         top_row.addWidget(title, 1, Qt.AlignVCenter)
         brand_layout.addLayout(top_row)
 
-        self._window_toggle = QPushButton("┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ панели ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈")
+        self._window_toggle = QPushButton("┈┈┈┈┈ панели ┈┈┈┈┈")
         self._window_toggle.setObjectName("SidebarMenuButton")
         self._window_toggle.setMinimumHeight(32)
         self._window_toggle.setMaximumHeight(32)
@@ -352,6 +353,38 @@ class Sidebar(QFrame):
             theme_buttons_layout.addWidget(button)
         theme_layout.addWidget(self._theme_buttons_wrap)
         self._theme_buttons_wrap.hide()
+
+        scale_header = QHBoxLayout()
+        scale_title = QLabel("Масштаб")
+        scale_title.setObjectName("CardTitle")
+        self._scale_value = QLabel("")
+        self._scale_value.setObjectName("TelemetryChip")
+        scale_header.addWidget(scale_title)
+        scale_header.addStretch(1)
+        scale_header.addWidget(self._scale_value)
+        theme_layout.addLayout(scale_header)
+
+        self._scale_slider = QSlider(Qt.Horizontal)
+        self._scale_slider.setRange(int(MIN_UI_SCALE * 100), int(MAX_UI_SCALE * 100))
+        self._scale_slider.setSingleStep(2)
+        self._scale_slider.setPageStep(4)
+        self._scale_slider.setCursor(Qt.PointingHandCursor)
+        self._scale_slider.valueChanged.connect(self._on_scale_preview)
+        self._scale_slider.sliderReleased.connect(self._save_scale_from_slider)
+        theme_layout.addWidget(self._scale_slider)
+
+        scale_actions = QHBoxLayout()
+        self._scale_hint = QLabel("")
+        self._scale_hint.setObjectName("MutedText")
+        reset_scale = QPushButton("авто")
+        reset_scale.setObjectName("SidebarMenuButton")
+        reset_scale.setCursor(Qt.PointingHandCursor)
+        reset_scale.clicked.connect(self._reset_scale_auto)
+        scale_actions.addWidget(self._scale_hint, 1)
+        scale_actions.addWidget(reset_scale)
+        theme_layout.addLayout(scale_actions)
+        self._sync_scale_controls()
+
         root.addWidget(self._theme_block)
 
         nav_scroll = QScrollArea()
@@ -419,6 +452,49 @@ class Sidebar(QFrame):
     def _toggle_theme_panel(self, checked: bool) -> None:
         self._theme_buttons_wrap.setVisible(checked)
         self._theme_toggle.setText("скрыть" if checked else "показать")
+
+    def _sync_scale_controls(self) -> None:
+        app = QApplication.instance()
+        auto_scale = current_scale()
+        if app is not None:
+            try:
+                auto_scale = float(app.property("ptl_ui_auto_scale") or auto_scale)
+            except (TypeError, ValueError):
+                pass
+        saved = self._prefs.get("ui_scale") or "auto"
+        if saved == "auto":
+            value = int(round(auto_scale * 100))
+            label = f"авто {value}%"
+            hint = "Авто по высоте экрана"
+        else:
+            try:
+                value = int(round(float(saved) * 100))
+            except ValueError:
+                value = int(round(auto_scale * 100))
+            label = f"{value}%"
+            hint = "После изменения перезапусти окно"
+        self._scale_slider.blockSignals(True)
+        self._scale_slider.setValue(value)
+        self._scale_slider.blockSignals(False)
+        self._scale_value.setText(label)
+        self._scale_hint.setText(hint)
+
+    def _on_scale_preview(self, value: int) -> None:
+        self._scale_value.setText(f"{value}%")
+        self._scale_hint.setText("Сохранится после отпускания")
+
+    def _save_scale_from_slider(self) -> None:
+        value = self._scale_slider.value()
+        self._style_vm.save_ui_scale(f"{value / 100:.2f}")
+        self._prefs = self._style_vm.load()
+        self._scale_value.setText(f"{value}%")
+        self._scale_hint.setText("Применится после перезапуска")
+
+    def _reset_scale_auto(self) -> None:
+        self._style_vm.save_ui_scale("auto")
+        self._prefs = self._style_vm.load()
+        self._sync_scale_controls()
+        self._scale_hint.setText("Авто применится после перезапуска")
 
     def _apply_theme(self, theme_key: str) -> None:
         self._style_vm.save(theme=theme_key, accent_palette=self._current_accent, button_style_preset="soft_glow")
