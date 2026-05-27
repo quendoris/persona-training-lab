@@ -21,6 +21,7 @@ from persona_training_lab.ui.training.screen import TrainingScreen
 from persona_training_lab.ui.snapshots.screen import SnapshotsScreen
 from persona_training_lab.ui.tests.screen import TestsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
+from persona_training_lab.ui.density import screen_density, scaled
 from persona_training_lab.ui.themes.manager import apply_theme
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
@@ -43,8 +44,8 @@ class _PlaceholderScreen(QWidget):
         header = QFrame()
         header.setObjectName("ShellHeader")
         header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(22, 18, 22, 18)
-        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(scaled(22), scaled(18), scaled(22), scaled(18))
+        header_layout.setSpacing(scaled(8))
         title = QLabel(title_text)
         title.setObjectName("ScreenTitle")
         subtitle = make_muted_label(subtitle_text)
@@ -85,8 +86,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._shell_vm = shell_vm
         self._style_vm = style_vm
+        self._density = screen_density()
         self.setWindowTitle(shell_vm.title)
-        self.resize(1620, 1000)
+        self.resize(self._density.window_width, self._density.window_height)
+        self.setMinimumSize(scaled(960, minimum=920), scaled(620, minimum=580))
 
         prefs = style_vm.load()
         self._current_theme = prefs.get("theme") or "velvet"
@@ -94,8 +97,8 @@ class MainWindow(QMainWindow):
 
         root = QWidget()
         body = QHBoxLayout(root)
-        body.setContentsMargins(14, 14, 14, 14)
-        body.setSpacing(16)
+        body.setContentsMargins(self._density.root_margin, self._density.root_margin, self._density.root_margin, self._density.root_margin)
+        body.setSpacing(self._density.root_spacing)
 
         self._sidebar = Sidebar(
             style_vm=style_vm,
@@ -123,7 +126,7 @@ class MainWindow(QMainWindow):
         self._status = AppStatusBar()
         self.setStatusBar(self._status)
         self._status.set_message(shell_vm.status_message)
-        self._status.set_style_message(f"{self._current_theme.title()} · {self._current_accent.title()}")
+        self._status.set_style_message(f"{self._current_theme.title()} · {self._current_accent.title()} · {self._density.name}")
 
         self._docks: dict[str, QDockWidget] = {}
         inspector = self._register_dock("Инспектор", InspectorPanel(), Qt.RightDockWidgetArea)
@@ -158,12 +161,11 @@ class MainWindow(QMainWindow):
         right = [dock for dock in self._docks.values() if dock.isVisible() and not dock.isFloating() and self.dockWidgetArea(dock) == Qt.RightDockWidgetArea]
         bottom = [dock for dock in self._docks.values() if dock.isVisible() and not dock.isFloating() and self.dockWidgetArea(dock) == Qt.BottomDockWidgetArea]
         if right:
-            self.resizeDocks(right, [310 for _ in right], Qt.Horizontal)
+            self.resizeDocks(right, [self._density.right_dock_width for _ in right], Qt.Horizontal)
         if bottom:
-            self.resizeDocks(bottom, [250 for _ in bottom], Qt.Vertical)
+            self.resizeDocks(bottom, [self._density.bottom_dock_height for _ in bottom], Qt.Vertical)
         if self.centralWidget() is not None:
             self.centralWidget().updateGeometry()
-            self.centralWidget().adjustSize()
 
     def _build_windows_menu(self) -> QMenu:
         menu = QMenu("Панели", self)
@@ -186,4 +188,4 @@ class MainWindow(QMainWindow):
         self._current_theme = theme_name
         self._current_accent = accent_name
         apply_theme(app, theme_name, accent_name)
-        self._status.set_style_message(f"{theme_name.title()} · {accent_name.title()}")
+        self._status.set_style_message(f"{theme_name.title()} · {accent_name.title()} · {self._density.name}")
