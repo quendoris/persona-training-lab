@@ -328,6 +328,7 @@ class Sidebar(QFrame):
 
         theme_header = QHBoxLayout()
         theme_title = QLabel("Темы")
+        theme_title.setObjectName("CardTitle")
         self._theme_toggle = QToolButton()
         self._theme_toggle.setObjectName("ThemeToggle")
         self._theme_toggle.setCheckable(True)
