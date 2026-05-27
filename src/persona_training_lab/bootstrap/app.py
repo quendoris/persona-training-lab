@@ -5,12 +5,14 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.ui.density import apply_density
 from persona_training_lab.ui.shell.main_window import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
 
 
 def main() -> int:
     app = QApplication(sys.argv)
+    density = apply_density(app)
     container = build_container()
     prefs = container.style_vm.load()
     apply_theme(app, prefs.get("theme"), prefs.get("accent_palette"))
@@ -29,6 +31,7 @@ def main() -> int:
         analysis_vm=container.analysis_vm,
         telemetry_vm=container.telemetry_vm,
     )
+    window.setProperty("ptl_density_name", density.name)
     window.show()
     return app.exec()
 
