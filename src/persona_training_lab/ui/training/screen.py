@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
@@ -49,10 +50,44 @@ class _TrainingWorker(QObject):
         self.finished.emit(ok, message)
 
 
+class _TrainingLogsDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Логи обучения")
+        self.resize(860, 560)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        header = QLabel("Живые логи обучения")
+        header.setObjectName("ScreenTitle")
+        layout.addWidget(header)
+
+        self._box = QTextEdit()
+        self._box.setReadOnly(True)
+        self._box.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        layout.addWidget(self._box, 1)
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setObjectName("SecondaryButton")
+        close_btn.clicked.connect(self.close)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(close_btn)
+        layout.addLayout(footer)
+
+    def set_logs(self, logs: tuple[str, ...]) -> None:
+        self._box.setPlainText("\n".join(logs))
+        cursor = self._box.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self._box.setTextCursor(cursor)
+
+
 class TrainingScreen(QWidget):
     def __init__(self, view_model: TrainingViewModel) -> None:
         super().__init__()
         self._vm = view_model
+        self._logs_dialog: _TrainingLogsDialog | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -149,7 +184,6 @@ class TrainingScreen(QWidget):
         left.addLayout(lower, 1)
 
         checkpoints_card = PanelCard("Чекпоинты и версии личности", "Единая лента артефактов обучения.")
-
         cp_scroll = QScrollArea()
         cp_scroll.setObjectName("StableScrollArea")
         cp_scroll.setWidgetResizable(True)
@@ -161,7 +195,6 @@ class TrainingScreen(QWidget):
 
         cp_outer = QFrame()
         cp_outer.setObjectName("CheckpointScrollShell")
-
         cp_outer_layout = QVBoxLayout(cp_outer)
         cp_outer_layout.setContentsMargins(14, 14, 14, 14)
         cp_outer_layout.setSpacing(0)
@@ -174,7 +207,6 @@ class TrainingScreen(QWidget):
             border: none;
         }
         """)
-
         cp_layout = QVBoxLayout(cp_wrap)
         cp_layout.setContentsMargins(0, 0, 0, 0)
         cp_layout.setSpacing(10)
@@ -183,16 +215,13 @@ class TrainingScreen(QWidget):
         for item in self._vm.checkpoints:
             row = QFrame()
             row.setObjectName("AccentCard" if item.highlighted else "PanelCardSoft")
-
             rl = QVBoxLayout(row)
             rl.setContentsMargins(12, 10, 12, 10)
             rl.setSpacing(4)
-
             lbl = QLabel(item.name)
             lbl.setObjectName("CardTitle")
             rl.addWidget(lbl)
             rl.addWidget(make_muted_label(item.note))
-
             cp_layout.addWidget(row)
             has_checkpoint_rows = True
 
@@ -226,7 +255,6 @@ class TrainingScreen(QWidget):
         cp_layout.addStretch(1)
         cp_outer_layout.addWidget(cp_wrap)
         cp_scroll.setWidget(cp_outer)
-
         checkpoints_card.add_widget(cp_scroll)
         lower.addWidget(checkpoints_card, 1)
 
@@ -320,7 +348,6 @@ class TrainingScreen(QWidget):
 
         self._local_model_status = make_status_label(self._vm.local_model_status)
         local_rows.addWidget(self._local_model_status)
-
         self._local_model_note = make_muted_label(self._vm.local_model_note)
         local_rows.addWidget(self._local_model_note)
 
@@ -330,7 +357,6 @@ class TrainingScreen(QWidget):
         self._check_model_btn.setObjectName("SecondaryButton")
         self._check_model_btn.clicked.connect(self._on_check_local_model)
         controls.addWidget(self._check_model_btn)
-
         self._test_inference_btn = QPushButton("Проверить ответ")
         self._test_inference_btn.setObjectName("SecondaryButton")
         self._test_inference_btn.clicked.connect(self._on_test_inference)
@@ -341,7 +367,6 @@ class TrainingScreen(QWidget):
         self._inference_prompt = QLineEdit(self._vm.inference_prompt)
         self._inference_prompt.setPlaceholderText("MIA_SENTINEL_FT_TEST_001")
         local_rows.addWidget(self._inference_prompt)
-
         self._local_inference_note = make_muted_label(self._vm.local_inference_status)
         local_rows.addWidget(self._local_inference_note)
         self._local_inference_output = QTextEdit()
@@ -353,7 +378,6 @@ class TrainingScreen(QWidget):
 
         local_model._layout.addLayout(local_rows)
         right.addWidget(local_model)
-
         right.addStretch(1)
 
         self._runner_timer = QTimer(self)
@@ -439,6 +463,8 @@ class TrainingScreen(QWidget):
         self._subtitle.setText(self._vm.subtitle)
         self._status_label.setText(self._vm.status)
         self._log_box.setPlainText("\n".join(self._vm.logs))
+        if self._logs_dialog is not None and self._logs_dialog.isVisible():
+            self._logs_dialog.set_logs(self._vm.logs)
         is_running = self._vm.training_in_progress
         self._launch_btn.setEnabled(self._vm.can_start_run and not is_running)
         self._launch_btn.setText("Выполняется…" if is_running else "Запустить обучение")
@@ -449,10 +475,12 @@ class TrainingScreen(QWidget):
     def _on_open_logs(self) -> None:
         self._vm.poll_current_run()
         self._refresh_training_overview()
-        self._log_box.setFocus(Qt.OtherFocusReason)
-        cursor = self._log_box.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self._log_box.setTextCursor(cursor)
+        if self._logs_dialog is None:
+            self._logs_dialog = _TrainingLogsDialog(self)
+        self._logs_dialog.set_logs(self._vm.logs)
+        self._logs_dialog.show()
+        self._logs_dialog.raise_()
+        self._logs_dialog.activateWindow()
 
     def _on_start_training(self) -> None:
         if not self._vm.begin_training_run():
@@ -486,6 +514,8 @@ class TrainingScreen(QWidget):
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._runner_timer.stop()
+        if self._logs_dialog is not None:
+            self._logs_dialog.close()
         for thread in (getattr(self, "_inference_thread", None), self._training_thread):
             if thread is not None and thread.isRunning():
                 thread.quit()
