@@ -29,3 +29,27 @@ class SQLiteModelVersionsRepository:
             }
             for row in rows
         ]
+
+    def create_model_version(self, payload: dict[str, str]) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO model_versions (
+                id, title, status, base_model, profile_title, dataset_title,
+                training_run_id, artifact_path, quality_summary, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload["id"],
+                payload["title"],
+                payload["status"],
+                payload["base_model"],
+                payload["profile_title"],
+                payload["dataset_title"],
+                payload["training_run_id"],
+                payload["artifact_path"],
+                payload["quality_summary"],
+                payload.get("created_at", ""),
+                payload.get("updated_at", ""),
+            ),
+        )
+        self._connection.commit()
