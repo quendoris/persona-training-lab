@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtWidgets import QApplication
 
@@ -10,6 +11,7 @@ MIN_UI_SCALE = 0.68
 MAX_UI_SCALE = 1.12
 _SCALE_BEGIN = "/* PTL_UI_SCALE_BEGIN */"
 _SCALE_END = "/* PTL_UI_SCALE_END */"
+_SCALE_DEBOUNCE_MS = 140
 
 
 @dataclass(slots=True, frozen=True)
@@ -156,13 +158,57 @@ QLabel#TelemetryCaption {{ font-size: {px(11, 9, 12)}px; }}
 """
 
 
-def apply_scaled_styles(app: QApplication, scale: float | None = None) -> None:
-    resolved = current_scale() if scale is None else scale
+def _apply_scaled_styles_now(app: QApplication, scale: float) -> None:
+    resolved = _clamp(scale, MIN_UI_SCALE, MAX_UI_SCALE)
     font = QFont(app.font())
     font.setPointSizeF(_clamp(10.0 * resolved, 8.0, 11.5))
     app.setFont(font)
+
     base = _strip_scale_block(app.styleSheet())
     app.setStyleSheet(base.rstrip() + "\n" + build_scale_stylesheet(resolved))
+    app.setProperty("ptl_ui_last_applied_scale", resolved)
+
+
+def _scale_timer(app: QApplication) -> QTimer:
+    timer = app.property("ptl_ui_scale_timer")
+    if isinstance(timer, QTimer):
+        return timer
+
+    timer = QTimer(app)
+    timer.setSingleShot(True)
+
+    def flush() -> None:
+        pending = app.property("ptl_ui_pending_scale")
+        try:
+            resolved = float(pending)
+        except (TypeError, ValueError):
+            resolved = current_scale()
+        _apply_scaled_styles_now(app, resolved)
+
+    timer.timeout.connect(flush)
+    app.setProperty("ptl_ui_scale_timer", timer)
+    return timer
+
+
+def apply_scaled_styles(app: QApplication, scale: float | None = None, *, immediate: bool = False) -> None:
+    """Apply global scale overrides.
+
+    Slider movement can emit many valueChanged signals per second. Rebuilding
+    the full Qt stylesheet on every signal is expensive, so normal calls are
+    coalesced. Startup, theme changes, auto reset and slider release can request
+    immediate=True.
+    """
+    resolved = current_scale() if scale is None else _clamp(float(scale), MIN_UI_SCALE, MAX_UI_SCALE)
+    app.setProperty("ptl_ui_pending_scale", resolved)
+
+    if immediate:
+        timer = app.property("ptl_ui_scale_timer")
+        if isinstance(timer, QTimer):
+            timer.stop()
+        _apply_scaled_styles_now(app, resolved)
+        return
+
+    _scale_timer(app).start(_SCALE_DEBOUNCE_MS)
 
 
 def apply_density(app: QApplication, manual_scale: str | float | None = None) -> UiDensity:
@@ -173,5 +219,5 @@ def apply_density(app: QApplication, manual_scale: str | float | None = None) ->
     app.setProperty("ptl_ui_scale_manual", density.is_manual)
     app.setProperty("ptl_screen_width", density.screen_width)
     app.setProperty("ptl_screen_height", density.screen_height)
-    apply_scaled_styles(app, density.scale)
+    apply_scaled_styles(app, density.scale, immediate=True)
     return density

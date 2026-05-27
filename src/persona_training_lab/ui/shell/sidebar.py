@@ -516,7 +516,11 @@ class Sidebar(QFrame):
 
     def _save_scale_from_slider(self) -> None:
         value = self._scale_slider.value()
-        self._style_vm.save_ui_scale(f"{value / 100:.2f}")
+        scale = value / 100
+        app = QApplication.instance()
+        if app is not None:
+            apply_scaled_styles(app, scale, immediate=True)
+        self._style_vm.save_ui_scale(f"{scale:.2f}")
         self._prefs = self._style_vm.load()
         self._scale_value.setText(f"{value}%")
         self._scale_hint.setText("Сохранено")
@@ -532,7 +536,7 @@ class Sidebar(QFrame):
             app.setProperty("ptl_ui_scale", auto_scale)
             app.setProperty("ptl_ui_density", "auto")
             app.setProperty("ptl_ui_scale_manual", False)
-            apply_scaled_styles(app, auto_scale)
+            apply_scaled_styles(app, auto_scale, immediate=True)
             window = self.window()
             if window is not None:
                 window.updateGeometry()

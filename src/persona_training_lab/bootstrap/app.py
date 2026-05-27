@@ -16,7 +16,7 @@ def main() -> int:
     prefs = container.style_vm.load()
     density = apply_density(app, prefs.get("ui_scale"))
     apply_theme(app, prefs.get("theme"), prefs.get("accent_palette"))
-    apply_scaled_styles(app, density.scale)
+    apply_scaled_styles(app, density.scale, immediate=True)
 
     window = MainWindow(
         shell_vm=container.shell_vm,
