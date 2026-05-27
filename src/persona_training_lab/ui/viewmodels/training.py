@@ -11,6 +11,16 @@ from persona_training_lab.application.training.service import (
 )
 
 
+TRAINING_ERROR_MESSAGES = {
+    "Training backend не подключён",
+    "Модель не найдена",
+    "Artifact не создан",
+    "Не удалось выполнить training step",
+    "Недостаточно ресурсов для full fine-tune",
+    "Marker response не подтверждён",
+}
+
+
 @dataclass(slots=True, frozen=True)
 class TrainingMetric:
     title: str
@@ -72,9 +82,7 @@ class TrainingViewModel:
         PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
     )
     versions_status_message: str = "Версии личности пока не созданы"
-    logs: tuple[str, ...] = (
-        "[—] Обучение пока не запускалось",
-    )
+    logs: tuple[str, ...] = ("[—] Обучение пока не запускалось",)
     monitor_rows: tuple[tuple[str, int, str], ...] = (
         ("Нагрузка GPU", 0, "нет активного запуска"),
         ("Видеопамять", 0, "нет активного запуска"),
@@ -91,8 +99,7 @@ class TrainingViewModel:
     inference_prompt: str = "MIA_SENTINEL_FT_TEST_001"
     inference_response: str = ""
     inference_in_progress: bool = False
-    marker_in_progress: bool = False
-    marker_artifact_path: str = ""
+    artifact_path: str = ""
     creation_message: str = ""
     profile_choices: tuple[TrainingProfileChoice, ...] = ()
     dataset_choices: tuple[TrainingDatasetChoice, ...] = ()
@@ -113,6 +120,12 @@ class TrainingViewModel:
             return
         self.local_model_name = self.local_model_service.model_name
         self.local_model_path = self.local_model_service.model_path
+
+    def _latest_run(self):
+        if self.training_service is None:
+            return None
+        runs = self.training_service.list_training_runs()
+        return runs[0] if runs else None
 
     def _apply_training_connector(self) -> None:
         if self.training_service is None:
@@ -139,6 +152,10 @@ class TrainingViewModel:
         if not runs:
             self.title = "Обучение"
             self.subtitle = "Обучение пока не запускалось"
+            self.current_run_id = ""
+            self.can_start_run = False
+            self.training_in_progress = False
+            self.artifact_path = ""
             self.checkpoints = (
                 CheckpointView("Чекпоинты и версии личности", "Чекпоинты и версии личности пока не созданы"),
             )
@@ -151,11 +168,15 @@ class TrainingViewModel:
         self.status = current.status
         self.can_start_run = current.status == "Готов к запуску"
         self.training_in_progress = current.status == "Выполняется"
+        self.artifact_path = current.artifact_path
         try:
             self.progress_value = max(0, min(100, int(float(current.progress) * 100)))
         except Exception:
             self.progress_value = 0
-        self.progress_note = f"Прогресс обучения · {self.progress_value}% | эпоха {current.epoch_progress}" if current.progress else "Прогресс обучения · ожидание метрики"
+        self.progress_note = (
+            f"Прогресс обучения · {self.progress_value}% | эпоха {current.epoch_progress}"
+            if current.progress else "Прогресс обучения · ожидание метрики"
+        )
         self.selected_objects = (
             ("Базовая модель", current.base_model),
             ("Профиль", current.profile),
@@ -169,9 +190,16 @@ class TrainingViewModel:
             TrainingMetric("Чекпоинты", current.checkpoints_count, "статус из реестра запусков"),
         )
         checkpoints_count = int(current.checkpoints_count) if current.checkpoints_count.isdigit() else 0
-        self.checkpoints = tuple(
+        checkpoint_rows = [
             CheckpointView(f"chk_{idx + 1:03d}", "из реестра запуска", highlighted=idx == checkpoints_count - 1)
-            for idx in range(max(1, checkpoints_count))
+            for idx in range(max(0, checkpoints_count))
+        ]
+        if current.artifact_path:
+            checkpoint_rows.append(
+                CheckpointView("model artifact", current.artifact_path, highlighted=current.status == "Завершено")
+            )
+        self.checkpoints = tuple(checkpoint_rows) if checkpoint_rows else (
+            CheckpointView("Чекпоинты и версии личности", "Чекпоинты и версии личности пока не созданы"),
         )
         repo_logs = self.training_service.list_training_run_logs(current.run_id)
         self.logs = tuple(repo_logs) if repo_logs else (
@@ -197,14 +225,12 @@ class TrainingViewModel:
                 PersonalityVersionView("Ошибка загрузки", "ошибка", "Не удалось загрузить версии личности"),
             )
             return
-
         if not versions:
             self.versions_status_message = "Версии личности пока не созданы"
             self.personality_versions = (
                 PersonalityVersionView("Ожидание версий", "пусто", "Версии личности пока не созданы"),
             )
             return
-
         self.versions_status_message = ""
         self.personality_versions = tuple(
             PersonalityVersionView(
@@ -220,7 +246,6 @@ class TrainingViewModel:
             self.profile_choices = ()
             self.dataset_choices = ()
             return
-
         try:
             profiles = self.training_service.list_profile_options()
         except Exception:
@@ -278,11 +303,6 @@ class TrainingViewModel:
             return False, self.creation_message
 
         self.creation_message = "Запуск обучения создан"
-        final_message = self.creation_message
-        if final_message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
-            self.creation_message = final_message
-            self.refresh()
-            return False, final_message
         self.refresh()
         return True, self.creation_message
 
@@ -295,7 +315,6 @@ class TrainingViewModel:
             self.local_model_status = "Не удалось проверить модель"
             self.local_model_note = "Сервис локальной модели не подключён."
             return
-
         try:
             result = self.local_model_service.probe_model_files()
             self.local_model_status = result.status
@@ -328,6 +347,30 @@ class TrainingViewModel:
         self.local_inference_status = status
         self.inference_response = response
 
+    def _publish_latest_completed_run(self) -> None:
+        if self.training_service is None or self.model_versions_service is None:
+            return
+        try:
+            current = self._latest_run()
+        except Exception:
+            return
+        if current is None or current.status != "Завершено" or not current.artifact_path:
+            return
+        try:
+            created = self.model_versions_service.create_from_training_run(
+                training_run_id=current.run_id,
+                base_model=current.base_model,
+                profile_title=current.profile,
+                dataset_title=current.dataset_version,
+                artifact_path=current.artifact_path,
+                quality_summary=f"Full fine-tune завершён · loss {current.loss} · checkpoints {current.checkpoints_count}",
+            )
+            if created is not None:
+                logger = getattr(self.training_service, "_log", None)
+                if logger is not None:
+                    logger(current.run_id, f"Model version registered: {created.version_id}")
+        except Exception:
+            return
 
     def start_selected_training_run(self) -> tuple[bool, str]:
         if self.training_service is None or not self.current_run_id:
@@ -346,9 +389,11 @@ class TrainingViewModel:
             if logs:
                 self.logs = tuple(logs)
         final_message = message or "Запуск обучения начат"
-        if final_message in {"Training backend не подключён", "Модель не найдена", "Artifact не создан", "Не удалось выполнить training step", "Недостаточно ресурсов для full fine-tune"}:
+        if final_message in TRAINING_ERROR_MESSAGES:
             self.creation_message = final_message
             return False, final_message
+        self._publish_latest_completed_run()
+        self.refresh()
         self.creation_message = final_message
         return True, final_message
 
@@ -387,31 +432,3 @@ class TrainingViewModel:
             logs = self.training_service.list_training_run_logs(self.current_run_id)
             if logs:
                 self.logs = tuple(logs)
-
-
-    def begin_marker_finetune(self) -> bool:
-        if self.marker_in_progress or not self.current_run_id:
-            return False
-        self.marker_in_progress = True
-        self.creation_message = "Генерация marker fine-tune…"
-        return True
-
-    def run_marker_finetune_sync(self) -> tuple[str, str]:
-        if self.training_service is None or not self.current_run_id:
-            return "Не удалось запустить marker fine-tune", ""
-        return self.training_service.run_marker_finetune_smoke(self.current_run_id)
-
-    def finish_marker_finetune(self, status: str, artifact_path: str) -> None:
-        self.marker_in_progress = False
-        self.creation_message = status
-        self.marker_artifact_path = artifact_path
-        self.refresh()
-        if self.current_run_id:
-            logs = self.training_service.list_training_run_logs(self.current_run_id) if self.training_service else []
-            if logs:
-                self.logs = tuple(logs)
-
-    def verify_marker_response(self) -> tuple[bool, str]:
-        if self.inference_response.strip() == "MIA_FINE_TUNE_MARKER_OK_001":
-            return True, "Marker fine-tune завершён"
-        return False, "Marker response не подтверждён"
