@@ -53,3 +53,7 @@ class AnalysisReadRepositoryPort(Protocol):
 
 class ModelVersionsReadRepositoryPort(Protocol):
     def list_model_versions(self) -> list[dict[str, str]]: ...
+
+
+class ModelVersionsWriteRepositoryPort(Protocol):
+    def create_model_version(self, payload: dict[str, str]) -> None: ...
