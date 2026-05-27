@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from persona_training_lab.ui.density import MAX_UI_SCALE, MIN_UI_SCALE, current_scale
+from persona_training_lab.ui.density import MAX_UI_SCALE, MIN_UI_SCALE, apply_scaled_styles, current_scale
 from persona_training_lab.ui.themes.tokens import ACCENTS, THEMES
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
@@ -359,19 +359,32 @@ class Sidebar(QFrame):
         scale_title.setObjectName("CardTitle")
         self._scale_value = QLabel("")
         self._scale_value.setObjectName("TelemetryChip")
+        self._scale_toggle = QToolButton()
+        self._scale_toggle.setObjectName("ThemeToggle")
+        self._scale_toggle.setCheckable(True)
+        self._scale_toggle.setChecked(False)
+        self._scale_toggle.setText("показать")
+        self._scale_toggle.clicked.connect(self._toggle_scale_panel)
         scale_header.addWidget(scale_title)
         scale_header.addStretch(1)
         scale_header.addWidget(self._scale_value)
+        scale_header.addWidget(self._scale_toggle)
         theme_layout.addLayout(scale_header)
+
+        self._scale_wrap = QWidget()
+        self._scale_wrap.setProperty("transparentBg", True)
+        scale_layout = QVBoxLayout(self._scale_wrap)
+        scale_layout.setContentsMargins(0, 0, 0, 0)
+        scale_layout.setSpacing(8)
 
         self._scale_slider = QSlider(Qt.Horizontal)
         self._scale_slider.setRange(int(MIN_UI_SCALE * 100), int(MAX_UI_SCALE * 100))
-        self._scale_slider.setSingleStep(2)
+        self._scale_slider.setSingleStep(1)
         self._scale_slider.setPageStep(4)
         self._scale_slider.setCursor(Qt.PointingHandCursor)
-        self._scale_slider.valueChanged.connect(self._on_scale_preview)
+        self._scale_slider.valueChanged.connect(self._apply_scale_live)
         self._scale_slider.sliderReleased.connect(self._save_scale_from_slider)
-        theme_layout.addWidget(self._scale_slider)
+        scale_layout.addWidget(self._scale_slider)
 
         scale_actions = QHBoxLayout()
         self._scale_hint = QLabel("")
@@ -382,7 +395,10 @@ class Sidebar(QFrame):
         reset_scale.clicked.connect(self._reset_scale_auto)
         scale_actions.addWidget(self._scale_hint, 1)
         scale_actions.addWidget(reset_scale)
-        theme_layout.addLayout(scale_actions)
+        scale_layout.addLayout(scale_actions)
+
+        theme_layout.addWidget(self._scale_wrap)
+        self._scale_wrap.hide()
         self._sync_scale_controls()
 
         root.addWidget(self._theme_block)
@@ -453,6 +469,10 @@ class Sidebar(QFrame):
         self._theme_buttons_wrap.setVisible(checked)
         self._theme_toggle.setText("скрыть" if checked else "показать")
 
+    def _toggle_scale_panel(self, checked: bool) -> None:
+        self._scale_wrap.setVisible(checked)
+        self._scale_toggle.setText("скрыть" if checked else "показать")
+
     def _sync_scale_controls(self) -> None:
         app = QApplication.instance()
         auto_scale = current_scale()
@@ -472,29 +492,55 @@ class Sidebar(QFrame):
             except ValueError:
                 value = int(round(auto_scale * 100))
             label = f"{value}%"
-            hint = "После изменения перезапусти окно"
+            hint = "Применяется сразу"
         self._scale_slider.blockSignals(True)
         self._scale_slider.setValue(value)
         self._scale_slider.blockSignals(False)
         self._scale_value.setText(label)
         self._scale_hint.setText(hint)
 
-    def _on_scale_preview(self, value: int) -> None:
+    def _apply_scale_live(self, value: int) -> None:
+        scale = value / 100
+        app = QApplication.instance()
+        if app is not None:
+            app.setProperty("ptl_ui_scale", scale)
+            app.setProperty("ptl_ui_density", f"manual {value}%")
+            app.setProperty("ptl_ui_scale_manual", True)
+            apply_scaled_styles(app, scale)
+            window = self.window()
+            if window is not None:
+                window.updateGeometry()
+                window.update()
         self._scale_value.setText(f"{value}%")
-        self._scale_hint.setText("Сохранится после отпускания")
+        self._scale_hint.setText("Применяется сразу")
 
     def _save_scale_from_slider(self) -> None:
         value = self._scale_slider.value()
         self._style_vm.save_ui_scale(f"{value / 100:.2f}")
         self._prefs = self._style_vm.load()
         self._scale_value.setText(f"{value}%")
-        self._scale_hint.setText("Применится после перезапуска")
+        self._scale_hint.setText("Сохранено")
 
     def _reset_scale_auto(self) -> None:
+        app = QApplication.instance()
+        auto_scale = current_scale()
+        if app is not None:
+            try:
+                auto_scale = float(app.property("ptl_ui_auto_scale") or auto_scale)
+            except (TypeError, ValueError):
+                pass
+            app.setProperty("ptl_ui_scale", auto_scale)
+            app.setProperty("ptl_ui_density", "auto")
+            app.setProperty("ptl_ui_scale_manual", False)
+            apply_scaled_styles(app, auto_scale)
+            window = self.window()
+            if window is not None:
+                window.updateGeometry()
+                window.update()
         self._style_vm.save_ui_scale("auto")
         self._prefs = self._style_vm.load()
         self._sync_scale_controls()
-        self._scale_hint.setText("Авто применится после перезапуска")
+        self._scale_hint.setText("Авто включено")
 
     def _apply_theme(self, theme_key: str) -> None:
         self._style_vm.save(theme=theme_key, accent_palette=self._current_accent, button_style_preset="soft_glow")
