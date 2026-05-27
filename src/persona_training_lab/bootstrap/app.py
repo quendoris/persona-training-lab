@@ -5,7 +5,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from persona_training_lab.bootstrap.wiring import build_container
-from persona_training_lab.ui.density import apply_density
+from persona_training_lab.ui.density import apply_density, apply_scaled_styles
 from persona_training_lab.ui.shell.main_window import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
 
@@ -16,6 +16,7 @@ def main() -> int:
     prefs = container.style_vm.load()
     density = apply_density(app, prefs.get("ui_scale"))
     apply_theme(app, prefs.get("theme"), prefs.get("accent_palette"))
+    apply_scaled_styles(app, density.scale)
 
     window = MainWindow(
         shell_vm=container.shell_vm,

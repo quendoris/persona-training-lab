@@ -21,7 +21,7 @@ from persona_training_lab.ui.training.screen import TrainingScreen
 from persona_training_lab.ui.snapshots.screen import SnapshotsScreen
 from persona_training_lab.ui.tests.screen import TestsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
-from persona_training_lab.ui.density import screen_density, scaled
+from persona_training_lab.ui.density import apply_scaled_styles, current_scale, screen_density, scaled
 from persona_training_lab.ui.themes.manager import apply_theme
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
