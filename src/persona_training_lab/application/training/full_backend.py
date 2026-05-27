@@ -25,9 +25,11 @@ def _token_ids(tokenizer, text: str) -> list[int]:
         return tokenizer(text)["input_ids"]
 
 
-def _example(tokenizer, prefix: str, answer: str, max_length: int = 256) -> dict[str, list[int]]:
+def _example(tokenizer, prefix: str, answer: str, max_length: int = 256) -> dict[str, object]:
+    eos = tokenizer.eos_token or ""
+    full_text = prefix + answer + eos
     prefix_ids = _token_ids(tokenizer, prefix)
-    answer_ids = _token_ids(tokenizer, answer + (tokenizer.eos_token or ""))
+    answer_ids = _token_ids(tokenizer, answer + eos)
     ids = (prefix_ids + answer_ids)[:max_length]
     split = min(len(prefix_ids), len(ids))
     if split >= len(ids):
@@ -36,22 +38,26 @@ def _example(tokenizer, prefix: str, answer: str, max_length: int = 256) -> dict
         "input_ids": ids,
         "attention_mask": [1] * len(ids),
         "labels": [-100] * split + ids[split:],
+        "prompt_prefix": prefix,
+        "full_text": full_text,
     }
 
 
 def build_full_finetune_example(tokenizer, prompt: str, response: str, max_length: int = 256) -> dict[str, object]:
-    item = _example(tokenizer, f"Prompt: {prompt}\nResponse:", f" {response}", max_length)
-    return dict(item)
+    return _example(tokenizer, f"Prompt: {prompt}\nResponse:", f" {response}", max_length)
 
 
-def _batch(items: list[dict[str, list[int]]], pad: int) -> dict[str, list[list[int]]]:
+def _batch(items: list[dict[str, object]], pad: int) -> dict[str, list[list[int]]]:
     width = max(len(item["input_ids"]) for item in items)
     out = {"input_ids": [], "attention_mask": [], "labels": []}
     for item in items:
-        n = width - len(item["input_ids"])
-        out["input_ids"].append(item["input_ids"] + [pad] * n)
-        out["attention_mask"].append(item["attention_mask"] + [0] * n)
-        out["labels"].append(item["labels"] + [-100] * n)
+        ids = list(item["input_ids"])
+        mask = list(item["attention_mask"])
+        labels = list(item["labels"])
+        n = width - len(ids)
+        out["input_ids"].append(ids + [pad] * n)
+        out["attention_mask"].append(mask + [0] * n)
+        out["labels"].append(labels + [-100] * n)
     return out
 
 
