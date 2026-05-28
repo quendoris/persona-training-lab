@@ -6,9 +6,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from persona_training_lab.application.ports.repositories import (
-    DatasetsReadRepositoryPort,
-)
+from persona_training_lab.application.ports.repositories import DatasetsReadRepositoryPort
 
 
 @dataclass(slots=True, frozen=True)
@@ -36,28 +34,20 @@ class DatasetValidationResult:
     errors_preview: tuple[str, ...]
 
 
+@dataclass(slots=True, frozen=True)
+class DatasetPreviewRecord:
+    row_id: str
+    input_summary: str
+    traits: str
+    quality: str
+
+
 @dataclass(slots=True)
 class DatasetsService:
     datasets_repo: DatasetsReadRepositoryPort
 
     def list_datasets(self) -> list[DatasetSummary]:
-        rows = self.datasets_repo.list_datasets()
-        return [
-            DatasetSummary(
-                dataset_id=str(row.get("dataset_id", "")),
-                title=str(row.get("title", "")),
-                subtitle=str(row.get("subtitle", "")),
-                status=str(row.get("status", "")),
-                record_count=int(row.get("record_count", 0)),
-                valid_count=int(row.get("valid_count", 0)),
-                invalid_count=int(row.get("invalid_count", 0)),
-                quality_summary=str(row.get("quality_summary", "")),
-                validation_errors_preview=str(row.get("validation_errors_preview", "")),
-                path=str(row.get("path", "")),
-                format=str(row.get("format", "jsonl")),
-            )
-            for row in rows
-        ]
+        return [self._row_to_summary(row) for row in self.datasets_repo.list_datasets()]
 
     def add_dataset_from_path(self, file_path: str) -> DatasetSummary:
         path = Path(file_path)
@@ -68,26 +58,26 @@ class DatasetsService:
 
         now = datetime.now(timezone.utc).isoformat()
         dataset_id = f"ds_{uuid4().hex[:8]}"
-        payload: dict[str, str | int] = {
-            "id": dataset_id,
-            "title": path.stem,
-            "subtitle": "Локальный JSONL датасет",
-            "path": str(path),
-            "format": "jsonl",
-            "status": "Не проверен",
-            "record_count": 0,
-            "valid_count": 0,
-            "invalid_count": 0,
-            "quality_summary": "Не проверен",
-            "validation_errors_preview": "",
-            "linked_profile": "—",
-            "readiness": "Ожидает проверку",
-            "schema_name": "jsonl_finetune_v1",
-            "created_at": now,
-            "updated_at": now,
-        }
-        self.datasets_repo.add_dataset(payload)
-
+        self.datasets_repo.add_dataset(
+            {
+                "id": dataset_id,
+                "title": path.stem,
+                "subtitle": "Локальный JSONL датасет",
+                "path": str(path),
+                "format": "jsonl",
+                "status": "Не проверен",
+                "record_count": 0,
+                "valid_count": 0,
+                "invalid_count": 0,
+                "quality_summary": "Автопроверка смотрит только структуру JSONL и обязательные поля. Смысл утверждает автор.",
+                "validation_errors_preview": "",
+                "linked_profile": "—",
+                "readiness": "Ожидает проверку",
+                "schema_name": "jsonl_finetune_v1",
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
         created = self.datasets_repo.get_dataset(dataset_id)
         if created is None:
             raise RuntimeError("Не удалось сохранить датасет")
@@ -97,11 +87,13 @@ class DatasetsService:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
             raise ValueError("Датасет не найден")
-
-        path = str(row.get("path", ""))
-        result = self._validate_jsonl_path(path)
+        result = self._validate_jsonl_path(str(row.get("path", "")))
         now = datetime.now(timezone.utc).isoformat()
-        summary = f"Записей: {result.total_rows} · Валидных: {result.valid_rows} · Ошибок: {result.invalid_rows}"
+        summary = (
+            f"Структура OK · записей: {result.total_rows} · валидных: {result.valid_rows}. Смысл утверждает автор."
+            if result.status == "Готов к обучению"
+            else f"Ошибка структуры · записей: {result.total_rows} · ошибок: {result.invalid_rows}"
+        )
         self.datasets_repo.update_dataset_validation(
             dataset_id,
             {
@@ -116,33 +108,34 @@ class DatasetsService:
         )
         return result
 
+    def approve_dataset(self, dataset_id: str) -> tuple[bool, str]:
+        result = self.validate_dataset(dataset_id)
+        if result.status != "Готов к обучению":
+            return False, "Нельзя одобрить: сначала исправьте структурные ошибки JSONL"
+        return True, "Датасет одобрен для обучения: структура валидна, смысл утверждён автором"
+
+    def compare_dataset_versions(self, dataset_id: str) -> tuple[bool, str]:
+        if self.datasets_repo.get_dataset(dataset_id) is None:
+            return False, "Датасет не найден"
+        return False, "Сравнение версий появится после поддержки нескольких версий одного датасета"
+
+    def preview_dataset(self, dataset_id: str, limit: int = 25) -> tuple[DatasetPreviewRecord, ...]:
+        row = self.datasets_repo.get_dataset(dataset_id)
+        if row is None:
+            return ()
+        return self._preview_jsonl_path(str(row.get("path", "")), limit=limit)
+
     def _validate_jsonl_path(self, file_path: str) -> DatasetValidationResult:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
-            return DatasetValidationResult(
-                status="Не удалось проверить датасет",
-                total_rows=0,
-                valid_rows=0,
-                invalid_rows=0,
-                warning_count=0,
-                errors_preview=("строка 0: файл датасета не найден",),
-            )
+            return DatasetValidationResult("Не удалось проверить датасет", 0, 0, 0, 0, ("строка 0: файл датасета не найден",))
         if path.suffix.lower() != ".jsonl":
-            return DatasetValidationResult(
-                status="Ошибка структуры",
-                total_rows=0,
-                valid_rows=0,
-                invalid_rows=1,
-                warning_count=0,
-                errors_preview=("строка 0: поддерживается только формат .jsonl",),
-            )
+            return DatasetValidationResult("Ошибка структуры", 0, 0, 1, 0, ("строка 0: поддерживается только формат .jsonl",))
 
         total_rows = 0
         valid_rows = 0
         invalid_rows = 0
-        warning_count = 0
         errors: list[str] = []
-
         with path.open("r", encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, start=1):
                 line = raw.strip()
@@ -153,40 +146,29 @@ class DatasetsService:
                     payload = json.loads(line)
                 except json.JSONDecodeError:
                     invalid_rows += 1
-                    if len(errors) < 5:
+                    if len(errors) < 8:
                         errors.append(f"строка {line_number}: невалидный JSON")
                     continue
-
                 ok, message = self._validate_record(payload)
                 if ok:
                     valid_rows += 1
                 else:
                     invalid_rows += 1
-                    if len(errors) < 5:
+                    if len(errors) < 8:
                         errors.append(f"строка {line_number}: {message}")
 
-        if valid_rows == 0:
+        if total_rows == 0:
             status = "Ошибка структуры"
-            if total_rows == 0 and len(errors) < 5:
-                errors.append("строка 0: файл не содержит валидных записей")
+            errors.append("строка 0: файл не содержит записей")
         elif invalid_rows > 0:
-            status = "Есть предупреждения"
+            status = "Ошибка структуры"
         else:
             status = "Готов к обучению"
-
-        return DatasetValidationResult(
-            status=status,
-            total_rows=total_rows,
-            valid_rows=valid_rows,
-            invalid_rows=invalid_rows,
-            warning_count=warning_count,
-            errors_preview=tuple(errors[:5]),
-        )
+        return DatasetValidationResult(status, total_rows, valid_rows, invalid_rows, 0, tuple(errors[:8]))
 
     def _validate_record(self, payload: object) -> tuple[bool, str]:
         if not isinstance(payload, dict):
             return False, "запись должна быть объектом"
-
         if "messages" in payload:
             messages = payload.get("messages")
             if not isinstance(messages, list) or not messages:
@@ -202,14 +184,11 @@ class DatasetsService:
                     return False, "role должен быть непустой строкой"
                 if not isinstance(content, str) or not content.strip():
                     return False, "content должен быть непустой строкой"
-                if role == "user":
-                    has_user = True
-                if role == "assistant":
-                    has_assistant = True
+                has_user = has_user or role == "user"
+                has_assistant = has_assistant or role == "assistant"
             if not has_user or not has_assistant:
                 return False, "messages должен содержать user и assistant"
             return True, "ok"
-
         if "instruction" in payload or "output" in payload:
             instruction = payload.get("instruction")
             output = payload.get("output")
@@ -221,7 +200,6 @@ class DatasetsService:
             if not isinstance(input_field, str):
                 return False, "input должен быть строкой"
             return True, "ok"
-
         if "prompt" in payload or "response" in payload:
             prompt = payload.get("prompt")
             response = payload.get("response")
@@ -230,8 +208,59 @@ class DatasetsService:
             if not isinstance(response, str) or not response.strip():
                 return False, "response должен быть непустой строкой"
             return True, "ok"
+        return False, "поддерживаются схемы messages, instruction/output или prompt/response"
 
-        return False, "неподдерживаемая схема записи"
+    def _preview_jsonl_path(self, file_path: str, limit: int) -> tuple[DatasetPreviewRecord, ...]:
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            return (DatasetPreviewRecord("—", "Файл датасета не найден", "—", "ошибка структуры"),)
+        rows: list[DatasetPreviewRecord] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line_number, raw in enumerate(handle, start=1):
+                if len(rows) >= limit:
+                    break
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    rows.append(DatasetPreviewRecord(f"#{line_number:03d}", "Невалидный JSON", "—", "ошибка структуры"))
+                    continue
+                ok, message = self._validate_record(payload)
+                if not ok:
+                    rows.append(DatasetPreviewRecord(f"#{line_number:03d}", message, "—", "ошибка структуры"))
+                    continue
+                rows.append(self._preview_record(line_number, payload))
+        return tuple(rows) if rows else (DatasetPreviewRecord("—", "Файл не содержит записей", "—", "ошибка структуры"),)
+
+    def _preview_record(self, line_number: int, payload: dict[str, object]) -> DatasetPreviewRecord:
+        if "messages" in payload:
+            messages = payload.get("messages") or []
+            user_text = ""
+            assistant_text = ""
+            if isinstance(messages, list):
+                for item in messages:
+                    if not isinstance(item, dict):
+                        continue
+                    role = item.get("role")
+                    content = str(item.get("content", "")).strip()
+                    if role == "user" and not user_text:
+                        user_text = content
+                    if role == "assistant":
+                        assistant_text = content
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text or "messages"), "messages", "структура OK")
+        if "instruction" in payload or "output" in payload:
+            instruction = str(payload.get("instruction", "")).strip()
+            input_text = str(payload.get("input", "")).strip()
+            summary = instruction if not input_text else f"{instruction} · input: {input_text}"
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "структура OK")
+        prompt = str(payload.get("prompt", "")).strip()
+        return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "структура OK")
+
+    def _short(self, value: str, limit: int = 140) -> str:
+        compact = " ".join(value.split())
+        return compact if len(compact) <= limit else compact[: limit - 1] + "…"
 
     def _row_to_summary(self, row: dict[str, str | int]) -> DatasetSummary:
         return DatasetSummary(
