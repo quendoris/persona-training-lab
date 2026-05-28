@@ -68,7 +68,6 @@ class DatasetsViewModel:
             return False, str(exc)
         except Exception:
             return False, "Не удалось загрузить датасеты"
-
         self._message = f"Добавлен датасет: {created.title}"
         self._apply_datasets_connector(select_dataset_id=created.dataset_id)
         return True, self._message
@@ -76,41 +75,62 @@ class DatasetsViewModel:
     def validate_current_dataset(self) -> tuple[bool, str]:
         if self.datasets_service is None:
             return False, "Не удалось проверить датасет"
-
         dataset_id = self.current_dataset().dataset_id
         if dataset_id == "datasets_empty":
             return False, "Датасеты пока не добавлены"
-
         try:
             result = self.datasets_service.validate_dataset(dataset_id)
         except Exception:
             return False, "Не удалось проверить датасет"
-
         self._message = (
-            f"Статус: {result.status} · Записей: {result.total_rows} · "
+            f"Структура: {result.status} · Записей: {result.total_rows} · "
             f"Валидных: {result.valid_rows} · Ошибок: {result.invalid_rows}"
         )
         self._apply_datasets_connector(select_dataset_id=dataset_id)
-        return True, self._message
+        return result.status == "Готов к обучению", self._message
+
+    def approve_current_dataset(self) -> tuple[bool, str]:
+        if self.datasets_service is None:
+            return False, "Не удалось одобрить датасет"
+        dataset_id = self.current_dataset().dataset_id
+        if dataset_id == "datasets_empty":
+            return False, "Датасеты пока не добавлены"
+        try:
+            ok, message = self.datasets_service.approve_dataset(dataset_id)
+        except Exception:
+            return False, "Не удалось одобрить датасет"
+        self._message = message
+        self._apply_datasets_connector(select_dataset_id=dataset_id)
+        return ok, message
+
+    def compare_current_versions(self) -> tuple[bool, str]:
+        if self.datasets_service is None:
+            return False, "Не удалось сравнить версии"
+        dataset_id = self.current_dataset().dataset_id
+        if dataset_id == "datasets_empty":
+            return False, "Датасеты пока не добавлены"
+        try:
+            ok, message = self.datasets_service.compare_dataset_versions(dataset_id)
+        except Exception:
+            return False, "Не удалось сравнить версии"
+        self._message = message
+        return ok, message
 
     def _apply_datasets_connector(self, select_dataset_id: str | None = None) -> None:
         if self.datasets_service is None:
             self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
             self._set_current_from_first()
             return
-
         try:
             summaries = self.datasets_service.list_datasets()
         except Exception:
             self._datasets = (self._empty_dataset_view("Не удалось загрузить датасеты"),)
             self._set_current_from_first()
             return
-
         if not summaries:
             self._datasets = (self._empty_dataset_view("Датасеты пока не добавлены"),)
             self._set_current_from_first()
             return
-
         self._datasets = tuple(self._map_summary(summary) for summary in summaries)
         if select_dataset_id is not None:
             for dataset in self._datasets:
@@ -143,12 +163,8 @@ class DatasetsViewModel:
                     readiness=message,
                     schema_name="jsonl_finetune_v1",
                     validation_errors_preview="",
-                    preview_rows=(
-                        DatasetPreviewRow("—", message, "—", "—"),
-                    ),
-                    validation_signals=(
-                        ValidationSignal("Состояние реестра", message, "note"),
-                    ),
+                    preview_rows=(DatasetPreviewRow("—", message, "—", "—"),),
+                    validation_signals=(ValidationSignal("Состояние реестра", message, "note"),),
                 ),
             ),
         )
@@ -165,14 +181,19 @@ class DatasetsViewModel:
         errors_preview = getattr(summary, "validation_errors_preview", "")
         format_name = getattr(summary, "format", "jsonl")
 
-        state = "ok" if status == "Готов к обучению" else "warning" if status in {"Есть предупреждения", "Ошибка структуры", "Не удалось проверить датасет"} else "note"
+        state = "ok" if status == "Готов к обучению" else "warning" if status in {"Ошибка структуры", "Не удалось проверить датасет"} else "note"
         signals = [
-            ValidationSignal("Итог проверки", f"Статус: {status}", state),
-            ValidationSignal("Сводка", f"Записей: {record_count} · Валидных: {valid_count} · Ошибок: {invalid_count}", "note"),
+            ValidationSignal("Структурная проверка", f"Статус: {status}", state),
+            ValidationSignal("Счётчики", f"Записей: {record_count} · Валидных: {valid_count} · Ошибок: {invalid_count}", "note"),
+            ValidationSignal("Граница ответственности", "Автопроверка не оценивает смысл, стиль и полезность примеров. Это утверждает автор датасета.", "note"),
         ]
         if errors_preview:
-            first_error = errors_preview.splitlines()[0]
-            signals.append(ValidationSignal("Ошибка структуры", first_error, "warning"))
+            for line in errors_preview.splitlines()[:4]:
+                signals.append(ValidationSignal("Ошибка структуры", line, "warning"))
+
+        preview_rows = self._preview_rows_for_dataset(dataset_id)
+        if not preview_rows:
+            preview_rows = (DatasetPreviewRow("#001", f"{title}: JSONL пока не прочитан", "—", status),)
 
         return DatasetView(
             dataset_id=dataset_id,
@@ -191,25 +212,30 @@ class DatasetsViewModel:
                     readiness=status,
                     schema_name=format_name,
                     validation_errors_preview=errors_preview,
-                    preview_rows=(
-                        DatasetPreviewRow("#001", f"{title}: выборка из JSONL", "user/assistant · prompt/response", str(valid_count)),
-                    ),
+                    preview_rows=preview_rows,
                     validation_signals=tuple(signals),
                 ),
             ),
         )
 
+    def _preview_rows_for_dataset(self, dataset_id: str) -> tuple[DatasetPreviewRow, ...]:
+        if self.datasets_service is None or not dataset_id:
+            return ()
+        try:
+            rows = self.datasets_service.preview_dataset(dataset_id, limit=25)
+        except Exception:
+            return ()
+        return tuple(
+            DatasetPreviewRow(row.row_id, row.input_summary, row.traits, row.quality)
+            for row in rows
+        )
+
     def datasets(self) -> list[tuple[str, str, str, int]]:
-        result = []
-        for dataset in self._datasets:
-            active_version = dataset.versions[0]
-            result.append((dataset.dataset_id, dataset.title, active_version.status, len(dataset.versions)))
-        return result
+        return [(dataset.dataset_id, dataset.title, dataset.versions[0].status, len(dataset.versions)) for dataset in self._datasets]
 
     def select_dataset(self, dataset_id: str) -> None:
         self._current_dataset_id = dataset_id
-        dataset = self.current_dataset()
-        self._current_version_id = dataset.versions[0].version_id
+        self._current_version_id = self.current_dataset().versions[0].version_id
 
     def select_version(self, version_id: str) -> None:
         self._current_version_id = version_id
@@ -228,10 +254,7 @@ class DatasetsViewModel:
         return dataset.versions[0]
 
     def versions(self) -> list[tuple[str, str, str, int]]:
-        return [
-            (version.version_id, version.label, version.status, version.record_count)
-            for version in self.current_dataset().versions
-        ]
+        return [(version.version_id, version.label, version.status, version.record_count) for version in self.current_dataset().versions]
 
     def header_summary(self) -> tuple[str, str]:
         dataset = self.current_dataset()
@@ -253,11 +276,9 @@ class DatasetsViewModel:
     def next_step(self) -> str:
         version = self.current_version()
         if version.status == "Готов к обучению":
-            return "Датасет готов к обучению. Можно переходить к запуску тренировки."
-        if version.status == "Есть предупреждения":
-            return "Есть предупреждения. Проверьте проблемные строки перед обучением."
+            return "Датасет готов к обучению. Смысл примеров утверждён автором, можно запускать тренировку."
         if version.status == "Ошибка структуры":
-            return "Исправьте структуру JSONL и повторите проверку."
+            return "Исправьте JSONL-структуру и обязательные поля, затем повторите проверку."
         if version.status == "Не удалось проверить датасет":
             return "Проверьте путь к файлу и повторите проверку."
-        return "Добавьте файл JSONL и запустите проверку датасета."
+        return "Добавьте JSONL-файл и запустите структурную проверку."
