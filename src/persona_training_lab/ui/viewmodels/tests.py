@@ -23,70 +23,107 @@ class TestsViewModel:
     __test__ = False
 
     experiments_service: ExperimentsService | None = None
-    title: str = "Тесты · evr_psychotype_pack_04"
-    subtitle: str = "Независимая проверка snapshot после freeze и до выводов."
+    title: str = "Тесты"
+    subtitle: str = "Запустите smoke-проверку локальной модели."
     setup_rows: tuple[tuple[str, str], ...] = (
-        ("Снимок", "snp_mia_v3_candidate"),
-        ("Тест-пак", "psychotype_pack_04"),
-        ("Режим", "batched response collection"),
-        ("Покрытие", "traits · contradiction · stress"),
+        ("Цель", "Проверка ответа локальной модели"),
+        ("Режим", "smoke inference pack"),
+        ("Снимок", "последний зарегистрированный, если есть"),
+        ("Оценка", "структурная: ответ получен / ошибка"),
     )
     metrics: tuple[EvaluationMetric, ...] = (
-        EvaluationMetric("Совпадение профиля", "0.87", "близко к целевому профилю"),
-        EvaluationMetric("Стабильность", "0.81", "хорошо держится под перефразами"),
-        EvaluationMetric("Согласованность", "0.79", "ядро держится без сильных провалов"),
-        EvaluationMetric("Противоречия", "0.11", "низко, но есть кейсы на ручной просмотр"),
+        EvaluationMetric("Запусков", "0", "тесты пока не запускались"),
+        EvaluationMetric("Последний статус", "—", "нет результата"),
+        EvaluationMetric("Ответы", "—", "нет результата"),
+        EvaluationMetric("Ошибки", "—", "нет результата"),
     )
     problematic_cases: tuple[EvaluationCase, ...] = (
-        EvaluationCase("Кейс #14", "под моральным давлением ответ сместился в мягкость вместо твёрдой границы"),
-        EvaluationCase("Кейс #22", "тепло осталось высоким, но boundary-setting стало слишком мягким"),
-        EvaluationCase("Кейс #31", "обнаружено одно противоречие между парой перефразированных сценариев"),
+        EvaluationCase("Тесты пока не запускались", "Нажмите «Запустить проверку», чтобы получить реальные ответы модели."),
     )
     context_rows: tuple[str, ...] = (
-        "Статус снимка · протестирован",
-        "Тип пакета · psychotype + stress",
-        "Сбор ответов · завершён",
-        "Режим review · доступен",
+        "Smoke-проверка не оценивает смысл ответа",
+        "Цель: убедиться, что модель загружается и отвечает",
     )
+    run_in_progress: bool = False
 
     def __post_init__(self) -> None:
+        self.refresh()
+
+    def refresh(self) -> None:
         self._apply_tests_connector()
 
     def _apply_tests_connector(self) -> None:
         if self.experiments_service is None:
+            self.title = "Тесты"
+            self.subtitle = "Сервис тестов не подключён"
+            self.problematic_cases = (EvaluationCase("Сервис тестов не подключён", "Проверьте wiring приложения."),)
             return
         try:
             scenarios = self.experiments_service.list_experiments()
         except Exception:
             self.title = "Тесты"
             self.subtitle = "Не удалось загрузить тесты"
-            self.problematic_cases = (
-                EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),
-            )
-            self.context_rows = (
-                "Проверка устойчивости, поведения и сохранения характера",
-            )
+            self.problematic_cases = (EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),)
+            self.context_rows = ("Проверка устойчивости, поведения и сохранения характера",)
             return
 
         if not scenarios:
             self.title = "Тесты"
-            self.subtitle = "Тесты пока не созданы"
+            self.subtitle = "Тесты пока не запускались"
+            self.metrics = (
+                EvaluationMetric("Запусков", "0", "тесты пока не запускались"),
+                EvaluationMetric("Последний статус", "—", "нет результата"),
+                EvaluationMetric("Ответы", "—", "нет результата"),
+                EvaluationMetric("Ошибки", "—", "нет результата"),
+            )
             self.problematic_cases = (
-                EvaluationCase("Тесты пока не созданы", "Сценарии проверки личности появятся после добавления записей."),
+                EvaluationCase("Тесты пока не запускались", "Нажмите «Запустить проверку», чтобы получить реальные ответы модели."),
             )
             self.context_rows = (
-                "Сценарии проверки личности",
-                "Проверка устойчивости, поведения и сохранения характера",
+                "Smoke-проверка локальной модели",
+                "Проверяется факт загрузки и генерации ответа",
+                "Смысл ответа разбирается вручную позже",
             )
             return
 
-        self.title = f"Тесты · {scenarios[0].title}"
-        self.subtitle = "Сценарии проверки личности"
+        latest = scenarios[0]
+        lines = [line for line in latest.subtitle.splitlines() if line.strip()]
+        summary = lines[0] if lines else latest.subtitle
+        answer_lines = lines[1:] if len(lines) > 1 else (latest.subtitle,)
+        failures = 0 if latest.status == "Пройден" else 1
+        self.title = f"Тесты · {latest.title}"
+        self.subtitle = summary
+        self.metrics = (
+            EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые smoke test runs"),
+            EvaluationMetric("Последний статус", latest.status, "последний сохранённый запуск"),
+            EvaluationMetric("Ответы", summary.split(" ")[0] if summary else "—", "получено ответов"),
+            EvaluationMetric("Ошибки", str(failures), "структурные ошибки запуска"),
+        )
         self.problematic_cases = tuple(
-            EvaluationCase(item.title, item.subtitle)
-            for item in scenarios
-        )
+            EvaluationCase(f"Ответ {idx + 1}", line)
+            for idx, line in enumerate(answer_lines[:12])
+        ) or (EvaluationCase("Ответы не сохранены", "Запустите проверку ещё раз."),)
         self.context_rows = (
-            "Сценарии проверки личности",
-            "Проверка устойчивости, поведения и сохранения характера",
+            f"Последний тест · {latest.experiment_id}",
+            f"Статус · {latest.status}",
+            "Smoke pack · 3 промпта",
+            "Оценка смысла не выполняется автоматически",
         )
+
+    def begin_run(self) -> bool:
+        if self.run_in_progress:
+            return False
+        self.run_in_progress = True
+        self.subtitle = "Проверка модели выполняется…"
+        return True
+
+    def run_tests_sync(self) -> tuple[bool, str]:
+        if self.experiments_service is None:
+            return False, "Сервис тестов не подключён"
+        result = self.experiments_service.run_smoke_test_pack()
+        return result.ok, result.message
+
+    def finish_run(self, _ok: bool, message: str) -> None:
+        self.run_in_progress = False
+        self.refresh()
+        self.subtitle = message
