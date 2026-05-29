@@ -112,10 +112,10 @@ class SQLiteDatasetsRepository:
         }
 
     def _readiness_from_status(self, status: str) -> str:
+        if status == "Одобрен для обучения":
+            return "Одобрен для обучения"
         if status == "Готов к обучению":
-            return "Готов к обучению"
-        if status == "Есть предупреждения":
-            return "Проверить предупреждения"
+            return "Ожидает одобрение автора"
         if status == "Ошибка структуры":
             return "Требуется исправление"
         if status == "Не удалось проверить датасет":
