@@ -60,7 +60,7 @@ class TrainingService:
     datasets_service: DatasetsService | None = None
     local_model_service: LocalModelService | None = None
     full_backend: LocalFullFineTuneBackend | None = None
-    marker_backend: Any | None = None  # legacy constructor compatibility; not used by the runtime path
+    marker_backend: Any | None = None
 
     def list_training_runs(self) -> list[TrainingRunSummary]:
         rows = self.training_repo.list_training_runs()
@@ -128,8 +128,8 @@ class TrainingService:
 
         datasets = self.list_dataset_options()
         selected_dataset = next((item for item in datasets if item.dataset_id == dataset_id), None)
-        if selected_dataset is None or selected_dataset.status != "Готов к обучению":
-            raise TrainingConfigurationError("Сначала добавьте и проверьте датасет")
+        if selected_dataset is None or selected_dataset.status != "Одобрен для обучения":
+            raise TrainingConfigurationError("Сначала добавьте, проверьте и одобрите датасет")
 
         if self.local_model_service is None:
             raise TrainingConfigurationError("Сначала проверьте локальную модель")
