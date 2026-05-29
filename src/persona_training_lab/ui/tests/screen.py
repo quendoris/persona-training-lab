@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -18,6 +18,18 @@ from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 
 
+class _TestsWorker(QObject):
+    finished = Signal(bool, str)
+
+    def __init__(self, vm: TestsViewModel) -> None:
+        super().__init__()
+        self._vm = vm
+
+    def run(self) -> None:
+        ok, message = self._vm.run_tests_sync()
+        self.finished.emit(ok, message)
+
+
 def _stable_scroll_shell(min_height: int = 340, *, shell_margins: tuple[int, int, int, int] = (14, 14, 14, 14), spacing: int = 10) -> tuple[QScrollArea, QVBoxLayout]:
     scroll = QScrollArea()
     scroll.setObjectName("StableScrollArea")
@@ -30,7 +42,6 @@ def _stable_scroll_shell(min_height: int = 340, *, shell_margins: tuple[int, int
 
     outer = QFrame()
     outer.setObjectName("StableScrollShell")
-
     outer_layout = QVBoxLayout(outer)
     outer_layout.setContentsMargins(*shell_margins)
     outer_layout.setSpacing(0)
@@ -59,6 +70,8 @@ class TestsScreen(QWidget):
     def __init__(self, view_model: TestsViewModel) -> None:
         super().__init__()
         self._vm = view_model
+        self._tests_thread: QThread | None = None
+        self._tests_worker: _TestsWorker | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -70,12 +83,12 @@ class TestsScreen(QWidget):
         hl.setContentsMargins(22, 20, 22, 20)
         hl.setSpacing(8)
 
-        title = QLabel(self._vm.title)
-        title.setObjectName("ScreenTitle")
-        subtitle = make_muted_label(self._vm.subtitle)
+        self._title = QLabel(self._vm.title)
+        self._title.setObjectName("ScreenTitle")
+        self._subtitle = make_muted_label(self._vm.subtitle)
 
-        hl.addWidget(title)
-        hl.addWidget(subtitle)
+        hl.addWidget(self._title)
+        hl.addWidget(self._subtitle)
         root.addWidget(header)
 
         actions = QFrame()
@@ -84,11 +97,21 @@ class TestsScreen(QWidget):
         al.setContentsMargins(18, 14, 18, 14)
         al.setSpacing(10)
 
-        for index, text in enumerate(["Запустить проверку", "Открыть анализ", "Разобрать кейсы"]):
-            btn = QPushButton(text)
-            if index:
-                btn.setObjectName("SecondaryButton")
-            al.addWidget(btn)
+        self._run_btn = QPushButton("Запустить проверку")
+        self._run_btn.clicked.connect(self._on_run_tests)
+        al.addWidget(self._run_btn)
+
+        self._open_analysis_btn = QPushButton("Открыть анализ")
+        self._open_analysis_btn.setObjectName("SecondaryButton")
+        self._open_analysis_btn.setEnabled(False)
+        self._open_analysis_btn.setToolTip("Переход в анализ подключим после живой вкладки анализа")
+        al.addWidget(self._open_analysis_btn)
+
+        self._review_cases_btn = QPushButton("Разобрать кейсы")
+        self._review_cases_btn.setObjectName("SecondaryButton")
+        self._review_cases_btn.setEnabled(False)
+        self._review_cases_btn.setToolTip("Ручной разбор кейсов появится после сохранения расширенных результатов")
+        al.addWidget(self._review_cases_btn)
 
         al.addStretch(1)
         root.addWidget(actions)
@@ -97,108 +120,142 @@ class TestsScreen(QWidget):
         body.setSpacing(16)
         root.addLayout(body, 1)
 
-        # Левый блок: контекст проверки
-        left = PanelCard("Контекст проверки", "Мы тестируем snapshot, а не training run напрямую.")
-        setup_scroll, setup_layout = _stable_scroll_shell(340)
-
-        for key, value in self._vm.setup_rows:
-            row = QFrame()
-            row.setObjectName("PanelCardSoft")
-
-            rl = QHBoxLayout(row)
-            rl.setContentsMargins(12, 10, 12, 10)
-            rl.setSpacing(10)
-
-            rl.addWidget(make_muted_label(key))
-            rl.addStretch(1)
-            rl.addWidget(QLabel(value), 0, Qt.AlignRight)
-
-            setup_layout.addWidget(row)
-
-        setup_layout.addStretch(1)
-        left.add_widget(setup_scroll)
+        left = PanelCard("Контекст проверки", "Smoke-тест локальной модели, а не оценка личности.")
+        self._setup_scroll, self._setup_layout = _stable_scroll_shell(340)
+        left.add_widget(self._setup_scroll)
         body.addWidget(left, 2)
 
-        # Центр
         center = QVBoxLayout()
         center.setSpacing(16)
         body.addLayout(center, 4)
 
-        metrics = PanelCard("Результат проверки", "Метрики должны быть понятны ещё до глубокого анализа.")
+        metrics = PanelCard("Результат проверки", "Метрики показывают факт запуска и ответа модели.")
         metrics_grid_wrap = QWidget()
         metrics_grid_wrap.setProperty("transparentBg", True)
-        grid = QGridLayout(metrics_grid_wrap)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(12)
-
-        for idx, metric in enumerate(self._vm.metrics):
-            card = QFrame()
-            card.setObjectName("PanelCardSoft")
-
-            cl = QVBoxLayout(card)
-            cl.setContentsMargins(14, 12, 14, 12)
-            cl.setSpacing(8)
-
-            t = QLabel(metric.title)
-            t.setObjectName("CardTitle")
-
-            v = QLabel(metric.value)
-            v.setObjectName("MetricValue")
-
-            n = make_muted_label(metric.note)
-
-            cl.addWidget(t)
-            cl.addWidget(v)
-            cl.addWidget(n)
-
-            grid.addWidget(card, idx // 2, idx % 2)
-
+        self._metrics_grid = QGridLayout(metrics_grid_wrap)
+        self._metrics_grid.setContentsMargins(0, 0, 0, 0)
+        self._metrics_grid.setSpacing(12)
         metrics.add_widget(metrics_grid_wrap)
         center.addWidget(metrics)
 
-        # Проблемные кейсы
-        cases = PanelCard("Проблемные кейсы", "Не только score, но и места, где нужно посмотреть руками.")
-        case_scroll, case_layout = _stable_scroll_shell(340)
+        cases = PanelCard("Ответы модели", "Сырые smoke-ответы для ручного просмотра.")
+        self._case_scroll, self._case_layout = _stable_scroll_shell(340)
+        cases.add_widget(self._case_scroll)
+        center.addWidget(cases, 1)
 
+        right = PanelCard("Контекст результата", "Контекст помогает читать smoke-проверку правильно.")
+        self._right_scroll, self._right_layout = _stable_scroll_shell(340, shell_margins=(0, 6, 0, 6), spacing=8)
+        right.add_widget(self._right_scroll)
+        body.addWidget(right, 2)
+        self._refresh_all()
+
+    def _clear_layout(self, layout: QVBoxLayout | QGridLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _refresh_header(self) -> None:
+        self._title.setText(self._vm.title)
+        self._subtitle.setText(self._vm.subtitle)
+        self._run_btn.setEnabled(not self._vm.run_in_progress)
+        self._run_btn.setText("Выполняется…" if self._vm.run_in_progress else "Запустить проверку")
+
+    def _refresh_setup(self) -> None:
+        self._clear_layout(self._setup_layout)
+        for key, value in self._vm.setup_rows:
+            row = QFrame()
+            row.setObjectName("PanelCardSoft")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(12, 10, 12, 10)
+            rl.setSpacing(10)
+            rl.addWidget(make_muted_label(key))
+            rl.addStretch(1)
+            rl.addWidget(QLabel(value), 0, Qt.AlignRight)
+            self._setup_layout.addWidget(row)
+        self._setup_layout.addStretch(1)
+
+    def _refresh_metrics(self) -> None:
+        self._clear_layout(self._metrics_grid)
+        for idx, metric in enumerate(self._vm.metrics):
+            card = QFrame()
+            card.setObjectName("PanelCardSoft")
+            cl = QVBoxLayout(card)
+            cl.setContentsMargins(14, 12, 14, 12)
+            cl.setSpacing(8)
+            t = QLabel(metric.title)
+            t.setObjectName("CardTitle")
+            v = QLabel(metric.value)
+            v.setObjectName("MetricValue")
+            n = make_muted_label(metric.note)
+            cl.addWidget(t)
+            cl.addWidget(v)
+            cl.addWidget(n)
+            self._metrics_grid.addWidget(card, idx // 2, idx % 2)
+
+    def _refresh_cases(self) -> None:
+        self._clear_layout(self._case_layout)
         for case in self._vm.problematic_cases:
             row = QFrame()
             row.setObjectName("PanelCardSoft")
-
             rl = QVBoxLayout(row)
             rl.setContentsMargins(12, 10, 12, 10)
             rl.setSpacing(6)
-
             title = QLabel(case.title)
             title.setObjectName("CardTitle")
-
             rl.addWidget(title)
             rl.addWidget(make_muted_label(case.note))
+            self._case_layout.addWidget(row)
+        self._case_layout.addStretch(1)
 
-            case_layout.addWidget(row)
-
-        case_layout.addStretch(1)
-        cases.add_widget(case_scroll)
-        center.addWidget(cases, 1)
-
-        # Правый блок: контекст результата
-        right = PanelCard("Контекст результата", "Контекст помогает читать метрики правильно.")
-        right_scroll, right_layout = _stable_scroll_shell(340, shell_margins=(0, 6, 0, 6), spacing=8)
-
+    def _refresh_context(self) -> None:
+        self._clear_layout(self._right_layout)
         for item in self._vm.context_rows:
             row = QFrame()
             row.setProperty("transparentBg", True)
-
             rl = QHBoxLayout(row)
             rl.setContentsMargins(0, 0, 0, 0)
             rl.setSpacing(0)
-
             pill = QLabel(item)
             pill.setObjectName("WorkflowPill")
             pill.setWordWrap(True)
             rl.addWidget(pill)
+            self._right_layout.addWidget(row)
+        self._right_layout.addStretch(1)
 
-            right_layout.addWidget(row)
+    def _refresh_all(self) -> None:
+        self._refresh_header()
+        self._refresh_setup()
+        self._refresh_metrics()
+        self._refresh_cases()
+        self._refresh_context()
 
-        right_layout.addStretch(1)
-        right.add_widget(right_scroll)
-        body.addWidget(right, 2)
+    def _on_run_tests(self) -> None:
+        if not self._vm.begin_run():
+            return
+        self._refresh_all()
+        self._tests_thread = QThread(self)
+        self._tests_worker = _TestsWorker(self._vm)
+        self._tests_worker.moveToThread(self._tests_thread)
+        self._tests_thread.started.connect(self._tests_worker.run)
+        self._tests_worker.finished.connect(self._on_tests_finished)
+        self._tests_worker.finished.connect(self._tests_thread.quit)
+        self._tests_worker.finished.connect(self._tests_worker.deleteLater)
+        self._tests_thread.finished.connect(self._tests_thread.deleteLater)
+        self._tests_thread.finished.connect(self._clear_worker_refs)
+        self._tests_thread.start()
+
+    def _on_tests_finished(self, ok: bool, message: str) -> None:
+        self._vm.finish_run(ok, message)
+        self._refresh_all()
+
+    def _clear_worker_refs(self) -> None:
+        self._tests_thread = None
+        self._tests_worker = None
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self._tests_thread is not None and self._tests_thread.isRunning():
+            self._tests_thread.quit()
+            self._tests_thread.wait(2000)
+        super().closeEvent(event)
