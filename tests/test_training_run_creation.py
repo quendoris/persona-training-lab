@@ -56,6 +56,8 @@ def _seed_second_profile(connection: sqlite3.Connection) -> None:
 
 
 def _seed_dataset(connection: sqlite3.Connection, *, status: str) -> None:
+    is_approved = status == "Одобрен для обучения"
+    is_ready = status in {"Готов к обучению", "Одобрен для обучения"}
     connection.execute(
         """
         INSERT INTO datasets (
@@ -72,12 +74,12 @@ def _seed_dataset(connection: sqlite3.Connection, *, status: str) -> None:
             "jsonl",
             status,
             100,
-            100 if status == "Готов к обучению" else 90,
-            0 if status == "Готов к обучению" else 10,
+            100 if is_ready else 90,
+            0 if is_ready else 10,
             "—",
             "summary",
             "",
-            status,
+            "Одобрен для обучения" if is_approved else status,
             "jsonl_finetune_v1",
             "2026-04-27T00:00:00Z",
             "2026-04-27T00:00:00Z",
@@ -99,7 +101,7 @@ def test_successful_create_training_run() -> None:
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
     _seed_profile(connection)
-    _seed_dataset(connection, status="Готов к обучению")
+    _seed_dataset(connection, status="Одобрен для обучения")
     connection.commit()
 
     service = _build_service(connection, _ReadyProbe())
@@ -126,12 +128,12 @@ def test_dataset_not_ready_configuration_error() -> None:
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
     _seed_profile(connection)
-    _seed_dataset(connection, status="Есть предупреждения")
+    _seed_dataset(connection, status="Готов к обучению")
     connection.commit()
 
     service = _build_service(connection, _ReadyProbe())
 
-    with pytest.raises(TrainingConfigurationError, match="Сначала добавьте и проверьте датасет"):
+    with pytest.raises(TrainingConfigurationError, match="Сначала добавьте, проверьте и одобрите датасет"):
         service.create_training_run(
             title="Run B",
             profile_id="prf_001",
@@ -148,7 +150,7 @@ def test_missing_model_configuration_error() -> None:
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
     _seed_profile(connection)
-    _seed_dataset(connection, status="Готов к обучению")
+    _seed_dataset(connection, status="Одобрен для обучения")
     connection.commit()
 
     service = _build_service(connection, _MissingModelProbe())
@@ -170,7 +172,7 @@ def test_invalid_hyperparameters_validation_error() -> None:
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
     _seed_profile(connection)
-    _seed_dataset(connection, status="Готов к обучению")
+    _seed_dataset(connection, status="Одобрен для обучения")
     connection.commit()
 
     service = _build_service(connection, _ReadyProbe())
@@ -223,7 +225,7 @@ def test_create_training_run_uses_selected_profile_id() -> None:
     create_minimal_schema(connection)
     _seed_profile(connection)
     _seed_second_profile(connection)
-    _seed_dataset(connection, status="Готов к обучению")
+    _seed_dataset(connection, status="Одобрен для обучения")
     connection.commit()
 
     service = _build_service(connection, _ReadyProbe())
