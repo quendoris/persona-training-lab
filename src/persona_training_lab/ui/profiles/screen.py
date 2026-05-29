@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.metrics import TraitMetricCard
-from persona_training_lab.ui.components.panels import make_muted_label
+from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
 
 
@@ -33,11 +33,14 @@ class ProfileEditorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
-        self.resize(560, 520)
+        self.resize(640, 660)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
+
+        hint = make_muted_label("Структурная проверка требует название, описание, стиль общения, принципы и ограничения. Смысл профиля задаёт автор.")
+        layout.addWidget(hint)
 
         self._title = QLineEdit(initial.get("title", ""))
         self._description = QTextEdit(initial.get("description", ""))
@@ -46,12 +49,19 @@ class ProfileEditorDialog(QDialog):
         self._constraints = QTextEdit(initial.get("constraints", ""))
         self._notes = QTextEdit(initial.get("notes", ""))
 
+        self._title.setPlaceholderText("Например: Persona core v1")
+        self._description.setPlaceholderText("Кто этот профиль и какую основу личности фиксирует")
+        self._communication_style.setPlaceholderText("Как говорить: тон, темп, прямота, обращение, эмоциональность")
+        self._principles.setPlaceholderText("Опорные принципы, каждый с новой строки")
+        self._constraints.setPlaceholderText("Что нельзя потерять или нарушить, каждый пункт с новой строки")
+        self._notes.setPlaceholderText("Необязательные заметки автора")
+
         fields = [
-            ("Название", self._title),
-            ("Краткое описание", self._description),
-            ("Стиль общения", self._communication_style),
-            ("Принципы", self._principles),
-            ("Ограничения", self._constraints),
+            ("Название *", self._title),
+            ("Краткое описание *", self._description),
+            ("Стиль общения *", self._communication_style),
+            ("Принципы *", self._principles),
+            ("Ограничения *", self._constraints),
             ("Заметки", self._notes),
         ]
         for label_text, widget in fields:
@@ -90,7 +100,7 @@ class ProfilesScreen(QWidget):
         header_layout.setSpacing(8)
         self._title = QLabel("Профили личности")
         self._title.setObjectName("ScreenTitle")
-        self._subtitle = make_muted_label("Целевые структуры personality, а не просто стилистические маски.")
+        self._subtitle = make_muted_label("Структурное ядро личности: описание, стиль, принципы и ограничения.")
         header_layout.addWidget(self._title)
         header_layout.addWidget(self._subtitle)
         root.addWidget(header)
@@ -106,7 +116,7 @@ class ProfilesScreen(QWidget):
         left.setSpacing(16)
         body.addWidget(left_container, 0)
 
-        self._profiles_card = PanelCard("Реестр профилей", "Тот самый слой, где мы закрепляем ядро личности.")
+        self._profiles_card = PanelCard("Реестр профилей", "Профили, которые можно выбирать при создании обучения.")
         controls = QHBoxLayout()
         controls.setSpacing(8)
 
@@ -137,6 +147,8 @@ class ProfilesScreen(QWidget):
         body.addLayout(center, 4)
 
         self._summary_card = PanelCard("Суть профиля", "Что мы хотим сформировать в модели и чего не хотим потерять.")
+        self._readiness_badge = make_status_label("структура")
+        self._summary_card.add_widget(self._readiness_badge)
         self._summary_text = make_muted_label("")
         self._summary_card.add_widget(self._summary_text)
         self._constraints_wrap = QVBoxLayout()
@@ -144,7 +156,7 @@ class ProfilesScreen(QWidget):
         self._summary_card._layout.addLayout(self._constraints_wrap)
         center.addWidget(self._summary_card, 0)
 
-        self._traits_card = PanelCard("Карта черт", "Черты как опорные оси, а не абстрактные слова.")
+        self._traits_card = PanelCard("Структурная готовность", "Проверяем только заполненность обязательных полей, не смысл.")
         self._traits_card.setMaximumHeight(430)
         self._traits_grid = QGridLayout()
         self._traits_grid.setSpacing(12)
@@ -197,6 +209,7 @@ class ProfilesScreen(QWidget):
     def _refresh_summary(self) -> None:
         profile = self._vm.current_profile()
         self._summary_text.setText(profile.summary)
+        self._readiness_badge.setText(profile.readiness)
         while self._constraints_wrap.count():
             item = self._constraints_wrap.takeAt(0)
             widget = item.widget()
@@ -249,9 +262,9 @@ class ProfilesScreen(QWidget):
             self._linked_layout.addWidget(row)
         profile = self._vm.current_profile()
         if profile.profile_id in {"profiles_empty", "profiles_error"}:
-            self._next_text.setText("Создайте профиль личности и затем переходите к подготовке обучения.")
+            self._next_text.setText("Создайте профиль личности, затем подготовьте и одобрите датасет.")
         else:
-            self._next_text.setText("Профиль сохранён. Теперь можно привязать датасет и создать запуск обучения.")
+            self._next_text.setText("Профиль структурно заполнен. Следующий шаг — одобрить датасет и создать запуск обучения.")
 
     def _refresh_all(self) -> None:
         self._refresh_header()
@@ -271,11 +284,10 @@ class ProfilesScreen(QWidget):
         dialog = ProfileEditorDialog(parent=self, title="Создать профиль", initial=self._vm.profile_form_data())
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        ok, _message = self._vm.create_profile(**dialog.payload())
+        ok, message = self._vm.create_profile(**dialog.payload())
         self._populate_profiles()
         self._refresh_all()
-        if not ok:
-            self._subtitle.setText(_message)
+        self._subtitle.setText(message)
 
     def _on_edit_profile(self) -> None:
         if self._vm.current_profile().profile_id in {"profiles_empty", "profiles_error"}:
@@ -283,8 +295,7 @@ class ProfilesScreen(QWidget):
         dialog = ProfileEditorDialog(parent=self, title="Редактировать профиль", initial=self._vm.profile_form_data())
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        ok, _message = self._vm.update_current_profile(**dialog.payload())
+        ok, message = self._vm.update_current_profile(**dialog.payload())
         self._populate_profiles()
         self._refresh_all()
-        if not ok:
-            self._subtitle.setText(_message)
+        self._subtitle.setText(message)
