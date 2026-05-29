@@ -29,6 +29,10 @@ class ExperimentsReadRepositoryPort(Protocol):
     def list_experiments(self) -> list[dict[str, str]]: ...
 
 
+class ExperimentsWriteRepositoryPort(Protocol):
+    def create_experiment(self, payload: dict[str, str]) -> None: ...
+
+
 class DatasetsReadRepositoryPort(Protocol):
     def list_datasets(self) -> list[dict[str, str]]: ...
 
