@@ -76,8 +76,10 @@ def test_validate_invalid_json_line_sets_structure_error(tmp_path: Path) -> None
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
-    assert result.status == "Есть предупреждения"
+    assert result.status == "Ошибка структуры"
+    assert result.valid_rows == 1
     assert result.invalid_rows == 1
+    assert "невалидный JSON" in "\n".join(result.errors_preview)
 
 
 def test_validate_empty_file_sets_structure_error(tmp_path: Path) -> None:
