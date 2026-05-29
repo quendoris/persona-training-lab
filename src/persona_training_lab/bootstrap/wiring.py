@@ -98,9 +98,13 @@ def build_container() -> AppContainer:
     agents_service = AgentsService(agents_repo=agents_repo)
     analysis_service = AnalysisService(analysis_repo=analysis_repo)
     datasets_service = DatasetsService(datasets_repo=datasets_repo)
-    experiments_service = ExperimentsService(experiments_repo=experiments_repo)
     model_versions_service = ModelVersionsService(model_versions_repo=model_versions_repo)
     local_model_service = LocalModelService(probe_provider=FilesystemLocalModelProbeProvider())
+    experiments_service = ExperimentsService(
+        experiments_repo=experiments_repo,
+        local_model_service=local_model_service,
+        model_versions_service=model_versions_service,
+    )
     training_service = TrainingService(
         training_repo=training_repo,
         profiles_service=profiles_service,
