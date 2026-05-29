@@ -88,30 +88,18 @@ class DatasetsService:
         if row is None:
             raise ValueError("Датасет не найден")
         result = self._validate_jsonl_path(str(row.get("path", "")))
-        now = datetime.now(timezone.utc).isoformat()
-        summary = (
-            f"Структура OK · записей: {result.total_rows} · валидных: {result.valid_rows}. Смысл утверждает автор."
-            if result.status == "Готов к обучению"
-            else f"Ошибка структуры · записей: {result.total_rows} · ошибок: {result.invalid_rows}"
-        )
-        self.datasets_repo.update_dataset_validation(
-            dataset_id,
-            {
-                "status": result.status,
-                "record_count": result.total_rows,
-                "valid_count": result.valid_rows,
-                "invalid_count": result.invalid_rows,
-                "quality_summary": summary,
-                "validation_errors_preview": "\n".join(result.errors_preview),
-                "updated_at": now,
-            },
-        )
+        self._save_result(dataset_id, result, approve=False)
         return result
 
     def approve_dataset(self, dataset_id: str) -> tuple[bool, str]:
-        result = self.validate_dataset(dataset_id)
+        row = self.datasets_repo.get_dataset(dataset_id)
+        if row is None:
+            raise ValueError("Датасет не найден")
+        result = self._validate_jsonl_path(str(row.get("path", "")))
         if result.status != "Готов к обучению":
+            self._save_result(dataset_id, result, approve=False)
             return False, "Нельзя одобрить: сначала исправьте структурные ошибки JSONL"
+        self._save_result(dataset_id, result, approve=True)
         return True, "Датасет одобрен для обучения: структура валидна, смысл утверждён автором"
 
     def compare_dataset_versions(self, dataset_id: str) -> tuple[bool, str]:
@@ -124,6 +112,28 @@ class DatasetsService:
         if row is None:
             return ()
         return self._preview_jsonl_path(str(row.get("path", "")), limit=limit)
+
+    def _save_result(self, dataset_id: str, result: DatasetValidationResult, *, approve: bool) -> None:
+        status = "Одобрен для обучения" if approve and result.status == "Готов к обучению" else result.status
+        now = datetime.now(timezone.utc).isoformat()
+        if status == "Одобрен для обучения":
+            summary = f"Одобрено автором · структура OK · записей: {result.total_rows} · валидных: {result.valid_rows}."
+        elif result.status == "Готов к обучению":
+            summary = f"Структура OK · записей: {result.total_rows} · валидных: {result.valid_rows}. Нажмите «Одобрить для обучения»."
+        else:
+            summary = f"Ошибка структуры · записей: {result.total_rows} · ошибок: {result.invalid_rows}"
+        self.datasets_repo.update_dataset_validation(
+            dataset_id,
+            {
+                "status": status,
+                "record_count": result.total_rows,
+                "valid_count": result.valid_rows,
+                "invalid_count": result.invalid_rows,
+                "quality_summary": summary,
+                "validation_errors_preview": "\n".join(result.errors_preview),
+                "updated_at": now,
+            },
+        )
 
     def _validate_jsonl_path(self, file_path: str) -> DatasetValidationResult:
         path = Path(file_path)
@@ -180,8 +190,8 @@ class DatasetsService:
                     return False, "элементы messages должны быть объектами"
                 role = item.get("role")
                 content = item.get("content")
-                if not isinstance(role, str) or not role.strip():
-                    return False, "role должен быть непустой строкой"
+                if role not in {"system", "user", "assistant"}:
+                    return False, "role должен быть system, user или assistant"
                 if not isinstance(content, str) or not content.strip():
                     return False, "content должен быть непустой строкой"
                 has_user = has_user or role == "user"
