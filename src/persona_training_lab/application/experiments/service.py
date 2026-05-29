@@ -10,9 +10,9 @@ from persona_training_lab.application.ports.repositories import ExperimentsReadR
 
 
 DEFAULT_TEST_PROMPTS = (
-    "Ответь коротко: SELF_TEST_ALPHA",
-    "Повтори маркер без пояснений: SELF_TEST_BETA",
-    "Сформулируй один спокойный ответ на фразу: я сомневаюсь в результате",
+    "SELF_TEST_ALPHA",
+    "SELF_TEST_BETA",
+    "Скажи одним коротким предложением, что проверка модели выполнена.",
 )
 
 
@@ -61,16 +61,17 @@ class ExperimentsService:
         failures = 0
         for index, prompt in enumerate(DEFAULT_TEST_PROMPTS, start=1):
             result = self.local_model_service.generate_smoke(prompt)
-            response = (result.response or result.message).strip()
-            if result.status != "Модель отвечает" or not response:
+            response = self._format_response(result.response or result.message)
+            if result.status != "Модель отвечает" or not response or response == "<пустой ответ>":
                 failures += 1
-            responses.append(f"#{index}: {result.status} · {prompt} → {response[:220]}")
+            responses.append(f"CASE {index}\nPROMPT: {prompt}\nSTATUS: {result.status}\nRESPONSE: {response}")
 
         versions = self.model_versions_service.list_model_versions() if self.model_versions_service is not None else []
         snapshot_note = versions[0].title if versions else "без зарегистрированного снимка"
         status = "Пройден" if failures == 0 else "Есть ошибки"
         experiment_id = f"evr_{uuid4().hex[:8]}"
-        subtitle = f"{len(DEFAULT_TEST_PROMPTS) - failures}/{len(DEFAULT_TEST_PROMPTS)} ответов · {snapshot_note}\n" + "\n".join(responses)
+        passed = len(DEFAULT_TEST_PROMPTS) - failures
+        subtitle = f"SUMMARY: {passed}/{len(DEFAULT_TEST_PROMPTS)} ответов · {snapshot_note}\n\n" + "\n\n".join(responses)
         creator = getattr(self.experiments_repo, "create_experiment", None)
         if creator is None:
             return ExperimentRunResult(False, "Хранилище тестов не поддерживает запись")
@@ -84,3 +85,9 @@ class ExperimentsService:
             }
         )
         return ExperimentRunResult(failures == 0, f"Тест завершён: {status}", experiment_id)
+
+    def _format_response(self, value: str) -> str:
+        compact = " ".join(value.replace("\x00", " ").split())
+        if not compact:
+            return "<пустой ответ>"
+        return compact if len(compact) <= 360 else compact[:359] + "…"
