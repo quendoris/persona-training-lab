@@ -51,7 +51,13 @@ class ProfilesService:
         constraints: str,
         notes: str,
     ) -> tuple[bool, str, ProfileSummary | None]:
-        valid, message = self._validate_inputs(title=title, description=description)
+        valid, message = self._validate_inputs(
+            title=title,
+            description=description,
+            communication_style=communication_style,
+            principles=principles,
+            constraints=constraints,
+        )
         if not valid:
             return False, message, None
 
@@ -102,7 +108,13 @@ class ProfilesService:
         constraints: str,
         notes: str,
     ) -> tuple[bool, str]:
-        valid, message = self._validate_inputs(title=title, description=description)
+        valid, message = self._validate_inputs(
+            title=title,
+            description=description,
+            communication_style=communication_style,
+            principles=principles,
+            constraints=constraints,
+        )
         if not valid:
             return False, message
         if not profile_id.strip():
@@ -131,11 +143,25 @@ class ProfilesService:
             return False, "Не удалось сохранить профиль личности"
         return True, "Профиль личности обновлён"
 
-    def _validate_inputs(self, *, title: str, description: str) -> tuple[bool, str]:
-        if not title.strip():
-            return False, "Название профиля не должно быть пустым"
-        if not description.strip():
-            return False, "Описание личности не должно быть пустым"
+    def _validate_inputs(
+        self,
+        *,
+        title: str,
+        description: str,
+        communication_style: str,
+        principles: str,
+        constraints: str,
+    ) -> tuple[bool, str]:
+        required_fields = (
+            (title, "Название профиля не должно быть пустым"),
+            (description, "Описание личности не должно быть пустым"),
+            (communication_style, "Стиль общения не должен быть пустым"),
+            (principles, "Принципы профиля не должны быть пустыми"),
+            (constraints, "Ограничения профиля не должны быть пустыми"),
+        )
+        for value, message in required_fields:
+            if not value.strip():
+                return False, message
         return True, ""
 
     def _normalize_text(self, value: str, max_len: int) -> str:
