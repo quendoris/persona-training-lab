@@ -64,7 +64,7 @@ class TestsViewModel:
             self.title = "Тесты"
             self.subtitle = "Не удалось загрузить тесты"
             self.problematic_cases = (EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),)
-            self.context_rows = ("Проверка устойчивости, поведения и сохранения характера",)
+            self.context_rows = ("Smoke-проверка локальной модели",)
             return
 
         if not scenarios:
@@ -87,28 +87,54 @@ class TestsViewModel:
             return
 
         latest = scenarios[0]
-        lines = [line for line in latest.subtitle.splitlines() if line.strip()]
-        summary = lines[0] if lines else latest.subtitle
-        answer_lines = lines[1:] if len(lines) > 1 else (latest.subtitle,)
+        summary, cases = self._parse_subtitle(latest.subtitle)
         failures = 0 if latest.status == "Пройден" else 1
+        answers_value = summary.split(" · ")[0].replace("SUMMARY: ", "") if summary else "—"
         self.title = f"Тесты · {latest.title}"
-        self.subtitle = summary
+        self.subtitle = summary or latest.subtitle
         self.metrics = (
             EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые smoke test runs"),
             EvaluationMetric("Последний статус", latest.status, "последний сохранённый запуск"),
-            EvaluationMetric("Ответы", summary.split(" ")[0] if summary else "—", "получено ответов"),
+            EvaluationMetric("Ответы", answers_value, "получено ответов"),
             EvaluationMetric("Ошибки", str(failures), "структурные ошибки запуска"),
         )
-        self.problematic_cases = tuple(
-            EvaluationCase(f"Ответ {idx + 1}", line)
-            for idx, line in enumerate(answer_lines[:12])
-        ) or (EvaluationCase("Ответы не сохранены", "Запустите проверку ещё раз."),)
+        self.problematic_cases = cases or (EvaluationCase("Ответы не сохранены", "Запустите проверку ещё раз."),)
         self.context_rows = (
             f"Последний тест · {latest.experiment_id}",
             f"Статус · {latest.status}",
             "Smoke pack · 3 промпта",
             "Оценка смысла не выполняется автоматически",
         )
+
+    def _parse_subtitle(self, subtitle: str) -> tuple[str, tuple[EvaluationCase, ...]]:
+        blocks = [block.strip() for block in subtitle.split("\n\n") if block.strip()]
+        if not blocks:
+            return subtitle, ()
+        summary = blocks[0]
+        cases: list[EvaluationCase] = []
+        for block in blocks[1:]:
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            if not lines:
+                continue
+            case_title = lines[0].replace("CASE ", "Ответ ")
+            prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
+            status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
+            response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
+            note_parts = []
+            if prompt:
+                note_parts.append(f"Промпт: {prompt}")
+            if status:
+                note_parts.append(f"Статус: {status}")
+            if response:
+                note_parts.append(f"Ответ: {response}")
+            cases.append(EvaluationCase(case_title, "\n".join(note_parts) if note_parts else block))
+        if cases:
+            return summary, tuple(cases)
+
+        legacy_lines = [line for line in subtitle.splitlines() if line.strip()]
+        legacy_summary = legacy_lines[0] if legacy_lines else subtitle
+        legacy_cases = tuple(EvaluationCase(f"Ответ {idx + 1}", line) for idx, line in enumerate(legacy_lines[1:12]))
+        return legacy_summary, legacy_cases
 
     def begin_run(self) -> bool:
         if self.run_in_progress:
