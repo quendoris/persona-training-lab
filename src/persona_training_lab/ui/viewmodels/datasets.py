@@ -181,12 +181,16 @@ class DatasetsViewModel:
         errors_preview = getattr(summary, "validation_errors_preview", "")
         format_name = getattr(summary, "format", "jsonl")
 
-        state = "ok" if status == "Готов к обучению" else "warning" if status in {"Ошибка структуры", "Не удалось проверить датасет"} else "note"
+        state = "ok" if status in {"Готов к обучению", "Одобрен для обучения"} else "warning" if status in {"Ошибка структуры", "Не удалось проверить датасет"} else "note"
         signals = [
             ValidationSignal("Структурная проверка", f"Статус: {status}", state),
             ValidationSignal("Счётчики", f"Записей: {record_count} · Валидных: {valid_count} · Ошибок: {invalid_count}", "note"),
             ValidationSignal("Граница ответственности", "Автопроверка не оценивает смысл, стиль и полезность примеров. Это утверждает автор датасета.", "note"),
         ]
+        if status == "Одобрен для обучения":
+            signals.append(ValidationSignal("Авторское одобрение", "Датасет разрешён для создания training run.", "ok"))
+        elif status == "Готов к обучению":
+            signals.append(ValidationSignal("Ожидает автора", "Структура валидна. Нажмите «Одобрить для обучения», чтобы разрешить training run.", "note"))
         if errors_preview:
             for line in errors_preview.splitlines()[:4]:
                 signals.append(ValidationSignal("Ошибка структуры", line, "warning"))
@@ -275,8 +279,10 @@ class DatasetsViewModel:
 
     def next_step(self) -> str:
         version = self.current_version()
+        if version.status == "Одобрен для обучения":
+            return "Датасет одобрен автором и доступен для создания запуска обучения."
         if version.status == "Готов к обучению":
-            return "Датасет готов к обучению. Смысл примеров утверждён автором, можно запускать тренировку."
+            return "Структура валидна. Нажмите «Одобрить для обучения», чтобы разрешить training run."
         if version.status == "Ошибка структуры":
             return "Исправьте JSONL-структуру и обязательные поля, затем повторите проверку."
         if version.status == "Не удалось проверить датасет":
