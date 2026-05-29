@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -60,10 +60,30 @@ def _elide(text: str, max_len: int = 34) -> str:
     return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
 
+class _DatasetActionWorker(QObject):
+    finished = Signal(bool, str)
+
+    def __init__(self, vm: DatasetsViewModel, action: str) -> None:
+        super().__init__()
+        self._vm = vm
+        self._action = action
+
+    def run(self) -> None:
+        if self._action == "validate":
+            ok, message = self._vm.validate_current_dataset()
+        elif self._action == "approve":
+            ok, message = self._vm.approve_current_dataset()
+        else:
+            ok, message = False, "Неизвестное действие с датасетом"
+        self.finished.emit(ok, message)
+
+
 class DatasetsScreen(QWidget):
     def __init__(self, view_model: DatasetsViewModel) -> None:
         super().__init__()
         self._vm = view_model
+        self._dataset_thread: QThread | None = None
+        self._dataset_worker: _DatasetActionWorker | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -96,13 +116,14 @@ class DatasetsScreen(QWidget):
         actions_layout.addWidget(self._approve_dataset_btn)
         self._compare_versions_btn = QPushButton("Сравнить версии")
         self._compare_versions_btn.setObjectName("SecondaryButton")
+        self._compare_versions_btn.setEnabled(False)
+        self._compare_versions_btn.setToolTip("Сравнение появится после поддержки нескольких версий одного датасета")
         actions_layout.addWidget(self._compare_versions_btn)
         actions_layout.addStretch(1)
         root.addWidget(actions)
         self._add_dataset_btn.clicked.connect(self._on_add_dataset)
         self._validate_dataset_btn.clicked.connect(self._on_validate_dataset)
         self._approve_dataset_btn.clicked.connect(self._on_approve_dataset)
-        self._compare_versions_btn.clicked.connect(self._on_compare_versions)
 
         body = QHBoxLayout()
         body.setSpacing(16)
@@ -303,6 +324,38 @@ class DatasetsScreen(QWidget):
         self._refresh_validation()
         self._refresh_summary()
 
+    def _set_dataset_actions_enabled(self, enabled: bool) -> None:
+        self._add_dataset_btn.setEnabled(enabled)
+        self._validate_dataset_btn.setEnabled(enabled)
+        self._approve_dataset_btn.setEnabled(enabled)
+
+    def _begin_dataset_action(self, action: str, label: str) -> None:
+        if self._dataset_thread is not None and self._dataset_thread.isRunning():
+            self._subtitle.setText("Действие с датасетом уже выполняется")
+            return
+        self._subtitle.setText(label)
+        self._set_dataset_actions_enabled(False)
+        self._dataset_thread = QThread(self)
+        self._dataset_worker = _DatasetActionWorker(self._vm, action)
+        self._dataset_worker.moveToThread(self._dataset_thread)
+        self._dataset_thread.started.connect(self._dataset_worker.run)
+        self._dataset_worker.finished.connect(self._on_dataset_action_finished)
+        self._dataset_worker.finished.connect(self._dataset_thread.quit)
+        self._dataset_worker.finished.connect(self._dataset_worker.deleteLater)
+        self._dataset_thread.finished.connect(self._dataset_thread.deleteLater)
+        self._dataset_thread.finished.connect(self._clear_dataset_worker_refs)
+        self._dataset_thread.start()
+
+    def _clear_dataset_worker_refs(self) -> None:
+        self._dataset_thread = None
+        self._dataset_worker = None
+
+    def _on_dataset_action_finished(self, _ok: bool, message: str) -> None:
+        self._subtitle.setText(message)
+        self._populate_datasets()
+        self._refresh_all()
+        self._set_dataset_actions_enabled(True)
+
     def _on_dataset_changed(self) -> None:
         item = self._datasets_list.currentItem()
         if item is None:
@@ -331,18 +384,13 @@ class DatasetsScreen(QWidget):
             self._refresh_all()
 
     def _on_validate_dataset(self) -> None:
-        _ok, message = self._vm.validate_current_dataset()
-        self._subtitle.setText(message)
-        self._populate_datasets()
-        self._refresh_all()
+        self._begin_dataset_action("validate", "Проверка структуры датасета…")
 
     def _on_approve_dataset(self) -> None:
-        _ok, message = self._vm.approve_current_dataset()
-        self._subtitle.setText(message)
-        self._populate_datasets()
-        self._refresh_all()
+        self._begin_dataset_action("approve", "Одобрение датасета…")
 
-    def _on_compare_versions(self) -> None:
-        _ok, message = self._vm.compare_current_versions()
-        self._subtitle.setText(message)
-        self._refresh_header()
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self._dataset_thread is not None and self._dataset_thread.isRunning():
+            self._dataset_thread.quit()
+            self._dataset_thread.wait(2000)
+        super().closeEvent(event)
