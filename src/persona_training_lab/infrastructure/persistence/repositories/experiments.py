@@ -10,7 +10,7 @@ class SQLiteExperimentsRepository:
     def list_experiments(self) -> list[dict[str, str]]:
         rows = self._connection.execute(
             """
-            SELECT id, title, subtitle, status
+            SELECT id, title, subtitle, status, updated_at
             FROM experiments
             ORDER BY updated_at DESC, title ASC
             """
@@ -21,6 +21,23 @@ class SQLiteExperimentsRepository:
                 "title": row["title"],
                 "subtitle": row["subtitle"],
                 "status": row["status"],
+                "updated_at": row["updated_at"],
             }
             for row in rows
         ]
+
+    def create_experiment(self, payload: dict[str, str]) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO experiments (id, title, subtitle, status, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                payload["id"],
+                payload["title"],
+                payload["subtitle"],
+                payload["status"],
+                payload["updated_at"],
+            ),
+        )
+        self._connection.commit()
