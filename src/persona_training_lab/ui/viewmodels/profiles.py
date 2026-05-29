@@ -25,6 +25,7 @@ class ProfileView:
     constraints: tuple[str, ...]
     linked_artifacts: tuple[str, ...]
     traits: tuple[TraitView, ...]
+    readiness: str
 
 
 @dataclass(slots=True)
@@ -69,7 +70,15 @@ class ProfilesViewModel:
     def _map_summary_to_profile(self, summary: ProfileSummary) -> ProfileView:
         constraints_lines = self._parse_multiline(summary.constraints)
         principles_lines = self._parse_multiline(summary.principles)
+        style_lines = self._parse_multiline(summary.communication_style)
         communication_style = summary.communication_style or "Не указано"
+        completeness = self._completeness(summary)
+        traits = (
+            TraitView("Описание", 100 if summary.description.strip() else 0, "обязательное поле"),
+            TraitView("Стиль", 100 if summary.communication_style.strip() else 0, "обязательное поле"),
+            TraitView("Принципы", 100 if summary.principles.strip() else 0, "обязательное поле"),
+            TraitView("Ограничения", 100 if summary.constraints.strip() else 0, "обязательное поле"),
+        )
         return ProfileView(
             profile_id=summary.profile_id,
             title=summary.title,
@@ -79,18 +88,25 @@ class ProfilesViewModel:
             principles_text=summary.principles,
             constraints_text=summary.constraints,
             notes=summary.notes,
-            constraints=tuple(constraints_lines[:3]) if constraints_lines else ("Ограничения пока не заданы.",),
+            constraints=tuple(constraints_lines[:5]) if constraints_lines else ("Ограничения пока не заданы.",),
             linked_artifacts=(
-                f"Стиль общения · {communication_style}",
+                f"Стиль общения · {style_lines[0] if style_lines else 'Не указано'}",
                 f"Принципы · {principles_lines[0] if principles_lines else 'Не указаны'}",
                 f"Статус · {summary.status}",
             ),
-            traits=(),
+            traits=traits,
+            readiness=f"Структура профиля: {completeness}%",
         )
 
     @staticmethod
     def _parse_multiline(value: str) -> list[str]:
         return [line.strip() for line in value.splitlines() if line.strip()]
+
+    @staticmethod
+    def _completeness(summary: ProfileSummary) -> int:
+        fields = [summary.title, summary.description, summary.communication_style, summary.principles, summary.constraints]
+        filled = sum(1 for value in fields if value.strip())
+        return int(filled / len(fields) * 100)
 
     @staticmethod
     def _empty_profile() -> ProfileView:
@@ -105,7 +121,13 @@ class ProfilesViewModel:
             notes="",
             constraints=("Создайте первый профиль, чтобы заполнить этот раздел.",),
             linked_artifacts=("Нет связанных артефактов.",),
-            traits=(),
+            traits=(
+                TraitView("Описание", 0, "обязательное поле"),
+                TraitView("Стиль", 0, "обязательное поле"),
+                TraitView("Принципы", 0, "обязательное поле"),
+                TraitView("Ограничения", 0, "обязательное поле"),
+            ),
+            readiness="Структура профиля не заполнена",
         )
 
     @staticmethod
@@ -121,7 +143,13 @@ class ProfilesViewModel:
             notes="",
             constraints=("Проверьте подключение к базе данных и повторите позже.",),
             linked_artifacts=("Данные временно недоступны.",),
-            traits=(),
+            traits=(
+                TraitView("Описание", 0, "недоступно"),
+                TraitView("Стиль", 0, "недоступно"),
+                TraitView("Принципы", 0, "недоступно"),
+                TraitView("Ограничения", 0, "недоступно"),
+            ),
+            readiness="Структура профиля недоступна",
         )
 
     def create_profile(
