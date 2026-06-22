@@ -37,35 +37,27 @@ class AnalysisViewModel:
     subtitle: str = "Результаты анализа пока не созданы"
     left: CompareSummary = CompareSummary(
         title="нет данных",
-        subtitle="ожидание результатов тестов",
+        subtitle="ожидание портретных тестов",
         profile_match="—",
         stability="—",
         contradiction="—",
     )
     right: CompareSummary = CompareSummary(
-        title="последний smoke run",
+        title="последний портрет",
         subtitle="ожидание результатов тестов",
         profile_match="—",
         stability="—",
         contradiction="—",
     )
     metrics: tuple[CompareMetric, ...] = (
-        CompareMetric("Ответы модели", "—", "Тесты пока не запускались"),
+        CompareMetric("Измерения портрета", "—", "Тесты пока не запускались"),
         CompareMetric("Статус запуска", "—", "Тесты пока не запускались"),
         CompareMetric("Ошибки", "—", "Тесты пока не запускались"),
     )
-    insights: tuple[str, ...] = (
-        "Результаты анализа пока не созданы",
-    )
-    deltas: tuple[str, ...] = (
-        "Запустите smoke-проверку во вкладке «Тесты», затем обновите анализ.",
-    )
+    insights: tuple[str, ...] = ("Результаты анализа пока не созданы",)
+    deltas: tuple[str, ...] = ("Соберите психологический портрет во вкладке «Тесты», затем откройте анализ.",)
     samples: tuple[CompareSample, ...] = (
-        CompareSample(
-            "Ожидание результатов",
-            "Тесты пока не запускались",
-            "Ответы модели пока не сохранены",
-        ),
+        CompareSample("Ожидание результатов", "Тесты пока не запускались", "Ответы модели пока не сохранены"),
     )
 
     def __post_init__(self) -> None:
@@ -91,50 +83,51 @@ class AnalysisViewModel:
         if not experiments:
             self.title = "Анализ"
             self.subtitle = "Нет результатов тестов для анализа"
-            self.left = CompareSummary("Ожидание", "нет сохранённых test runs", "—", "—", "—")
-            self.right = CompareSummary("Smoke run", "ещё не запускался", "—", "—", "—")
+            self.left = CompareSummary("Ожидание", "нет сохранённых портретов", "—", "—", "—")
+            self.right = CompareSummary("Психологический портрет", "ещё не собран", "—", "—", "—")
             self.metrics = (
-                CompareMetric("Ответы модели", "0/0", "Нет сохранённых smoke test runs"),
-                CompareMetric("Статус запуска", "—", "Запустите проверку во вкладке «Тесты»"),
+                CompareMetric("Измерения портрета", "0/0", "Нет сохранённых portrait test runs"),
+                CompareMetric("Статус запуска", "—", "Соберите портрет во вкладке «Тесты»"),
                 CompareMetric("Ошибки", "—", "Нет данных"),
             )
             self.insights = (
                 "Анализ ждёт реальные результаты из вкладки «Тесты».",
                 "Сейчас выводы не строятся, чтобы не показывать декоративные метрики.",
-                "Сначала нужно получить хотя бы один smoke run локальной модели.",
+                "Сначала нужно собрать хотя бы один психологический портрет текущей модели.",
             )
             self.deltas = (
-                "Следующий шаг: открыть «Тесты» и нажать «Запустить проверку».",
-                "После сохранения результата вернитесь сюда и обновите вкладку/перезапустите приложение.",
-                "Смысл ответов пока оценивается вручную; автологика анализирует только статус и наличие ответов.",
+                "Следующий шаг: открыть «Тесты» и нажать «Собрать портрет».",
+                "После сохранения результата кнопка «Открыть анализ» переведёт сюда автоматически.",
+                "Автологика анализирует полноту и статус; смысл ответов размечается вручную.",
             )
-            self.samples = (CompareSample("Нет кейсов", "—", "Нет сохранённых ответов модели"),)
+            self.samples = (CompareSample("Нет кейсов", "—", "Нет сохранённых портретных ответов"),)
             return True
 
         latest = experiments[0]
         summary, cases = self._parse_experiment_subtitle(latest.subtitle)
         passed, total = self._parse_passed_total(summary)
-        failures = max(0, total - passed) if total else (0 if latest.status == "Пройден" else 1)
-        status_label = "OK" if latest.status == "Пройден" else "Проверить"
+        success_status = latest.status in {"Портрет собран", "Пройден"}
+        failures = max(0, total - passed) if total else (0 if success_status else 1)
+        status_label = "OK" if success_status else "Проверить"
 
         self.title = f"Анализ · {latest.title}"
         self.subtitle = summary or latest.subtitle
         self.left = CompareSummary(
-            title="До анализа",
-            subtitle="нет автоматической оценки смысла",
+            title="Цель анализа",
+            subtitle="устойчивая личность после изменения весов",
             profile_match="ручн.",
             stability="ручн.",
             contradiction="ручн.",
         )
         self.right = CompareSummary(
-            title="Последний smoke run",
+            title="Последний психологический портрет",
             subtitle=latest.title,
             profile_match=f"{passed}/{total}" if total else "—",
             stability=latest.status,
             contradiction=str(failures),
         )
         self.metrics = (
-            CompareMetric("Ответы модели", f"{passed}/{total}" if total else "—", "получено структурных ответов"),
+            CompareMetric("Измерения портрета", f"{passed}/{total}" if total else "—", "получено ответов по измерениям личности"),
             CompareMetric("Статус запуска", status_label, latest.status),
             CompareMetric("Ошибки", str(failures), "ответ не получен или запуск вернул ошибку"),
         )
@@ -154,16 +147,27 @@ class AnalysisViewModel:
             if not lines:
                 continue
             title = lines[0].replace("CASE ", "Кейс ")
+            dimension = next((line.removeprefix("DIMENSION: ").strip() for line in lines if line.startswith("DIMENSION: ")), "")
             prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
             status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
             response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
-            left = f"Промпт: {prompt}" if prompt else "Промпт не сохранён"
+            left_parts = []
+            if dimension:
+                left_parts.append(f"Измерение: {dimension}")
+            if prompt:
+                left_parts.append(f"Промпт: {prompt}")
             right_parts = []
             if status:
                 right_parts.append(f"Статус: {status}")
             if response:
                 right_parts.append(f"Ответ: {response}")
-            samples.append(CompareSample(title, left, "\n".join(right_parts) if right_parts else block))
+            samples.append(
+                CompareSample(
+                    title,
+                    "\n".join(left_parts) if left_parts else "Промпт не сохранён",
+                    "\n".join(right_parts) if right_parts else block,
+                )
+            )
         if samples:
             return summary, tuple(samples)
         legacy_lines = [line for line in subtitle.splitlines() if line.strip()]
@@ -175,8 +179,8 @@ class AnalysisViewModel:
         return legacy_summary, legacy_samples
 
     def _parse_passed_total(self, summary: str) -> tuple[int, int]:
-        # SUMMARY: 3/3 ответов · snapshot
-        marker = summary.replace("SUMMARY:", "").strip().split(" ")[0]
+        # PORTRAIT: 6/6 измерений · snapshot or SUMMARY: 3/3 ответов · snapshot
+        marker = summary.replace("PORTRAIT:", "").replace("SUMMARY:", "").strip().split(" ")[0]
         if "/" not in marker:
             return 0, 0
         left, right = marker.split("/", 1)
@@ -186,28 +190,28 @@ class AnalysisViewModel:
             return 0, 0
 
     def _build_insights(self, status: str, passed: int, total: int, failures: int) -> tuple[str, ...]:
-        if status == "Пройден" and total:
+        if status in {"Портрет собран", "Пройден"} and total:
             return (
-                f"Smoke-проверка прошла: модель дала {passed} из {total} ответов.",
-                "Базовая линия inference работает: модель загружается, генерирует и результат сохраняется.",
-                "Качество смысла здесь не оценивается автоматически — ответы нужно просмотреть вручную.",
+                f"Портретный тест прошёл: модель дала {passed} из {total} ответов по измерениям личности.",
+                "Теперь можно смотреть устойчивость тона, границ, честности, эмпатии и восстановления контакта по реальным ответам.",
+                "Качество личности не оценивается числом автоматически — нужна ручная разметка стабильности и желательности ответов.",
             )
         return (
-            f"Smoke-проверка требует внимания: ошибок {failures}.",
-            "Проверьте модель, зависимости inference и содержимое ответов во вкладке «Тесты».",
-            "До исправления ошибок не стоит переходить к психологическим/смысловым тестам.",
+            f"Портретный тест требует внимания: ошибок {failures}.",
+            "Проверьте модель, зависимости inference и ответы во вкладке «Тесты».",
+            "До чистого портретного прогона рано делать выводы об устойчивой личности модели.",
         )
 
     def _build_deltas(self, status: str, failures: int) -> tuple[str, ...]:
-        if status == "Пройден":
+        if status in {"Портрет собран", "Пройден"}:
             return (
-                "Стабилизирована минимальная цепочка проверки: test run сохраняется и читается анализом.",
-                "Следующий шаг: добавить расширенный test pack с ожидаемыми критериями, но без автоматической оценки смысла.",
-                "После расширенного test pack можно подключать ручную разметку качества ответов.",
+                "Цепочка тестирования стала ближе к исходной идее: проверяется не просто факт ответа, а портрет поведения модели.",
+                "Следующий шаг: добавить ручную разметку по каждому измерению — подходит / слабо / требует дообучения.",
+                "После разметки можно строить датасет коррекции именно по слабым чертам личности.",
             )
         return (
-            f"Есть структурные проблемы тестового запуска: ошибок {failures}.",
-            "Нужно добиться чистого smoke run перед расширением тестов.",
+            f"Есть структурные проблемы портретного запуска: ошибок {failures}.",
+            "Нужно добиться полного portrait run перед расширением психологических тестов.",
             "Анализ сейчас намеренно не делает выводов о личности по неполному запуску.",
         )
 
@@ -230,7 +234,7 @@ class AnalysisViewModel:
                 ),
             )
             self.metrics = (
-                CompareMetric("Ответы модели", "—", "Не удалось загрузить результаты анализа"),
+                CompareMetric("Измерения портрета", "—", "Не удалось загрузить результаты анализа"),
                 CompareMetric("Статус запуска", "—", "Не удалось загрузить результаты анализа"),
                 CompareMetric("Ошибки", "—", "Не удалось загрузить результаты анализа"),
             )
