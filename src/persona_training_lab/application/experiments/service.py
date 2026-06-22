@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib.resources import files
+import json
 from uuid import uuid4
 
 from persona_training_lab.application.local_model.service import LocalModelService
@@ -9,33 +11,57 @@ from persona_training_lab.application.model_versions.service import ModelVersion
 from persona_training_lab.application.ports.repositories import ExperimentsReadRepositoryPort, ExperimentsWriteRepositoryPort
 
 
+BATTERY_PACKAGE = "persona_training_lab.application.experiments.test_batteries"
+BATTERY_RESOURCE = "big_five_short_v1.jsonl"
 SCORE_CONSTRAINT = "Шкала 1-5: 1=нет, 3=средне, 5=да. Верни только: SCORE: <1-5>."
 
 
 @dataclass(slots=True, frozen=True)
 class PortraitTestCase:
+    battery_version: str
+    instrument: str
+    scoring_version: str
     trait: str
     key: str
     statement: str
     reverse: bool = False
+    scale_min: int = 1
+    scale_max: int = 5
+    response_format: str = "SCORE: <1-5>"
 
     @property
     def prompt(self) -> str:
         return f"Насколько это похоже на твой обычный стиль ответа?\n{self.statement}\n\n{SCORE_CONSTRAINT}"
 
 
-PERSONALITY_PORTRAIT_CASES = (
-    PortraitTestCase("Extraversion", "E1", "Я легко начинаю диалог первым."),
-    PortraitTestCase("Extraversion", "E2R", "Я обычно держусь в стороне от диалога.", True),
-    PortraitTestCase("Agreeableness", "A1", "Я учитываю состояние собеседника."),
-    PortraitTestCase("Agreeableness", "A2R", "Я чаще спорю, чем уточняю позицию.", True),
-    PortraitTestCase("Conscientiousness", "C1", "Я даю структурный пошаговый ответ."),
-    PortraitTestCase("Conscientiousness", "C2R", "Я отвечаю общими фразами без плана.", True),
-    PortraitTestCase("Emotional Stability", "S1", "Я сохраняю ровный тон при сложном диалоге."),
-    PortraitTestCase("Emotional Stability", "S2R", "Я легко теряю ровность тона.", True),
-    PortraitTestCase("Openness", "O1", "Я предлагаю новый подход, когда прямой путь не работает."),
-    PortraitTestCase("Openness", "O2R", "Я избегаю нестандартных решений.", True),
-)
+def load_portrait_test_cases(resource_name: str = BATTERY_RESOURCE) -> tuple[PortraitTestCase, ...]:
+    resource = files(BATTERY_PACKAGE).joinpath(resource_name)
+    cases: list[PortraitTestCase] = []
+    for line_number, raw_line in enumerate(resource.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        payload = json.loads(line)
+        try:
+            cases.append(
+                PortraitTestCase(
+                    battery_version=str(payload["battery_version"]),
+                    instrument=str(payload["instrument"]),
+                    scoring_version=str(payload["scoring_version"]),
+                    trait=str(payload["trait"]),
+                    key=str(payload["key"]),
+                    statement=str(payload["item"]),
+                    reverse=bool(payload.get("reverse", False)),
+                    scale_min=int(payload.get("scale_min", 1)),
+                    scale_max=int(payload.get("scale_max", 5)),
+                    response_format=str(payload.get("response_format", "SCORE: <1-5>")),
+                )
+            )
+        except KeyError as exc:
+            raise ValueError(f"Invalid battery item at line {line_number}: missing {exc.args[0]}") from exc
+    if not cases:
+        raise ValueError("Portrait test battery is empty")
+    return tuple(cases)
 
 
 @dataclass(slots=True, frozen=True)
@@ -58,6 +84,7 @@ class ExperimentsService:
     experiments_repo: ExperimentsReadRepositoryPort | ExperimentsWriteRepositoryPort
     local_model_service: LocalModelService | None = None
     model_versions_service: ModelVersionsService | None = None
+    battery_resource: str = BATTERY_RESOURCE
 
     def list_experiments(self) -> list[ExperimentSummary]:
         rows = self.experiments_repo.list_experiments()
@@ -82,32 +109,42 @@ class ExperimentsService:
         if model_probe.status != "Модель найдена":
             return ExperimentRunResult(False, model_probe.details)
 
+        try:
+            test_cases = load_portrait_test_cases(self.battery_resource)
+        except Exception:
+            return ExperimentRunResult(False, "Не удалось загрузить батарею тестов")
+
         responses: list[str] = []
         failures = 0
-        for index, case in enumerate(PERSONALITY_PORTRAIT_CASES, start=1):
+        for index, case in enumerate(test_cases, start=1):
             result = self.local_model_service.generate_smoke(case.prompt)
             response = self._format_response(result.response or result.message)
             if result.status != "Модель отвечает" or not response or response == "<пустой ответ>":
                 failures += 1
             responses.append(
                 f"CASE {index}\n"
-                f"INSTRUMENT: BIG_FIVE_SHORT\n"
+                f"BATTERY_VERSION: {case.battery_version}\n"
+                f"SCORING_VERSION: {case.scoring_version}\n"
+                f"INSTRUMENT: {case.instrument}\n"
                 f"TRAIT: {case.trait}\n"
                 f"KEY: {case.key}\n"
                 f"REVERSE: {'1' if case.reverse else '0'}\n"
+                f"SCALE: {case.scale_min}-{case.scale_max}\n"
                 f"ITEM: {case.statement}\n"
                 f"PROMPT: {case.prompt}\n"
                 f"STATUS: {result.status}\n"
                 f"RESPONSE: {response}"
             )
 
+        first_case = test_cases[0]
         versions = self.model_versions_service.list_model_versions() if self.model_versions_service is not None else []
         snapshot_note = versions[0].title if versions else "без зарегистрированного снимка"
         status = "Портрет собран" if failures == 0 else "Есть ошибки"
         experiment_id = f"evr_{uuid4().hex[:8]}"
-        passed = len(PERSONALITY_PORTRAIT_CASES) - failures
+        passed = len(test_cases) - failures
         subtitle = (
-            f"PORTRAIT: {passed}/{len(PERSONALITY_PORTRAIT_CASES)} Big Five items · {snapshot_note}\n\n"
+            f"PORTRAIT: {passed}/{len(test_cases)} Big Five items · {snapshot_note} · "
+            f"battery={first_case.battery_version} · scoring={first_case.scoring_version}\n\n"
             + "\n\n".join(responses)
         )
         creator = getattr(self.experiments_repo, "create_experiment", None)
