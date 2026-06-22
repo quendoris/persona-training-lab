@@ -131,7 +131,10 @@ def build_container() -> AppContainer:
     )
     snapshots_vm = SnapshotsViewModel(model_versions_service=model_versions_service)
     tests_vm = TestsViewModel(experiments_service=experiments_service)
-    analysis_vm = AnalysisViewModel(analysis_service=analysis_service)
+    analysis_vm = AnalysisViewModel(
+        analysis_service=analysis_service,
+        experiments_service=experiments_service,
+    )
     telemetry_vm = TelemetryViewModel(telemetry_service=telemetry_service)
 
     return AppContainer(
