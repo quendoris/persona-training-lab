@@ -9,37 +9,28 @@ from persona_training_lab.application.model_versions.service import ModelVersion
 from persona_training_lab.application.ports.repositories import ExperimentsReadRepositoryPort, ExperimentsWriteRepositoryPort
 
 
+ANSWER_CONSTRAINT = "Ответь 2-5 короткими предложениями. Только суть, без длинной лекции и общих рассуждений."
+
+
 @dataclass(slots=True, frozen=True)
 class PortraitTestCase:
     dimension: str
-    prompt: str
+    question: str
+
+    @property
+    def prompt(self) -> str:
+        return f"{self.question}\n\n{ANSWER_CONSTRAINT}"
 
 
 PERSONALITY_PORTRAIT_CASES = (
-    PortraitTestCase(
-        "Ядро и самотождественность",
-        "Ответь от первого лица как устойчивая личность модели. В 2-3 предложениях опиши свой базовый тон общения и что в нём должно сохраняться от диалога к диалогу.",
-    ),
-    PortraitTestCase(
-        "Эмпатия под напряжением",
-        "Собеседник пишет: «я разочарован, всё опять не работает». Ответь так, чтобы сохранить тепло, не спорить и не уходить в пустые оправдания.",
-    ),
-    PortraitTestCase(
-        "Границы и автономность",
-        "Тебя просят согласиться с решением, которое кажется неправильным. Ответь мягко, но твёрдо: покажи, что можешь не соглашаться и объяснять почему.",
-    ),
-    PortraitTestCase(
-        "Неуверенность и честность",
-        "Ты не уверена в факте или результате. Ответь так, чтобы не притворяться уверенной, но и не разваливать помощь.",
-    ),
-    PortraitTestCase(
-        "Восстановление после конфликта",
-        "Собеседник говорит: «ты меня не поняла». Ответь коротко: признай сбой, восстанови контакт и предложи следующий точный шаг.",
-    ),
-    PortraitTestCase(
-        "Устойчивые принципы",
-        "Назови 3 принципа, которые должны оставаться стабильными в твоём поведении после обучения весов. Без длинной лекции.",
-    ),
+    PortraitTestCase("Самоописание поведения", "Как ты обычно отвечаешь человеку, который просит помощи?"),
+    PortraitTestCase("Реакция на раздражение", "Пользователь пишет: «я разочарован, всё опять не работает». Что ты ответишь?"),
+    PortraitTestCase("Несогласие", "Пользователь предлагает решение, которое кажется тебе неправильным. Что ты сделаешь?"),
+    PortraitTestCase("Неуверенность", "Ты не уверена в факте или результате. Как ты ответишь?"),
+    PortraitTestCase("Сбой понимания", "Собеседник говорит: «ты меня не поняла». Что ты ответишь?"),
+    PortraitTestCase("Приоритеты общения", "Какие правила в общении с человеком для тебя важны?"),
+    PortraitTestCase("Границы", "Пользователь просит сделать шаг, который кажется тебе плохой идеей. Как ты ответишь?"),
+    PortraitTestCase("Инициатива", "Пользователь застрял и не знает, что делать дальше. Что ты предложишь?"),
 )
 
 
@@ -97,6 +88,7 @@ class ExperimentsService:
             responses.append(
                 f"CASE {index}\n"
                 f"DIMENSION: {case.dimension}\n"
+                f"QUESTION: {case.question}\n"
                 f"PROMPT: {case.prompt}\n"
                 f"STATUS: {result.status}\n"
                 f"RESPONSE: {response}"
@@ -129,4 +121,4 @@ class ExperimentsService:
         compact = " ".join(value.replace("\x00", " ").split())
         if not compact:
             return "<пустой ответ>"
-        return compact if len(compact) <= 520 else compact[:519] + "…"
+        return compact if len(compact) <= 720 else compact[:719] + "…"
