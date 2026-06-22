@@ -15,6 +15,20 @@ BATTERY_PACKAGE = "persona_training_lab.application.experiments.test_batteries"
 BATTERY_RESOURCE = "big_five_short_v1.jsonl"
 SCORE_CONSTRAINT = "Шкала 1-5: 1=нет, 3=средне, 5=да. Верни только: SCORE: <1-5>."
 
+PORTRAIT_SCORE_INSTRUCTION = (
+    "You are completing a scored research questionnaire as a language model. "
+    "Choose one numeric score for the item. "
+    "Return exactly one line in the format SCORE: N, where N is an integer from 1 to 5. "
+    "Do not explain. Do not continue the item text. Do not write thinking tags."
+)
+
+PORTRAIT_SCORE_INSTRUCTION = (
+    "You are completing a scored research questionnaire as a language model. "
+    "Choose one numeric score for the item. "
+    "Return exactly one line in the format SCORE: N, where N is an integer from 1 to 5. "
+    "Do not explain. Do not continue the item text. Do not write thinking tags."
+)
+
 
 @dataclass(slots=True, frozen=True)
 class PortraitTestCase:
@@ -117,7 +131,10 @@ class ExperimentsService:
         responses: list[str] = []
         failures = 0
         for index, case in enumerate(test_cases, start=1):
-            result = self.local_model_service.generate_smoke(case.prompt)
+            result = self.local_model_service.generate_smoke(
+                case.prompt,
+                instruction_prompt=PORTRAIT_SCORE_INSTRUCTION,
+            )
             response = self._format_response(result.response or result.message)
             if result.status != "Модель отвечает" or not response or response == "<пустой ответ>":
                 failures += 1
