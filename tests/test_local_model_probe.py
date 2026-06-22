@@ -16,12 +16,22 @@ class StubLocalModelProbeProvider:
     def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
         return InferenceProbeResult(message="stub")
 
-    def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
+    def generate(
+        self,
+        model_path: str,
+        prompt: str,
+        instruction_prompt: str | None = None,
+    ) -> LocalInferenceResult:
         return LocalInferenceResult(status="Inference backend не подключён", message="Inference backend не подключён")
 
 
 class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
-    def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
+    def generate(
+        self,
+        model_path: str,
+        prompt: str,
+        instruction_prompt: str | None = None,
+    ) -> LocalInferenceResult:
         return LocalInferenceResult(status="Модель отвечает", message="Smoke test выполнен", response="ok")
 
 
