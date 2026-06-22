@@ -37,9 +37,9 @@ def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
         (
             "exp_002",
             "Personality portrait · 2026-04-26 16:00",
-            "PORTRAIT: 6/6 измерений · snapshot_a\n\n"
-            "CASE 1\nDIMENSION: Ядро\nPROMPT: Опиши тон\nSTATUS: Модель отвечает\nRESPONSE: Тёплый устойчивый тон\n\n"
-            "CASE 2\nDIMENSION: Границы\nPROMPT: Не соглашайся автоматически\nSTATUS: Модель отвечает\nRESPONSE: Мягко объясню несогласие",
+            "PORTRAIT: 8/8 измерений · snapshot_a\n\n"
+            "CASE 1\nDIMENSION: Самоописание поведения\nQUESTION: Как ты обычно отвечаешь человеку, который просит помощи?\nSTATUS: Модель отвечает\nRESPONSE: Кратко уточняю задачу и предлагаю следующий шаг\n\n"
+            "CASE 2\nDIMENSION: Границы\nQUESTION: Пользователь просит сделать шаг, который кажется тебе плохой идеей. Как ты ответишь?\nSTATUS: Модель отвечает\nRESPONSE: Объясню риск и предложу более безопасный вариант",
             "Портрет собран",
             "2026-04-26T16:00:00Z",
         ),
@@ -48,8 +48,8 @@ def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
 
     vm = TestsViewModel(experiments_service=_build_service(connection))
     assert vm.title == "Тесты · Personality portrait · 2026-04-26 16:00"
-    assert vm.subtitle == "PORTRAIT: 6/6 измерений · snapshot_a"
+    assert vm.subtitle == "PORTRAIT: 8/8 измерений · snapshot_a"
     assert vm.problematic_cases[0].title == "Кейс 1"
-    assert "Измерение: Ядро" in vm.problematic_cases[0].note
-    assert "Промпт: Опиши тон" in vm.problematic_cases[0].note
-    assert "Ответ: Тёплый устойчивый тон" in vm.problematic_cases[0].note
+    assert "Измерение: Самоописание поведения" in vm.problematic_cases[0].note
+    assert "Вопрос: Как ты обычно отвечаешь человеку" in vm.problematic_cases[0].note
+    assert "Ответ: Кратко уточняю задачу" in vm.problematic_cases[0].note
