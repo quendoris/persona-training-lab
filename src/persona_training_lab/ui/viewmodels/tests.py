@@ -26,24 +26,24 @@ class TestsViewModel:
     title: str = "Тесты"
     subtitle: str = "Соберите психологический портрет текущей модели."
     setup_rows: tuple[tuple[str, str], ...] = (
-        ("Цель", "Психологический портрет модели"),
-        ("Режим", "neutral portrait questions"),
+        ("Цель", "Big Five KPI портрет модели"),
+        ("Режим", "scored self-report items"),
         ("Снимок", "последний зарегистрированный, если есть"),
-        ("Оценка", "наблюдение + ручной разбор ответов"),
+        ("Ответ", "только SCORE: 1-5"),
     )
     metrics: tuple[EvaluationMetric, ...] = (
         EvaluationMetric("Запусков", "0", "портреты пока не собирались"),
         EvaluationMetric("Последний статус", "—", "нет результата"),
-        EvaluationMetric("Измерения", "—", "нет результата"),
+        EvaluationMetric("Пункты", "—", "нет результата"),
         EvaluationMetric("Ошибки", "—", "нет результата"),
     )
     problematic_cases: tuple[EvaluationCase, ...] = (
-        EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить реальные ответы модели."),
+        EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить SCORE-ответы модели."),
     )
     context_rows: tuple[str, ...] = (
-        "Тесты собирают психологический портрет модели, а не медицинскую диагностику",
-        "Вопросы нейтральные: они не подсказывают желаемый характер ответа",
-        "Формат ограничен краткостью, чтобы модель не уходила в воду",
+        "Основа: Big Five/IPIP-style шкала",
+        "Каждый пункт даёт KPI 1-5, а не длинный текст",
+        "Это исследовательская метрика модели, не клиническая диагностика человека",
     )
     run_in_progress: bool = False
 
@@ -65,7 +65,7 @@ class TestsViewModel:
             self.title = "Тесты"
             self.subtitle = "Не удалось загрузить тесты"
             self.problematic_cases = (EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),)
-            self.context_rows = ("Психологический портрет модели",)
+            self.context_rows = ("Big Five KPI портрет модели",)
             return
 
         if not scenarios:
@@ -74,16 +74,16 @@ class TestsViewModel:
             self.metrics = (
                 EvaluationMetric("Запусков", "0", "портреты пока не собирались"),
                 EvaluationMetric("Последний статус", "—", "нет результата"),
-                EvaluationMetric("Измерения", "—", "нет результата"),
+                EvaluationMetric("Пункты", "—", "нет результата"),
                 EvaluationMetric("Ошибки", "—", "нет результата"),
             )
             self.problematic_cases = (
-                EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить реальные ответы модели."),
+                EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить SCORE-ответы модели."),
             )
             self.context_rows = (
-                "Neutral personality portrait pack",
-                "Измерения: самоописание, раздражение, несогласие, неуверенность, сбой понимания, границы, инициатива",
-                "Автооценка смысла не выполняется: ответы размечаются вручную",
+                "Big Five/IPIP-style scored pack",
+                "Факторы: Extraversion, Agreeableness, Conscientiousness, Emotional Stability, Openness",
+                "Дальше анализ считает средние KPI по факторам",
             )
             return
 
@@ -96,15 +96,15 @@ class TestsViewModel:
         self.metrics = (
             EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые portrait/test runs"),
             EvaluationMetric("Последний статус", latest.status, "последний сохранённый запуск"),
-            EvaluationMetric("Измерения", answers_value, "получено портретных ответов"),
+            EvaluationMetric("Пункты", answers_value, "получено SCORE-ответов"),
             EvaluationMetric("Ошибки", str(failures), "структурные ошибки запуска"),
         )
         self.problematic_cases = cases or (EvaluationCase("Ответы не сохранены", "Запустите сбор портрета ещё раз."),)
         self.context_rows = (
             f"Последний портрет · {latest.experiment_id}",
             f"Статус · {latest.status}",
-            "Portrait pack · нейтральные вопросы",
-            "Смысл и устойчивость оцениваются ручной разметкой ответов",
+            "Big Five scored items",
+            "KPI: средние баллы по факторам с reverse scoring",
         )
 
     def _answers_value(self, summary: str) -> str:
@@ -123,19 +123,20 @@ class TestsViewModel:
             lines = [line.strip() for line in block.splitlines() if line.strip()]
             if not lines:
                 continue
-            case_title = lines[0].replace("CASE ", "Кейс ")
-            dimension = next((line.removeprefix("DIMENSION: ").strip() for line in lines if line.startswith("DIMENSION: ")), "")
-            question = next((line.removeprefix("QUESTION: ").strip() for line in lines if line.startswith("QUESTION: ")), "")
-            prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
+            case_title = lines[0].replace("CASE ", "Пункт ")
+            trait = next((line.removeprefix("TRAIT: ").strip() for line in lines if line.startswith("TRAIT: ")), "")
+            key = next((line.removeprefix("KEY: ").strip() for line in lines if line.startswith("KEY: ")), "")
+            reverse = next((line.removeprefix("REVERSE: ").strip() for line in lines if line.startswith("REVERSE: ")), "")
+            item = next((line.removeprefix("ITEM: ").strip() for line in lines if line.startswith("ITEM: ")), "")
             status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
             response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
             note_parts = []
-            if dimension:
-                note_parts.append(f"Измерение: {dimension}")
-            if question:
-                note_parts.append(f"Вопрос: {question}")
-            elif prompt:
-                note_parts.append(f"Промпт: {prompt}")
+            if trait:
+                note_parts.append(f"Фактор: {trait}")
+            if key:
+                note_parts.append(f"Ключ: {key} · reverse={reverse or '0'}")
+            if item:
+                note_parts.append(f"Пункт: {item}")
             if status:
                 note_parts.append(f"Статус: {status}")
             if response:
