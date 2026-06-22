@@ -29,5 +29,5 @@ class LocalModelProbeProvider(Protocol):
         self,
         model_path: str,
         prompt: str,
-        system_prompt: str | None = None,
+        instruction_prompt: str | None = None,
     ) -> LocalInferenceResult: ...
