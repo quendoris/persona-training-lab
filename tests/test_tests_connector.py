@@ -20,8 +20,8 @@ def test_tests_viewmodel_empty_state_from_experiments_connector() -> None:
 
     vm = TestsViewModel(experiments_service=_build_service(connection))
     assert vm.title == "Тесты"
-    assert vm.subtitle == "Тесты пока не запускались"
-    assert vm.problematic_cases[0].title == "Тесты пока не запускались"
+    assert vm.subtitle == "Психологический портрет пока не собран"
+    assert vm.problematic_cases[0].title == "Портрет пока не собран"
 
 
 def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
@@ -36,19 +36,20 @@ def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
         """,
         (
             "exp_002",
-            "Smoke test · 2026-04-26 16:00",
-            "SUMMARY: 3/3 ответов · snapshot_a\n\n"
-            "CASE 1\nPROMPT: SELF_TEST_ALPHA\nSTATUS: Модель отвечает\nRESPONSE: Alpha ok\n\n"
-            "CASE 2\nPROMPT: SELF_TEST_BETA\nSTATUS: Модель отвечает\nRESPONSE: Beta ok",
-            "Пройден",
+            "Personality portrait · 2026-04-26 16:00",
+            "PORTRAIT: 6/6 измерений · snapshot_a\n\n"
+            "CASE 1\nDIMENSION: Ядро\nPROMPT: Опиши тон\nSTATUS: Модель отвечает\nRESPONSE: Тёплый устойчивый тон\n\n"
+            "CASE 2\nDIMENSION: Границы\nPROMPT: Не соглашайся автоматически\nSTATUS: Модель отвечает\nRESPONSE: Мягко объясню несогласие",
+            "Портрет собран",
             "2026-04-26T16:00:00Z",
         ),
     )
     connection.commit()
 
     vm = TestsViewModel(experiments_service=_build_service(connection))
-    assert vm.title == "Тесты · Smoke test · 2026-04-26 16:00"
-    assert vm.subtitle == "SUMMARY: 3/3 ответов · snapshot_a"
-    assert vm.problematic_cases[0].title == "Ответ 1"
-    assert "Промпт: SELF_TEST_ALPHA" in vm.problematic_cases[0].note
-    assert "Ответ: Alpha ok" in vm.problematic_cases[0].note
+    assert vm.title == "Тесты · Personality portrait · 2026-04-26 16:00"
+    assert vm.subtitle == "PORTRAIT: 6/6 измерений · snapshot_a"
+    assert vm.problematic_cases[0].title == "Кейс 1"
+    assert "Измерение: Ядро" in vm.problematic_cases[0].note
+    assert "Промпт: Опиши тон" in vm.problematic_cases[0].note
+    assert "Ответ: Тёплый устойчивый тон" in vm.problematic_cases[0].note
