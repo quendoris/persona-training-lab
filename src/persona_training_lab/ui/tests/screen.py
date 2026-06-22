@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
+    QDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -28,6 +30,37 @@ class _TestsWorker(QObject):
     def run(self) -> None:
         ok, message = self._vm.run_tests_sync()
         self.finished.emit(ok, message)
+
+
+class _CasesDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Разбор портретных кейсов")
+        self.resize(920, 640)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        title = QLabel("Психологический портрет модели")
+        title.setObjectName("ScreenTitle")
+        layout.addWidget(title)
+        layout.addWidget(make_muted_label("Здесь показаны реальные ответы модели по измерениям личности. Авторазметка смысла пока не выполняется."))
+
+        self._text = QTextEdit()
+        self._text.setReadOnly(True)
+        self._text.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        layout.addWidget(self._text, 1)
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setObjectName("SecondaryButton")
+        close_btn.clicked.connect(self.close)
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        footer.addWidget(close_btn)
+        layout.addLayout(footer)
+
+    def set_text(self, text: str) -> None:
+        self._text.setPlainText(text)
 
 
 def _stable_scroll_shell(min_height: int = 340, *, shell_margins: tuple[int, int, int, int] = (14, 14, 14, 14), spacing: int = 10) -> tuple[QScrollArea, QVBoxLayout]:
@@ -67,11 +100,14 @@ def _stable_scroll_shell(min_height: int = 340, *, shell_margins: tuple[int, int
 
 
 class TestsScreen(QWidget):
+    open_analysis_requested = Signal()
+
     def __init__(self, view_model: TestsViewModel) -> None:
         super().__init__()
         self._vm = view_model
         self._tests_thread: QThread | None = None
         self._tests_worker: _TestsWorker | None = None
+        self._cases_dialog: _CasesDialog | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -97,20 +133,20 @@ class TestsScreen(QWidget):
         al.setContentsMargins(18, 14, 18, 14)
         al.setSpacing(10)
 
-        self._run_btn = QPushButton("Запустить проверку")
+        self._run_btn = QPushButton("Собрать портрет")
         self._run_btn.clicked.connect(self._on_run_tests)
         al.addWidget(self._run_btn)
 
         self._open_analysis_btn = QPushButton("Открыть анализ")
         self._open_analysis_btn.setObjectName("SecondaryButton")
-        self._open_analysis_btn.setEnabled(False)
-        self._open_analysis_btn.setToolTip("Переход в анализ подключим после живой вкладки анализа")
+        self._open_analysis_btn.setToolTip("Перейти во вкладку анализа результатов портретного теста")
+        self._open_analysis_btn.clicked.connect(self.open_analysis_requested.emit)
         al.addWidget(self._open_analysis_btn)
 
         self._review_cases_btn = QPushButton("Разобрать кейсы")
         self._review_cases_btn.setObjectName("SecondaryButton")
-        self._review_cases_btn.setEnabled(False)
-        self._review_cases_btn.setToolTip("Ручной разбор кейсов появится после сохранения расширенных результатов")
+        self._review_cases_btn.setToolTip("Открыть полный разбор промптов и ответов модели")
+        self._review_cases_btn.clicked.connect(self._on_review_cases)
         al.addWidget(self._review_cases_btn)
 
         al.addStretch(1)
@@ -120,7 +156,7 @@ class TestsScreen(QWidget):
         body.setSpacing(16)
         root.addLayout(body, 1)
 
-        left = PanelCard("Контекст проверки", "Smoke-тест локальной модели, а не оценка личности.")
+        left = PanelCard("Контекст проверки", "Портретный тест устойчивости личности модели.")
         self._setup_scroll, self._setup_layout = _stable_scroll_shell(340)
         left.add_widget(self._setup_scroll)
         body.addWidget(left, 2)
@@ -129,7 +165,7 @@ class TestsScreen(QWidget):
         center.setSpacing(16)
         body.addLayout(center, 4)
 
-        metrics = PanelCard("Результат проверки", "Метрики показывают факт запуска и ответа модели.")
+        metrics = PanelCard("Результат портрета", "Метрики показывают факт запуска и полноту ответов по измерениям.")
         metrics_grid_wrap = QWidget()
         metrics_grid_wrap.setProperty("transparentBg", True)
         self._metrics_grid = QGridLayout(metrics_grid_wrap)
@@ -138,12 +174,12 @@ class TestsScreen(QWidget):
         metrics.add_widget(metrics_grid_wrap)
         center.addWidget(metrics)
 
-        cases = PanelCard("Ответы модели", "Сырые smoke-ответы для ручного просмотра.")
+        cases = PanelCard("Портретные кейсы", "Реальные ответы модели по измерениям личности.")
         self._case_scroll, self._case_layout = _stable_scroll_shell(340)
         cases.add_widget(self._case_scroll)
         center.addWidget(cases, 1)
 
-        right = PanelCard("Контекст результата", "Контекст помогает читать smoke-проверку правильно.")
+        right = PanelCard("Контекст результата", "Контекст помогает читать портрет без псевдодиагностики.")
         self._right_scroll, self._right_layout = _stable_scroll_shell(340, shell_margins=(0, 6, 0, 6), spacing=8)
         right.add_widget(self._right_scroll)
         body.addWidget(right, 2)
@@ -160,7 +196,9 @@ class TestsScreen(QWidget):
         self._title.setText(self._vm.title)
         self._subtitle.setText(self._vm.subtitle)
         self._run_btn.setEnabled(not self._vm.run_in_progress)
-        self._run_btn.setText("Выполняется…" if self._vm.run_in_progress else "Запустить проверку")
+        self._run_btn.setText("Выполняется…" if self._vm.run_in_progress else "Собрать портрет")
+        self._open_analysis_btn.setEnabled(not self._vm.run_in_progress)
+        self._review_cases_btn.setEnabled(not self._vm.run_in_progress)
 
     def _refresh_setup(self) -> None:
         self._clear_layout(self._setup_layout)
@@ -172,7 +210,9 @@ class TestsScreen(QWidget):
             rl.setSpacing(10)
             rl.addWidget(make_muted_label(key))
             rl.addStretch(1)
-            rl.addWidget(QLabel(value), 0, Qt.AlignRight)
+            value_label = QLabel(value)
+            value_label.setWordWrap(True)
+            rl.addWidget(value_label, 0, Qt.AlignRight)
             self._setup_layout.addWidget(row)
         self._setup_layout.addStretch(1)
 
@@ -249,12 +289,24 @@ class TestsScreen(QWidget):
     def _on_tests_finished(self, ok: bool, message: str) -> None:
         self._vm.finish_run(ok, message)
         self._refresh_all()
+        if self._cases_dialog is not None and self._cases_dialog.isVisible():
+            self._cases_dialog.set_text(self._vm.review_text())
+
+    def _on_review_cases(self) -> None:
+        if self._cases_dialog is None:
+            self._cases_dialog = _CasesDialog(self)
+        self._cases_dialog.set_text(self._vm.review_text())
+        self._cases_dialog.show()
+        self._cases_dialog.raise_()
+        self._cases_dialog.activateWindow()
 
     def _clear_worker_refs(self) -> None:
         self._tests_thread = None
         self._tests_worker = None
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self._cases_dialog is not None:
+            self._cases_dialog.close()
         if self._tests_thread is not None and self._tests_thread.isRunning():
             self._tests_thread.quit()
             self._tests_thread.wait(2000)
