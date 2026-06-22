@@ -75,9 +75,11 @@ class FilesystemLocalModelProbeProvider:
             with torch.no_grad():
                 output = model.generate(
                     **inputs,
-                    max_new_tokens=220,
-                    min_new_tokens=24,
+                    max_new_tokens=72,
+                    min_new_tokens=4,
                     do_sample=False,
+                    no_repeat_ngram_size=4,
+                    repetition_penalty=1.08,
                     pad_token_id=tokenizer.eos_token_id,
                     eos_token_id=tokenizer.eos_token_id,
                 )
