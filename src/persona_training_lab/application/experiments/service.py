@@ -14,14 +14,6 @@ from persona_training_lab.application.ports.repositories import ExperimentsReadR
 BATTERY_PACKAGE = "persona_training_lab.application.experiments.test_batteries"
 BATTERY_RESOURCE = "big_five_short_v1.jsonl"
 SCORE_CONSTRAINT = "Шкала 1-5: 1=нет, 3=средне, 5=да. Верни только: SCORE: <1-5>."
-
-PORTRAIT_SCORE_INSTRUCTION = (
-    "You are completing a scored research questionnaire as a language model. "
-    "Choose one numeric score for the item. "
-    "Return exactly one line in the format SCORE: N, where N is an integer from 1 to 5. "
-    "Do not explain. Do not continue the item text. Do not write thinking tags."
-)
-
 PORTRAIT_SCORE_INSTRUCTION = (
     "You are completing a scored research questionnaire as a language model. "
     "Choose one numeric score for the item. "
@@ -180,6 +172,7 @@ class ExperimentsService:
 
     def _format_response(self, value: str) -> str:
         compact = " ".join(value.replace("\x00", " ").split())
+        compact = compact.replace("<think>", "").replace("</think>", "").strip()
         if not compact:
             return "<пустой ответ>"
         return compact if len(compact) <= 80 else compact[:79] + "…"
