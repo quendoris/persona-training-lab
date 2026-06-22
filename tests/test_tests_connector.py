@@ -20,8 +20,8 @@ def test_tests_viewmodel_empty_state_from_experiments_connector() -> None:
 
     vm = TestsViewModel(experiments_service=_build_service(connection))
     assert vm.title == "Тесты"
-    assert vm.subtitle == "Тесты пока не созданы"
-    assert vm.problematic_cases[0].title == "Тесты пока не созданы"
+    assert vm.subtitle == "Тесты пока не запускались"
+    assert vm.problematic_cases[0].title == "Тесты пока не запускались"
 
 
 def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
@@ -36,16 +36,19 @@ def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
         """,
         (
             "exp_002",
-            "Stress Consistency Check",
-            "Проверка устойчивости характера под давлением",
-            "готов",
+            "Smoke test · 2026-04-26 16:00",
+            "SUMMARY: 3/3 ответов · snapshot_a\n\n"
+            "CASE 1\nPROMPT: SELF_TEST_ALPHA\nSTATUS: Модель отвечает\nRESPONSE: Alpha ok\n\n"
+            "CASE 2\nPROMPT: SELF_TEST_BETA\nSTATUS: Модель отвечает\nRESPONSE: Beta ok",
+            "Пройден",
             "2026-04-26T16:00:00Z",
         ),
     )
     connection.commit()
 
     vm = TestsViewModel(experiments_service=_build_service(connection))
-    assert vm.title == "Тесты · Stress Consistency Check"
-    assert vm.subtitle == "Сценарии проверки личности"
-    assert vm.problematic_cases[0].title == "Stress Consistency Check"
-    assert vm.problematic_cases[0].note == "Проверка устойчивости характера под давлением"
+    assert vm.title == "Тесты · Smoke test · 2026-04-26 16:00"
+    assert vm.subtitle == "SUMMARY: 3/3 ответов · snapshot_a"
+    assert vm.problematic_cases[0].title == "Ответ 1"
+    assert "Промпт: SELF_TEST_ALPHA" in vm.problematic_cases[0].note
+    assert "Ответ: Alpha ok" in vm.problematic_cases[0].note
