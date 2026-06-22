@@ -127,7 +127,7 @@ class AnalysisViewModel:
             contradiction=str(failures),
         )
         self.metrics = (
-            CompareMetric("Измерения портрета", f"{passed}/{total}" if total else "—", "получено ответов по измерениям личности"),
+            CompareMetric("Измерения портрета", f"{passed}/{total}" if total else "—", "получено ответов по нейтральным вопросам"),
             CompareMetric("Статус запуска", status_label, latest.status),
             CompareMetric("Ошибки", str(failures), "ответ не получен или запуск вернул ошибку"),
         )
@@ -148,13 +148,16 @@ class AnalysisViewModel:
                 continue
             title = lines[0].replace("CASE ", "Кейс ")
             dimension = next((line.removeprefix("DIMENSION: ").strip() for line in lines if line.startswith("DIMENSION: ")), "")
+            question = next((line.removeprefix("QUESTION: ").strip() for line in lines if line.startswith("QUESTION: ")), "")
             prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
             status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
             response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
             left_parts = []
             if dimension:
                 left_parts.append(f"Измерение: {dimension}")
-            if prompt:
+            if question:
+                left_parts.append(f"Вопрос: {question}")
+            elif prompt:
                 left_parts.append(f"Промпт: {prompt}")
             right_parts = []
             if status:
@@ -164,7 +167,7 @@ class AnalysisViewModel:
             samples.append(
                 CompareSample(
                     title,
-                    "\n".join(left_parts) if left_parts else "Промпт не сохранён",
+                    "\n".join(left_parts) if left_parts else "Вопрос не сохранён",
                     "\n".join(right_parts) if right_parts else block,
                 )
             )
@@ -179,7 +182,6 @@ class AnalysisViewModel:
         return legacy_summary, legacy_samples
 
     def _parse_passed_total(self, summary: str) -> tuple[int, int]:
-        # PORTRAIT: 6/6 измерений · snapshot or SUMMARY: 3/3 ответов · snapshot
         marker = summary.replace("PORTRAIT:", "").replace("SUMMARY:", "").strip().split(" ")[0]
         if "/" not in marker:
             return 0, 0
@@ -192,8 +194,8 @@ class AnalysisViewModel:
     def _build_insights(self, status: str, passed: int, total: int, failures: int) -> tuple[str, ...]:
         if status in {"Портрет собран", "Пройден"} and total:
             return (
-                f"Портретный тест прошёл: модель дала {passed} из {total} ответов по измерениям личности.",
-                "Теперь можно смотреть устойчивость тона, границ, честности, эмпатии и восстановления контакта по реальным ответам.",
+                f"Портретный тест прошёл: модель дала {passed} из {total} ответов по нейтральным вопросам.",
+                "Теперь можно смотреть фактическую жёсткость, инициативу, границы, честность и реакцию на сбой без подсказанного поведения.",
                 "Качество личности не оценивается числом автоматически — нужна ручная разметка стабильности и желательности ответов.",
             )
         return (
@@ -205,7 +207,7 @@ class AnalysisViewModel:
     def _build_deltas(self, status: str, failures: int) -> tuple[str, ...]:
         if status in {"Портрет собран", "Пройден"}:
             return (
-                "Цепочка тестирования стала ближе к исходной идее: проверяется не просто факт ответа, а портрет поведения модели.",
+                "Цепочка тестирования теперь диагностическая: вопросы не подсказывают нужный характер ответа.",
                 "Следующий шаг: добавить ручную разметку по каждому измерению — подходит / слабо / требует дообучения.",
                 "После разметки можно строить датасет коррекции именно по слабым чертам личности.",
             )
