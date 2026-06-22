@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, LocalInferenceResult, ModelProbeResult
 
@@ -49,7 +50,12 @@ class FilesystemLocalModelProbeProvider:
     def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
         return InferenceProbeResult(message="Inference backend подключается при проверке ответа")
 
-    def generate(self, model_path: str, prompt: str) -> LocalInferenceResult:
+    def generate(
+        self,
+        model_path: str,
+        prompt: str,
+        instruction_prompt: str | None = None,
+    ) -> LocalInferenceResult:
         try:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
@@ -69,23 +75,23 @@ class FilesystemLocalModelProbeProvider:
             )
             model.to(device)
             model.eval()
-            inputs = tokenizer(prompt, return_tensors="pt")
+            inputs = self._encode_prompt(tokenizer, prompt, instruction_prompt)
             inputs = {key: value.to(device) for key, value in inputs.items()}
             input_length = int(inputs["input_ids"].shape[-1])
             with torch.no_grad():
                 output = model.generate(
                     **inputs,
-                    max_new_tokens=72,
-                    min_new_tokens=4,
+                    max_new_tokens=24,
+                    min_new_tokens=1,
                     do_sample=False,
-                    no_repeat_ngram_size=4,
-                    repetition_penalty=1.08,
+                    no_repeat_ngram_size=3,
+                    repetition_penalty=1.12,
                     pad_token_id=tokenizer.eos_token_id,
                     eos_token_id=tokenizer.eos_token_id,
                 )
             generated_tokens = output[0][input_length:]
             text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-            text = " ".join(text.replace("\x00", " ").split())
+            text = self._clean_response(text)
             if not text:
                 text = "<пустой ответ>"
             return LocalInferenceResult(status="Модель отвечает", message="Portrait test выполнен", response=text)
@@ -93,3 +99,39 @@ class FilesystemLocalModelProbeProvider:
             return LocalInferenceResult(status="Недостаточно ресурсов для генерации", message="Недостаточно ресурсов для генерации")
         except Exception:
             return LocalInferenceResult(status="Ошибка генерации", message="Не удалось загрузить локальную модель")
+
+    def _encode_prompt(self, tokenizer: Any, prompt: str, instruction_prompt: str | None) -> dict[str, Any]:
+        instruction = instruction_prompt or "Отвечай строго по запросу пользователя."
+        messages = [
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": prompt},
+        ]
+        try:
+            return tokenizer.apply_chat_template(
+                messages,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_tensors="pt",
+                enable_thinking=False,
+                return_dict=True,
+            )
+        except TypeError:
+            try:
+                return tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_tensors="pt",
+                    return_dict=True,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+        combined = f"System: {instruction}\nUser: {prompt}\nAssistant:"
+        return tokenizer(combined, return_tensors="pt")
+
+    def _clean_response(self, value: str) -> str:
+        text = " ".join(value.replace("\x00", " ").split())
+        text = text.replace("<think>", "").replace("</think>", "").strip()
+        return text
