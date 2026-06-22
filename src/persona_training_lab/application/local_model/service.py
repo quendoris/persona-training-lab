@@ -22,8 +22,8 @@ class LocalModelService:
     def probe_inference_backend(self) -> InferenceProbeResult:
         return self.probe_provider.check_inference_backend(self.model_path)
 
-    def generate_smoke(self, prompt: str) -> LocalInferenceResult:
+    def generate_smoke(self, prompt: str, instruction_prompt: str | None = None) -> LocalInferenceResult:
         model_probe = self.probe_model_files()
         if model_probe.status != "Модель найдена":
             return LocalInferenceResult(status="Модель не загружена", message=model_probe.details)
-        return self.probe_provider.generate(self.model_path, prompt)
+        return self.probe_provider.generate(self.model_path, prompt, instruction_prompt=instruction_prompt)
