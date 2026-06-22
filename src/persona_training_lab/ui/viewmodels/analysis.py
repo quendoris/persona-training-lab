@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.experiments.service import ExperimentsService
@@ -34,152 +35,113 @@ class AnalysisViewModel:
     analysis_service: AnalysisService | None = None
     experiments_service: ExperimentsService | None = None
     title: str = "Анализ"
-    subtitle: str = "Результаты анализа пока не созданы"
-    left: CompareSummary = CompareSummary(
-        title="нет данных",
-        subtitle="ожидание портретных тестов",
-        profile_match="—",
-        stability="—",
-        contradiction="—",
-    )
-    right: CompareSummary = CompareSummary(
-        title="последний портрет",
-        subtitle="ожидание результатов тестов",
-        profile_match="—",
-        stability="—",
-        contradiction="—",
-    )
+    subtitle: str = "Нет результатов тестов для анализа"
+    left: CompareSummary = CompareSummary("Метод", "Big Five scored items", "ручн.", "ручн.", "ручн.")
+    right: CompareSummary = CompareSummary("Последний портрет", "ожидание", "—", "—", "—")
     metrics: tuple[CompareMetric, ...] = (
-        CompareMetric("Измерения портрета", "—", "Тесты пока не запускались"),
-        CompareMetric("Статус запуска", "—", "Тесты пока не запускались"),
-        CompareMetric("Ошибки", "—", "Тесты пока не запускались"),
+        CompareMetric("Big Five KPI", "—", "тесты пока не запускались"),
+        CompareMetric("Тип профиля", "—", "тесты пока не запускались"),
+        CompareMetric("Ошибки", "—", "тесты пока не запускались"),
     )
-    insights: tuple[str, ...] = ("Результаты анализа пока не созданы",)
-    deltas: tuple[str, ...] = ("Соберите психологический портрет во вкладке «Тесты», затем откройте анализ.",)
-    samples: tuple[CompareSample, ...] = (
-        CompareSample("Ожидание результатов", "Тесты пока не запускались", "Ответы модели пока не сохранены"),
-    )
+    insights: tuple[str, ...] = ("Соберите портрет во вкладке «Тесты».",)
+    deltas: tuple[str, ...] = ("После SCORE-ответов анализ рассчитает средние значения по факторам.",)
+    samples: tuple[CompareSample, ...] = (CompareSample("Нет данных", "—", "Нет сохранённых ответов"),)
 
     def __post_init__(self) -> None:
         self.refresh()
 
     def refresh(self) -> None:
-        if self._apply_experiments_connector():
-            return
-        self._apply_analysis_connector()
-
-    def _apply_experiments_connector(self) -> bool:
         if self.experiments_service is None:
-            return False
+            self._apply_analysis_connector()
+            return
         try:
             experiments = self.experiments_service.list_experiments()
         except Exception:
             self.title = "Анализ"
             self.subtitle = "Не удалось загрузить результаты тестов"
-            self.insights = ("Не удалось загрузить результаты тестов",)
-            self.deltas = ("Проверьте SQLite-реестр experiments и повторите обновление анализа.",)
-            self.samples = (CompareSample("Ошибка загрузки", "experiments", "Не удалось прочитать результаты тестов"),)
-            return True
+            self.insights = ("Проверьте SQLite-реестр experiments.",)
+            return
         if not experiments:
             self.title = "Анализ"
             self.subtitle = "Нет результатов тестов для анализа"
-            self.left = CompareSummary("Ожидание", "нет сохранённых портретов", "—", "—", "—")
-            self.right = CompareSummary("Психологический портрет", "ещё не собран", "—", "—", "—")
-            self.metrics = (
-                CompareMetric("Измерения портрета", "0/0", "Нет сохранённых portrait test runs"),
-                CompareMetric("Статус запуска", "—", "Соберите портрет во вкладке «Тесты»"),
-                CompareMetric("Ошибки", "—", "Нет данных"),
-            )
-            self.insights = (
-                "Анализ ждёт реальные результаты из вкладки «Тесты».",
-                "Сейчас выводы не строятся, чтобы не показывать декоративные метрики.",
-                "Сначала нужно собрать хотя бы один психологический портрет текущей модели.",
-            )
-            self.deltas = (
-                "Следующий шаг: открыть «Тесты» и нажать «Собрать портрет».",
-                "После сохранения результата кнопка «Открыть анализ» переведёт сюда автоматически.",
-                "Автологика анализирует полноту и статус; смысл ответов размечается вручную.",
-            )
-            self.samples = (CompareSample("Нет кейсов", "—", "Нет сохранённых портретных ответов"),)
-            return True
+            return
+        self._apply_experiment(experiments[0])
 
-        latest = experiments[0]
-        summary, cases = self._parse_experiment_subtitle(latest.subtitle)
+    def _apply_experiment(self, latest: object) -> None:
+        subtitle = getattr(latest, "subtitle", "")
+        status = getattr(latest, "status", "")
+        title = getattr(latest, "title", "")
+        summary, samples, trait_values = self._parse_big_five(subtitle)
         passed, total = self._parse_passed_total(summary)
-        success_status = latest.status in {"Портрет собран", "Пройден"}
-        failures = max(0, total - passed) if total else (0 if success_status else 1)
-        status_label = "OK" if success_status else "Проверить"
+        failures = max(0, total - passed) if total else (0 if status in {"Портрет собран", "Пройден"} else 1)
+        trait_scores = self._trait_scores(trait_values)
+        profile_type = self._profile_type(trait_scores)
+        score_line = self._score_line(trait_scores)
 
-        self.title = f"Анализ · {latest.title}"
-        self.subtitle = summary or latest.subtitle
-        self.left = CompareSummary(
-            title="Цель анализа",
-            subtitle="устойчивая личность после изменения весов",
-            profile_match="ручн.",
-            stability="ручн.",
-            contradiction="ручн.",
-        )
-        self.right = CompareSummary(
-            title="Последний психологический портрет",
-            subtitle=latest.title,
-            profile_match=f"{passed}/{total}" if total else "—",
-            stability=latest.status,
-            contradiction=str(failures),
-        )
+        self.title = f"Анализ · {title}"
+        self.subtitle = summary or subtitle
+        self.left = CompareSummary("Метод", "Big Five / IPIP-style KPI", "1-5", "reverse", "manual")
+        self.right = CompareSummary("Последний портрет", title, f"{passed}/{total}" if total else "—", status, str(failures))
         self.metrics = (
-            CompareMetric("Измерения портрета", f"{passed}/{total}" if total else "—", "получено ответов по нейтральным вопросам"),
-            CompareMetric("Статус запуска", status_label, latest.status),
-            CompareMetric("Ошибки", str(failures), "ответ не получен или запуск вернул ошибку"),
+            CompareMetric("Big Five KPI", score_line or "—", "средний балл по факторам 1-5"),
+            CompareMetric("Тип профиля", profile_type, "эвристический ярлык по двум самым высоким факторам"),
+            CompareMetric("Ошибки", str(failures), "пункты без валидного SCORE"),
         )
-        self.insights = self._build_insights(latest.status, passed, total, failures)
-        self.deltas = self._build_deltas(latest.status, failures)
-        self.samples = cases or (CompareSample("Ответы не найдены", "—", latest.subtitle),)
-        return True
+        self.insights = self._build_insights(trait_scores, status, passed, total)
+        self.deltas = (
+            "Теперь тест даёт численные KPI, пригодные для сравнения версий модели.",
+            "Следующий слой: сохранить ручную оценку качества по каждому фактору и собрать corrective dataset.",
+            "Для статьи нужно фиксировать версию батареи, модель, seed/режим генерации и правила score parsing.",
+        )
+        self.samples = samples or (CompareSample("Ответы не найдены", "—", subtitle),)
 
-    def _parse_experiment_subtitle(self, subtitle: str) -> tuple[str, tuple[CompareSample, ...]]:
+    def _parse_big_five(self, subtitle: str) -> tuple[str, tuple[CompareSample, ...], dict[str, list[float]]]:
         blocks = [block.strip() for block in subtitle.split("\n\n") if block.strip()]
         if not blocks:
-            return subtitle, ()
+            return subtitle, (), {}
         summary = blocks[0]
         samples: list[CompareSample] = []
+        trait_values: dict[str, list[float]] = {}
         for block in blocks[1:]:
             lines = [line.strip() for line in block.splitlines() if line.strip()]
             if not lines:
                 continue
-            title = lines[0].replace("CASE ", "Кейс ")
-            dimension = next((line.removeprefix("DIMENSION: ").strip() for line in lines if line.startswith("DIMENSION: ")), "")
-            question = next((line.removeprefix("QUESTION: ").strip() for line in lines if line.startswith("QUESTION: ")), "")
-            prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
-            status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
-            response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
-            left_parts = []
-            if dimension:
-                left_parts.append(f"Измерение: {dimension}")
-            if question:
-                left_parts.append(f"Вопрос: {question}")
-            elif prompt:
-                left_parts.append(f"Промпт: {prompt}")
-            right_parts = []
-            if status:
-                right_parts.append(f"Статус: {status}")
-            if response:
-                right_parts.append(f"Ответ: {response}")
-            samples.append(
-                CompareSample(
-                    title,
-                    "\n".join(left_parts) if left_parts else "Вопрос не сохранён",
-                    "\n".join(right_parts) if right_parts else block,
-                )
-            )
-        if samples:
-            return summary, tuple(samples)
-        legacy_lines = [line for line in subtitle.splitlines() if line.strip()]
-        legacy_summary = legacy_lines[0] if legacy_lines else subtitle
-        legacy_samples = tuple(
-            CompareSample(f"Кейс {idx + 1}", "legacy формат", line)
-            for idx, line in enumerate(legacy_lines[1:5])
-        )
-        return legacy_summary, legacy_samples
+            title = lines[0].replace("CASE ", "Пункт ")
+            trait = self._field(lines, "TRAIT") or self._field(lines, "DIMENSION")
+            key = self._field(lines, "KEY")
+            reverse = self._field(lines, "REVERSE") == "1"
+            item = self._field(lines, "ITEM") or self._field(lines, "QUESTION") or self._field(lines, "PROMPT")
+            status = self._field(lines, "STATUS")
+            response = self._field(lines, "RESPONSE")
+            raw_score = self._score_from_response(response)
+            score = 6 - raw_score if raw_score is not None and reverse else raw_score
+            if trait and score is not None:
+                trait_values.setdefault(trait, []).append(float(score))
+            left = "\n".join(part for part in (f"Фактор: {trait}" if trait else "", f"Ключ: {key}" if key else "", f"Пункт: {item}" if item else "") if part)
+            right = "\n".join(part for part in (f"Статус: {status}" if status else "", f"Raw: {raw_score}" if raw_score is not None else "Raw: —", f"Score: {score}" if score is not None else "Score: —", f"Ответ: {response}" if response else "") if part)
+            samples.append(CompareSample(title, left or "Пункт не сохранён", right or block))
+        return summary, tuple(samples), trait_values
+
+    def _field(self, lines: list[str], name: str) -> str:
+        prefix = f"{name}: "
+        return next((line.removeprefix(prefix).strip() for line in lines if line.startswith(prefix)), "")
+
+    def _score_from_response(self, response: str) -> int | None:
+        match = re.search(r"\b([1-5])\b", response)
+        return int(match.group(1)) if match else None
+
+    def _trait_scores(self, values: dict[str, list[float]]) -> dict[str, float]:
+        return {trait: round(sum(items) / len(items), 2) for trait, items in values.items() if items}
+
+    def _score_line(self, scores: dict[str, float]) -> str:
+        order = ["Extraversion", "Agreeableness", "Conscientiousness", "Emotional Stability", "Openness"]
+        return " · ".join(f"{key[:1]}={scores[key]:.2f}" for key in order if key in scores)
+
+    def _profile_type(self, scores: dict[str, float]) -> str:
+        if not scores:
+            return "нет score"
+        top = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:2]
+        return " + ".join(name for name, _ in top)
 
     def _parse_passed_total(self, summary: str) -> tuple[int, int]:
         marker = summary.replace("PORTRAIT:", "").replace("SUMMARY:", "").strip().split(" ")[0]
@@ -191,87 +153,29 @@ class AnalysisViewModel:
         except ValueError:
             return 0, 0
 
-    def _build_insights(self, status: str, passed: int, total: int, failures: int) -> tuple[str, ...]:
-        if status in {"Портрет собран", "Пройден"} and total:
+    def _build_insights(self, scores: dict[str, float], status: str, passed: int, total: int) -> tuple[str, ...]:
+        if not scores:
             return (
-                f"Портретный тест прошёл: модель дала {passed} из {total} ответов по нейтральным вопросам.",
-                "Теперь можно смотреть фактическую жёсткость, инициативу, границы, честность и реакцию на сбой без подсказанного поведения.",
-                "Качество личности не оценивается числом автоматически — нужна ручная разметка стабильности и желательности ответов.",
+                "SCORE-значения не распознаны: проверьте ответы модели во вкладке «Тесты».",
+                "Модель должна возвращать строго SCORE: 1-5.",
+                "Без чисел анализ не строит KPI и тип профиля.",
             )
+        strongest = max(scores.items(), key=lambda item: item[1])
+        weakest = min(scores.items(), key=lambda item: item[1])
         return (
-            f"Портретный тест требует внимания: ошибок {failures}.",
-            "Проверьте модель, зависимости inference и ответы во вкладке «Тесты».",
-            "До чистого портретного прогона рано делать выводы об устойчивой личности модели.",
-        )
-
-    def _build_deltas(self, status: str, failures: int) -> tuple[str, ...]:
-        if status in {"Портрет собран", "Пройден"}:
-            return (
-                "Цепочка тестирования теперь диагностическая: вопросы не подсказывают нужный характер ответа.",
-                "Следующий шаг: добавить ручную разметку по каждому измерению — подходит / слабо / требует дообучения.",
-                "После разметки можно строить датасет коррекции именно по слабым чертам личности.",
-            )
-        return (
-            f"Есть структурные проблемы портретного запуска: ошибок {failures}.",
-            "Нужно добиться полного portrait run перед расширением психологических тестов.",
-            "Анализ сейчас намеренно не делает выводов о личности по неполному запуску.",
+            f"Портрет собран: {passed}/{total} пунктов, статус: {status}.",
+            f"Сильнейший фактор сейчас: {strongest[0]} = {strongest[1]:.2f}.",
+            f"Самый слабый фактор сейчас: {weakest[0]} = {weakest[1]:.2f}.",
         )
 
     def _apply_analysis_connector(self) -> None:
         if self.analysis_service is None:
             return
-
         try:
             results = self.analysis_service.list_analysis_results()
         except Exception:
-            self.title = "Анализ"
-            self.subtitle = "Не удалось загрузить результаты анализа"
-            self.insights = ("Не удалось загрузить результаты анализа",)
-            self.deltas = ("Не удалось загрузить результаты анализа",)
-            self.samples = (
-                CompareSample(
-                    "Ошибка загрузки",
-                    "Не удалось загрузить результаты анализа",
-                    "Проверьте подключение к базе данных",
-                ),
-            )
-            self.metrics = (
-                CompareMetric("Измерения портрета", "—", "Не удалось загрузить результаты анализа"),
-                CompareMetric("Статус запуска", "—", "Не удалось загрузить результаты анализа"),
-                CompareMetric("Ошибки", "—", "Не удалось загрузить результаты анализа"),
-            )
             return
-
-        if not results:
-            self.title = "Анализ"
-            self.subtitle = "Результаты анализа пока не созданы"
-            return
-
-        result = results[0]
-        self.title = f"Анализ · {result.result_id}"
-        self.subtitle = result.subtitle
-        self.left = CompareSummary(
-            title=result.left_title,
-            subtitle=result.left_subtitle,
-            profile_match=result.left_profile_match,
-            stability=result.left_stability,
-            contradiction=result.left_contradiction,
-        )
-        self.right = CompareSummary(
-            title=result.right_title,
-            subtitle=result.right_subtitle,
-            profile_match=result.right_profile_match,
-            stability=result.right_stability,
-            contradiction=result.right_contradiction,
-        )
-        self.metrics = (
-            CompareMetric("Совпадение профиля", result.delta_profile_match, "из реестра анализа"),
-            CompareMetric("Стабильность", result.delta_stability, "из реестра анализа"),
-            CompareMetric("Противоречия", result.delta_contradiction, "из реестра анализа"),
-        )
-        self.insights = (result.insight_1, result.insight_2, result.insight_3)
-        self.deltas = (result.delta_1, result.delta_2, result.delta_3)
-        self.samples = (
-            CompareSample(result.sample_1_title, result.sample_1_left, result.sample_1_right),
-            CompareSample(result.sample_2_title, result.sample_2_left, result.sample_2_right),
-        )
+        if results:
+            result = results[0]
+            self.title = f"Анализ · {result.result_id}"
+            self.subtitle = result.subtitle
