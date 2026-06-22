@@ -75,16 +75,18 @@ class FilesystemLocalModelProbeProvider:
             with torch.no_grad():
                 output = model.generate(
                     **inputs,
-                    max_new_tokens=40,
+                    max_new_tokens=220,
+                    min_new_tokens=24,
                     do_sample=False,
                     pad_token_id=tokenizer.eos_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
                 )
             generated_tokens = output[0][input_length:]
             text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
             text = " ".join(text.replace("\x00", " ").split())
             if not text:
                 text = "<пустой ответ>"
-            return LocalInferenceResult(status="Модель отвечает", message="Smoke test выполнен", response=text)
+            return LocalInferenceResult(status="Модель отвечает", message="Portrait test выполнен", response=text)
         except RuntimeError:
             return LocalInferenceResult(status="Недостаточно ресурсов для генерации", message="Недостаточно ресурсов для генерации")
         except Exception:
