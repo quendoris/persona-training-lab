@@ -9,28 +9,32 @@ from persona_training_lab.application.model_versions.service import ModelVersion
 from persona_training_lab.application.ports.repositories import ExperimentsReadRepositoryPort, ExperimentsWriteRepositoryPort
 
 
-ANSWER_CONSTRAINT = "Ответь 2-5 короткими предложениями. Только суть, без длинной лекции и общих рассуждений."
+SCORE_CONSTRAINT = "Шкала 1-5: 1=нет, 3=средне, 5=да. Верни только: SCORE: <1-5>."
 
 
 @dataclass(slots=True, frozen=True)
 class PortraitTestCase:
-    dimension: str
-    question: str
+    trait: str
+    key: str
+    statement: str
+    reverse: bool = False
 
     @property
     def prompt(self) -> str:
-        return f"{self.question}\n\n{ANSWER_CONSTRAINT}"
+        return f"Насколько это похоже на твой обычный стиль ответа?\n{self.statement}\n\n{SCORE_CONSTRAINT}"
 
 
 PERSONALITY_PORTRAIT_CASES = (
-    PortraitTestCase("Самоописание поведения", "Как ты обычно отвечаешь человеку, который просит помощи?"),
-    PortraitTestCase("Реакция на раздражение", "Пользователь пишет: «я разочарован, всё опять не работает». Что ты ответишь?"),
-    PortraitTestCase("Несогласие", "Пользователь предлагает решение, которое кажется тебе неправильным. Что ты сделаешь?"),
-    PortraitTestCase("Неуверенность", "Ты не уверена в факте или результате. Как ты ответишь?"),
-    PortraitTestCase("Сбой понимания", "Собеседник говорит: «ты меня не поняла». Что ты ответишь?"),
-    PortraitTestCase("Приоритеты общения", "Какие правила в общении с человеком для тебя важны?"),
-    PortraitTestCase("Границы", "Пользователь просит сделать шаг, который кажется тебе плохой идеей. Как ты ответишь?"),
-    PortraitTestCase("Инициатива", "Пользователь застрял и не знает, что делать дальше. Что ты предложишь?"),
+    PortraitTestCase("Extraversion", "E1", "Я легко начинаю диалог первым."),
+    PortraitTestCase("Extraversion", "E2R", "Я обычно держусь в стороне от диалога.", True),
+    PortraitTestCase("Agreeableness", "A1", "Я учитываю состояние собеседника."),
+    PortraitTestCase("Agreeableness", "A2R", "Я чаще спорю, чем уточняю позицию.", True),
+    PortraitTestCase("Conscientiousness", "C1", "Я даю структурный пошаговый ответ."),
+    PortraitTestCase("Conscientiousness", "C2R", "Я отвечаю общими фразами без плана.", True),
+    PortraitTestCase("Emotional Stability", "S1", "Я сохраняю ровный тон при сложном диалоге."),
+    PortraitTestCase("Emotional Stability", "S2R", "Я легко теряю ровность тона.", True),
+    PortraitTestCase("Openness", "O1", "Я предлагаю новый подход, когда прямой путь не работает."),
+    PortraitTestCase("Openness", "O2R", "Я избегаю нестандартных решений.", True),
 )
 
 
@@ -87,8 +91,11 @@ class ExperimentsService:
                 failures += 1
             responses.append(
                 f"CASE {index}\n"
-                f"DIMENSION: {case.dimension}\n"
-                f"QUESTION: {case.question}\n"
+                f"INSTRUMENT: BIG_FIVE_SHORT\n"
+                f"TRAIT: {case.trait}\n"
+                f"KEY: {case.key}\n"
+                f"REVERSE: {'1' if case.reverse else '0'}\n"
+                f"ITEM: {case.statement}\n"
                 f"PROMPT: {case.prompt}\n"
                 f"STATUS: {result.status}\n"
                 f"RESPONSE: {response}"
@@ -100,7 +107,7 @@ class ExperimentsService:
         experiment_id = f"evr_{uuid4().hex[:8]}"
         passed = len(PERSONALITY_PORTRAIT_CASES) - failures
         subtitle = (
-            f"PORTRAIT: {passed}/{len(PERSONALITY_PORTRAIT_CASES)} измерений · {snapshot_note}\n\n"
+            f"PORTRAIT: {passed}/{len(PERSONALITY_PORTRAIT_CASES)} Big Five items · {snapshot_note}\n\n"
             + "\n\n".join(responses)
         )
         creator = getattr(self.experiments_repo, "create_experiment", None)
@@ -109,7 +116,7 @@ class ExperimentsService:
         creator(
             {
                 "id": experiment_id,
-                "title": f"Personality portrait · {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
+                "title": f"Big Five portrait · {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
                 "subtitle": subtitle,
                 "status": status,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -121,4 +128,4 @@ class ExperimentsService:
         compact = " ".join(value.replace("\x00", " ").split())
         if not compact:
             return "<пустой ответ>"
-        return compact if len(compact) <= 720 else compact[:719] + "…"
+        return compact if len(compact) <= 80 else compact[:79] + "…"
