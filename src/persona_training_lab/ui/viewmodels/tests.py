@@ -24,25 +24,25 @@ class TestsViewModel:
 
     experiments_service: ExperimentsService | None = None
     title: str = "Тесты"
-    subtitle: str = "Запустите smoke-проверку локальной модели."
+    subtitle: str = "Соберите психологический портрет текущей модели."
     setup_rows: tuple[tuple[str, str], ...] = (
-        ("Цель", "Проверка ответа локальной модели"),
-        ("Режим", "smoke inference pack"),
+        ("Цель", "Психологический портрет модели"),
+        ("Режим", "personality portrait pack"),
         ("Снимок", "последний зарегистрированный, если есть"),
-        ("Оценка", "структурная: ответ получен / ошибка"),
+        ("Оценка", "структурная + ручной разбор ответов"),
     )
     metrics: tuple[EvaluationMetric, ...] = (
-        EvaluationMetric("Запусков", "0", "тесты пока не запускались"),
+        EvaluationMetric("Запусков", "0", "портреты пока не собирались"),
         EvaluationMetric("Последний статус", "—", "нет результата"),
-        EvaluationMetric("Ответы", "—", "нет результата"),
+        EvaluationMetric("Измерения", "—", "нет результата"),
         EvaluationMetric("Ошибки", "—", "нет результата"),
     )
     problematic_cases: tuple[EvaluationCase, ...] = (
-        EvaluationCase("Тесты пока не запускались", "Нажмите «Запустить проверку», чтобы получить реальные ответы модели."),
+        EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить реальные ответы модели."),
     )
     context_rows: tuple[str, ...] = (
-        "Smoke-проверка не оценивает смысл ответа",
-        "Цель: убедиться, что модель загружается и отвечает",
+        "Тесты собирают психологический портрет модели, а не медицинскую диагностику",
+        "Цель: проверить устойчивость тона, границ, честности и восстановления контакта",
     )
     run_in_progress: bool = False
 
@@ -64,47 +64,53 @@ class TestsViewModel:
             self.title = "Тесты"
             self.subtitle = "Не удалось загрузить тесты"
             self.problematic_cases = (EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),)
-            self.context_rows = ("Smoke-проверка локальной модели",)
+            self.context_rows = ("Психологический портрет модели",)
             return
 
         if not scenarios:
             self.title = "Тесты"
-            self.subtitle = "Тесты пока не запускались"
+            self.subtitle = "Психологический портрет пока не собран"
             self.metrics = (
-                EvaluationMetric("Запусков", "0", "тесты пока не запускались"),
+                EvaluationMetric("Запусков", "0", "портреты пока не собирались"),
                 EvaluationMetric("Последний статус", "—", "нет результата"),
-                EvaluationMetric("Ответы", "—", "нет результата"),
+                EvaluationMetric("Измерения", "—", "нет результата"),
                 EvaluationMetric("Ошибки", "—", "нет результата"),
             )
             self.problematic_cases = (
-                EvaluationCase("Тесты пока не запускались", "Нажмите «Запустить проверку», чтобы получить реальные ответы модели."),
+                EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить реальные ответы модели."),
             )
             self.context_rows = (
-                "Smoke-проверка локальной модели",
-                "Проверяется факт загрузки и генерации ответа",
-                "Смысл ответа разбирается вручную позже",
+                "Personality portrait pack",
+                "Измерения: ядро, эмпатия, границы, честность, восстановление контакта, принципы",
+                "Автооценка смысла не выполняется: ответы размечаются вручную",
             )
             return
 
         latest = scenarios[0]
         summary, cases = self._parse_subtitle(latest.subtitle)
-        failures = 0 if latest.status == "Пройден" else 1
-        answers_value = summary.split(" · ")[0].replace("SUMMARY: ", "") if summary else "—"
+        failures = 0 if latest.status in {"Портрет собран", "Пройден"} else 1
+        answers_value = self._answers_value(summary)
         self.title = f"Тесты · {latest.title}"
         self.subtitle = summary or latest.subtitle
         self.metrics = (
-            EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые smoke test runs"),
+            EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые portrait/test runs"),
             EvaluationMetric("Последний статус", latest.status, "последний сохранённый запуск"),
-            EvaluationMetric("Ответы", answers_value, "получено ответов"),
+            EvaluationMetric("Измерения", answers_value, "получено портретных ответов"),
             EvaluationMetric("Ошибки", str(failures), "структурные ошибки запуска"),
         )
-        self.problematic_cases = cases or (EvaluationCase("Ответы не сохранены", "Запустите проверку ещё раз."),)
+        self.problematic_cases = cases or (EvaluationCase("Ответы не сохранены", "Запустите сбор портрета ещё раз."),)
         self.context_rows = (
-            f"Последний тест · {latest.experiment_id}",
+            f"Последний портрет · {latest.experiment_id}",
             f"Статус · {latest.status}",
-            "Smoke pack · 3 промпта",
-            "Оценка смысла не выполняется автоматически",
+            "Portrait pack · 6 измерений личности",
+            "Смысл и устойчивость оцениваются ручной разметкой ответов",
         )
+
+    def _answers_value(self, summary: str) -> str:
+        if not summary:
+            return "—"
+        head = summary.split(" · ")[0]
+        return head.replace("PORTRAIT: ", "").replace("SUMMARY: ", "")
 
     def _parse_subtitle(self, subtitle: str) -> tuple[str, tuple[EvaluationCase, ...]]:
         blocks = [block.strip() for block in subtitle.split("\n\n") if block.strip()]
@@ -116,11 +122,14 @@ class TestsViewModel:
             lines = [line.strip() for line in block.splitlines() if line.strip()]
             if not lines:
                 continue
-            case_title = lines[0].replace("CASE ", "Ответ ")
+            case_title = lines[0].replace("CASE ", "Кейс ")
+            dimension = next((line.removeprefix("DIMENSION: ").strip() for line in lines if line.startswith("DIMENSION: ")), "")
             prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
             status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
             response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
             note_parts = []
+            if dimension:
+                note_parts.append(f"Измерение: {dimension}")
             if prompt:
                 note_parts.append(f"Промпт: {prompt}")
             if status:
@@ -140,16 +149,24 @@ class TestsViewModel:
         if self.run_in_progress:
             return False
         self.run_in_progress = True
-        self.subtitle = "Проверка модели выполняется…"
+        self.subtitle = "Сбор психологического портрета выполняется…"
         return True
 
     def run_tests_sync(self) -> tuple[bool, str]:
         if self.experiments_service is None:
             return False, "Сервис тестов не подключён"
-        result = self.experiments_service.run_smoke_test_pack()
+        result = self.experiments_service.run_personality_portrait_test_pack()
         return result.ok, result.message
 
     def finish_run(self, _ok: bool, message: str) -> None:
         self.run_in_progress = False
         self.refresh()
         self.subtitle = message
+
+    def review_text(self) -> str:
+        lines = [self.subtitle, ""]
+        for case in self.problematic_cases:
+            lines.append(case.title)
+            lines.append(case.note)
+            lines.append("")
+        return "\n".join(lines).strip()
