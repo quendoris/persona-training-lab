@@ -112,7 +112,9 @@ class MainWindow(QMainWindow):
         self._workspace.register("datasets", DatasetsScreen(datasets_vm))
         self._workspace.register("training", TrainingScreen(training_vm))
         self._workspace.register("snapshots", SnapshotsScreen(snapshots_vm))
-        self._workspace.register("tests", TestsScreen(tests_vm))
+        tests_screen = TestsScreen(tests_vm)
+        tests_screen.open_analysis_requested.connect(lambda: self._go_to_screen("analysis"))
+        self._workspace.register("tests", tests_screen)
         self._workspace.register("analysis", AnalysisScreen(analysis_vm))
         self._workspace.register("style", StyleScreen(style_vm, self._apply_style))
         self._workspace.register("docs", DocsScreen(docs_vm))
@@ -175,6 +177,10 @@ class MainWindow(QMainWindow):
             action.setText(f"Показать / скрыть: {title}")
             menu.addAction(action)
         return menu
+
+    def _go_to_screen(self, screen: str) -> None:
+        self._sidebar.set_current(screen)
+        self._on_screen_selected(screen)
 
     def _on_screen_selected(self, screen: str) -> None:
         self._shell_vm.navigate(screen)
