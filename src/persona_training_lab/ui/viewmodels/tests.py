@@ -27,9 +27,9 @@ class TestsViewModel:
     subtitle: str = "Соберите психологический портрет текущей модели."
     setup_rows: tuple[tuple[str, str], ...] = (
         ("Цель", "Психологический портрет модели"),
-        ("Режим", "personality portrait pack"),
+        ("Режим", "neutral portrait questions"),
         ("Снимок", "последний зарегистрированный, если есть"),
-        ("Оценка", "структурная + ручной разбор ответов"),
+        ("Оценка", "наблюдение + ручной разбор ответов"),
     )
     metrics: tuple[EvaluationMetric, ...] = (
         EvaluationMetric("Запусков", "0", "портреты пока не собирались"),
@@ -42,7 +42,8 @@ class TestsViewModel:
     )
     context_rows: tuple[str, ...] = (
         "Тесты собирают психологический портрет модели, а не медицинскую диагностику",
-        "Цель: проверить устойчивость тона, границ, честности и восстановления контакта",
+        "Вопросы нейтральные: они не подсказывают желаемый характер ответа",
+        "Формат ограничен краткостью, чтобы модель не уходила в воду",
     )
     run_in_progress: bool = False
 
@@ -80,8 +81,8 @@ class TestsViewModel:
                 EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить реальные ответы модели."),
             )
             self.context_rows = (
-                "Personality portrait pack",
-                "Измерения: ядро, эмпатия, границы, честность, восстановление контакта, принципы",
+                "Neutral personality portrait pack",
+                "Измерения: самоописание, раздражение, несогласие, неуверенность, сбой понимания, границы, инициатива",
                 "Автооценка смысла не выполняется: ответы размечаются вручную",
             )
             return
@@ -102,7 +103,7 @@ class TestsViewModel:
         self.context_rows = (
             f"Последний портрет · {latest.experiment_id}",
             f"Статус · {latest.status}",
-            "Portrait pack · 6 измерений личности",
+            "Portrait pack · нейтральные вопросы",
             "Смысл и устойчивость оцениваются ручной разметкой ответов",
         )
 
@@ -124,13 +125,16 @@ class TestsViewModel:
                 continue
             case_title = lines[0].replace("CASE ", "Кейс ")
             dimension = next((line.removeprefix("DIMENSION: ").strip() for line in lines if line.startswith("DIMENSION: ")), "")
+            question = next((line.removeprefix("QUESTION: ").strip() for line in lines if line.startswith("QUESTION: ")), "")
             prompt = next((line.removeprefix("PROMPT: ").strip() for line in lines if line.startswith("PROMPT: ")), "")
             status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
             response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
             note_parts = []
             if dimension:
                 note_parts.append(f"Измерение: {dimension}")
-            if prompt:
+            if question:
+                note_parts.append(f"Вопрос: {question}")
+            elif prompt:
                 note_parts.append(f"Промпт: {prompt}")
             if status:
                 note_parts.append(f"Статус: {status}")
