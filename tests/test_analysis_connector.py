@@ -3,14 +3,21 @@ from __future__ import annotations
 import sqlite3
 
 from persona_training_lab.application.analysis.service import AnalysisService
+from persona_training_lab.application.experiments.service import ExperimentsService
 from persona_training_lab.infrastructure.persistence.repositories.analysis import SQLiteAnalysisRepository
+from persona_training_lab.infrastructure.persistence.repositories.experiments import SQLiteExperimentsRepository
 from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
 
 
-def _build_service(connection: sqlite3.Connection) -> AnalysisService:
+def _build_analysis_service(connection: sqlite3.Connection) -> AnalysisService:
     repo = SQLiteAnalysisRepository(connection)
     return AnalysisService(analysis_repo=repo)
+
+
+def _build_experiments_service(connection: sqlite3.Connection) -> ExperimentsService:
+    repo = SQLiteExperimentsRepository(connection)
+    return ExperimentsService(experiments_repo=repo)
 
 
 def test_analysis_connector_empty_state() -> None:
@@ -18,16 +25,57 @@ def test_analysis_connector_empty_state() -> None:
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
 
-    service = _build_service(connection)
-    rows = service.list_analysis_results()
+    service = _build_experiments_service(connection)
+    rows = service.list_experiments()
     assert rows == []
 
-    vm = AnalysisViewModel(analysis_service=service)
+    vm = AnalysisViewModel(experiments_service=service)
     assert vm.title == "Анализ"
-    assert vm.subtitle == "Результаты анализа пока не созданы"
+    assert vm.subtitle == "Нет результатов тестов для анализа"
+    assert vm.metrics[0].title == "Big Five KPI"
 
 
 def test_analysis_connector_single_row() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+
+    connection.execute(
+        """
+        INSERT INTO experiments (id, title, subtitle, status, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "exp_001",
+            "Big Five portrait · 2026-04-26 16:00",
+            "PORTRAIT: 10/10 Big Five items · snapshot_a\n\n"
+            "CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 4\n\n"
+            "CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: Я обычно держусь в стороне от диалога.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 2\n\n"
+            "CASE 3\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 5",
+            "Портрет собран",
+            "2026-04-26T16:00:00Z",
+        ),
+    )
+    connection.commit()
+
+    service = _build_experiments_service(connection)
+    rows = service.list_experiments()
+    assert len(rows) == 1
+    assert rows[0].experiment_id == "exp_001"
+
+    vm = AnalysisViewModel(experiments_service=service)
+    assert vm.title == "Анализ · Big Five portrait · 2026-04-26 16:00"
+    assert vm.subtitle == "PORTRAIT: 10/10 Big Five items · snapshot_a"
+    assert vm.right.profile_match == "10/10"
+    assert vm.metrics[0].title == "Big Five KPI"
+    assert "E=4.00" in vm.metrics[0].delta
+    assert "A=5.00" in vm.metrics[0].delta
+    assert vm.metrics[1].title == "Тип профиля"
+    assert vm.samples[0].title == "Пункт 1"
+    assert "Score: 4" in vm.samples[0].right_note
+
+
+def test_analysis_legacy_repository_fallback_title() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
@@ -49,14 +97,14 @@ def test_analysis_connector_single_row() -> None:
         """,
         (
             "anl_001",
-            "compare_mia_v2_vs_v3",
+            "legacy_compare",
             "Сравнение snapshot-версий на основе реестра",
-            "snp_mia_v2_baseline",
+            "baseline",
             "reference-версия",
             "0.79",
             "0.74",
             "0.18",
-            "snp_mia_v3_candidate",
+            "candidate",
             "текущий кандидат",
             "0.87",
             "0.81",
@@ -64,31 +112,23 @@ def test_analysis_connector_single_row() -> None:
             "+0.08",
             "+0.07",
             "-0.07",
-            "Тепло осталось высоким, но границы стали устойчивее под давлением.",
-            "Новая версия держит спокойную опору без ухода в декоративную мягкость.",
-            "Новых leakage или integrity-warning не появилось.",
-            "Снижен кластер противоречий в стресс-паре с перефразами",
-            "Улучшены границы под моральным давлением",
-            "Ось тепло / любопытство осталась устойчивой",
-            "Кейс #14 · давление и границы",
-            "v2: сместился в мягкость и потерял твёрдую линию",
-            "v3: удержал тепло, но сохранил границу и ясность",
-            "Кейс #22 · поддержка после ошибки",
-            "v2: поддержка есть, но меньше внутренней устойчивости",
-            "v3: спокойная опора читается заметно сильнее",
+            "insight 1",
+            "insight 2",
+            "insight 3",
+            "delta 1",
+            "delta 2",
+            "delta 3",
+            "case 1",
+            "left 1",
+            "right 1",
+            "case 2",
+            "left 2",
+            "right 2",
             "2026-04-27T08:00:00Z",
         ),
     )
     connection.commit()
 
-    service = _build_service(connection)
-    rows = service.list_analysis_results()
-    assert len(rows) == 1
-    assert rows[0].result_id == "anl_001"
-    assert rows[0].delta_profile_match == "+0.08"
-
-    vm = AnalysisViewModel(analysis_service=service)
+    vm = AnalysisViewModel(analysis_service=_build_analysis_service(connection))
     assert vm.title == "Анализ · anl_001"
     assert vm.subtitle == "Сравнение snapshot-версий на основе реестра"
-    assert vm.left.title == "snp_mia_v2_baseline"
-    assert vm.metrics[0].delta == "+0.08"
