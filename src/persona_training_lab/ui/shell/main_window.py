@@ -21,7 +21,7 @@ from persona_training_lab.ui.training.screen import TrainingScreen
 from persona_training_lab.ui.snapshots.screen import SnapshotsScreen
 from persona_training_lab.ui.tests.screen import TestsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
-from persona_training_lab.ui.density import apply_scaled_styles, current_scale, screen_density, scaled
+from persona_training_lab.ui.density import screen_density, scaled
 from persona_training_lab.ui.themes.manager import apply_theme
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
@@ -131,7 +131,8 @@ class MainWindow(QMainWindow):
         self._status.set_style_message(f"{self._current_theme.title()} · {self._current_accent.title()} · {self._density.name}")
 
         self._docks: dict[str, QDockWidget] = {}
-        inspector = self._register_dock("Инспектор", InspectorPanel(), Qt.RightDockWidgetArea)
+        self._inspector_panel = InspectorPanel()
+        inspector = self._register_dock("Инспектор", self._inspector_panel, Qt.RightDockWidgetArea)
         activity = self._register_dock("Активность", ActivityPanel(), Qt.BottomDockWidgetArea)
         telemetry = self._register_dock("Телеметрия", TelemetryPanel(telemetry_vm), Qt.BottomDockWidgetArea)
         issues = self._register_dock("Проблемы", IssuesPanel(), Qt.BottomDockWidgetArea)
@@ -143,6 +144,7 @@ class MainWindow(QMainWindow):
         windows_menu = self._build_windows_menu()
         self._sidebar.set_window_menu(windows_menu)
         self.menuBar().hide()
+        self._inspector_panel.set_context("dashboard")
         self._schedule_rebalance()
 
     def _register_dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
@@ -185,6 +187,7 @@ class MainWindow(QMainWindow):
     def _on_screen_selected(self, screen: str) -> None:
         self._shell_vm.navigate(screen)
         self._workspace.show_workspace(screen)
+        self._inspector_panel.set_context(screen)
         self._status.set_message(f"Текущее пространство: {screen}")
 
     def _apply_style(self, theme_name: str, accent_name: str) -> None:
