@@ -89,15 +89,16 @@ class TestsViewModel:
 
         latest = scenarios[0]
         summary, cases = self._parse_subtitle(latest.subtitle)
-        failures = 0 if latest.status in {"Портрет собран", "Пройден"} else 1
+        invalid_count = sum(1 for case in cases if "Валидность: нет" in case.note)
+        failures = invalid_count if latest.status in {"Портрет собран", "Пройден"} else max(1, invalid_count)
         answers_value = self._answers_value(summary)
         self.title = f"Тесты · {latest.title}"
         self.subtitle = summary or latest.subtitle
         self.metrics = (
             EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые portrait/test runs"),
             EvaluationMetric("Последний статус", latest.status, "последний сохранённый запуск"),
-            EvaluationMetric("Пункты", answers_value, "получено SCORE-ответов"),
-            EvaluationMetric("Ошибки", str(failures), "структурные ошибки запуска"),
+            EvaluationMetric("Пункты", answers_value, "валидные SCORE-ответы"),
+            EvaluationMetric("Ошибки", str(failures), "пункты без валидного SCORE"),
         )
         self.problematic_cases = cases or (EvaluationCase("Ответы не сохранены", "Запустите сбор портрета ещё раз."),)
         self.context_rows = (
@@ -129,6 +130,8 @@ class TestsViewModel:
             reverse = next((line.removeprefix("REVERSE: ").strip() for line in lines if line.startswith("REVERSE: ")), "")
             item = next((line.removeprefix("ITEM: ").strip() for line in lines if line.startswith("ITEM: ")), "")
             status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
+            valid_score = next((line.removeprefix("VALID_SCORE: ").strip() for line in lines if line.startswith("VALID_SCORE: ")), "")
+            raw_response = next((line.removeprefix("RAW_RESPONSE: ").strip() for line in lines if line.startswith("RAW_RESPONSE: ")), "")
             response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
             note_parts = []
             if trait:
@@ -139,8 +142,12 @@ class TestsViewModel:
                 note_parts.append(f"Пункт: {item}")
             if status:
                 note_parts.append(f"Статус: {status}")
+            if valid_score:
+                note_parts.append(f"Валидность: {'да' if valid_score == '1' else 'нет'}")
             if response:
                 note_parts.append(f"Ответ: {response}")
+            if raw_response and raw_response != response:
+                note_parts.append(f"Сырой ответ: {raw_response}")
             cases.append(EvaluationCase(case_title, "\n".join(note_parts) if note_parts else block))
         if cases:
             return summary, tuple(cases)
