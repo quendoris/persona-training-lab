@@ -7,6 +7,9 @@ from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.experiments.service import ExperimentsService
 
 
+SCORE_RE = re.compile(r"\bSCORE\s*:\s*([1-5])\b", re.IGNORECASE)
+
+
 @dataclass(slots=True, frozen=True)
 class CompareMetric:
     title: str
@@ -71,9 +74,11 @@ class AnalysisViewModel:
         subtitle = getattr(latest, "subtitle", "")
         status = getattr(latest, "status", "")
         title = getattr(latest, "title", "")
-        summary, samples, trait_values = self._parse_big_five(subtitle)
+        summary, samples, trait_values, invalid_count = self._parse_big_five(subtitle)
         passed, total = self._parse_passed_total(summary)
-        failures = max(0, total - passed) if total else (0 if status in {"Портрет собран", "Пройден"} else 1)
+        failures = max(invalid_count, max(0, total - passed)) if total else invalid_count
+        if not total and status not in {"Портрет собран", "Пройден"}:
+            failures = max(failures, 1)
         trait_scores = self._trait_scores(trait_values)
         profile_type = self._profile_type(trait_scores)
         score_line = self._score_line(trait_scores)
@@ -83,7 +88,7 @@ class AnalysisViewModel:
         self.left = CompareSummary("Метод", "Big Five / IPIP-style KPI", "1-5", "reverse", "manual")
         self.right = CompareSummary("Последний портрет", title, f"{passed}/{total}" if total else "—", status, str(failures))
         self.metrics = (
-            CompareMetric("Big Five KPI", score_line or "—", "средний балл по факторам 1-5"),
+            CompareMetric("Big Five KPI", score_line or "—", "средний балл по валидным SCORE 1-5"),
             CompareMetric("Тип профиля", profile_type, "эвристический ярлык по двум самым высоким факторам"),
             CompareMetric("Ошибки", str(failures), "пункты без валидного SCORE"),
         )
@@ -95,13 +100,14 @@ class AnalysisViewModel:
         )
         self.samples = samples or (CompareSample("Ответы не найдены", "—", subtitle),)
 
-    def _parse_big_five(self, subtitle: str) -> tuple[str, tuple[CompareSample, ...], dict[str, list[float]]]:
+    def _parse_big_five(self, subtitle: str) -> tuple[str, tuple[CompareSample, ...], dict[str, list[float]], int]:
         blocks = [block.strip() for block in subtitle.split("\n\n") if block.strip()]
         if not blocks:
-            return subtitle, (), {}
+            return subtitle, (), {}, 0
         summary = blocks[0]
         samples: list[CompareSample] = []
         trait_values: dict[str, list[float]] = {}
+        invalid_count = 0
         for block in blocks[1:]:
             lines = [line.strip() for line in block.splitlines() if line.strip()]
             if not lines:
@@ -110,24 +116,38 @@ class AnalysisViewModel:
             trait = self._field(lines, "TRAIT") or self._field(lines, "DIMENSION")
             key = self._field(lines, "KEY")
             reverse = self._field(lines, "REVERSE") == "1"
+            valid_score = self._field(lines, "VALID_SCORE")
             item = self._field(lines, "ITEM") or self._field(lines, "QUESTION") or self._field(lines, "PROMPT")
             status = self._field(lines, "STATUS")
             response = self._field(lines, "RESPONSE")
+            raw_response = self._field(lines, "RAW_RESPONSE")
             raw_score = self._score_from_response(response)
             score = 6 - raw_score if raw_score is not None and reverse else raw_score
-            if trait and score is not None:
+            if raw_score is None or valid_score == "0":
+                invalid_count += 1
+            elif trait and score is not None:
                 trait_values.setdefault(trait, []).append(float(score))
             left = "\n".join(part for part in (f"Фактор: {trait}" if trait else "", f"Ключ: {key}" if key else "", f"Пункт: {item}" if item else "") if part)
-            right = "\n".join(part for part in (f"Статус: {status}" if status else "", f"Raw: {raw_score}" if raw_score is not None else "Raw: —", f"Score: {score}" if score is not None else "Score: —", f"Ответ: {response}" if response else "") if part)
+            right = "\n".join(
+                part
+                for part in (
+                    f"Статус: {status}" if status else "",
+                    f"Raw: {raw_score}" if raw_score is not None else "Raw: —",
+                    f"Score: {score}" if score is not None else "Score: —",
+                    f"Ответ: {response}" if response else "",
+                    f"Raw response: {raw_response}" if raw_response and raw_response != response else "",
+                )
+                if part
+            )
             samples.append(CompareSample(title, left or "Пункт не сохранён", right or block))
-        return summary, tuple(samples), trait_values
+        return summary, tuple(samples), trait_values, invalid_count
 
     def _field(self, lines: list[str], name: str) -> str:
         prefix = f"{name}: "
         return next((line.removeprefix(prefix).strip() for line in lines if line.startswith(prefix)), "")
 
     def _score_from_response(self, response: str) -> int | None:
-        match = re.search(r"\b([1-5])\b", response)
+        match = SCORE_RE.search(response)
         return int(match.group(1)) if match else None
 
     def _trait_scores(self, values: dict[str, list[float]]) -> dict[str, float]:
