@@ -143,7 +143,7 @@ class ExperimentsService:
                 f"REVERSE: {'1' if case.reverse else '0'}\n"
                 f"SCALE: {case.scale_min}-{case.scale_max}\n"
                 f"ITEM: {case.statement}\n"
-                f"PROMPT: {case.prompt}\n"
+                f"PROMPT: {self._one_line(case.prompt)}\n"
                 f"STATUS: {result.status}\n"
                 f"VALID_SCORE: {'1' if score_valid else '0'}\n"
                 f"RAW_RESPONSE: {raw_response}\n"
@@ -174,6 +174,9 @@ class ExperimentsService:
             }
         )
         return ExperimentRunResult(failures == 0, f"Психологический портрет: {status}", experiment_id)
+
+    def _one_line(self, value: str) -> str:
+        return " ".join(value.split())
 
     def _format_response(self, value: str) -> str:
         compact = " ".join(value.replace("\x00", " ").split())
