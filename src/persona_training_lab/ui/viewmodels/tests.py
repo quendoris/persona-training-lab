@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from persona_training_lab.application.experiments.service import ExperimentsService
+
+
+CASE_HEADER_RE = re.compile(r"(?m)^CASE\s+\d+")
 
 
 @dataclass(slots=True, frozen=True)
@@ -114,13 +118,21 @@ class TestsViewModel:
         head = summary.split(" · ")[0]
         return head.replace("PORTRAIT: ", "").replace("SUMMARY: ", "")
 
+    def _split_case_records(self, subtitle: str) -> tuple[str, list[str]]:
+        match = CASE_HEADER_RE.search(subtitle)
+        if match is None:
+            return subtitle.strip(), []
+        summary = subtitle[: match.start()].strip()
+        records = [record.strip() for record in CASE_HEADER_RE.split(subtitle[match.start():]) if record.strip()]
+        headers = CASE_HEADER_RE.findall(subtitle[match.start():])
+        return summary, [f"{header}\n{record}" for header, record in zip(headers, records, strict=False)]
+
     def _parse_subtitle(self, subtitle: str) -> tuple[str, tuple[EvaluationCase, ...]]:
-        blocks = [block.strip() for block in subtitle.split("\n\n") if block.strip()]
-        if not blocks:
+        summary, blocks = self._split_case_records(subtitle)
+        if not summary and not blocks:
             return subtitle, ()
-        summary = blocks[0]
         cases: list[EvaluationCase] = []
-        for block in blocks[1:]:
+        for block in blocks:
             lines = [line.strip() for line in block.splitlines() if line.strip()]
             if not lines:
                 continue
