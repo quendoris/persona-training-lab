@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QProgressBar,
     QVBoxLayout,
     QWidget,
@@ -39,27 +40,85 @@ class DashboardScreen(QWidget):
         header_layout.setSpacing(8)
         title = QLabel("Панель управления")
         title.setObjectName("ScreenTitle")
-        subtitle = make_muted_label("Спокойная обзорная панель, где видно весь жизненный цикл личности модели")
+        subtitle = make_muted_label("Живая сводка: обучение, датасеты, снимки, портрет и delta модели")
         header_layout.addWidget(title)
         header_layout.addWidget(subtitle)
         main_column.addWidget(header)
 
-        stats_grid = QGridLayout()
-        stats_grid.setSpacing(12)
+        self._stats_grid = QGridLayout()
+        self._stats_grid.setSpacing(12)
+        main_column.addLayout(self._stats_grid)
+
+        self._actions_card = PanelCard("Быстрые действия", "Короткий маршрут к следующему рабочему шагу.")
+        self._actions_grid = QGridLayout()
+        self._actions_grid.setSpacing(12)
+        self._actions_card._layout.addLayout(self._actions_grid)
+        main_column.addWidget(self._actions_card)
+
+        bottom_grid = QGridLayout()
+        bottom_grid.setSpacing(16)
+        main_column.addLayout(bottom_grid, 1)
+
+        self._activity_card = PanelCard("Последняя активность", "Где система остановилась и что уже есть в базе.")
+        bottom_grid.addWidget(self._activity_card, 0, 0)
+
+        self._system_card = PanelCard("Готовность пайплайна", "Проверка ключевых условий перед следующим шагом.")
+        bottom_grid.addWidget(self._system_card, 0, 1)
+
+        self._attention_card = PanelCard("Панель внимания", "То, что лучше не потерять из виду.")
+        side_column.addWidget(self._attention_card)
+
+        self._lineage_card = PanelCard("Lineage-цепочка", "Связка данных, обучения, snapshot и портрета.")
+        side_column.addWidget(self._lineage_card)
+        side_column.addStretch(1)
+
+        self._refresh_all()
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        self._refresh_all()
+        super().showEvent(event)
+
+    def _clear_layout(self, layout: QLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            child_layout = item.layout()
+            if child_layout is not None:
+                self._clear_layout(child_layout)
+            if widget is not None:
+                widget.deleteLater()
+
+    def _clear_card_body(self, card: PanelCard) -> None:
+        # Preserve the title and subtitle labels that PanelCard created first.
+        while card._layout.count() > 2:
+            item = card._layout.takeAt(2)
+            widget = item.widget()
+            child_layout = item.layout()
+            if child_layout is not None:
+                self._clear_layout(child_layout)
+            if widget is not None:
+                widget.deleteLater()
+
+    def _refresh_all(self) -> None:
+        self._refresh_stats()
+        self._refresh_actions()
+        self._refresh_activity()
+        self._refresh_system()
+        self._refresh_attention()
+        self._refresh_lineage()
+
+    def _refresh_stats(self) -> None:
+        self._clear_layout(self._stats_grid)
         for index, (label, value, note) in enumerate(self._vm.stats()):
             card = PanelCard(label, note, accented=(index == 0))
             value_label = QLabel(value)
             value_label.setObjectName("MetricValue")
+            value_label.setWordWrap(True)
             card.add_widget(value_label)
-            stats_grid.addWidget(card, index // 2, index % 2)
-        main_column.addLayout(stats_grid)
+            self._stats_grid.addWidget(card, index // 2, index % 2)
 
-        actions_card = PanelCard(
-            "Быстрые действия",
-            "Сильные точки входа в живой workflow системы.",
-        )
-        actions_grid = QGridLayout()
-        actions_grid.setSpacing(12)
+    def _refresh_actions(self) -> None:
+        self._clear_layout(self._actions_grid)
         for index, (icon_text, title_text, desc_text) in enumerate(self._vm.quick_actions()):
             action = QFrame()
             action.setObjectName("ActionCard")
@@ -78,19 +137,13 @@ class DashboardScreen(QWidget):
 
             title_label = QLabel(title_text)
             title_label.setObjectName("CardTitle")
+            title_label.setWordWrap(True)
             action_layout.addWidget(title_label)
             action_layout.addWidget(make_muted_label(desc_text))
-            actions_grid.addWidget(action, index // 3, index % 3)
-        actions_card._layout.addLayout(actions_grid)
-        main_column.addWidget(actions_card)
+            self._actions_grid.addWidget(action, index // 3, index % 3)
 
-        bottom_grid = QGridLayout()
-        bottom_grid.setSpacing(16)
-
-        activity_card = PanelCard(
-            "Последняя активность",
-            "Система должна помнить, где ты остановился, и помогать вернуться в поток.",
-        )
+    def _refresh_activity(self) -> None:
+        self._clear_card_body(self._activity_card)
         for title_text, note_text in self._vm.recent_activity():
             row = QFrame()
             row.setObjectName("PanelCardSoft")
@@ -98,25 +151,16 @@ class DashboardScreen(QWidget):
             row_layout.setContentsMargins(14, 12, 14, 12)
             row_layout.setSpacing(12)
             texts = QVBoxLayout()
-            texts.addWidget(QLabel(title_text))
+            title = QLabel(title_text)
+            title.setWordWrap(True)
+            texts.addWidget(title)
             texts.addWidget(make_muted_label(note_text))
             row_layout.addLayout(texts, 1)
-            state = make_status_label("идёт")
-            if "проверенный" in note_text:
-                state.setText("проверен")
-            elif "одобрена" in note_text:
-                state.setText("одобрен")
-            elif "предупреждениями" in note_text:
-                state.setText("внимание")
-                state.setObjectName("StatusWarning")
-            row_layout.addWidget(state, 0, Qt.AlignTop)
-            activity_card.add_widget(row)
-        bottom_grid.addWidget(activity_card, 0, 0)
+            row_layout.addWidget(self._state_label(note_text), 0, Qt.AlignTop)
+            self._activity_card.add_widget(row)
 
-        system_card = PanelCard(
-            "Состояние системы",
-            "Мониторинг как часть доверия к среде.",
-        )
+    def _refresh_system(self) -> None:
+        self._clear_card_body(self._system_card)
         for label_text, value, note in self._vm.system_metrics():
             line = QWidget()
             line.setProperty("transparentBg", True)
@@ -127,6 +171,7 @@ class DashboardScreen(QWidget):
             top.addWidget(QLabel(label_text))
             note_label = QLabel(note)
             note_label.setObjectName("MutedText")
+            note_label.setWordWrap(True)
             top.addStretch(1)
             top.addWidget(note_label)
             bar = QProgressBar()
@@ -136,32 +181,33 @@ class DashboardScreen(QWidget):
             bar.setTextVisible(False)
             line_layout.addLayout(top)
             line_layout.addWidget(bar)
-            system_card.add_widget(line)
+            self._system_card.add_widget(line)
+
         warning = QFrame()
         warning.setObjectName("WarningBlock")
         warning_layout = QVBoxLayout(warning)
         warning_layout.setContentsMargins(14, 12, 14, 12)
         warning_layout.setSpacing(8)
-        warning_layout.addWidget(QLabel("Мягкое предупреждение"))
-        warning_layout.addWidget(make_muted_label("У версии датасета dsv_curated_rose_07 осталось одно семантическое предупреждение, но обучение можно продолжать."))
-        system_card.add_widget(warning)
-        bottom_grid.addWidget(system_card, 0, 1)
+        warning_layout.addWidget(QLabel("Следующий шаг"))
+        warning_layout.addWidget(make_muted_label(self._vm.next_best_step()))
+        self._system_card.add_widget(warning)
 
-        main_column.addLayout(bottom_grid, 1)
-
-        attention_card = PanelCard("Панель внимания", "То, что лучше не потерять из виду.")
+    def _refresh_attention(self) -> None:
+        self._clear_card_body(self._attention_card)
         for title_text, body in self._vm.attention_items():
             block = QFrame()
             block.setObjectName("PanelCardSoft")
             block_layout = QVBoxLayout(block)
             block_layout.setContentsMargins(14, 12, 14, 12)
             block_layout.setSpacing(8)
-            block_layout.addWidget(QLabel(title_text))
+            title = QLabel(title_text)
+            title.setWordWrap(True)
+            block_layout.addWidget(title)
             block_layout.addWidget(make_muted_label(body))
-            attention_card.add_widget(block)
-        side_column.addWidget(attention_card)
+            self._attention_card.add_widget(block)
 
-        lineage_card = PanelCard("Быстрая lineage-цепочка", "Связи должны ощущаться живыми, а не спрятанными.")
+    def _refresh_lineage(self) -> None:
+        self._clear_card_body(self._lineage_card)
         for item in self._vm.quick_lineage():
             pill = QFrame()
             pill.setObjectName("LineageRow")
@@ -173,7 +219,21 @@ class DashboardScreen(QWidget):
             chevron.setFixedSize(22, 22)
             chevron.setAlignment(Qt.AlignCenter)
             pill_layout.addWidget(chevron)
-            pill_layout.addWidget(QLabel(item), 1)
-            lineage_card.add_widget(pill)
-        side_column.addWidget(lineage_card)
-        side_column.addStretch(1)
+            label = QLabel(item)
+            label.setWordWrap(True)
+            pill_layout.addWidget(label, 1)
+            self._lineage_card.add_widget(pill)
+
+    def _state_label(self, note_text: str) -> QLabel:
+        text = "есть"
+        warning = False
+        lowered = note_text.lower()
+        if "ошиб" in lowered or "invalid" in lowered or "внимание" in lowered:
+            text = "внимание"
+            warning = True
+        elif "нет" in lowered or "—" in note_text:
+            text = "ожидание"
+            warning = True
+        elif "готов" in lowered or "собран" in lowered or "заверш" in lowered or "valid" in lowered:
+            text = "готово"
+        return make_status_label(text, warning=warning)
