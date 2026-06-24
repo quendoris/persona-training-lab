@@ -9,6 +9,14 @@ from persona_training_lab.application.experiments.service import ExperimentsServ
 
 SCORE_RE = re.compile(r"\bSCORE\s*:\s*([1-5])\b", re.IGNORECASE)
 CASE_HEADER_RE = re.compile(r"(?m)^CASE\s+\d+")
+TRAIT_ORDER = ["Extraversion", "Agreeableness", "Conscientiousness", "Emotional Stability", "Openness"]
+TRAIT_LABELS = {
+    "Extraversion": "E",
+    "Agreeableness": "A",
+    "Conscientiousness": "C",
+    "Emotional Stability": "S",
+    "Openness": "O",
+}
 
 
 @dataclass(slots=True, frozen=True)
@@ -34,6 +42,18 @@ class CompareSample:
     right_note: str
 
 
+@dataclass(slots=True, frozen=True)
+class PortraitStats:
+    title: str
+    status: str
+    summary: str
+    passed: int
+    total: int
+    failures: int
+    scores: dict[str, float]
+    samples: tuple[CompareSample, ...]
+
+
 @dataclass(slots=True)
 class AnalysisViewModel:
     analysis_service: AnalysisService | None = None
@@ -44,11 +64,11 @@ class AnalysisViewModel:
     right: CompareSummary = CompareSummary("Последний портрет", "ожидание", "—", "—", "—")
     metrics: tuple[CompareMetric, ...] = (
         CompareMetric("Big Five KPI", "—", "тесты пока не запускались"),
-        CompareMetric("Тип профиля", "—", "тесты пока не запускались"),
+        CompareMetric("Дельта", "—", "нужны два портрета"),
         CompareMetric("Ошибки", "—", "тесты пока не запускались"),
     )
     insights: tuple[str, ...] = ("Соберите портрет во вкладке «Тесты».",)
-    deltas: tuple[str, ...] = ("После SCORE-ответов анализ рассчитает средние значения по факторам.",)
+    deltas: tuple[str, ...] = ("После двух SCORE-прогонов анализ рассчитает изменение факторов.",)
     samples: tuple[CompareSample, ...] = (CompareSample("Нет данных", "—", "Нет сохранённых ответов"),)
 
     def __post_init__(self) -> None:
@@ -69,37 +89,65 @@ class AnalysisViewModel:
             self.title = "Анализ"
             self.subtitle = "Нет результатов тестов для анализа"
             return
-        self._apply_experiment(experiments[0])
+        previous = experiments[1] if len(experiments) > 1 else None
+        self._apply_experiment(experiments[0], previous)
 
-    def _apply_experiment(self, latest: object) -> None:
-        subtitle = getattr(latest, "subtitle", "")
-        status = getattr(latest, "status", "")
-        title = getattr(latest, "title", "")
+    def _apply_experiment(self, latest: object, previous: object | None = None) -> None:
+        latest_stats = self._stats_from_experiment(latest)
+        previous_stats = self._stats_from_experiment(previous) if previous is not None else None
+        profile_type = self._profile_type(latest_stats.scores)
+        score_line = self._score_line(latest_stats.scores)
+        delta_line = self._delta_line(previous_stats.scores, latest_stats.scores) if previous_stats else "нужны 2 портрета"
+
+        self.title = f"Анализ · {latest_stats.title}"
+        self.subtitle = latest_stats.summary
+        if previous_stats is not None:
+            self.left = CompareSummary(
+                "Предыдущий портрет",
+                previous_stats.title,
+                self._score_line(previous_stats.scores) or "—",
+                previous_stats.status,
+                str(previous_stats.failures),
+            )
+        else:
+            self.left = CompareSummary("Метод", "Big Five / IPIP-style KPI", "1-5", "reverse", "manual")
+        self.right = CompareSummary(
+            "Последний портрет",
+            latest_stats.title,
+            f"{latest_stats.passed}/{latest_stats.total}" if latest_stats.total else "—",
+            latest_stats.status,
+            str(latest_stats.failures),
+        )
+        self.metrics = (
+            CompareMetric("Big Five KPI", score_line or "—", "текущий средний балл по валидным SCORE"),
+            CompareMetric("Дельта", delta_line, "latest - previous по факторам"),
+            CompareMetric("Ошибки", str(latest_stats.failures), "пункты без валидного SCORE"),
+        )
+        self.insights = self._build_insights(latest_stats, previous_stats, profile_type)
+        self.deltas = self._build_delta_notes(latest_stats, previous_stats)
+        self.samples = self._compare_samples(latest_stats, previous_stats)
+
+    def _stats_from_experiment(self, experiment: object | None) -> PortraitStats:
+        if experiment is None:
+            return PortraitStats("—", "—", "—", 0, 0, 0, {}, ())
+        subtitle = getattr(experiment, "subtitle", "")
+        status = getattr(experiment, "status", "")
+        title = getattr(experiment, "title", "")
         summary, samples, trait_values, invalid_count = self._parse_big_five(subtitle)
         passed, total = self._parse_passed_total(summary)
         failures = max(invalid_count, max(0, total - passed)) if total else invalid_count
         if not total and status not in {"Портрет собран", "Пройден"}:
             failures = max(failures, 1)
-        trait_scores = self._trait_scores(trait_values)
-        profile_type = self._profile_type(trait_scores)
-        score_line = self._score_line(trait_scores)
-
-        self.title = f"Анализ · {title}"
-        self.subtitle = summary or subtitle
-        self.left = CompareSummary("Метод", "Big Five / IPIP-style KPI", "1-5", "reverse", "manual")
-        self.right = CompareSummary("Последний портрет", title, f"{passed}/{total}" if total else "—", status, str(failures))
-        self.metrics = (
-            CompareMetric("Big Five KPI", score_line or "—", "средний балл по валидным SCORE 1-5"),
-            CompareMetric("Тип профиля", profile_type, "эвристический ярлык по двум самым высоким факторам"),
-            CompareMetric("Ошибки", str(failures), "пункты без валидного SCORE"),
+        return PortraitStats(
+            title=title,
+            status=status,
+            summary=summary or subtitle,
+            passed=passed,
+            total=total,
+            failures=failures,
+            scores=self._trait_scores(trait_values),
+            samples=samples,
         )
-        self.insights = self._build_insights(trait_scores, status, passed, total)
-        self.deltas = (
-            "Теперь тест даёт численные KPI, пригодные для сравнения версий модели.",
-            "Следующий слой: сохранить ручную оценку качества по каждому фактору и собрать corrective dataset.",
-            "Для статьи нужно фиксировать версию батареи, модель, seed/режим генерации и правила score parsing.",
-        )
-        self.samples = samples or (CompareSample("Ответы не найдены", "—", subtitle),)
 
     def _split_case_records(self, subtitle: str) -> tuple[str, list[str]]:
         match = CASE_HEADER_RE.search(subtitle)
@@ -163,8 +211,16 @@ class AnalysisViewModel:
         return {trait: round(sum(items) / len(items), 2) for trait, items in values.items() if items}
 
     def _score_line(self, scores: dict[str, float]) -> str:
-        order = ["Extraversion", "Agreeableness", "Conscientiousness", "Emotional Stability", "Openness"]
-        return " · ".join(f"{key[:1]}={scores[key]:.2f}" for key in order if key in scores)
+        return " · ".join(f"{TRAIT_LABELS[key]}={scores[key]:.2f}" for key in TRAIT_ORDER if key in scores)
+
+    def _delta_line(self, previous: dict[str, float], latest: dict[str, float]) -> str:
+        parts: list[str] = []
+        for key in TRAIT_ORDER:
+            if key not in previous or key not in latest:
+                continue
+            delta = latest[key] - previous[key]
+            parts.append(f"{TRAIT_LABELS[key]}={delta:+.2f}")
+        return " · ".join(parts) if parts else "нет общей базы"
 
     def _profile_type(self, scores: dict[str, float]) -> str:
         if not scores:
@@ -182,20 +238,51 @@ class AnalysisViewModel:
         except ValueError:
             return 0, 0
 
-    def _build_insights(self, scores: dict[str, float], status: str, passed: int, total: int) -> tuple[str, ...]:
-        if not scores:
+    def _build_insights(self, latest: PortraitStats, previous: PortraitStats | None, profile_type: str) -> tuple[str, ...]:
+        if not latest.scores:
             return (
                 "SCORE-значения не распознаны: проверьте ответы модели во вкладке «Тесты».",
                 "Модель должна возвращать строго SCORE: 1-5.",
                 "Без чисел анализ не строит KPI и тип профиля.",
             )
-        strongest = max(scores.items(), key=lambda item: item[1])
-        weakest = min(scores.items(), key=lambda item: item[1])
+        strongest = max(latest.scores.items(), key=lambda item: item[1])
+        if previous is None or not previous.scores:
+            return (
+                f"Портрет собран: {latest.passed}/{latest.total} пунктов, статус: {latest.status}.",
+                f"Тип текущего профиля: {profile_type}.",
+                "Для расчёта дельты нужен ещё один портрет после следующего fine-tune или нового запуска.",
+            )
+        biggest_trait, biggest_delta = self._largest_abs_delta(previous.scores, latest.scores)
         return (
-            f"Портрет собран: {passed}/{total} пунктов, статус: {status}.",
-            f"Сильнейший фактор сейчас: {strongest[0]} = {strongest[1]:.2f}.",
-            f"Самый слабый фактор сейчас: {weakest[0]} = {weakest[1]:.2f}.",
+            f"Портрет собран: {latest.passed}/{latest.total} пунктов, статус: {latest.status}.",
+            f"Сильнейший текущий фактор: {strongest[0]} = {strongest[1]:.2f}.",
+            f"Самое заметное изменение: {biggest_trait} {biggest_delta:+.2f}.",
         )
+
+    def _build_delta_notes(self, latest: PortraitStats, previous: PortraitStats | None) -> tuple[str, ...]:
+        if previous is None or not previous.scores or not latest.scores:
+            return (
+                "Для научного сравнения нужны минимум два портретных прогона.",
+                "После следующего fine-tune запустите «Собрать портрет» ещё раз.",
+                "Анализ автоматически покажет latest - previous по каждому фактору.",
+            )
+        notes = [f"{trait}: {previous.scores[trait]:.2f} → {latest.scores[trait]:.2f} ({latest.scores[trait] - previous.scores[trait]:+.2f})" for trait in TRAIT_ORDER if trait in previous.scores and trait in latest.scores]
+        return tuple(notes) or ("Нет общей базы факторов для сравнения.",)
+
+    def _compare_samples(self, latest: PortraitStats, previous: PortraitStats | None) -> tuple[CompareSample, ...]:
+        if previous is None or not previous.samples:
+            return latest.samples or (CompareSample("Ответы не найдены", "—", latest.summary),)
+        compared: list[CompareSample] = []
+        for idx, sample in enumerate(latest.samples[:10]):
+            left = previous.samples[idx].right_note if idx < len(previous.samples) else "предыдущий пункт отсутствует"
+            compared.append(CompareSample(sample.title, left, sample.right_note))
+        return tuple(compared)
+
+    def _largest_abs_delta(self, previous: dict[str, float], latest: dict[str, float]) -> tuple[str, float]:
+        common = [(trait, latest[trait] - previous[trait]) for trait in TRAIT_ORDER if trait in previous and trait in latest]
+        if not common:
+            return "нет общей базы", 0.0
+        return max(common, key=lambda item: abs(item[1]))
 
     def _apply_analysis_connector(self) -> None:
         if self.analysis_service is None:
