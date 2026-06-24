@@ -118,7 +118,14 @@ def build_container() -> AppContainer:
     )
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
-    dashboard_vm = DashboardViewModel(docs_service=docs_service, projects_service=projects_service)
+    dashboard_vm = DashboardViewModel(
+        docs_service=docs_service,
+        projects_service=projects_service,
+        training_service=training_service,
+        model_versions_service=model_versions_service,
+        datasets_service=datasets_service,
+        experiments_service=experiments_service,
+    )
     docs_vm = DocsViewModel(docs_service=docs_service)
     style_vm = StyleViewModel(style_service=style_service)
     datasets_vm = DatasetsViewModel(datasets_service=datasets_service)
