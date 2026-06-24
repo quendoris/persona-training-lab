@@ -38,8 +38,8 @@ def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
             "exp_002",
             "Big Five portrait · 2026-04-26 16:00",
             "PORTRAIT: 10/10 Big Five items · snapshot_a\n\n"
-            "CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 4\n\n"
-            "CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 5",
+            "CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 4\nRESPONSE: SCORE: 4\n\n"
+            "CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 5\nRESPONSE: SCORE: 5",
             "Портрет собран",
             "2026-04-26T16:00:00Z",
         ),
@@ -50,6 +50,8 @@ def test_tests_viewmodel_single_row_from_experiments_connector() -> None:
     assert vm.title == "Тесты · Big Five portrait · 2026-04-26 16:00"
     assert vm.subtitle == "PORTRAIT: 10/10 Big Five items · snapshot_a"
     assert vm.problematic_cases[0].title == "Пункт 1"
+    assert len(vm.problematic_cases) == 2
     assert "Фактор: Extraversion" in vm.problematic_cases[0].note
     assert "Пункт: Я легко начинаю диалог первым." in vm.problematic_cases[0].note
+    assert "Валидность: да" in vm.problematic_cases[0].note
     assert "Ответ: SCORE: 4" in vm.problematic_cases[0].note
