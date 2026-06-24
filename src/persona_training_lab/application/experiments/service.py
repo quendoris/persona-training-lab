@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.resources import files
 import json
+import re
 from uuid import uuid4
 
 from persona_training_lab.application.local_model.service import LocalModelService
@@ -20,6 +21,7 @@ PORTRAIT_SCORE_INSTRUCTION = (
     "Return exactly one line in the format SCORE: N, where N is an integer from 1 to 5. "
     "Do not explain. Do not continue the item text. Do not write thinking tags."
 )
+SCORE_RE = re.compile(r"\bSCORE\s*:\s*([1-5])\b", re.IGNORECASE)
 
 
 @dataclass(slots=True, frozen=True)
@@ -127,8 +129,9 @@ class ExperimentsService:
                 case.prompt,
                 instruction_prompt=PORTRAIT_SCORE_INSTRUCTION,
             )
-            response = self._format_response(result.response or result.message)
-            if result.status != "Модель отвечает" or not response or response == "<пустой ответ>":
+            raw_response = self._format_response(result.response or result.message)
+            response, score_valid = self._normalise_score_response(raw_response)
+            if result.status != "Модель отвечает" or not score_valid:
                 failures += 1
             responses.append(
                 f"CASE {index}\n"
@@ -142,6 +145,8 @@ class ExperimentsService:
                 f"ITEM: {case.statement}\n"
                 f"PROMPT: {case.prompt}\n"
                 f"STATUS: {result.status}\n"
+                f"VALID_SCORE: {'1' if score_valid else '0'}\n"
+                f"RAW_RESPONSE: {raw_response}\n"
                 f"RESPONSE: {response}"
             )
 
@@ -175,4 +180,10 @@ class ExperimentsService:
         compact = compact.replace("<think>", "").replace("</think>", "").strip()
         if not compact:
             return "<пустой ответ>"
-        return compact if len(compact) <= 80 else compact[:79] + "…"
+        return compact if len(compact) <= 120 else compact[:119] + "…"
+
+    def _normalise_score_response(self, value: str) -> tuple[str, bool]:
+        match = SCORE_RE.search(value)
+        if match is None:
+            return f"INVALID: {value}", False
+        return f"SCORE: {match.group(1)}", True
