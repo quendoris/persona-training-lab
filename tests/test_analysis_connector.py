@@ -49,9 +49,9 @@ def test_analysis_connector_single_row() -> None:
             "exp_001",
             "Big Five portrait · 2026-04-26 16:00",
             "PORTRAIT: 10/10 Big Five items · snapshot_a\n\n"
-            "CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 4\n\n"
-            "CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: Я обычно держусь в стороне от диалога.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 2\n\n"
-            "CASE 3\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nRESPONSE: SCORE: 5",
+            "CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 4\nRESPONSE: SCORE: 4\n\n"
+            "CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: Я обычно держусь в стороне от диалога.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 2\nRESPONSE: SCORE: 2\n\n"
+            "CASE 3\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 5\nRESPONSE: SCORE: 5",
             "Портрет собран",
             "2026-04-26T16:00:00Z",
         ),
@@ -71,6 +71,8 @@ def test_analysis_connector_single_row() -> None:
     assert "E=4.00" in vm.metrics[0].delta
     assert "A=5.00" in vm.metrics[0].delta
     assert vm.metrics[1].title == "Тип профиля"
+    assert vm.metrics[2].delta == "0"
+    assert len(vm.samples) == 3
     assert vm.samples[0].title == "Пункт 1"
     assert "Score: 4" in vm.samples[0].right_note
 
