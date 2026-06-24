@@ -20,6 +20,15 @@ def _build_experiments_service(connection: sqlite3.Connection) -> ExperimentsSer
     return ExperimentsService(experiments_repo=repo)
 
 
+def _portrait_subtitle(e1: int, e2r: int, a1: int, *, snapshot: str = "snapshot_a") -> str:
+    return (
+        f"PORTRAIT: 10/10 Big Five items · {snapshot}\n\n"
+        f"CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: {e1}\nRESPONSE: SCORE: {e1}\n\n"
+        f"CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: Я обычно держусь в стороне от диалога.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: {e2r}\nRESPONSE: SCORE: {e2r}\n\n"
+        f"CASE 3\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: {a1}\nRESPONSE: SCORE: {a1}"
+    )
+
+
 def test_analysis_connector_empty_state() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
@@ -48,10 +57,7 @@ def test_analysis_connector_single_row() -> None:
         (
             "exp_001",
             "Big Five portrait · 2026-04-26 16:00",
-            "PORTRAIT: 10/10 Big Five items · snapshot_a\n\n"
-            "CASE 1\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: Я легко начинаю диалог первым.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 4\nRESPONSE: SCORE: 4\n\n"
-            "CASE 2\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: Я обычно держусь в стороне от диалога.\nPROMPT: Насколько это похоже?\n\nШкала 1-5\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 2\nRESPONSE: SCORE: 2\n\n"
-            "CASE 3\nINSTRUMENT: BIG_FIVE_SHORT\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: Я учитываю состояние собеседника.\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRAW_RESPONSE: SCORE: 5\nRESPONSE: SCORE: 5",
+            _portrait_subtitle(4, 2, 5),
             "Портрет собран",
             "2026-04-26T16:00:00Z",
         ),
@@ -70,11 +76,48 @@ def test_analysis_connector_single_row() -> None:
     assert vm.metrics[0].title == "Big Five KPI"
     assert "E=4.00" in vm.metrics[0].delta
     assert "A=5.00" in vm.metrics[0].delta
-    assert vm.metrics[1].title == "Тип профиля"
+    assert vm.metrics[1].title == "Дельта"
+    assert vm.metrics[1].delta == "нужны 2 портрета"
     assert vm.metrics[2].delta == "0"
     assert len(vm.samples) == 3
     assert vm.samples[0].title == "Пункт 1"
     assert "Score: 4" in vm.samples[0].right_note
+
+
+def test_analysis_compares_latest_with_previous_portrait() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+
+    connection.execute(
+        """
+        INSERT INTO experiments (id, title, subtitle, status, updated_at)
+        VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)
+        """,
+        (
+            "exp_old",
+            "Big Five portrait · old",
+            _portrait_subtitle(2, 4, 3, snapshot="old_snapshot"),
+            "Портрет собран",
+            "2026-04-26T16:00:00Z",
+            "exp_new",
+            "Big Five portrait · new",
+            _portrait_subtitle(4, 2, 5, snapshot="new_snapshot"),
+            "Портрет собран",
+            "2026-04-27T16:00:00Z",
+        ),
+    )
+    connection.commit()
+
+    vm = AnalysisViewModel(experiments_service=_build_experiments_service(connection))
+    assert vm.title == "Анализ · Big Five portrait · new"
+    assert vm.left.title == "Предыдущий портрет"
+    assert vm.left.subtitle == "Big Five portrait · old"
+    assert vm.metrics[1].title == "Дельта"
+    assert "E=+2.00" in vm.metrics[1].delta
+    assert "A=+2.00" in vm.metrics[1].delta
+    assert any("Extraversion: 2.00 → 4.00 (+2.00)" == line for line in vm.deltas)
+    assert vm.samples[0].left_note != vm.samples[0].right_note
 
 
 def test_analysis_legacy_repository_fallback_title() -> None:
