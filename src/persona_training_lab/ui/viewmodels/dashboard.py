@@ -54,6 +54,9 @@ class DashboardViewModel:
         return self.docs_service.get_quick_start_items()
 
     def stats(self) -> list[tuple[str, str, str]]:
+        if not self._has_live_workflow_services():
+            return self._project_stats()
+
         training_runs = self._training_runs()
         versions = self._model_versions()
         datasets = self._datasets()
@@ -95,6 +98,11 @@ class DashboardViewModel:
         if datasets:
             dataset = datasets[0]
             rows.append((f"Dataset · {dataset.title}", f"{dataset.status} · {dataset.valid_count}/{dataset.record_count} valid"))
+        if not rows:
+            projects = self._projects()
+            if projects:
+                latest = projects[0]
+                rows.append((f"Project · {latest.title}", latest.status))
         return rows[:4] or [("Пока нет активности", "Начните с добавления датасета и запуска обучения")]
 
     def system_metrics(self) -> list[tuple[str, int, str]]:
@@ -151,6 +159,8 @@ class DashboardViewModel:
         versions = self._model_versions()
         portraits = self._portraits()
         latest_portrait = self._portrait_stats(portraits[0]) if portraits else None
+        if not self._has_live_workflow_services():
+            return "Подключите workflow-сервисы или откройте Документы → Быстрый старт."
         if not datasets:
             return "Добавьте датасет во вкладке «Датасеты»."
         if not any(item.status == "Одобрен для обучения" for item in datasets):
@@ -168,6 +178,33 @@ class DashboardViewModel:
         if len(portraits) < 2:
             return "После следующего fine-tune соберите второй портрет для delta."
         return "Откройте «Анализ» и смотрите delta latest - previous."
+
+    def _has_live_workflow_services(self) -> bool:
+        return any(
+            service is not None
+            for service in (
+                self.training_service,
+                self.model_versions_service,
+                self.datasets_service,
+                self.experiments_service,
+            )
+        )
+
+    def _projects(self) -> list[object]:
+        try:
+            return self.projects_service.list_projects()
+        except Exception:
+            return []
+
+    def _project_stats(self) -> list[tuple[str, str, str]]:
+        try:
+            projects = self.projects_service.list_projects()
+        except Exception:
+            return [("Проекты", "—", "Не удалось загрузить проекты")]
+        if not projects:
+            return [("Проекты", "00", "Проекты пока не созданы")]
+        latest = projects[0]
+        return [("Проекты", f"{len(projects):02d}", f"{latest.title} · {latest.status}")]
 
     def _training_runs(self) -> list[object]:
         if self.training_service is None:
