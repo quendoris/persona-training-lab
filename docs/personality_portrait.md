@@ -38,7 +38,22 @@ SCORE: 4
 SCORE: 5
 ```
 
-Всё остальное считается invalid и не попадает в KPI.
+В сохранённом CASE результат фиксируется так:
+
+```text
+VALID_SCORE: 1
+RAW_RESPONSE: SCORE: 4
+RESPONSE: SCORE: 4
+```
+
+Если ответ не распознан, сохраняется:
+
+```text
+VALID_SCORE: 0
+RESPONSE: INVALID: ...
+```
+
+Только `VALID_SCORE: 1` попадает в KPI. Всё остальное считается invalid и не участвует в анализе.
 
 ## Reverse scoring
 
