@@ -130,7 +130,13 @@ def build_container() -> AppContainer:
     style_vm = StyleViewModel(style_service=style_service)
     datasets_vm = DatasetsViewModel(datasets_service=datasets_service)
     profiles_vm = ProfilesViewModel(profiles_service=profiles_service)
-    agents_vm = AgentsViewModel(agents_service=agents_service)
+    agents_vm = AgentsViewModel(
+        agents_service=agents_service,
+        training_service=training_service,
+        model_versions_service=model_versions_service,
+        datasets_service=datasets_service,
+        experiments_service=experiments_service,
+    )
     training_vm = TrainingViewModel(
         training_service=training_service,
         model_versions_service=model_versions_service,
