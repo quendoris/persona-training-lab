@@ -17,11 +17,15 @@ class VersionGraphCanvas(QWidget):
         self._nodes = nodes
         self._selected_node_id = "snapshot"
         self._hit_rects: dict[str, QRectF] = {}
+        self._node_offsets: dict[str, QPointF] = {}
         self._zoom = 1.0
         self._flipped = False
         self._press_global_pos: QPointF | None = None
         self._last_global_pos: QPointF | None = None
         self._dragging = False
+        self._drag_mode: str | None = None
+        self._drag_node_id: str | None = None
+        self._drag_target_ids: tuple[str, ...] = ()
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self._refresh_size()
@@ -68,14 +72,27 @@ class VersionGraphCanvas(QWidget):
             self._draw_node(painter, node, x, y)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._press_global_pos = event.globalPosition()
-            self._last_global_pos = event.globalPosition()
-            self._dragging = False
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
-            event.accept()
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
             return
-        super().mousePressEvent(event)
+        self._press_global_pos = event.globalPosition()
+        self._last_global_pos = event.globalPosition()
+        self._dragging = False
+        node_id = self._node_at(event.position())
+        if node_id is not None:
+            self._drag_mode = "subtree" if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else "node"
+            self._drag_node_id = node_id
+            self._drag_target_ids = self._subtree_node_ids(node_id) if self._drag_mode == "subtree" else (node_id,)
+            self._selected_node_id = node_id
+            self.node_selected.emit(node_id)
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+            self.update()
+        else:
+            self._drag_mode = "pan"
+            self._drag_node_id = None
+            self._drag_target_ids = ()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if self._press_global_pos is None or self._last_global_pos is None or not event.buttons() & Qt.MouseButton.LeftButton:
@@ -84,14 +101,16 @@ class VersionGraphCanvas(QWidget):
         current = event.globalPosition()
         delta = current - self._last_global_pos
         total = current - self._press_global_pos
-        if self._dragging or abs(total.x()) + abs(total.y()) > 4:
-            self._dragging = True
-            self._last_global_pos = current
-            if delta.x() or delta.y():
-                self.pan_requested.emit(delta)
-            event.accept()
+        if not (self._dragging or abs(total.x()) + abs(total.y()) > 4):
+            super().mouseMoveEvent(event)
             return
-        super().mouseMoveEvent(event)
+        self._dragging = True
+        self._last_global_pos = current
+        if self._drag_mode in {"node", "subtree"}:
+            self._move_nodes(self._drag_target_ids, delta)
+        elif self._drag_mode == "pan" and (delta.x() or delta.y()):
+            self.pan_requested.emit(delta)
+        event.accept()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() != Qt.MouseButton.LeftButton:
@@ -100,19 +119,21 @@ class VersionGraphCanvas(QWidget):
         self.unsetCursor()
         local_pos = event.position()
         was_dragging = self._dragging
+        released_node_id = self._drag_node_id
         self._press_global_pos = None
         self._last_global_pos = None
         self._dragging = False
+        self._drag_mode = None
+        self._drag_node_id = None
+        self._drag_target_ids = ()
         if was_dragging:
             event.accept()
             return
-        for node_id, rect in self._hit_rects.items():
-            if rect.contains(local_pos):
-                self._selected_node_id = node_id
-                self.update()
-                self.node_selected.emit(node_id)
-                event.accept()
-                return
+        node_id = released_node_id or self._node_at(local_pos)
+        if node_id is not None:
+            self._selected_node_id = node_id
+            self.update()
+            self.node_selected.emit(node_id)
         event.accept()
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
@@ -157,7 +178,11 @@ class VersionGraphCanvas(QWidget):
         for node in self._nodes:
             level = self._level(node)
             visual_level = max_level - level if self._flipped else level
-            result[node.node_id] = (axis_x + lanes.get(node.node_id, 0) * branch_gap, top + visual_level * row_gap)
+            offset = self._node_offsets.get(node.node_id, QPointF())
+            result[node.node_id] = (
+                axis_x + lanes.get(node.node_id, 0) * branch_gap + offset.x() * self._zoom,
+                top + visual_level * row_gap + offset.y() * self._zoom,
+            )
         return result
 
     def _parent(self, node: VersionNodeView) -> str | None:
@@ -208,6 +233,46 @@ class VersionGraphCanvas(QWidget):
 
     def _max_level(self) -> int:
         return max((self._level(node) for node in self._nodes), default=0)
+
+    def _children_by_id(self) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        for node in self._nodes:
+            parent = self._parent(node)
+            if parent is not None:
+                result.setdefault(parent, []).append(node.node_id)
+        return result
+
+    def _subtree_node_ids(self, node_id: str) -> tuple[str, ...]:
+        children = self._children_by_id()
+        result: list[str] = []
+
+        def collect(current_id: str) -> None:
+            result.append(current_id)
+            for child_id in children.get(current_id, []):
+                collect(child_id)
+
+        collect(node_id)
+        return tuple(result)
+
+    def _move_nodes(self, node_ids: tuple[str, ...], delta: QPointF) -> None:
+        if not node_ids or not (delta.x() or delta.y()):
+            return
+        layout_delta = QPointF(delta.x() / self._zoom, delta.y() / self._zoom)
+        for node_id in node_ids:
+            current = self._node_offsets.get(node_id, QPointF())
+            self._node_offsets[node_id] = QPointF(current.x() + layout_delta.x(), current.y() + layout_delta.y())
+        self.update()
+
+    def _node_at(self, pos: QPointF) -> str | None:
+        for node_id, rect in reversed(tuple(self._hit_rects.items())):
+            if rect.contains(pos):
+                return node_id
+        positions = self._positions()
+        for node in reversed(self._nodes):
+            x, y = positions.get(node.node_id, (0.0, 0.0))
+            if QRectF(x - 18 * self._zoom, y - 18 * self._zoom, 36 * self._zoom, 36 * self._zoom).contains(pos):
+                return node.node_id
+        return None
 
     def _draw_connector(self, painter: QPainter, px: float, py: float, x: float, y: float, tone: str) -> None:
         color = self._tone_color(tone)
