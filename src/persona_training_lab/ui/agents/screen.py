@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal, QTimer
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen, QWheelEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -21,6 +21,7 @@ from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsVie
 
 class VersionGraphCanvas(QWidget):
     node_selected = Signal(str)
+    zoom_changed = Signal(float)
 
     def __init__(self, nodes: tuple[VersionNodeView, ...]) -> None:
         super().__init__()
@@ -30,6 +31,7 @@ class VersionGraphCanvas(QWidget):
         self._zoom = 1.0
         self._flipped = False
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.StrongFocus)
         self._refresh_size()
 
     def sizeHint(self) -> QSize:  # noqa: N802 - Qt override
@@ -86,6 +88,15 @@ class VersionGraphCanvas(QWidget):
                 self.node_selected.emit(node_id)
                 return
         super().mousePressEvent(event)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 - Qt override
+        delta = event.angleDelta().y()
+        if delta == 0:
+            event.ignore()
+            return
+        self.set_zoom(self._zoom + (0.08 if delta > 0 else -0.08))
+        self.zoom_changed.emit(self._zoom)
+        event.accept()
 
     def _refresh_size(self) -> None:
         self.setMinimumSize(self._canvas_width(), self._canvas_height())
@@ -267,22 +278,19 @@ class AgentsScreen(QWidget):
         controls.setSpacing(8)
         self._center_button = self._control_button("К актуальной")
         self._flip_button = self._control_button("Отразить")
-        self._zoom_out_button = self._control_button("−")
         self._zoom_label = QLabel("100%")
         self._zoom_label.setObjectName("TelemetryChip")
         self._zoom_label.setAlignment(Qt.AlignCenter)
-        self._zoom_in_button = self._control_button("+")
         controls.addStretch(1)
         controls.addWidget(self._center_button)
         controls.addWidget(self._flip_button)
-        controls.addWidget(self._zoom_out_button)
         controls.addWidget(self._zoom_label)
-        controls.addWidget(self._zoom_in_button)
         controls.addStretch(1)
         timeline_card._layout.addLayout(controls)
 
         self._graph = VersionGraphCanvas(self._vm.version_nodes())
         self._graph.node_selected.connect(self._select_node)
+        self._graph.zoom_changed.connect(self._on_graph_zoom_changed)
         self._scroll = QScrollArea()
         self._scroll.setObjectName("VersionTimelineScroll")
         self._scroll.setWidgetResizable(False)
@@ -293,8 +301,6 @@ class AgentsScreen(QWidget):
 
         self._center_button.clicked.connect(self._center_current_node)
         self._flip_button.clicked.connect(self._flip_graph)
-        self._zoom_out_button.clicked.connect(lambda: self._zoom_graph(-0.12))
-        self._zoom_in_button.clicked.connect(lambda: self._zoom_graph(0.12))
 
         right_column = QWidget()
         right_column.setProperty("transparentBg", True)
@@ -356,9 +362,8 @@ class AgentsScreen(QWidget):
         self._graph.toggle_flipped()
         QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
 
-    def _zoom_graph(self, delta: float) -> None:
-        self._graph.set_zoom(self._graph.zoom() + delta)
-        self._zoom_label.setText(f"{round(self._graph.zoom() * 100):.0f}%")
+    def _on_graph_zoom_changed(self, zoom: float) -> None:
+        self._zoom_label.setText(f"{round(zoom * 100):.0f}%")
         QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
 
     def _render_detail(self, detail: AgentDetailView) -> None:
