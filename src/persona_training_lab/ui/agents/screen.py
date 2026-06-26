@@ -1,28 +1,152 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QFrame,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLayout,
-    QPushButton,
-    QScrollArea,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QScrollArea, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsViewModel, VersionNodeView
 
 
+class VersionGraphCanvas(QWidget):
+    node_selected = Signal(str)
+
+    def __init__(self, nodes: tuple[VersionNodeView, ...]) -> None:
+        super().__init__()
+        self._nodes = nodes
+        self._selected_node_id = "snapshot"
+        self._hit_rects: dict[str, QRectF] = {}
+        self.setMouseTracking(True)
+        self.setMinimumHeight(max(360, 52 + len(nodes) * 64))
+        self.setMinimumWidth(520)
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        return QSize(620, max(380, 52 + len(self._nodes) * 64))
+
+    def set_selected(self, node_id: str) -> None:
+        self._selected_node_id = node_id
+        self.update()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:  # noqa: N802 - Qt override
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        self._hit_rects.clear()
+
+        row_gap = 62
+        top = 30
+        axis_x = max(68, min(132, self.width() // 2 - 190))
+        label_x = axis_x + 34
+        branch_step = 30
+        positions: list[tuple[VersionNodeView, float, float]] = []
+        for index, node in enumerate(self._nodes):
+            x = axis_x + self._lane_for(node) * branch_step
+            y = top + index * row_gap
+            positions.append((node, float(x), float(y)))
+
+        for index, (node, x, y) in enumerate(positions):
+            if index > 0:
+                _prev_node, px, py = positions[index - 1]
+                self._draw_connector(painter, px, py, x, y)
+            self._draw_node(painter, node, x, y, label_x + self._lane_for(node) * branch_step)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        pos = event.position()
+        for node_id, rect in self._hit_rects.items():
+            if rect.contains(pos):
+                self._selected_node_id = node_id
+                self.update()
+                self.node_selected.emit(node_id)
+                return
+        super().mousePressEvent(event)
+
+    def _lane_for(self, node: VersionNodeView) -> int:
+        if node.tone == "bad":
+            return 1
+        if node.branch_note not in {"main", "current"}:
+            return 1
+        return 0
+
+    def _draw_connector(self, painter: QPainter, px: float, py: float, x: float, y: float) -> None:
+        pen = QPen(QColor(100, 116, 139, 180), 2)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        if px == x:
+            painter.drawLine(QPointF(px, py + 8), QPointF(x, y - 8))
+            return
+        mid_y = (py + y) / 2
+        painter.drawLine(QPointF(px, py + 8), QPointF(px, mid_y))
+        painter.drawLine(QPointF(px, mid_y), QPointF(x, mid_y))
+        painter.drawLine(QPointF(x, mid_y), QPointF(x, y - 8))
+
+    def _draw_node(self, painter: QPainter, node: VersionNodeView, x: float, y: float, label_x: float) -> None:
+        selected = node.node_id == self._selected_node_id
+        color = self._tone_color(node.tone)
+        radius = 6.2 if not selected else 7.8
+
+        if selected:
+            painter.setPen(QPen(QColor(34, 211, 238, 210), 3))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(QPointF(x, y), 12, 12)
+
+        painter.setPen(QPen(QColor(15, 23, 42, 230), 1.3))
+        painter.setBrush(color)
+        painter.drawEllipse(QPointF(x, y), radius, radius)
+
+        label = self._display_label(node.title)
+        font = QFont(painter.font())
+        font.setPointSize(10)
+        font.setBold(selected)
+        painter.setFont(font)
+        painter.setPen(QColor(226, 232, 240) if selected else QColor(203, 213, 225))
+        label_rect = QRectF(label_x, y - 12, max(260, self.width() - label_x - 28), 24)
+        painter.drawText(label_rect, Qt.AlignVCenter | Qt.AlignLeft, label)
+
+        badge = self._status_badge(node)
+        if badge:
+            badge_x = label_x + min(250, max(110, len(label) * 7 + 12))
+            badge_rect = QRectF(badge_x, y - 10, 92, 20)
+            painter.setPen(QPen(QColor(148, 163, 184, 90), 1))
+            painter.setBrush(QColor(15, 23, 42, 110))
+            painter.drawRoundedRect(badge_rect, 9, 9)
+            badge_font = QFont(painter.font())
+            badge_font.setPointSize(8)
+            badge_font.setBold(True)
+            painter.setFont(badge_font)
+            painter.setPen(QColor(148, 163, 184))
+            painter.drawText(badge_rect, Qt.AlignCenter, badge)
+
+        self._hit_rects[node.node_id] = QRectF(x - 18, y - 20, max(420, self.width() - x - 24), 40)
+
+    def _tone_color(self, tone: str) -> QColor:
+        if tone == "bad":
+            return QColor("#ef4444")
+        if tone == "pending":
+            return QColor("#f59e0b")
+        if tone == "neutral":
+            return QColor("#94a3b8")
+        return QColor("#22c55e")
+
+    def _display_label(self, title: str) -> str:
+        for prefix in ("Base · ", "Dataset · ", "Train · ", "Version · ", "Portrait · ", "Delta · "):
+            if title.startswith(prefix):
+                return title.removeprefix(prefix)
+        return title
+
+    def _status_badge(self, node: VersionNodeView) -> str:
+        if node.branch_note == "current":
+            return "current"
+        if node.tone == "bad":
+            return "failed"
+        if node.tone == "pending":
+            return "pending"
+        return ""
+
+
 class AgentsScreen(QWidget):
     def __init__(self, view_model: AgentsViewModel) -> None:
         super().__init__()
         self._vm = view_model
-        self._node_buttons: dict[str, QPushButton] = {}
         self._selected_node_id = "snapshot"
 
         root = QVBoxLayout(self)
@@ -73,19 +197,14 @@ class AgentsScreen(QWidget):
         left_layout.addStretch(1)
         body.addWidget(left_column, 2)
 
-        timeline_card = PanelCard("Дерево версий", "Версии идут вниз как история модели. Неудачные ветки будут уходить в сторону.")
-        self._timeline_host = QWidget()
-        self._timeline_host.setProperty("transparentBg", True)
-        self._timeline_layout = QVBoxLayout(self._timeline_host)
-        self._timeline_layout.setContentsMargins(4, 4, 4, 4)
-        self._timeline_layout.setSpacing(10)
-        self._populate_timeline(self._vm.version_nodes())
-
+        timeline_card = PanelCard("Дерево версий", "SmartGit‑стиль: граф точек по центру, детали выбранного узла справа.")
+        self._graph = VersionGraphCanvas(self._vm.version_nodes())
+        self._graph.node_selected.connect(self._select_node)
         timeline_scroll = QScrollArea()
         timeline_scroll.setObjectName("VersionTimelineScroll")
         timeline_scroll.setWidgetResizable(True)
         timeline_scroll.setFrameShape(QFrame.NoFrame)
-        timeline_scroll.setWidget(self._timeline_host)
+        timeline_scroll.setWidget(self._graph)
         timeline_card.add_widget(timeline_scroll)
         body.addWidget(timeline_card, 3)
 
@@ -94,7 +213,7 @@ class AgentsScreen(QWidget):
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(12)
-        detail_card = PanelCard("Карточка узла", "Параметры выбранной точки lineage и действия без автомагии.")
+        detail_card = PanelCard("Карточка узла", "Коммиты, параметры, KPI и действия — здесь, не в графе.")
         self._detail_title = QLabel("—")
         self._detail_title.setObjectName("CardTitle")
         self._detail_body = QLabel("Выберите узел дерева.")
@@ -121,82 +240,9 @@ class AgentsScreen(QWidget):
 
         self._select_node("snapshot")
 
-    def _populate_timeline(self, nodes: tuple[VersionNodeView, ...]) -> None:
-        self._node_buttons.clear()
-        for index, node in enumerate(nodes):
-            if index > 0:
-                connector = QLabel("│")
-                connector.setStyleSheet("color: rgba(148, 163, 184, 0.55); font-size: 22px; font-weight: 800;")
-                connector.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                connector.setContentsMargins(30 + node.depth * 22, 0, 0, 0)
-                self._timeline_layout.addWidget(connector)
-            row = self._make_timeline_row(node)
-            self._timeline_layout.addWidget(row)
-        self._timeline_layout.addStretch(1)
-
-    def _make_timeline_row(self, node: VersionNodeView) -> QFrame:
-        row = QFrame()
-        row.setObjectName("VersionTimelineRow")
-        row_layout = QHBoxLayout(row)
-        row_layout.setContentsMargins(10 + node.depth * 22, 8, 10, 8)
-        row_layout.setSpacing(12)
-
-        dot = QLabel("●")
-        dot.setStyleSheet(self._dot_style(node.tone))
-        dot.setFixedSize(30, 30)
-        dot.setAlignment(Qt.AlignCenter)
-        row_layout.addWidget(dot, 0, Qt.AlignTop)
-
-        button = QPushButton()
-        button.setObjectName("VersionNodeButton")
-        button.setStyleSheet(self._node_button_style())
-        button.setCheckable(True)
-        button.clicked.connect(lambda _checked=False, node_id=node.node_id: self._select_node(node_id))
-        button_layout = QVBoxLayout(button)
-        button_layout.setContentsMargins(12, 10, 12, 10)
-        button_layout.setSpacing(6)
-        top = QHBoxLayout()
-        title = QLabel(node.title)
-        title.setObjectName("CardTitle")
-        title.setWordWrap(True)
-        top.addWidget(title, 1)
-        top.addWidget(make_status_label(node.branch_note if node.branch_note != "main" else node.status, warning=node.tone in {"pending", "bad"}))
-        button_layout.addLayout(top)
-        button_layout.addWidget(make_muted_label(node.subtitle))
-        row_layout.addWidget(button, 1)
-        self._node_buttons[node.node_id] = button
-        return row
-
-    def _dot_style(self, tone: str) -> str:
-        if tone == "bad":
-            return "color: #ef4444; font-size: 28px; font-weight: 900; background: transparent;"
-        if tone == "pending":
-            return "color: #f59e0b; font-size: 28px; font-weight: 900; background: transparent;"
-        return "color: #22c55e; font-size: 28px; font-weight: 900; background: transparent;"
-
-    def _node_button_style(self) -> str:
-        return """
-        QPushButton#VersionNodeButton {
-            background-color: rgba(15, 23, 42, 0.35);
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            border-radius: 18px;
-            padding: 0px;
-            text-align: left;
-        }
-        QPushButton#VersionNodeButton:hover {
-            background-color: rgba(30, 41, 59, 0.72);
-            border: 1px solid rgba(34, 211, 238, 0.55);
-        }
-        QPushButton#VersionNodeButton:checked {
-            background-color: rgba(34, 211, 238, 0.14);
-            border: 1px solid rgba(34, 211, 238, 0.85);
-        }
-        """
-
     def _select_node(self, node_id: str) -> None:
         self._selected_node_id = node_id
-        for current_id, button in self._node_buttons.items():
-            button.setChecked(current_id == node_id)
+        self._graph.set_selected(node_id)
         self._render_detail(self._vm.node_detail(node_id))
 
     def _render_detail(self, detail: AgentDetailView) -> None:
