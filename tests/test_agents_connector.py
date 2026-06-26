@@ -24,8 +24,11 @@ def test_agents_connector_empty_state() -> None:
 
     vm = AgentsViewModel(agents_service=service)
     title, subtitle = vm.header_summary()
-    assert title == "Агенты пока не созданы"
-    assert subtitle == "Агенты пока не созданы"
+    assert title == "Агенты"
+    assert "Рабочий центр версий" in subtitle
+    assert vm.current_agent().title == "Системные роли готовы"
+    assert any(role.role_id == "version_navigator" for role in vm.roles())
+    assert vm.version_nodes()[0].title == "Base model · —"
 
 
 def test_agents_connector_single_row() -> None:
