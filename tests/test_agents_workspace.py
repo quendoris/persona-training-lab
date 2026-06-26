@@ -30,6 +30,8 @@ class FakeTrainingService:
                 base_model="Qwen local",
                 dataset_version="dataset_v1",
                 artifact_path="artifacts/full_finetune/trn_new/model",
+                epoch_progress="1 / 1",
+                loss="0.01",
             )
         ]
 
@@ -48,7 +50,15 @@ class FakeVersionsService:
 
 class FakeDatasetsService:
     def list_datasets(self):
-        return [SimpleNamespace(title="dataset_v1", status="Одобрен для обучения", invalid_count=0)]
+        return [
+            SimpleNamespace(
+                title="dataset_v1",
+                status="Одобрен для обучения",
+                invalid_count=0,
+                record_count=10,
+                valid_count=10,
+            )
+        ]
 
 
 class FakeExperimentsService:
@@ -80,10 +90,12 @@ def test_agents_workspace_builds_version_tree() -> None:
     vm = _build_vm()
     nodes = vm.version_nodes()
 
+    assert nodes[0].node_id == "base"
     assert nodes[0].title == "Base model · Qwen local"
-    assert any(node.title == "Training · trn_new" for node in nodes)
-    assert any(node.title == "Snapshot · mdl_new" for node in nodes)
-    assert any("Portrait · portrait new" == node.title for node in nodes)
+    assert any(node.node_id == "training" and node.title == "Training · trn_new" for node in nodes)
+    assert any(node.node_id == "snapshot" and node.title == "Snapshot · mdl_new" for node in nodes)
+    assert any(node.node_id == "portrait" and node.title == "Portrait · portrait new" for node in nodes)
+    assert nodes[-1].node_id == "delta"
     assert nodes[-1].subtitle == "E=+2.00 · A=+2.00"
 
 
@@ -91,7 +103,26 @@ def test_agents_workspace_detail_mentions_current_version() -> None:
     vm = _build_vm()
     detail = vm.selected_detail()
 
-    assert detail.title == "Текущая версия"
+    assert detail.title == "Snapshot / model version"
     assert "Snapshot new" in detail.body
     assert "Big Five KPI: E=4.00 · A=5.00" in detail.body
     assert "Delta: E=+2.00 · A=+2.00" in detail.body
+    assert "Сделать актуальной" in detail.actions
+
+
+def test_agents_workspace_node_details_are_specific() -> None:
+    vm = _build_vm()
+
+    dataset = vm.node_detail("dataset")
+    training = vm.node_detail("training")
+    portrait = vm.node_detail("portrait")
+    delta = vm.node_detail("delta")
+
+    assert dataset.title == "Dataset"
+    assert "Название: dataset_v1" in dataset.body
+    assert "Создать training run" in dataset.actions
+    assert "Run: trn_new" in training.body
+    assert "Artifact:" in training.body
+    assert "Big Five KPI: E=4.00 · A=5.00" in portrait.body
+    assert "Latest: portrait new" in delta.body
+    assert "Previous: portrait old" in delta.body
