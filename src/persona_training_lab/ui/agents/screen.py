@@ -151,15 +151,22 @@ class VersionGraphCanvas(QWidget):
         self.resize(self._canvas_width(), self._canvas_height())
 
     def _canvas_width(self) -> int:
-        return int(620 * self._zoom)
+        return int((620 + 1800) * self._zoom)
 
     def _canvas_height(self) -> int:
-        return max(360, int((80 + max(1, len(self._nodes)) * 66) * self._zoom))
+        graph_height = 80 + max(1, len(self._nodes)) * 52
+        return max(620, int((graph_height + 1400) * self._zoom))
+
+    def _horizontal_padding(self) -> float:
+        return 900 * self._zoom
+
+    def _vertical_padding(self) -> float:
+        return 700 * self._zoom
 
     def _positions(self) -> list[tuple[VersionNodeView, float, float]]:
-        row_gap = 62 * self._zoom
-        top = 38 * self._zoom
-        axis_x = self.width() / 2 - 120 * self._zoom
+        row_gap = 52 * self._zoom
+        top = self._vertical_padding() + 38 * self._zoom
+        axis_x = self._horizontal_padding() + 150 * self._zoom
         branch_step = 34 * self._zoom
         total = len(self._nodes)
         positions: list[tuple[VersionNodeView, float, float]] = []
@@ -171,7 +178,7 @@ class VersionGraphCanvas(QWidget):
         return positions
 
     def _label_x(self, node_x: float) -> float:
-        return node_x + 30 * self._zoom
+        return node_x + 28 * self._zoom
 
     def _lane_for(self, node: VersionNodeView) -> int:
         if node.tone == "bad":
@@ -186,7 +193,7 @@ class VersionGraphCanvas(QWidget):
         pen = QPen(color, max(1.2, 1.8 * self._zoom))
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
-        dot_gap = 8 * self._zoom
+        dot_gap = 9 * self._zoom
         if px == x:
             painter.drawLine(QPointF(px, py + dot_gap if y > py else py - dot_gap), QPointF(x, y - dot_gap if y > py else y + dot_gap))
             return
@@ -198,13 +205,13 @@ class VersionGraphCanvas(QWidget):
     def _draw_node(self, painter: QPainter, node: VersionNodeView, x: float, y: float, label_x: float) -> None:
         selected = node.node_id == self._selected_node_id
         color = self._tone_color(node.tone)
-        radius = 4.4 * self._zoom if not selected else 5.2 * self._zoom
+        radius = 5.3 * self._zoom if not selected else 6.3 * self._zoom
 
         self._draw_soft_glow(painter, x, y, color, selected)
         if selected:
             painter.setPen(QPen(QColor(34, 211, 238, 210), max(1.0, 1.45 * self._zoom)))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawEllipse(QPointF(x, y), 8.2 * self._zoom, 8.2 * self._zoom)
+            painter.drawEllipse(QPointF(x, y), 9.4 * self._zoom, 9.4 * self._zoom)
 
         painter.setPen(QPen(QColor(15, 23, 42, 240), max(0.7, 1.0 * self._zoom)))
         painter.setBrush(color)
@@ -233,10 +240,10 @@ class VersionGraphCanvas(QWidget):
             painter.setPen(QColor(148, 163, 184))
             painter.drawText(badge_rect, Qt.AlignCenter, badge)
 
-        self._hit_rects[node.node_id] = QRectF(x - 18 * self._zoom, y - 20 * self._zoom, max(420 * self._zoom, self.width() - x - 20), 40 * self._zoom)
+        self._hit_rects[node.node_id] = QRectF(x - 20 * self._zoom, y - 20 * self._zoom, max(420 * self._zoom, self.width() - x - 20), 40 * self._zoom)
 
     def _draw_soft_glow(self, painter: QPainter, x: float, y: float, color: QColor, selected: bool) -> None:
-        glow_radius = (13 if selected else 9) * self._zoom
+        glow_radius = (14 if selected else 10) * self._zoom
         center = QColor(color)
         center.setAlpha(58 if selected else 34)
         mid = QColor(color)
