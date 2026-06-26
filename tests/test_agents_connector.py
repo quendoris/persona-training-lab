@@ -28,7 +28,7 @@ def test_agents_connector_empty_state() -> None:
     assert "Рабочий центр версий" in subtitle
     assert vm.current_agent().title == "Системные роли готовы"
     assert any(role.role_id == "version_navigator" for role in vm.roles())
-    assert vm.version_nodes()[0].title == "Base model · —"
+    assert vm.version_nodes()[0].title == "Base · —"
 
 
 def test_agents_connector_single_row() -> None:
