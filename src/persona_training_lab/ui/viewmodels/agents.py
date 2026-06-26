@@ -46,6 +46,8 @@ class VersionNodeView:
     title: str
     subtitle: str
     status: str
+    tone: str = "neutral"
+    branch_note: str = "main"
 
 
 @dataclass(slots=True, frozen=True)
@@ -167,9 +169,11 @@ class AgentsViewModel:
             VersionNodeView(
                 "base",
                 0,
-                f"Base model · {getattr(latest_run, 'base_model', '—') if latest_run else '—'}",
-                "Корень дерева. От него идут training runs.",
+                f"Base · {getattr(latest_run, 'base_model', '—') if latest_run else '—'}",
+                "Исходная точка lineage.",
                 "source",
+                "good" if latest_run else "pending",
+                "main",
             ),
             VersionNodeView(
                 "dataset",
@@ -177,20 +181,26 @@ class AgentsViewModel:
                 f"Dataset · {getattr(latest_run, 'dataset_version', '') or getattr(latest_dataset, 'title', '—')}",
                 self._dataset_note(),
                 getattr(latest_dataset, "status", "ожидание") if latest_dataset else "ожидание",
+                "good" if latest_dataset and getattr(latest_dataset, "status", "") == "Одобрен для обучения" else "pending",
+                "main",
             ),
             VersionNodeView(
                 "training",
                 2,
-                f"Training · {getattr(latest_run, 'run_id', '—')}",
+                f"Train · {getattr(latest_run, 'run_id', '—')}",
                 getattr(latest_run, "title", "training run пока не создан") if latest_run else "training run пока не создан",
                 getattr(latest_run, "status", "ожидание") if latest_run else "ожидание",
+                "good" if latest_run and getattr(latest_run, "artifact_path", "") else "pending",
+                "main",
             ),
             VersionNodeView(
                 "snapshot",
                 3,
-                f"Snapshot · {getattr(latest_version, 'version_id', '—')}",
+                f"Version · {getattr(latest_version, 'version_id', '—')}",
                 getattr(latest_version, "title", "snapshot пока не создан") if latest_version else "snapshot пока не создан",
                 getattr(latest_version, "status", "ожидание") if latest_version else "ожидание",
+                "good" if latest_version else "pending",
+                "current",
             ),
             VersionNodeView(
                 "portrait",
@@ -198,13 +208,17 @@ class AgentsViewModel:
                 f"Portrait · {latest_portrait.title if latest_portrait else '—'}",
                 self._portrait_note(latest_portrait),
                 "готов" if latest_portrait and latest_portrait.failures == 0 else "ожидание",
+                "good" if latest_portrait and latest_portrait.failures == 0 else "pending",
+                "main",
             ),
             VersionNodeView(
                 "delta",
                 5,
-                "Analysis delta",
+                "Delta · latest - previous",
                 self.delta_line() or "нужны два портретных запуска",
                 "готов" if len(portraits) >= 2 else "ожидание",
+                "good" if len(portraits) >= 2 else "pending",
+                "main",
             ),
         )
 
@@ -224,78 +238,42 @@ class AgentsViewModel:
         if node_id == "base":
             return AgentDetailView(
                 "Base model",
-                "\n".join(
-                    (
-                        f"Модель: {getattr(latest_run, 'base_model', '—') if latest_run else '—'}",
-                        "Роль: исходная точка lineage.",
-                        "Следующий узел: dataset.",
-                    )
-                ),
+                "\n".join((f"Модель: {getattr(latest_run, 'base_model', '—') if latest_run else '—'}", "Роль: исходная точка lineage.", "Следующий узел: dataset.")),
                 ("Проверить локальные файлы модели", "Не смешивать разные base model в одном сравнении", "Фиксировать модель в протоколе"),
                 ("Проверить локальную модель", "Перейти к датасету"),
             )
         if node_id == "dataset":
             return AgentDetailView(
                 "Dataset",
-                "\n".join(
-                    (
-                        f"Название: {getattr(latest_dataset, 'title', '—')}",
-                        f"Статус: {getattr(latest_dataset, 'status', 'ожидание')}",
-                        f"Записей: {getattr(latest_dataset, 'record_count', '—')}",
-                        f"Валидных: {getattr(latest_dataset, 'valid_count', '—')}",
-                        f"Ошибок: {getattr(latest_dataset, 'invalid_count', '—')}",
-                    )
-                ),
+                "\n".join((f"Название: {getattr(latest_dataset, 'title', '—')}", f"Статус: {getattr(latest_dataset, 'status', 'ожидание')}", f"Записей: {getattr(latest_dataset, 'record_count', '—')}", f"Валидных: {getattr(latest_dataset, 'valid_count', '—')}", f"Ошибок: {getattr(latest_dataset, 'invalid_count', '—')}")),
                 ("Структура JSONL валидна", "Датасет одобрен автором", "Смысл данных проверен вручную"),
                 ("Проверить датасет", "Одобрить для обучения", "Создать training run"),
             )
         if node_id == "training":
             return AgentDetailView(
                 "Training run",
-                "\n".join(
-                    (
-                        f"Run: {getattr(latest_run, 'run_id', '—')}",
-                        f"Название: {getattr(latest_run, 'title', '—')}",
-                        f"Статус: {getattr(latest_run, 'status', 'ожидание')}",
-                        f"Epoch: {getattr(latest_run, 'epoch_progress', '—')}",
-                        f"Loss: {getattr(latest_run, 'loss', '—')}",
-                        f"Artifact: {getattr(latest_run, 'artifact_path', '—') or '—'}",
-                    )
-                ),
+                "\n".join((f"Run: {getattr(latest_run, 'run_id', '—')}", f"Название: {getattr(latest_run, 'title', '—')}", f"Статус: {getattr(latest_run, 'status', 'ожидание')}", f"Epoch: {getattr(latest_run, 'epoch_progress', '—')}", f"Loss: {getattr(latest_run, 'loss', '—')}", f"Artifact: {getattr(latest_run, 'artifact_path', '—') or '—'}")),
                 ("Запуск завершён", "Artifact path не пустой", "Логи доступны", "UI не зависал во время обучения"),
                 ("Открыть логи", "Создать snapshot из artifact", "Повторить запуск при ошибке"),
             )
         if node_id == "snapshot":
             return AgentDetailView(
-                "Snapshot / model version",
+                "Model version",
                 self._current_version_body(latest_portrait),
                 ("Snapshot зарегистрирован", "Artifact path существует", "Понятно, от какого training run он создан", "Перед откатом есть текущий портрет"),
-                ("Сделать актуальной", "Сравнить с текущей", "Запустить портрет"),
+                ("Сделать актуальной", "Сравнить с текущей", "Запустить портрет", "Пометить неудачной", "Откатиться к этой точке"),
             )
         if node_id == "portrait":
             return AgentDetailView(
                 "Personality portrait",
-                "\n".join(
-                    (
-                        f"Портрет: {latest_portrait.title if latest_portrait else '—'}",
-                        f"VALID: {latest_portrait.passed if latest_portrait else 0}/{latest_portrait.total if latest_portrait else 0}",
-                        f"Ошибок: {latest_portrait.failures if latest_portrait else '—'}",
-                        f"Big Five KPI: {self._score_line(latest_portrait.scores) if latest_portrait else '—'}",
-                    )
-                ),
+                "\n".join((f"Портрет: {latest_portrait.title if latest_portrait else '—'}", f"VALID: {latest_portrait.passed if latest_portrait else 0}/{latest_portrait.total if latest_portrait else 0}", f"Ошибок: {latest_portrait.failures if latest_portrait else '—'}", f"Big Five KPI: {self._score_line(latest_portrait.scores) if latest_portrait else '—'}")),
                 ("Все пункты имеют VALID_SCORE", "KPI построен", "Батарея и scoring зафиксированы"),
                 ("Повторить портрет", "Открыть анализ", "Экспортировать raw responses"),
             )
         if node_id == "delta":
             return AgentDetailView(
                 "Analysis delta",
-                "\n".join(
-                    (
-                        f"Delta: {self.delta_line() or 'нужен второй портрет'}",
-                        f"Latest: {getattr(portraits[0], 'title', '—') if portraits else '—'}",
-                        f"Previous: {getattr(portraits[1], 'title', '—') if len(portraits) > 1 else '—'}",
-                    )
-                ),
+                "\n".join((f"Delta: {self.delta_line() or 'нужен второй портрет'}", f"Latest: {getattr(portraits[0], 'title', '—') if portraits else '—'}", f"Previous: {getattr(portraits[1], 'title', '—') if len(portraits) > 1 else '—'}")),
                 ("Есть два портрета", "Одинаковая батарея", "Одинаковые scoring rules", "Сравнение latest - previous"),
                 ("Открыть анализ", "Собрать следующий портрет", "Сделать заметку в протокол"),
             )
@@ -343,15 +321,7 @@ class AgentsViewModel:
         if version is None:
             return "Snapshot пока не создан. Сначала доведите обучение до artifact и зарегистрируйте версию."
         score_line = self._score_line(latest.scores) if latest else "портрет не собран"
-        return "\n".join(
-            (
-                f"Версия: {version.title}",
-                f"Статус: {version.status}",
-                f"Artifact: {version.artifact_path or '—'}",
-                f"Big Five KPI: {score_line}",
-                f"Delta: {self.delta_line() or 'нужен второй портрет'}",
-            )
-        )
+        return "\n".join((f"Версия: {version.title}", f"Статус: {version.status}", f"Artifact: {version.artifact_path or '—'}", f"Big Five KPI: {score_line}", f"Delta: {self.delta_line() or 'нужен второй портрет'}"))
 
     def _training_runs(self) -> list[object]:
         if self.training_service is None:
@@ -395,13 +365,7 @@ class AgentsViewModel:
         passed, total = self._parse_passed_total(subtitle)
         values, invalid = self._parse_scores(subtitle)
         failures = max(invalid, max(0, total - passed)) if total else invalid
-        return PortraitStats(
-            title=title,
-            passed=passed,
-            total=total,
-            failures=failures,
-            scores={trait: round(sum(items) / len(items), 2) for trait, items in values.items() if items},
-        )
+        return PortraitStats(title=title, passed=passed, total=total, failures=failures, scores={trait: round(sum(items) / len(items), 2) for trait, items in values.items() if items})
 
     def _parse_scores(self, subtitle: str) -> tuple[dict[str, list[float]], int]:
         values: dict[str, list[float]] = {}
