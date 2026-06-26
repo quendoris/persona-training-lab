@@ -91,23 +91,27 @@ def test_agents_workspace_builds_version_tree() -> None:
     nodes = vm.version_nodes()
 
     assert nodes[0].node_id == "base"
-    assert nodes[0].title == "Base model · Qwen local"
-    assert any(node.node_id == "training" and node.title == "Training · trn_new" for node in nodes)
-    assert any(node.node_id == "snapshot" and node.title == "Snapshot · mdl_new" for node in nodes)
+    assert nodes[0].title == "Base · Qwen local"
+    assert nodes[0].tone == "good"
+    assert any(node.node_id == "training" and node.title == "Train · trn_new" for node in nodes)
+    assert any(node.node_id == "snapshot" and node.title == "Version · mdl_new" for node in nodes)
     assert any(node.node_id == "portrait" and node.title == "Portrait · portrait new" for node in nodes)
     assert nodes[-1].node_id == "delta"
     assert nodes[-1].subtitle == "E=+2.00 · A=+2.00"
+    assert nodes[-1].tone == "good"
 
 
 def test_agents_workspace_detail_mentions_current_version() -> None:
     vm = _build_vm()
     detail = vm.selected_detail()
 
-    assert detail.title == "Snapshot / model version"
+    assert detail.title == "Model version"
     assert "Snapshot new" in detail.body
     assert "Big Five KPI: E=4.00 · A=5.00" in detail.body
     assert "Delta: E=+2.00 · A=+2.00" in detail.body
     assert "Сделать актуальной" in detail.actions
+    assert "Пометить неудачной" in detail.actions
+    assert "Откатиться к этой точке" in detail.actions
 
 
 def test_agents_workspace_node_details_are_specific() -> None:
