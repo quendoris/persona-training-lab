@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from persona_training_lab.ui.agents.version_graph_tree import VersionGraphCanvas
+from persona_training_lab.ui.agents.version_graph_anchor import VersionGraphCanvas
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsViewModel
@@ -80,6 +80,7 @@ class AgentsScreen(QWidget):
         self._graph = VersionGraphCanvas(self._vm.version_nodes())
         self._graph.node_selected.connect(self._select_node)
         self._graph.pan_requested.connect(self._pan_graph)
+        self._graph.zoom_anchor_requested.connect(self._zoom_graph_on_anchor)
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(False)
         self._scroll.setFrameShape(QFrame.NoFrame)
@@ -146,6 +147,17 @@ class AgentsScreen(QWidget):
     def _pan_graph(self, delta: QPointF) -> None:
         self._scroll.horizontalScrollBar().setValue(self._scroll.horizontalScrollBar().value() - int(delta.x()))
         self._scroll.verticalScrollBar().setValue(self._scroll.verticalScrollBar().value() - int(delta.y()))
+
+    def _zoom_graph_on_anchor(self, anchor: QPointF, old_zoom: float, new_zoom: float) -> None:
+        if old_zoom <= 0:
+            return
+        scale = new_zoom / old_zoom
+        hbar = self._scroll.horizontalScrollBar()
+        vbar = self._scroll.verticalScrollBar()
+        old_anchor_x = hbar.value() + anchor.x()
+        old_anchor_y = vbar.value() + anchor.y()
+        hbar.setValue(max(0, int(old_anchor_x * scale - anchor.x())))
+        vbar.setValue(max(0, int(old_anchor_y * scale - anchor.y())))
 
     def _render_detail(self, detail: AgentDetailView) -> None:
         self._detail_title.setText(detail.title)
