@@ -7,8 +7,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
-    QTreeWidget,
-    QTreeWidgetItem,
+    QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -22,6 +22,8 @@ class AgentsScreen(QWidget):
     def __init__(self, view_model: AgentsViewModel) -> None:
         super().__init__()
         self._vm = view_model
+        self._node_buttons: dict[str, QPushButton] = {}
+        self._selected_node_id = "snapshot"
 
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -44,6 +46,11 @@ class AgentsScreen(QWidget):
         body.setSpacing(16)
         root.addLayout(body, 1)
 
+        left_column = QWidget()
+        left_column.setProperty("transparentBg", True)
+        left_layout = QVBoxLayout(left_column)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(12)
         roles_card = PanelCard("Рабочие роли", "Роли не действуют автономно: они подсказывают следующий шаг.")
         for role in self._vm.roles():
             row = QFrame()
@@ -62,18 +69,31 @@ class AgentsScreen(QWidget):
             next_label.setWordWrap(True)
             row_layout.addWidget(next_label)
             roles_card.add_widget(row)
-        body.addWidget(roles_card, 2)
+        left_layout.addWidget(roles_card)
+        left_layout.addStretch(1)
+        body.addWidget(left_column, 2)
 
-        lineage_card = PanelCard("Дерево версии", "Выберите узел, чтобы увидеть параметры и безопасные действия.")
-        self._tree = QTreeWidget()
-        self._tree.setObjectName("AgentsVersionTree")
-        self._tree.setHeaderLabels(["Узел", "Статус"])
-        self._tree.setColumnWidth(0, 260)
-        self._populate_tree(self._vm.version_nodes())
-        self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
-        lineage_card.add_widget(self._tree)
-        body.addWidget(lineage_card, 3)
+        timeline_card = PanelCard("Дерево версий", "Версии идут вниз как история модели. Неудачные ветки будут уходить в сторону.")
+        self._timeline_host = QWidget()
+        self._timeline_host.setProperty("transparentBg", True)
+        self._timeline_layout = QVBoxLayout(self._timeline_host)
+        self._timeline_layout.setContentsMargins(4, 4, 4, 4)
+        self._timeline_layout.setSpacing(10)
+        self._populate_timeline(self._vm.version_nodes())
 
+        timeline_scroll = QScrollArea()
+        timeline_scroll.setObjectName("VersionTimelineScroll")
+        timeline_scroll.setWidgetResizable(True)
+        timeline_scroll.setFrameShape(QFrame.NoFrame)
+        timeline_scroll.setWidget(self._timeline_host)
+        timeline_card.add_widget(timeline_scroll)
+        body.addWidget(timeline_card, 3)
+
+        right_column = QWidget()
+        right_column.setProperty("transparentBg", True)
+        right_layout = QVBoxLayout(right_column)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(12)
         detail_card = PanelCard("Карточка узла", "Параметры выбранной точки lineage и действия без автомагии.")
         self._detail_title = QLabel("—")
         self._detail_title.setObjectName("CardTitle")
@@ -95,41 +115,68 @@ class AgentsScreen(QWidget):
         self._actions_layout = QGridLayout()
         self._actions_layout.setSpacing(8)
         detail_card._layout.addLayout(self._actions_layout)
-        body.addWidget(detail_card, 2)
+        right_layout.addWidget(detail_card)
+        right_layout.addStretch(1)
+        body.addWidget(right_column, 2)
 
-        self._select_first_tree_item()
-        root.addStretch(0)
+        self._select_node("snapshot")
 
-    def _populate_tree(self, nodes: tuple[VersionNodeView, ...]) -> None:
-        self._tree.clear()
-        stack: dict[int, QTreeWidgetItem] = {}
-        for node in nodes:
-            item = QTreeWidgetItem([node.title, node.status])
-            item.setData(0, Qt.ItemDataRole.UserRole, node.node_id)
-            if node.depth <= 0:
-                self._tree.addTopLevelItem(item)
-            else:
-                parent = stack.get(node.depth - 1)
-                if parent is None:
-                    self._tree.addTopLevelItem(item)
-                else:
-                    parent.addChild(item)
-            stack[node.depth] = item
-        self._tree.expandAll()
+    def _populate_timeline(self, nodes: tuple[VersionNodeView, ...]) -> None:
+        self._node_buttons.clear()
+        for index, node in enumerate(nodes):
+            if index > 0:
+                connector = QLabel("│")
+                connector.setObjectName("VersionConnector")
+                connector.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                connector.setContentsMargins(30 + node.depth * 22, 0, 0, 0)
+                self._timeline_layout.addWidget(connector)
+            row = self._make_timeline_row(node)
+            self._timeline_layout.addWidget(row)
+        self._timeline_layout.addStretch(1)
 
-    def _select_first_tree_item(self) -> None:
-        first = self._tree.topLevelItem(0)
-        if first is None:
-            self._render_detail(self._vm.selected_detail())
-            return
-        self._tree.setCurrentItem(first)
-        self._render_detail(self._vm.node_detail(str(first.data(0, Qt.ItemDataRole.UserRole))))
+    def _make_timeline_row(self, node: VersionNodeView) -> QFrame:
+        row = QFrame()
+        row.setObjectName("VersionTimelineRow")
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(10 + node.depth * 22, 8, 10, 8)
+        row_layout.setSpacing(12)
 
-    def _on_tree_selection_changed(self) -> None:
-        item = self._tree.currentItem()
-        if item is None:
-            return
-        node_id = str(item.data(0, Qt.ItemDataRole.UserRole))
+        dot = QLabel("●")
+        dot.setObjectName(self._dot_object_name(node.tone))
+        dot.setFixedSize(30, 30)
+        dot.setAlignment(Qt.AlignCenter)
+        row_layout.addWidget(dot, 0, Qt.AlignTop)
+
+        button = QPushButton()
+        button.setObjectName("VersionNodeButton")
+        button.setCheckable(True)
+        button.clicked.connect(lambda _checked=False, node_id=node.node_id: self._select_node(node_id))
+        button_layout = QVBoxLayout(button)
+        button_layout.setContentsMargins(12, 10, 12, 10)
+        button_layout.setSpacing(6)
+        top = QHBoxLayout()
+        title = QLabel(node.title)
+        title.setObjectName("CardTitle")
+        title.setWordWrap(True)
+        top.addWidget(title, 1)
+        top.addWidget(make_status_label(node.branch_note if node.branch_note != "main" else node.status, warning=node.tone in {"pending", "bad"}))
+        button_layout.addLayout(top)
+        button_layout.addWidget(make_muted_label(node.subtitle))
+        row_layout.addWidget(button, 1)
+        self._node_buttons[node.node_id] = button
+        return row
+
+    def _dot_object_name(self, tone: str) -> str:
+        if tone == "bad":
+            return "VersionDotBad"
+        if tone == "pending":
+            return "VersionDotPending"
+        return "VersionDotGood"
+
+    def _select_node(self, node_id: str) -> None:
+        self._selected_node_id = node_id
+        for current_id, button in self._node_buttons.items():
+            button.setChecked(current_id == node_id)
         self._render_detail(self._vm.node_detail(node_id))
 
     def _render_detail(self, detail: AgentDetailView) -> None:
