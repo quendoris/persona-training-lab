@@ -37,3 +37,21 @@ def test_ready_delta_stays_on_mainline_after_portrait() -> None:
     assert lineage["delta"].parent_id == "portrait"
     assert lineage["delta"].branch_note == "main"
     assert lineage["delta"].tone == "good"
+
+
+def test_pending_middle_node_branches_while_mainline_continues() -> None:
+    nodes = (
+        VersionNodeView("base", 0, "Base · qwen", "root", "source", "good", "main"),
+        VersionNodeView("dataset", 1, "Dataset · pending", "dataset", "wait", "pending", "main"),
+        VersionNodeView("training", 2, "Train · run", "train", "ok", "good", "main"),
+        VersionNodeView("snapshot", 3, "Version · model", "snapshot", "ok", "good", "current"),
+    )
+
+    lineage = {node.node_id: node for node in build_version_lineage(nodes)}
+
+    assert lineage["dataset"].parent_id == "base"
+    assert lineage["dataset"].branch_note == "side"
+    assert lineage["dataset"].tone == "pending"
+    assert lineage["training"].parent_id == "base"
+    assert lineage["training"].branch_note == "main"
+    assert lineage["snapshot"].parent_id == "training"
