@@ -16,6 +16,7 @@ class LineageVersionNode:
     tone: str
     branch_note: str
     is_current: bool = False
+    level: int = 0
 
 
 PARENT_BY_NODE_ID = {
@@ -38,6 +39,7 @@ def build_version_lineage(raw_nodes: Iterable[VersionNodeView]) -> tuple[Lineage
     nodes = list(raw_nodes)
     by_id = {node.node_id: node for node in nodes}
     parent_by_id = {node.node_id: _parent_id(node) for node in nodes}
+    level_by_id = _visual_level_by_id(nodes, parent_by_id)
     side_ids = _side_branch_node_ids(nodes, by_id, parent_by_id)
     result: list[LineageVersionNode] = []
     for node in nodes:
@@ -49,6 +51,7 @@ def build_version_lineage(raw_nodes: Iterable[VersionNodeView]) -> tuple[Lineage
         subtitle = node.subtitle
         status = node.status
         is_current = node.branch_note == "current"
+        level = level_by_id.get(node_id, 0)
         if _is_pending_delta(node):
             parent_id = "snapshot" if "snapshot" in by_id else parent_id
             branch_note = "side"
@@ -56,6 +59,8 @@ def build_version_lineage(raw_nodes: Iterable[VersionNodeView]) -> tuple[Lineage
             subtitle = "Боковая ветка: спорный результат, пока не продолжает зелёную mainline."
             status = "не определена"
             tone = "pending"
+            if "snapshot" in level_by_id:
+                level = level_by_id["snapshot"] + 1
         result.append(
             LineageVersionNode(
                 node_id=node_id,
@@ -66,9 +71,32 @@ def build_version_lineage(raw_nodes: Iterable[VersionNodeView]) -> tuple[Lineage
                 tone=tone,
                 branch_note=branch_note,
                 is_current=is_current,
+                level=level,
             )
         )
     return tuple(result)
+
+
+def _visual_level_by_id(
+    nodes: list[VersionNodeView],
+    parent_by_id: dict[str, str | None],
+) -> dict[str, int]:
+    explicit = {node.node_id: getattr(node, "depth") for node in nodes if hasattr(node, "depth")}
+    if explicit:
+        return {node.node_id: int(explicit.get(node.node_id, index)) for index, node in enumerate(nodes)}
+    by_id = {node.node_id: node for node in nodes}
+    cache: dict[str, int] = {}
+
+    def level(node_id: str) -> int:
+        if node_id in cache:
+            return cache[node_id]
+        parent_id = parent_by_id.get(node_id)
+        cache[node_id] = 0 if parent_id is None or parent_id not in by_id else level(parent_id) + 1
+        return cache[node_id]
+
+    for node in nodes:
+        level(node.node_id)
+    return cache
 
 
 def _side_branch_node_ids(
