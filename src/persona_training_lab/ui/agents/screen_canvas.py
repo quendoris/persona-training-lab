@@ -154,10 +154,10 @@ class AgentsScreen(QWidget):
         scale = new_zoom / old_zoom
         hbar = self._scroll.horizontalScrollBar()
         vbar = self._scroll.verticalScrollBar()
-        old_anchor_x = hbar.value() + anchor.x()
-        old_anchor_y = vbar.value() + anchor.y()
-        hbar.setValue(max(0, int(old_anchor_x * scale - anchor.x())))
-        vbar.setValue(max(0, int(old_anchor_y * scale - anchor.y())))
+        viewport_x = anchor.x() - hbar.value()
+        viewport_y = anchor.y() - vbar.value()
+        hbar.setValue(max(0, int(anchor.x() * scale - viewport_x)))
+        vbar.setValue(max(0, int(anchor.y() * scale - viewport_y)))
 
     def _render_detail(self, detail: AgentDetailView) -> None:
         self._detail_title.setText(detail.title)
