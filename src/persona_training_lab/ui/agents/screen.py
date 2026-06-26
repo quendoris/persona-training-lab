@@ -126,7 +126,7 @@ class AgentsScreen(QWidget):
         for index, node in enumerate(nodes):
             if index > 0:
                 connector = QLabel("│")
-                connector.setObjectName("VersionConnector")
+                connector.setStyleSheet("color: rgba(148, 163, 184, 0.55); font-size: 22px; font-weight: 800;")
                 connector.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 connector.setContentsMargins(30 + node.depth * 22, 0, 0, 0)
                 self._timeline_layout.addWidget(connector)
@@ -142,13 +142,14 @@ class AgentsScreen(QWidget):
         row_layout.setSpacing(12)
 
         dot = QLabel("●")
-        dot.setObjectName(self._dot_object_name(node.tone))
+        dot.setStyleSheet(self._dot_style(node.tone))
         dot.setFixedSize(30, 30)
         dot.setAlignment(Qt.AlignCenter)
         row_layout.addWidget(dot, 0, Qt.AlignTop)
 
         button = QPushButton()
         button.setObjectName("VersionNodeButton")
+        button.setStyleSheet(self._node_button_style())
         button.setCheckable(True)
         button.clicked.connect(lambda _checked=False, node_id=node.node_id: self._select_node(node_id))
         button_layout = QVBoxLayout(button)
@@ -166,12 +167,31 @@ class AgentsScreen(QWidget):
         self._node_buttons[node.node_id] = button
         return row
 
-    def _dot_object_name(self, tone: str) -> str:
+    def _dot_style(self, tone: str) -> str:
         if tone == "bad":
-            return "VersionDotBad"
+            return "color: #ef4444; font-size: 28px; font-weight: 900; background: transparent;"
         if tone == "pending":
-            return "VersionDotPending"
-        return "VersionDotGood"
+            return "color: #f59e0b; font-size: 28px; font-weight: 900; background: transparent;"
+        return "color: #22c55e; font-size: 28px; font-weight: 900; background: transparent;"
+
+    def _node_button_style(self) -> str:
+        return """
+        QPushButton#VersionNodeButton {
+            background-color: rgba(15, 23, 42, 0.35);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 18px;
+            padding: 0px;
+            text-align: left;
+        }
+        QPushButton#VersionNodeButton:hover {
+            background-color: rgba(30, 41, 59, 0.72);
+            border: 1px solid rgba(34, 211, 238, 0.55);
+        }
+        QPushButton#VersionNodeButton:checked {
+            background-color: rgba(34, 211, 238, 0.14);
+            border: 1px solid rgba(34, 211, 238, 0.85);
+        }
+        """
 
     def _select_node(self, node_id: str) -> None:
         self._selected_node_id = node_id
