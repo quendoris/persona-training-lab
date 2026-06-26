@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from persona_training_lab.ui.agents.version_graph import VersionGraphCanvas
+from persona_training_lab.ui.agents.version_graph_tree import VersionGraphCanvas
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsViewModel
