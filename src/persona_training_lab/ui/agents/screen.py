@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal, QTimer
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen, QWheelEvent
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen, QRadialGradient, QWheelEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -22,6 +22,7 @@ from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsVie
 class VersionGraphCanvas(QWidget):
     node_selected = Signal(str)
     zoom_changed = Signal(float)
+    pan_requested = Signal(QPointF)
 
     def __init__(self, nodes: tuple[VersionNodeView, ...]) -> None:
         super().__init__()
@@ -30,6 +31,9 @@ class VersionGraphCanvas(QWidget):
         self._hit_rects: dict[str, QRectF] = {}
         self._zoom = 1.0
         self._flipped = False
+        self._press_pos: QPointF | None = None
+        self._last_drag_pos: QPointF | None = None
+        self._dragging = False
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self._refresh_size()
@@ -49,6 +53,10 @@ class VersionGraphCanvas(QWidget):
 
     def zoom(self) -> float:
         return self._zoom
+
+    def reset_zoom(self) -> None:
+        self.set_zoom(1.0)
+        self.zoom_changed.emit(self._zoom)
 
     def toggle_flipped(self) -> None:
         self._flipped = not self._flipped
@@ -80,14 +88,54 @@ class VersionGraphCanvas(QWidget):
             self._draw_node(painter, node, x, y, self._label_x(x))
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press_pos = event.position()
+            self._last_drag_pos = event.position()
+            self._dragging = False
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        if self._press_pos is None or self._last_drag_pos is None:
+            super().mouseMoveEvent(event)
+            return
+        if not event.buttons() & Qt.MouseButton.LeftButton:
+            super().mouseMoveEvent(event)
+            return
+
+        delta = event.position() - self._last_drag_pos
+        total = event.position() - self._press_pos
+        if self._dragging or abs(total.x()) + abs(total.y()) > 4:
+            self._dragging = True
+            self._last_drag_pos = event.position()
+            self.pan_requested.emit(delta)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt override
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mouseReleaseEvent(event)
+            return
+        self.unsetCursor()
         pos = event.position()
+        was_dragging = self._dragging
+        self._press_pos = None
+        self._last_drag_pos = None
+        self._dragging = False
+        if was_dragging:
+            event.accept()
+            return
         for node_id, rect in self._hit_rects.items():
             if rect.contains(pos):
                 self._selected_node_id = node_id
                 self.update()
                 self.node_selected.emit(node_id)
+                event.accept()
                 return
-        super().mousePressEvent(event)
+        event.accept()
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 - Qt override
         delta = event.angleDelta().y()
@@ -134,11 +182,11 @@ class VersionGraphCanvas(QWidget):
 
     def _draw_connector(self, painter: QPainter, px: float, py: float, x: float, y: float, tone: str) -> None:
         color = self._tone_color(tone)
-        color.setAlpha(155)
-        pen = QPen(color, max(1.4, 2.0 * self._zoom))
+        color.setAlpha(150)
+        pen = QPen(color, max(1.2, 1.8 * self._zoom))
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
-        dot_gap = 9 * self._zoom
+        dot_gap = 8 * self._zoom
         if px == x:
             painter.drawLine(QPointF(px, py + dot_gap if y > py else py - dot_gap), QPointF(x, y - dot_gap if y > py else y + dot_gap))
             return
@@ -150,22 +198,15 @@ class VersionGraphCanvas(QWidget):
     def _draw_node(self, painter: QPainter, node: VersionNodeView, x: float, y: float, label_x: float) -> None:
         selected = node.node_id == self._selected_node_id
         color = self._tone_color(node.tone)
-        radius = 4.6 * self._zoom if not selected else 5.5 * self._zoom
+        radius = 4.4 * self._zoom if not selected else 5.2 * self._zoom
 
-        glow = QColor(color)
-        glow.setAlpha(38 if not selected else 78)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(glow)
-        painter.drawEllipse(QPointF(x, y), 17 * self._zoom, 17 * self._zoom)
+        self._draw_soft_glow(painter, x, y, color, selected)
         if selected:
-            halo = QColor(34, 211, 238, 82)
-            painter.setBrush(halo)
-            painter.drawEllipse(QPointF(x, y), 23 * self._zoom, 23 * self._zoom)
-            painter.setPen(QPen(QColor(34, 211, 238, 220), max(1.2, 1.8 * self._zoom)))
-            painter.setBrush(Qt.NoBrush)
-            painter.drawEllipse(QPointF(x, y), 9.5 * self._zoom, 9.5 * self._zoom)
+            painter.setPen(QPen(QColor(34, 211, 238, 210), max(1.0, 1.45 * self._zoom)))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(QPointF(x, y), 8.2 * self._zoom, 8.2 * self._zoom)
 
-        painter.setPen(QPen(QColor(15, 23, 42, 240), max(0.8, 1.1 * self._zoom)))
+        painter.setPen(QPen(QColor(15, 23, 42, 240), max(0.7, 1.0 * self._zoom)))
         painter.setBrush(color)
         painter.drawEllipse(QPointF(x, y), radius, radius)
 
@@ -193,6 +234,22 @@ class VersionGraphCanvas(QWidget):
             painter.drawText(badge_rect, Qt.AlignCenter, badge)
 
         self._hit_rects[node.node_id] = QRectF(x - 18 * self._zoom, y - 20 * self._zoom, max(420 * self._zoom, self.width() - x - 20), 40 * self._zoom)
+
+    def _draw_soft_glow(self, painter: QPainter, x: float, y: float, color: QColor, selected: bool) -> None:
+        glow_radius = (13 if selected else 9) * self._zoom
+        center = QColor(color)
+        center.setAlpha(58 if selected else 34)
+        mid = QColor(color)
+        mid.setAlpha(18 if selected else 10)
+        edge = QColor(color)
+        edge.setAlpha(0)
+        gradient = QRadialGradient(QPointF(x, y), glow_radius)
+        gradient.setColorAt(0.0, center)
+        gradient.setColorAt(0.45, mid)
+        gradient.setColorAt(1.0, edge)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(gradient)
+        painter.drawEllipse(QPointF(x, y), glow_radius, glow_radius)
 
     def _tone_color(self, tone: str) -> QColor:
         if tone == "bad":
@@ -278,19 +335,18 @@ class AgentsScreen(QWidget):
         controls.setSpacing(8)
         self._center_button = self._control_button("К актуальной")
         self._flip_button = self._control_button("Отразить")
-        self._zoom_label = QLabel("100%")
-        self._zoom_label.setObjectName("TelemetryChip")
-        self._zoom_label.setAlignment(Qt.AlignCenter)
+        self._reset_zoom_button = self._control_button("Масштаб 100%")
         controls.addStretch(1)
         controls.addWidget(self._center_button)
         controls.addWidget(self._flip_button)
-        controls.addWidget(self._zoom_label)
+        controls.addWidget(self._reset_zoom_button)
         controls.addStretch(1)
         timeline_card._layout.addLayout(controls)
 
         self._graph = VersionGraphCanvas(self._vm.version_nodes())
         self._graph.node_selected.connect(self._select_node)
         self._graph.zoom_changed.connect(self._on_graph_zoom_changed)
+        self._graph.pan_requested.connect(self._pan_graph)
         self._scroll = QScrollArea()
         self._scroll.setObjectName("VersionTimelineScroll")
         self._scroll.setWidgetResizable(False)
@@ -301,6 +357,7 @@ class AgentsScreen(QWidget):
 
         self._center_button.clicked.connect(self._center_current_node)
         self._flip_button.clicked.connect(self._flip_graph)
+        self._reset_zoom_button.clicked.connect(self._reset_zoom)
 
         right_column = QWidget()
         right_column.setProperty("transparentBg", True)
@@ -362,9 +419,18 @@ class AgentsScreen(QWidget):
         self._graph.toggle_flipped()
         QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
 
-    def _on_graph_zoom_changed(self, zoom: float) -> None:
-        self._zoom_label.setText(f"{round(zoom * 100):.0f}%")
+    def _reset_zoom(self) -> None:
+        self._graph.reset_zoom()
         QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
+
+    def _on_graph_zoom_changed(self, _zoom: float) -> None:
+        pass
+
+    def _pan_graph(self, delta: QPointF) -> None:
+        hbar = self._scroll.horizontalScrollBar()
+        vbar = self._scroll.verticalScrollBar()
+        hbar.setValue(hbar.value() - int(delta.x()))
+        vbar.setValue(vbar.value() - int(delta.y()))
 
     def _render_detail(self, detail: AgentDetailView) -> None:
         self._detail_title.setText(detail.title)
