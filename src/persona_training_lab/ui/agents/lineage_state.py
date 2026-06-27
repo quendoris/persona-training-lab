@@ -34,22 +34,18 @@ class LineageStateStore:
                 is_current = node.node_id == current_id
                 if node.branch_note == "current" and not is_current:
                     branch_note = "main"
-            tone = str(override.get("tone", node.tone))
-            status = str(override.get("status", node.status))
-            title = str(override.get("title", node.title))
-            subtitle = str(override.get("subtitle", node.subtitle))
             result.append(
                 replace(
                     node,
-                    title=title,
-                    subtitle=subtitle,
-                    status=status,
-                    tone=tone,
+                    title=str(override.get("title", node.title)),
+                    subtitle=str(override.get("subtitle", node.subtitle)),
+                    status=str(override.get("status", node.status)),
+                    tone=str(override.get("tone", node.tone)),
                     branch_note=str(override.get("branch_note", branch_note)),
                     is_current=is_current,
                 )
             )
-        result.extend(self._custom_nodes(result, current_id))
+        result.extend(self._custom_nodes(result, current_id, overrides))
         return tuple(result)
 
     def current_node_id(self) -> str:
@@ -93,18 +89,25 @@ class LineageStateStore:
         return node_id
 
     def node_state_label(self, node_id: str) -> str:
+        override = self._overrides().get(node_id, {})
+        status = override.get("status")
+        if status:
+            return str(status)
         for node in self._payload.get("custom_nodes", []) if isinstance(self._payload.get("custom_nodes"), list) else []:
             if isinstance(node, dict) and node.get("node_id") == node_id:
                 return str(node.get("status", "черновик"))
-        override = self._overrides().get(node_id, {})
-        status = override.get("status")
-        return str(status) if status else "из источника"
+        return "из источника"
 
     def is_custom_node(self, node_id: str) -> bool:
         custom_nodes = self._payload.get("custom_nodes", [])
         return any(isinstance(node, dict) and node.get("node_id") == node_id for node in custom_nodes if isinstance(custom_nodes, list))
 
-    def _custom_nodes(self, existing: list[LineageVersionNode], current_id: str) -> tuple[LineageVersionNode, ...]:
+    def _custom_nodes(
+        self,
+        existing: list[LineageVersionNode],
+        current_id: str,
+        overrides: dict[str, dict[str, Any]],
+    ) -> tuple[LineageVersionNode, ...]:
         by_id = {node.node_id: node for node in existing}
         custom_nodes = self._payload.get("custom_nodes", [])
         if not isinstance(custom_nodes, list):
@@ -118,14 +121,15 @@ class LineageStateStore:
             if not node_id or node_id in by_id:
                 continue
             parent_level = by_id[parent_id].level if parent_id in by_id else 0
+            override = overrides.get(node_id, {})
             node = LineageVersionNode(
                 node_id=node_id,
                 parent_id=parent_id,
-                title=str(raw.get("title", node_id)),
-                subtitle=str(raw.get("subtitle", "Локальная ветка.")),
-                status=str(raw.get("status", "черновик")),
-                tone=str(raw.get("tone", "pending")),
-                branch_note=str(raw.get("branch_note", "side")),
+                title=str(override.get("title", raw.get("title", node_id))),
+                subtitle=str(override.get("subtitle", raw.get("subtitle", "Локальная ветка."))),
+                status=str(override.get("status", raw.get("status", "черновик"))),
+                tone=str(override.get("tone", raw.get("tone", "pending"))),
+                branch_note=str(override.get("branch_note", raw.get("branch_note", "side"))),
                 is_current=node_id == current_id,
                 level=int(raw.get("level", parent_level + 1)),
             )
