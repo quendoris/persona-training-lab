@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 
 from persona_training_lab.ui.agents.version_graph_persistent import VersionGraphCanvas as PersistentVersionGraphCanvas
@@ -72,7 +72,7 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
         lanes = self._lanes()
         max_level = self._max_level()
         row_gap = 52 * self._zoom
-        branch_gap = 84 * self._zoom
+        branch_gap = 138 * self._zoom
         axis_x = 1050 * self._zoom
         top = 738 * self._zoom
         result: dict[str, tuple[float, float]] = {}
@@ -81,11 +81,17 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
             visual_level = max_level - level if self._flipped else level
             offset = self._node_offsets.get(node.node_id, QPointF())
             offset_y = -offset.y() if self._flipped else offset.y()
+            side_nudge = self._side_nudge(node) * (-1 if self._flipped else 1)
             result[node.node_id] = (
                 axis_x + lanes.get(node.node_id, 0) * branch_gap + offset.x() * self._zoom,
-                top + visual_level * row_gap + offset_y * self._zoom,
+                top + visual_level * row_gap + (offset_y + side_nudge) * self._zoom,
             )
         return result
+
+    def _side_nudge(self, node) -> float:
+        if getattr(node, "branch_note", "main") not in {"main", "current"}:
+            return 10.0
+        return 0.0
 
     def _move_nodes(self, node_ids: tuple[str, ...], delta: QPointF) -> None:
         if self._layout_locked or not node_ids or not (delta.x() or delta.y()):
