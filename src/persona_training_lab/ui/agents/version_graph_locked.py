@@ -105,14 +105,15 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
 
     def _positions(self) -> dict[str, tuple[float, float]]:
         lanes = self._lanes()
-        max_level = self._max_level()
+        levels = self._display_levels()
+        max_level = max(levels.values(), default=0)
         row_gap = 52 * self._zoom
         branch_gap = 104 * self._zoom
         axis_x = 1050 * self._zoom
         top = 738 * self._zoom
         result: dict[str, tuple[float, float]] = {}
         for node in self._nodes:
-            level = self._display_level(node)
+            level = levels.get(node.node_id, self._level(node))
             visual_level = max_level - level if self._flipped else level
             offset = self._node_offsets.get(node.node_id, QPointF())
             offset_y = -offset.y() if self._flipped else offset.y()
@@ -123,36 +124,58 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
         return result
 
     def _max_level(self) -> int:
-        return max((self._display_level(node) for node in self._nodes), default=0)
+        return max(self._display_levels().values(), default=0)
 
-    def _display_level(self, node) -> int:
-        return self._level(node) + self._mainline_extra_slots(node.node_id)
-
-    def _mainline_extra_slots(self, node_id: str) -> int:
+    def _display_levels(self) -> dict[str, int]:
+        children = self._children_by_id()
         by_id = {node.node_id: node for node in self._nodes}
-        if node_id not in by_id or self._has_side_ancestor_or_self(node_id, by_id):
-            return 0
-        children_by_id = self._children_by_id()
-        extra = 0
-        current_id = node_id
-        while current_id in by_id:
-            parent_id = self._parent(by_id[current_id])
-            if parent_id is None or parent_id not in by_id:
-                break
-            side_siblings = [child_id for child_id in children_by_id.get(parent_id, ()) if child_id in by_id and self._side(by_id[child_id])]
-            if side_siblings:
-                extra += len(side_siblings)
-            current_id = parent_id
-        return extra
+        levels: dict[str, int] = {}
 
-    def _has_side_ancestor_or_self(self, node_id: str, by_id: dict[str, object]) -> bool:
-        current_id: str | None = node_id
-        while current_id is not None and current_id in by_id:
-            node = by_id[current_id]
-            if self._side(node):
-                return True
-            current_id = self._parent(node)
-        return False
+        def assign(node_id: str, level: int) -> None:
+            if node_id in levels:
+                return
+            levels[node_id] = level
+            node_children = [child_id for child_id in children.get(node_id, []) if child_id in by_id]
+            side_children = [child_id for child_id in node_children if self._side(by_id[child_id])]
+            main_children = [child_id for child_id in node_children if not self._side(by_id[child_id])]
+            side_slot = level + 1
+            for offset, child_id in enumerate(side_children):
+                assign(child_id, side_slot + offset)
+            main_slot = level + 1 + len(side_children)
+            for child_id in main_children:
+                assign(child_id, main_slot)
+
+        for root in children.get(None, []):
+            assign(root, 0)
+        for node in self._nodes:
+            if node.node_id not in levels:
+                parent_id = self._parent(node)
+                if parent_id in levels:
+                    assign(node.node_id, levels[parent_id] + 1)
+                else:
+                    assign(node.node_id, self._level(node))
+        return levels
+
+    def _lanes(self) -> dict[str, int]:
+        children: dict[str | None, list[object]] = {}
+        for node in self._nodes:
+            children.setdefault(self._parent(node), []).append(node)
+        lanes: dict[str, int] = {}
+
+        def assign(node, lane: int) -> None:
+            lanes[node.node_id] = lane
+            node_children = children.get(node.node_id, [])
+            main = [child for child in node_children if not self._side(child)]
+            side = [child for child in node_children if self._side(child)]
+            for child in main:
+                assign(child, lane)
+            for offset, child in enumerate(side, start=1):
+                next_lane = lane if self._side(node) else lane + offset
+                assign(child, next_lane)
+
+        for root in children.get(None, []):
+            assign(root, 0)
+        return lanes
 
     def _move_nodes(self, node_ids: tuple[str, ...], delta: QPointF) -> None:
         if self._layout_locked or not node_ids or not (delta.x() or delta.y()):
