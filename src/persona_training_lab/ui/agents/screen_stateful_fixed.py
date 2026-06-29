@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QPointF, QTimer
+from PySide6.QtWidgets import QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _StatefulAgentsScreen
 from persona_training_lab.ui.components.cards import PanelCard
@@ -9,6 +10,11 @@ from persona_training_lab.ui.viewmodels.agents import AgentDetailView
 
 
 class AgentsScreen(_StatefulAgentsScreen):
+    def __init__(self, view_model) -> None:
+        super().__init__(view_model)
+        if hasattr(self._graph, "context_menu_requested"):
+            self._graph.context_menu_requested.connect(self._show_node_context_menu)
+
     def _details(self) -> QWidget:
         column = QWidget()
         column.setProperty("transparentBg", True)
@@ -60,6 +66,44 @@ class AgentsScreen(_StatefulAgentsScreen):
         super()._select_node(node_id)
         self._sync_workflow_panel()
 
+    def _show_node_context_menu(self, node_id: str, global_pos: QPointF) -> None:
+        self._select_node(node_id)
+        menu = QMenu(self)
+        make_current = menu.addAction("Сделать актуальной")
+        menu.addSeparator()
+        mark_good = menu.addAction("Пометить удачной")
+        mark_pending = menu.addAction("Пометить спорной")
+        mark_bad = menu.addAction("Пометить неудачной")
+        menu.addSeparator()
+        continue_from = menu.addAction("Продолжить от этой точки")
+        center = menu.addAction("Центрировать на точке")
+        menu.addSeparator()
+        reset_node = menu.addAction("Сбросить смещение точки")
+        reset_subtree = menu.addAction("Сбросить смещение поддерева")
+        chosen = menu.exec(global_pos.toPoint())
+        if chosen is None:
+            return
+        if chosen == make_current:
+            self._make_current()
+        elif chosen == mark_good:
+            self._mark_tone("good")
+        elif chosen == mark_pending:
+            self._mark_tone("pending")
+        elif chosen == mark_bad:
+            self._mark_tone("bad")
+        elif chosen == continue_from:
+            self._continue_from_selected()
+        elif chosen == center:
+            self._center_on_node(node_id)
+        elif chosen == reset_node:
+            if hasattr(self._graph, "reset_node_layout"):
+                self._graph.reset_node_layout(node_id)
+            QTimer.singleShot(0, lambda: self._center_on_node(node_id))
+        elif chosen == reset_subtree:
+            if hasattr(self._graph, "reset_subtree_layout"):
+                self._graph.reset_subtree_layout(node_id)
+            QTimer.singleShot(0, lambda: self._center_on_node(node_id))
+
     def _sync_workflow_panel(self) -> None:
         node = self._node_by_id(self._selected_node_id)
         if node is None:
@@ -88,8 +132,8 @@ class AgentsScreen(_StatefulAgentsScreen):
                 title=node.title,
                 body="\n".join((f"Parent: {node.parent_id or '—'}", f"Статус: {node.status}", node.subtitle)),
                 checks=("Локальная ветка lineage", "Пока не связана с training run", "Перед запуском нужен snapshot/protocol record"),
-                actions=("Используйте кнопки workflow выше.",),
+                actions=("Используйте кнопки workflow выше или ПКМ по точке.",),
             )
         base = self._vm.node_detail(node_id)
         body = "\n".join((base.body, "", f"Lineage state: {node.status}", f"Parent: {node.parent_id or '—'}"))
-        return AgentDetailView(base.title, body, base.checks, ("Используйте кнопки workflow выше.",))
+        return AgentDetailView(base.title, body, base.checks, ("Используйте кнопки workflow выше или ПКМ по точке.",))
