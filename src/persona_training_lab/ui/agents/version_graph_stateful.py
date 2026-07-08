@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 
 from persona_training_lab.ui.agents.version_graph_locked import VersionGraphCanvas as LockableVersionGraphCanvas
 from persona_training_lab.ui.viewmodels.agents import VersionNodeView
@@ -183,6 +183,28 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
 
         super().mouseReleaseEvent(event)
 
+    def _draw_connector(self, painter: QPainter, px: float, py: float, x: float, y: float, tone: str) -> None:
+        color = self._tone_color(tone)
+        color.setAlpha(150)
+        pen = QPen(color, max(1.2, 1.8 * self._zoom))
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        dot_gap = 9 * self._zoom
+        vertical_direction = 1 if y > py else -1
+        start = QPointF(px, py + vertical_direction * dot_gap)
+        end = QPointF(x, y - vertical_direction * dot_gap)
+        if abs(px - x) < 0.1:
+            painter.drawLine(start, end)
+            return
+        shoulder_y = py + vertical_direction * min(max(abs(y - py) * 0.16, 20 * self._zoom), 30 * self._zoom)
+        path = QPainterPath(start)
+        path.cubicTo(QPointF(px, shoulder_y), QPointF(px, shoulder_y), QPointF(px + (x - px) * 0.34, shoulder_y))
+        path.lineTo(QPointF(x, shoulder_y))
+        path.cubicTo(QPointF(x, shoulder_y), QPointF(x, shoulder_y), end)
+        painter.drawPath(path)
+
     def _draw_canvas_menu(self) -> None:
         if self._menu_node_id is None:
             return
@@ -214,7 +236,7 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         action_font = QFont(painter.font())
         action_font.setPointSizeF(max(6.8, 8.6 * self._zoom))
         painter.setFont(action_font)
-        for action, label, rect in rows:
+        for _action, label, rect in rows:
             painter.setPen(QPen(QColor(51, 65, 85, 220), max(0.8, 1.0 * self._zoom)))
             painter.setBrush(QColor(30, 41, 59, 226))
             painter.drawRoundedRect(rect, 7 * self._zoom, 7 * self._zoom)
@@ -312,13 +334,9 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
     ) -> list[dict[str, object]]:
         groups: list[dict[str, object]] = []
         for node in self._nodes:
-            if not self._side(node):
+            if not self._side(node) or not self._is_branch_root(node, by_id, levels):
                 continue
-            parent_id = self._parent(node)
-            parent = by_id.get(parent_id) if parent_id is not None else None
-            if parent is not None and self._side(parent):
-                continue
-            ids = self._collect_branch_ids(node.node_id, children, by_id)
+            ids = self._collect_branch_ids(node.node_id, children, by_id, levels)
             used_levels = [levels.get(node_id, self._level(by_id[node_id])) for node_id in ids if node_id in by_id]
             if not used_levels:
                 continue
@@ -332,11 +350,22 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             )
         return groups
 
-    def _collect_branch_ids(self, root_id: str, children: dict[str, list[str]], by_id: dict[str, object]) -> tuple[str, ...]:
+    def _is_branch_root(self, node: object, by_id: dict[str, object], levels: dict[str, int]) -> bool:
+        parent_id = self._parent(node)
+        parent = by_id.get(parent_id) if parent_id is not None else None
+        if parent is None or not self._side(parent):
+            return True
+        parent_level = levels.get(parent_id, self._level(parent))
+        node_level = levels.get(node.node_id, self._level(node))
+        return node_level - parent_level > 1
+
+    def _collect_branch_ids(self, root_id: str, children: dict[str, list[str]], by_id: dict[str, object], levels: dict[str, int]) -> tuple[str, ...]:
         result: list[str] = []
 
         def collect(node_id: str) -> None:
             if node_id in result or node_id not in by_id:
+                return
+            if node_id != root_id and self._is_branch_root(by_id[node_id], by_id, levels):
                 return
             result.append(node_id)
             for child_id in children.get(node_id, []):
@@ -369,7 +398,7 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             widths[lane] = max(widths.get(lane, 0.0), self._label_width(node.title))
             parent_id = self._parent(node)
             parent = by_id.get(parent_id) if parent_id is not None else None
-            if parent is not None and not self._side(parent):
+            if parent is not None:
                 parent_requirements[lane] = max(parent_requirements.get(lane, 0.0), self._label_width(parent.title) + 74.0)
         offsets: dict[int, float] = {0: 0.0}
         previous_offset = 0.0
