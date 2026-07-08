@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QPointF, QTimer
-from PySide6.QtWidgets import QGridLayout, QLabel, QMenu, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _StatefulAgentsScreen
 from persona_training_lab.ui.components.cards import PanelCard
@@ -11,9 +13,12 @@ from persona_training_lab.ui.viewmodels.agents import AgentDetailView
 
 class AgentsScreen(_StatefulAgentsScreen):
     def __init__(self, view_model) -> None:
+        self._floating_node_menu: QFrame | None = None
         super().__init__(view_model)
         if hasattr(self._graph, "context_menu_requested"):
             self._graph.context_menu_requested.connect(self._show_node_context_menu)
+        if hasattr(self._graph, "context_menu_dismiss_requested"):
+            self._graph.context_menu_dismiss_requested.connect(self._hide_node_context_menu)
 
     def _details(self) -> QWidget:
         column = QWidget()
@@ -68,41 +73,64 @@ class AgentsScreen(_StatefulAgentsScreen):
 
     def _show_node_context_menu(self, node_id: str, global_pos: QPointF) -> None:
         self._select_node(node_id)
-        menu = QMenu(self)
-        make_current = menu.addAction("Сделать актуальной")
-        menu.addSeparator()
-        mark_good = menu.addAction("Пометить удачной")
-        mark_pending = menu.addAction("Пометить спорной")
-        mark_bad = menu.addAction("Пометить неудачной")
-        menu.addSeparator()
-        continue_from = menu.addAction("Продолжить от этой точки")
-        center = menu.addAction("Центрировать на точке")
-        menu.addSeparator()
-        reset_node = menu.addAction("Сбросить смещение точки")
-        reset_subtree = menu.addAction("Сбросить смещение поддерева")
-        chosen = menu.exec(global_pos.toPoint())
-        if chosen is None:
+        self._hide_node_context_menu()
+        menu = QFrame(self)
+        menu.setObjectName("PanelCardSoft")
+        menu.setFrameShape(QFrame.Shape.NoFrame)
+        layout = QVBoxLayout(menu)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
+        title = QLabel("Действия точки")
+        title.setObjectName("CardTitle")
+        layout.addWidget(title)
+        layout.addWidget(make_muted_label(node_id))
+        actions: tuple[tuple[str, Callable[[], None]], ...] = (
+            ("Сделать актуальной", self._make_current),
+            ("Пометить удачной", lambda: self._mark_tone("good")),
+            ("Пометить спорной", lambda: self._mark_tone("pending")),
+            ("Пометить неудачной", lambda: self._mark_tone("bad")),
+            ("Продолжить от этой точки", self._continue_from_selected),
+            ("Центрировать на точке", lambda: self._center_on_node(node_id)),
+            ("Сбросить смещение точки", lambda: self._reset_node_layout(node_id)),
+            ("Сбросить смещение поддерева", lambda: self._reset_subtree_layout(node_id)),
+        )
+        for text, handler in actions:
+            layout.addWidget(self._menu_button(text, handler))
+        self._floating_node_menu = menu
+        menu.adjustSize()
+        pos = self.mapFromGlobal(global_pos.toPoint())
+        x = max(8, min(pos.x() + 10, self.width() - menu.width() - 8))
+        y = max(8, min(pos.y() + 10, self.height() - menu.height() - 8))
+        menu.move(x, y)
+        menu.show()
+        menu.raise_()
+
+    def _menu_button(self, text: str, handler: Callable[[], None]) -> QPushButton:
+        button = self._button(text)
+        button.setMinimumHeight(30)
+        button.clicked.connect(lambda: self._run_menu_action(handler))
+        return button
+
+    def _run_menu_action(self, handler: Callable[[], None]) -> None:
+        handler()
+        self._hide_node_context_menu()
+
+    def _hide_node_context_menu(self) -> None:
+        if self._floating_node_menu is None:
             return
-        if chosen == make_current:
-            self._make_current()
-        elif chosen == mark_good:
-            self._mark_tone("good")
-        elif chosen == mark_pending:
-            self._mark_tone("pending")
-        elif chosen == mark_bad:
-            self._mark_tone("bad")
-        elif chosen == continue_from:
-            self._continue_from_selected()
-        elif chosen == center:
-            self._center_on_node(node_id)
-        elif chosen == reset_node:
-            if hasattr(self._graph, "reset_node_layout"):
-                self._graph.reset_node_layout(node_id)
-            QTimer.singleShot(0, lambda: self._center_on_node(node_id))
-        elif chosen == reset_subtree:
-            if hasattr(self._graph, "reset_subtree_layout"):
-                self._graph.reset_subtree_layout(node_id)
-            QTimer.singleShot(0, lambda: self._center_on_node(node_id))
+        self._floating_node_menu.hide()
+        self._floating_node_menu.deleteLater()
+        self._floating_node_menu = None
+
+    def _reset_node_layout(self, node_id: str) -> None:
+        if hasattr(self._graph, "reset_node_layout"):
+            self._graph.reset_node_layout(node_id)
+        QTimer.singleShot(0, lambda: self._center_on_node(node_id))
+
+    def _reset_subtree_layout(self, node_id: str) -> None:
+        if hasattr(self._graph, "reset_subtree_layout"):
+            self._graph.reset_subtree_layout(node_id)
+        QTimer.singleShot(0, lambda: self._center_on_node(node_id))
 
     def _sync_workflow_panel(self) -> None:
         node = self._node_by_id(self._selected_node_id)
@@ -132,8 +160,8 @@ class AgentsScreen(_StatefulAgentsScreen):
                 title=node.title,
                 body="\n".join((f"Parent: {node.parent_id or '—'}", f"Статус: {node.status}", node.subtitle)),
                 checks=("Локальная ветка lineage", "Пока не связана с training run", "Перед запуском нужен snapshot/protocol record"),
-                actions=("Используйте кнопки workflow выше или ПКМ по точке.",),
+                actions=("ЛКМ по точке открывает меню, ПКМ перемещает пространство/точки.",),
             )
         base = self._vm.node_detail(node_id)
         body = "\n".join((base.body, "", f"Lineage state: {node.status}", f"Parent: {node.parent_id or '—'}"))
-        return AgentDetailView(base.title, body, base.checks, ("Используйте кнопки workflow выше или ПКМ по точке.",))
+        return AgentDetailView(base.title, body, base.checks, ("ЛКМ по точке открывает меню, ПКМ перемещает пространство/точки.",))
