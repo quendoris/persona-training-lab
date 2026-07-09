@@ -14,6 +14,8 @@ class LayoutInputNode:
 
 @dataclass(frozen=True, slots=True)
 class BranchGroup:
+    root_id: str
+    parent_id: str | None
     ids: tuple[str, ...]
     start: int
     end: int
@@ -41,7 +43,7 @@ def build_version_graph_layout(nodes: tuple[LayoutInputNode, ...], label_widths:
     children = _children_by_id(nodes)
     levels = _display_levels(nodes, by_id, children)
     groups = _branch_groups(nodes, by_id, children, levels, label_widths)
-    lanes = _lanes(nodes, groups)
+    lanes = _lanes(nodes, by_id, groups)
     offsets = _lane_offsets(nodes, by_id, lanes, label_widths)
     return VersionGraphLayout(levels=levels, lanes=lanes, lane_offsets=offsets)
 
@@ -98,7 +100,16 @@ def _branch_groups(
         if not used_levels:
             continue
         width = max((label_widths.get(node_id, 120.0) for node_id in ids), default=120.0)
-        groups.append(BranchGroup(ids=ids, start=min(used_levels), end=max(used_levels), width=width))
+        groups.append(
+            BranchGroup(
+                root_id=node.node_id,
+                parent_id=node.parent_id,
+                ids=ids,
+                start=min(used_levels),
+                end=max(used_levels),
+                width=width,
+            )
+        )
     return groups
 
 
@@ -120,26 +131,51 @@ def _collect_branch_ids(root_id: str, by_id: dict[str, LayoutInputNode], childre
     return tuple(result)
 
 
-def _lanes(nodes: tuple[LayoutInputNode, ...], groups: list[BranchGroup]) -> dict[str, int]:
+def _lanes(nodes: tuple[LayoutInputNode, ...], by_id: dict[str, LayoutInputNode], groups: list[BranchGroup]) -> dict[str, int]:
     lanes = {node.node_id: 0 for node in nodes}
     occupancy: dict[int, list[BranchGroup]] = {}
-    for group in sorted(groups, key=lambda item: (item.end, item.start), reverse=True):
-        lane = _choose_lane(group, occupancy)
-        for node_id in group.ids:
-            lanes[node_id] = lane
-        occupancy.setdefault(lane, []).append(group)
+    pending = sorted(groups, key=lambda item: (item.end, item.start), reverse=True)
+    while pending:
+        remaining: list[BranchGroup] = []
+        progressed = False
+        for group in pending:
+            parent = by_id.get(group.parent_id or "")
+            parent_lane = lanes.get(group.parent_id or "", 0)
+            if parent is not None and parent.is_side and parent_lane == 0:
+                remaining.append(group)
+                continue
+            preferred_sign = _sign(parent_lane) if parent is not None and parent.is_side else 0
+            lane = _choose_lane(group, occupancy, preferred_sign)
+            for node_id in group.ids:
+                lanes[node_id] = lane
+            occupancy.setdefault(lane, []).append(group)
+            progressed = True
+        if not progressed:
+            # Defensive fallback for malformed/cyclic input: keep drawing instead of
+            # producing a crossing through the mainline by accident.
+            group = remaining.pop(0)
+            lane = _choose_lane(group, occupancy, 1)
+            for node_id in group.ids:
+                lanes[node_id] = lane
+            occupancy.setdefault(lane, []).append(group)
+        pending = remaining
     return lanes
 
 
-def _choose_lane(group: BranchGroup, occupancy: dict[int, list[BranchGroup]]) -> int:
-    for lane in _candidate_lanes():
+def _choose_lane(group: BranchGroup, occupancy: dict[int, list[BranchGroup]], preferred_sign: int) -> int:
+    for lane in _candidate_lanes(preferred_sign):
         if _lane_is_free(lane, group, occupancy):
             return lane
-    return max((abs(lane) for lane in occupancy), default=0) + 1
+    step = max((abs(lane) for lane in occupancy), default=0) + 1
+    return step if preferred_sign >= 0 else -step
 
 
-def _candidate_lanes() -> tuple[int, ...]:
+def _candidate_lanes(preferred_sign: int = 0) -> tuple[int, ...]:
     lanes: list[int] = []
+    if preferred_sign > 0:
+        return tuple(range(1, 24))
+    if preferred_sign < 0:
+        return tuple(-step for step in range(1, 24))
     for step in range(1, 24):
         lanes.extend((step, -step))
     return tuple(lanes)
@@ -189,3 +225,11 @@ def _lane_offsets(
         previous_distance = max(previous_distance + width + LANE_GAP, minimum)
         offsets[lane] = -previous_distance
     return offsets
+
+
+def _sign(value: int) -> int:
+    if value > 0:
+        return 1
+    if value < 0:
+        return -1
+    return 0
