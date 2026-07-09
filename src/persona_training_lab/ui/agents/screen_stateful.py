@@ -61,9 +61,10 @@ class AgentsScreen(QWidget):
             title = QLabel(role.title)
             title.setObjectName("CardTitle")
             row_layout.addWidget(title)
-            row_layout.addWidget(make_muted_label(role.subtitle))
+            row_layout.addWidget(make_muted_label(role.mission))
+            row_layout.addWidget(make_muted_label(role.next_action))
             if role.status:
-                row_layout.addWidget(make_status_label(role.status, role.tone))
+                row_layout.addWidget(make_status_label(role.status, "pending"))
             card.add_widget(row)
         layout.addWidget(card)
         layout.addStretch(1)
