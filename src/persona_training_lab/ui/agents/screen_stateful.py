@@ -150,6 +150,33 @@ class AgentsScreen(QWidget):
         button.setProperty("secondary", True)
         return button
 
+    def _workflow_button(self, text: str, handler) -> QPushButton:
+        button = self._button(text)
+        button.clicked.connect(handler)
+        return button
+
+    def _node_by_id(self, node_id: str) -> LineageVersionNode | None:
+        return next((node for node in self._lineage_nodes if node.node_id == node_id), None)
+
+    def _make_current(self) -> None:
+        self._state.set_current(self._selected_node_id)
+        self._refresh_lineage(center=True)
+
+    def _mark_tone(self, tone: str) -> None:
+        self._state.set_tone(self._selected_node_id, tone)
+        self._refresh_lineage(center=False)
+
+    def _continue_from_selected(self) -> None:
+        self._selected_node_id = self._state.continue_from(self._selected_node_id)
+        self._refresh_lineage(center=True)
+
+    def _refresh_lineage(self, center: bool) -> None:
+        self._lineage_nodes = self._build_nodes()
+        self._graph.set_nodes(self._lineage_nodes)
+        self._select_node(self._selected_node_id)
+        if center:
+            QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
+
     def _toggle_layout_lock(self) -> None:
         if not hasattr(self._graph, "set_layout_locked"):
             return
