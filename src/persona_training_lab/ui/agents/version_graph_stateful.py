@@ -192,18 +192,16 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         dot_gap = 9 * self._zoom
-        vertical_direction = 1 if y > py else -1
-        start = QPointF(px, py + vertical_direction * dot_gap)
-        end = QPointF(x, y - vertical_direction * dot_gap)
+        start_y = py + dot_gap if y > py else py - dot_gap
+        end_y = y - dot_gap if y > py else y + dot_gap
         if abs(px - x) < 0.1:
-            painter.drawLine(start, end)
+            painter.drawLine(QPointF(px, start_y), QPointF(x, end_y))
             return
-        shoulder_y = py + vertical_direction * min(max(abs(y - py) * 0.16, 20 * self._zoom), 30 * self._zoom)
-        path = QPainterPath(start)
-        path.cubicTo(QPointF(px, shoulder_y), QPointF(px, shoulder_y), QPointF(px + (x - px) * 0.34, shoulder_y))
-        path.lineTo(QPointF(x, shoulder_y))
-        path.cubicTo(QPointF(x, shoulder_y), QPointF(x, shoulder_y), end)
-        painter.drawPath(path)
+        vertical_direction = 1 if y > py else -1
+        control_y = py + vertical_direction * min(max(abs(y - py) * 0.28, 18 * self._zoom), 34 * self._zoom)
+        curve = QPainterPath(QPointF(px, start_y))
+        curve.cubicTo(QPointF(px, control_y), QPointF(x, control_y), QPointF(x, end_y))
+        painter.drawPath(curve)
 
     def _draw_canvas_menu(self) -> None:
         if self._menu_node_id is None:
@@ -334,9 +332,13 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
     ) -> list[dict[str, object]]:
         groups: list[dict[str, object]] = []
         for node in self._nodes:
-            if not self._side(node) or not self._is_branch_root(node, by_id, levels):
+            if not self._side(node):
                 continue
-            ids = self._collect_branch_ids(node.node_id, children, by_id, levels)
+            parent_id = self._parent(node)
+            parent = by_id.get(parent_id) if parent_id is not None else None
+            if parent is not None and self._side(parent):
+                continue
+            ids = self._collect_branch_ids(node.node_id, children, by_id)
             used_levels = [levels.get(node_id, self._level(by_id[node_id])) for node_id in ids if node_id in by_id]
             if not used_levels:
                 continue
@@ -350,22 +352,11 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             )
         return groups
 
-    def _is_branch_root(self, node: object, by_id: dict[str, object], levels: dict[str, int]) -> bool:
-        parent_id = self._parent(node)
-        parent = by_id.get(parent_id) if parent_id is not None else None
-        if parent is None or not self._side(parent):
-            return True
-        parent_level = levels.get(parent_id, self._level(parent))
-        node_level = levels.get(node.node_id, self._level(node))
-        return node_level - parent_level > 1
-
-    def _collect_branch_ids(self, root_id: str, children: dict[str, list[str]], by_id: dict[str, object], levels: dict[str, int]) -> tuple[str, ...]:
+    def _collect_branch_ids(self, root_id: str, children: dict[str, list[str]], by_id: dict[str, object]) -> tuple[str, ...]:
         result: list[str] = []
 
         def collect(node_id: str) -> None:
             if node_id in result or node_id not in by_id:
-                return
-            if node_id != root_id and self._is_branch_root(by_id[node_id], by_id, levels):
                 return
             result.append(node_id)
             for child_id in children.get(node_id, []):
@@ -398,7 +389,7 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             widths[lane] = max(widths.get(lane, 0.0), self._label_width(node.title))
             parent_id = self._parent(node)
             parent = by_id.get(parent_id) if parent_id is not None else None
-            if parent is not None:
+            if parent is not None and not self._side(parent):
                 parent_requirements[lane] = max(parent_requirements.get(lane, 0.0), self._label_width(parent.title) + 74.0)
         offsets: dict[int, float] = {0: 0.0}
         previous_offset = 0.0
