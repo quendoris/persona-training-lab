@@ -44,6 +44,27 @@ def test_side_branch_continuation_keeps_lane_and_does_not_jump_across_graph() ->
     assert 0 not in branch_lanes
 
 
+def test_side_child_branch_stays_on_parent_side_instead_of_crossing_mainline() -> None:
+    nodes = (
+        LayoutInputNode("base", None, "base", False),
+        LayoutInputNode("snapshot", "base", "snapshot", False),
+        LayoutInputNode("branch_010", "snapshot", "branch 010", True),
+        LayoutInputNode("branch_011", "branch_010", "branch 011", True),
+        LayoutInputNode("branch_012", "branch_011", "branch 012", True),
+        LayoutInputNode("branch_013", "branch_012", "branch 013", True),
+        LayoutInputNode("branch_014", "branch_013", "branch 014", True),
+        LayoutInputNode("branch_015", "branch_014", "branch 015", True),
+        LayoutInputNode("branch_017", "branch_015", "branch 017", True),
+        LayoutInputNode("branch_016", "branch_015", "branch 016", True),
+    )
+
+    layout = build_version_graph_layout(nodes, _widths(nodes))
+
+    assert layout.lanes["branch_016"] > 0
+    assert layout.lanes["branch_017"] > 0
+    assert abs(layout.lanes["branch_016"]) >= abs(layout.lanes["branch_010"])
+
+
 def test_lower_overlapping_branch_gets_nearer_lane_than_long_upper_branch() -> None:
     nodes = (
         LayoutInputNode("base", None, "base", False),
