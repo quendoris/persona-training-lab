@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _StatefulAgentsScreen
@@ -40,6 +40,24 @@ class AgentsScreen(_StatefulAgentsScreen):
 
     def _select_node(self, node_id: str) -> None:
         super()._select_node(node_id)
+
+    def _on_graph_zoom_anchor(self, anchor: QPointF, old_zoom: float, new_zoom: float) -> None:
+        if old_zoom <= 0:
+            return
+        ratio = new_zoom / old_zoom
+        hbar = self._graph_scroll.horizontalScrollBar()
+        vbar = self._graph_scroll.verticalScrollBar()
+
+        # anchor is in the old canvas coordinate system, not viewport coordinates.
+        # Preserve the viewport point under the cursor:
+        # new_scroll = old_scroll + (ratio - 1) * canvas_anchor.
+        target_h = int(round(hbar.value() + (ratio - 1.0) * anchor.x()))
+        target_v = int(round(vbar.value() + (ratio - 1.0) * anchor.y()))
+        QTimer.singleShot(0, lambda: self._apply_graph_zoom_scroll(target_h, target_v))
+
+    def _apply_graph_zoom_scroll(self, horizontal: int, vertical: int) -> None:
+        self._graph_scroll.horizontalScrollBar().setValue(horizontal)
+        self._graph_scroll.verticalScrollBar().setValue(vertical)
 
     def _handle_canvas_menu_action(self, node_id: str, action: str) -> None:
         self._select_node(node_id)
