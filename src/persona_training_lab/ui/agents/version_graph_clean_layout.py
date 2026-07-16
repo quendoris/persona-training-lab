@@ -19,16 +19,25 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         super().set_nodes(nodes)
 
     def reset_zoom(self) -> None:
-        self._invalidate_tree_layout()
         super().reset_zoom()
 
     def wheelEvent(self, event) -> None:  # noqa: N802
-        self._invalidate_tree_layout()
-        super().wheelEvent(event)
-        self._invalidate_tree_layout()
-        self._refresh_size()
-        self.updateGeometry()
-        self.update()
+        delta = event.angleDelta().y()
+        if delta == 0:
+            event.ignore()
+            return
+        old_zoom = self._zoom
+        new_zoom = max(0.65, min(1.8, old_zoom + (0.08 if delta > 0 else -0.08)))
+        if new_zoom == old_zoom:
+            event.accept()
+            return
+
+        # Emit before resizing the canvas. The screen captures the old scrollbar
+        # values synchronously, then applies the corrected values after resize.
+        anchor = event.position()
+        self.zoom_anchor_requested.emit(anchor, old_zoom, new_zoom)
+        self._set_zoom(new_zoom)
+        event.accept()
 
     def _invalidate_tree_layout(self) -> None:
         self._layout_cache_key = None
