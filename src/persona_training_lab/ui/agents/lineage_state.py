@@ -15,7 +15,9 @@ TONE_STATUS = {
     "bad": "неудачная",
     "neutral": "нейтральная",
 }
-HISTORY_LIMIT = 50
+RECENT_HISTORY_LIMIT = 50
+CRITICAL_HISTORY_RESERVE = 20
+TOTAL_HISTORY_LIMIT = RECENT_HISTORY_LIMIT + CRITICAL_HISTORY_RESERVE
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +25,7 @@ class HistoryTransition:
     label: str
     direction: str
     layout_snapshot: dict[str, Any]
+    critical: bool = False
 
 
 class LineageStateStore:
@@ -178,7 +181,7 @@ class LineageStateStore:
         removed = self.custom_subtree_ids(node_id)
         if not removed:
             return ()
-        self._record_history("удаление ветки", layout_snapshot)
+        self._record_history("удаление ветки", layout_snapshot, critical=True)
         removed_ids = set(removed)
         payloads = self._custom_node_payloads()
         root = next((raw for raw in payloads if str(raw.get("node_id", "")) == node_id), None)
@@ -192,8 +195,8 @@ class LineageStateStore:
         self._save()
         return removed
 
-    def record_layout_action(self, label: str, before_layout: dict[str, Any]) -> None:
-        self._record_history(label, before_layout)
+    def record_layout_action(self, label: str, before_layout: dict[str, Any], critical: bool = False) -> None:
+        self._record_history(label, before_layout, critical=critical)
         self._save()
 
     def can_undo(self) -> bool:
@@ -239,14 +242,20 @@ class LineageStateStore:
             self._save()
             return None
         label = str(entry.get("label", "последнее действие"))
+        critical = bool(entry.get("critical", False))
         redo_stack = self._redo_stack()
-        redo_stack.append({"label": label, "snapshot": self._snapshot_payload(current_layout)})
-        if len(redo_stack) > HISTORY_LIMIT:
-            del redo_stack[:-HISTORY_LIMIT]
+        redo_stack.append(
+            {
+                "label": label,
+                "critical": critical,
+                "snapshot": self._snapshot_payload(current_layout),
+            }
+        )
+        self._trim_redo_stack(redo_stack)
         layout = self._restore_snapshot(snapshot)
         self._payload["quick_direction"] = "redo"
         self._save()
-        return HistoryTransition(label=label, direction="undo", layout_snapshot=layout)
+        return HistoryTransition(label=label, direction="undo", layout_snapshot=layout, critical=critical)
 
     def redo_last_action(self, current_layout: dict[str, Any] | None = None) -> HistoryTransition | None:
         redo_stack = self._redo_stack()
@@ -258,14 +267,20 @@ class LineageStateStore:
             self._save()
             return None
         label = str(entry.get("label", "последнее действие"))
+        critical = bool(entry.get("critical", False))
         undo_stack = self._undo_stack()
-        undo_stack.append({"label": label, "snapshot": self._snapshot_payload(current_layout)})
-        if len(undo_stack) > HISTORY_LIMIT:
-            del undo_stack[:-HISTORY_LIMIT]
+        undo_stack.append(
+            {
+                "label": label,
+                "critical": critical,
+                "snapshot": self._snapshot_payload(current_layout),
+            }
+        )
+        self._trim_undo_stack(undo_stack)
         layout = self._restore_snapshot(snapshot)
         self._payload["quick_direction"] = "undo"
         self._save()
-        return HistoryTransition(label=label, direction="redo", layout_snapshot=layout)
+        return HistoryTransition(label=label, direction="redo", layout_snapshot=layout, critical=critical)
 
     def undo_last_action(self, current_layout: dict[str, Any] | None = None) -> str | None:
         transition = self.undo_only(current_layout)
@@ -321,13 +336,35 @@ class LineageStateStore:
             by_id[node_id] = node
         return tuple(result)
 
-    def _record_history(self, label: str, layout_snapshot: dict[str, Any] | None) -> None:
+    def _record_history(
+        self,
+        label: str,
+        layout_snapshot: dict[str, Any] | None,
+        critical: bool = False,
+    ) -> None:
         undo_stack = self._undo_stack()
-        undo_stack.append({"label": label, "snapshot": self._snapshot_payload(layout_snapshot)})
-        if len(undo_stack) > HISTORY_LIMIT:
-            del undo_stack[:-HISTORY_LIMIT]
+        undo_stack.append(
+            {
+                "label": label,
+                "critical": critical,
+                "snapshot": self._snapshot_payload(layout_snapshot),
+            }
+        )
+        self._trim_undo_stack(undo_stack)
         self._payload["redo_stack"] = []
         self._payload["quick_direction"] = "undo"
+
+    def _trim_undo_stack(self, stack: list[dict[str, Any]]) -> None:
+        if len(stack) <= TOTAL_HISTORY_LIMIT:
+            return
+        recent = stack[-RECENT_HISTORY_LIMIT:]
+        older = stack[:-RECENT_HISTORY_LIMIT]
+        protected = [entry for entry in older if bool(entry.get("critical", False))]
+        stack[:] = protected[-CRITICAL_HISTORY_RESERVE:] + recent
+
+    def _trim_redo_stack(self, stack: list[dict[str, Any]]) -> None:
+        if len(stack) > TOTAL_HISTORY_LIMIT:
+            del stack[:-TOTAL_HISTORY_LIMIT]
 
     def _snapshot_payload(self, layout_snapshot: dict[str, Any] | None) -> dict[str, Any]:
         return {
@@ -387,7 +424,13 @@ class LineageStateStore:
         stack = self._payload.setdefault(name, [])
         if not isinstance(stack, list):
             stack = []
-        cleaned = [entry for entry in stack if isinstance(entry, dict)]
+        cleaned: list[dict[str, Any]] = []
+        for raw in stack:
+            if not isinstance(raw, dict):
+                continue
+            entry = dict(raw)
+            entry["critical"] = bool(entry.get("critical", False))
+            cleaned.append(entry)
         self._payload[name] = cleaned
         return cleaned
 
@@ -421,7 +464,7 @@ class LineageStateStore:
 
     def _load(self) -> dict[str, Any]:
         default = {
-            "schema": 4,
+            "schema": 5,
             "overrides": {},
             "custom_nodes": [],
             "undo_stack": [],
@@ -441,13 +484,13 @@ class LineageStateStore:
         payload.setdefault("quick_direction", "undo")
         payload.setdefault("overrides", {})
         payload.setdefault("custom_nodes", [])
-        payload["schema"] = 4
+        payload["schema"] = 5
         return payload
 
     def _save(self) -> None:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._payload["schema"] = 4
+            self._payload["schema"] = 5
             self._path.write_text(json.dumps(self._payload, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
             return
