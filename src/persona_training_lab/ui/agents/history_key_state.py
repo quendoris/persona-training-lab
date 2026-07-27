@@ -34,7 +34,11 @@ class HistoryKeyState:
             return self._activate_chord()
 
         self.shift_down = False
-        if not self.layout_shift_latched:
+        # Ctrl+Shift layout switching can make Qt report a false Shift release
+        # while the physical editing chord is still in progress. Once Shift has
+        # participated in the current Ctrl gesture, keep strict undo latched until
+        # Ctrl is released. Releasing and pressing Z must not change that mode.
+        if not self.control_down and not self.layout_shift_latched:
             self.shift_latched = False
         if self.mode == "undo_only" and not self.strict_undo_requested and self.z_down:
             self.mode = "spent"
