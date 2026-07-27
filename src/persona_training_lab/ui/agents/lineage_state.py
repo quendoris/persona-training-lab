@@ -110,18 +110,20 @@ class LineageStateStore:
         return bool(override.get("archived", False))
 
     def set_archived(self, node_id: str, archived: bool) -> bool:
-        if not self.is_custom_node(node_id):
+        subtree_ids = self.custom_subtree_ids(node_id)
+        if not subtree_ids:
             return False
         overrides = self._overrides()
-        item = dict(overrides.get(node_id, {}))
-        if archived:
-            item["archived"] = True
-        else:
-            item.pop("archived", None)
-        if item:
-            overrides[node_id] = item
-        else:
-            overrides.pop(node_id, None)
+        for target_id in subtree_ids:
+            item = dict(overrides.get(target_id, {}))
+            if archived:
+                item["archived"] = True
+            else:
+                item.pop("archived", None)
+            if item:
+                overrides[target_id] = item
+            else:
+                overrides.pop(target_id, None)
         self._payload["overrides"] = overrides
         self._save()
         return True
