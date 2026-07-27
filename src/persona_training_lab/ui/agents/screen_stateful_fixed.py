@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from typing import Any
+
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QDialog, QGridLayout, QInputDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.agents.key_bindings import agent_graph_key_bindings_by_id
+from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _StatefulAgentsScreen
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView
@@ -15,15 +18,17 @@ class AgentsScreen(_StatefulAgentsScreen):
         super().__init__(view_model)
         if hasattr(self._graph, "menu_action_requested"):
             self._graph.menu_action_requested.connect(self._handle_canvas_menu_action)
+        if hasattr(self._graph, "layout_action_committed"):
+            self._graph.layout_action_committed.connect(self._record_graph_layout_action)
         self._setup_shortcuts()
-        self._sync_undo_action()
+        self._sync_history_action()
 
     def _setup_shortcuts(self) -> None:
         definitions = agent_graph_key_bindings_by_id()
         handlers = {
             "delete_branch": self._delete_selected_local_branch,
-            "undo_once": self._undo_last_lineage_action,
-            "undo_many": self._undo_last_lineage_action,
+            "history_toggle": self._toggle_last_history_action,
+            "undo_only": self._undo_history_only,
         }
         self._shortcuts: dict[str, QShortcut] = {}
         for binding_id, handler in handlers.items():
@@ -64,7 +69,25 @@ class AgentsScreen(_StatefulAgentsScreen):
 
     def _refresh_lineage(self, center: bool) -> None:
         super()._refresh_lineage(center)
-        self._sync_undo_action()
+        self._sync_history_action()
+
+    def _layout_snapshot(self) -> dict[str, Any]:
+        if hasattr(self._graph, "layout_snapshot"):
+            snapshot = self._graph.layout_snapshot()
+            return snapshot if isinstance(snapshot, dict) else {}
+        return {}
+
+    def _make_current(self) -> None:
+        self._state.set_current(self._selected_node_id, self._layout_snapshot())
+        self._refresh_lineage(center=True)
+
+    def _mark_tone(self, tone: str) -> None:
+        self._state.set_tone(self._selected_node_id, tone, self._layout_snapshot())
+        self._refresh_lineage(center=False)
+
+    def _continue_from_selected(self) -> None:
+        self._selected_node_id = self._state.continue_from(self._selected_node_id, self._layout_snapshot())
+        self._refresh_lineage(center=True)
 
     def _on_graph_zoom_anchor(self, anchor: QPointF, old_zoom: float, new_zoom: float) -> None:
         if old_zoom <= 0:
@@ -93,8 +116,8 @@ class AgentsScreen(_StatefulAgentsScreen):
             self._mark_tone("bad")
         elif action == "continue":
             self._continue_from_selected()
-        elif action == "undo":
-            self._undo_last_lineage_action()
+        elif action == "history_toggle":
+            self._toggle_last_history_action()
         elif action == "rename":
             self._rename_local_branch(node_id)
         elif action == "archive_toggle":
@@ -115,11 +138,25 @@ class AgentsScreen(_StatefulAgentsScreen):
         self._close_canvas_menu()
         self._delete_local_branch_subtree(node_id)
 
-    def _undo_last_lineage_action(self) -> None:
+    def _toggle_last_history_action(self) -> None:
         self._close_canvas_menu()
-        if self._state.undo_last_action() is None:
-            self._sync_undo_action()
+        transition = self._state.quick_toggle(self._layout_snapshot())
+        self._apply_history_transition(transition)
+
+    def _undo_history_only(self) -> None:
+        self._close_canvas_menu()
+        transition = self._state.undo_only(self._layout_snapshot())
+        self._apply_history_transition(transition)
+
+    def _undo_last_lineage_action(self) -> None:
+        # Compatibility for older callers: this path means strict undo, not toggle.
+        self._undo_history_only()
+
+    def _apply_history_transition(self, transition: HistoryTransition | None) -> None:
+        if transition is None:
+            self._sync_history_action()
             return
+        old_selected = self._selected_node_id
         self._lineage_nodes = self._build_nodes()
         node_ids = {node.node_id for node in self._lineage_nodes}
         if self._selected_node_id not in node_ids:
@@ -130,15 +167,30 @@ class AgentsScreen(_StatefulAgentsScreen):
                 current = next((node.node_id for node in self._lineage_nodes if node.is_current), "")
                 self._selected_node_id = current or (self._lineage_nodes[0].node_id if self._lineage_nodes else "snapshot")
         self._graph.set_nodes(self._lineage_nodes)
+        if hasattr(self._graph, "restore_layout_snapshot"):
+            self._graph.restore_layout_snapshot(transition.layout_snapshot)
         self._select_node(self._selected_node_id)
-        self._sync_undo_action()
-        QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
+        self._sync_history_action()
+        if old_selected != self._selected_node_id:
+            QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
+
+    def _record_graph_layout_action(self, label: str, before_layout: object, critical: bool) -> None:
+        if not isinstance(before_layout, dict):
+            return
+        self._state.record_layout_action(label, before_layout, critical=critical)
+        self._sync_history_action()
+
+    def _sync_history_action(self) -> None:
+        if hasattr(self._graph, "set_history_action_text"):
+            text = self._state.history_toggle_text() if self._state.can_toggle_history() else None
+            self._graph.set_history_action_text(text)
+            return
+        if hasattr(self._graph, "set_undo_action_label"):
+            label = self._state.last_action_label() if self._state.can_undo() else None
+            self._graph.set_undo_action_label(label)
 
     def _sync_undo_action(self) -> None:
-        if not hasattr(self._graph, "set_undo_action_label"):
-            return
-        label = self._state.last_action_label() if self._state.can_undo() else None
-        self._graph.set_undo_action_label(label)
+        self._sync_history_action()
 
     def _rename_local_branch(self, node_id: str) -> None:
         node = self._node_by_id(node_id)
@@ -155,7 +207,7 @@ class AgentsScreen(_StatefulAgentsScreen):
         title = dialog.textValue().strip()
         if not title:
             return
-        if self._state.rename_node(node_id, title):
+        if self._state.rename_node(node_id, title, self._layout_snapshot()):
             self._selected_node_id = node_id
             self._refresh_lineage(center=False)
 
@@ -163,7 +215,7 @@ class AgentsScreen(_StatefulAgentsScreen):
         if not self._state.is_custom_node(node_id):
             return
         archived = not self._state.is_archived(node_id)
-        if self._state.set_archived(node_id, archived):
+        if self._state.set_archived(node_id, archived, self._layout_snapshot()):
             self._selected_node_id = node_id
             self._refresh_lineage(center=False)
 
@@ -173,13 +225,13 @@ class AgentsScreen(_StatefulAgentsScreen):
         if node is None or not removed_ids:
             return
         descendants = len(removed_ids) - 1
-        detail = "Ветку можно будет вернуть через отмену последнего действия."
+        detail = "Ветку можно будет вернуть через защищённую историю действий."
         if descendants:
-            detail = f"Будет удалена эта ветка и дочерние точки: {descendants}. Удаление можно отменить."
+            detail = f"Будет удалена эта ветка и дочерние точки: {descendants}. Удаление сохранится в защищённой истории."
         if not self._confirm_branch_deletion(node.title, detail):
             return
         fallback_id = node.parent_id or self._graph.current_node_id()
-        removed = self._state.delete_subtree(node_id)
+        removed = self._state.delete_subtree(node_id, self._layout_snapshot())
         if not removed:
             return
         if hasattr(self._graph, "forget_layout_nodes"):
@@ -221,6 +273,11 @@ class AgentsScreen(_StatefulAgentsScreen):
         node = self._node_by_id(node_id)
         if node is None:
             return self._vm.node_detail(node_id)
+        shortcut_help = (
+            "Del удаляет выбранную локальную ветку.",
+            "Ctrl+Z переключает последнее изменение: отменить / вернуть.",
+            "Ctrl+Shift+Z всегда уходит ещё на один шаг назад и поддерживает удержание.",
+        )
         if self._state.is_custom_node(node_id):
             archive_state = "Да" if self._state.is_archived(node_id) else "Нет"
             return AgentDetailView(
@@ -234,12 +291,7 @@ class AgentsScreen(_StatefulAgentsScreen):
                     )
                 ),
                 checks=("Локальная ветка lineage", "Пока не связана с training run", "Перед запуском нужен snapshot/protocol record"),
-                actions=(
-                    "ЛКМ по точке открывает действия на графе.",
-                    "ПКМ двигает пространство/точку.",
-                    "Del удаляет выбранную локальную ветку.",
-                    "Ctrl+Z отменяет один шаг; Ctrl+Shift+Z при удержании отменяет несколько.",
-                ),
+                actions=("ЛКМ по точке открывает действия на графе.", "ПКМ двигает пространство/точку.", *shortcut_help),
             )
         base = self._vm.node_detail(node_id)
         body = "\n".join((base.body, "", f"Lineage state: {node.status}", f"Parent: {node.parent_id or '—'}"))
@@ -247,9 +299,5 @@ class AgentsScreen(_StatefulAgentsScreen):
             base.title,
             body,
             base.checks,
-            (
-                "ЛКМ по точке открывает действия на графе.",
-                "ПКМ двигает пространство/точку.",
-                "Ctrl+Z отменяет один шаг; Ctrl+Shift+Z при удержании отменяет несколько.",
-            ),
+            ("ЛКМ по точке открывает действия на графе.", "ПКМ двигает пространство/точку.", *shortcut_help[1:]),
         )
