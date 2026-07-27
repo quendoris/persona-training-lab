@@ -3,15 +3,22 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtGui import QMouseEvent
+
 from persona_training_lab.ui.agents.version_graph_layout_engine import LayoutInputNode, build_version_graph_layout
 from persona_training_lab.ui.agents.version_graph_stateful import VersionGraphCanvas as StatefulVersionGraphCanvas
 
 
 class VersionGraphCanvas(StatefulVersionGraphCanvas):
+    layout_action_committed = Signal(str, object, bool)
+
     def __init__(self, nodes) -> None:
         self._layout_cache_key: tuple[object, ...] | None = None
         self._layout_cache: Any | None = None
-        self._undo_action_label: str | None = None
+        self._history_action_text: str | None = None
+        self._drag_history_before: dict[str, Any] | None = None
+        self._drag_history_label: str | None = None
         super().__init__(nodes)
 
     def set_nodes(self, nodes) -> None:
@@ -36,6 +43,79 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         self._set_zoom(new_zoom)
         event.accept()
 
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self._drag_history_before = None
+        self._drag_history_label = None
+        if event.button() == Qt.MouseButton.RightButton and not self.layout_locked():
+            node_id = self._node_at(event.position())
+            if node_id is not None:
+                self._drag_history_before = self.layout_snapshot()
+                self._drag_history_label = (
+                    "перемещение поддерева"
+                    if event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                    else "перемещение точки"
+                )
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        before = self._drag_history_before
+        label = self._drag_history_label
+        super().mouseReleaseEvent(event)
+        self._drag_history_before = None
+        self._drag_history_label = None
+        if before is not None and label is not None and before != self.layout_snapshot():
+            self.layout_action_committed.emit(label, before, False)
+
+    def layout_snapshot(self) -> dict[str, Any]:
+        return {
+            "schema": 1,
+            "offsets": {
+                node_id: {"x": point.x(), "y": point.y()}
+                for node_id, point in sorted(self._node_offsets.items())
+                if point.x() or point.y()
+            },
+        }
+
+    def restore_layout_snapshot(self, snapshot: dict[str, Any]) -> None:
+        if not isinstance(snapshot, dict) or "offsets" not in snapshot:
+            return
+        raw_offsets = snapshot.get("offsets", {})
+        if not isinstance(raw_offsets, dict):
+            return
+        known_ids = {node.node_id for node in self._nodes}
+        restored: dict[str, QPointF] = {}
+        for node_id, raw in raw_offsets.items():
+            if node_id not in known_ids or not isinstance(raw, dict):
+                continue
+            try:
+                point = QPointF(float(raw.get("x", 0.0)), float(raw.get("y", 0.0)))
+            except (TypeError, ValueError):
+                continue
+            if point.x() or point.y():
+                restored[node_id] = point
+        self._node_offsets = restored
+        self._layout_dirty = False
+        self._save_offsets()
+        self.update()
+
+    def reset_layout(self) -> None:
+        before = self.layout_snapshot()
+        super().reset_layout()
+        if before != self.layout_snapshot():
+            self.layout_action_committed.emit("полный сброс раскладки", before, True)
+
+    def reset_node_layout(self, node_id: str) -> None:
+        before = self.layout_snapshot()
+        super().reset_node_layout(node_id)
+        if before != self.layout_snapshot():
+            self.layout_action_committed.emit("сброс смещения точки", before, False)
+
+    def reset_subtree_layout(self, node_id: str) -> None:
+        before = self.layout_snapshot()
+        super().reset_subtree_layout(node_id)
+        if before != self.layout_snapshot():
+            self.layout_action_committed.emit("сброс смещения поддерева", before, False)
+
     def forget_layout_nodes(self, node_ids: Iterable[str]) -> None:
         removed = set(node_ids)
         for node_id in removed:
@@ -50,9 +130,13 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         self._menu_node_id = None
         self.update()
 
-    def set_undo_action_label(self, label: str | None) -> None:
-        self._undo_action_label = label.strip() if label else None
+    def set_history_action_text(self, text: str | None) -> None:
+        self._history_action_text = text.strip() if text else None
         self.update()
+
+    def set_undo_action_label(self, label: str | None) -> None:
+        # Compatibility with older screen code while the history UI migrates.
+        self.set_history_action_text(f"Отменить: {label}" if label else None)
 
     def _menu_actions(self) -> tuple[tuple[str, str], ...]:
         actions: list[tuple[str, str]] = [
@@ -62,8 +146,8 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
             ("mark_bad", "Пометить неудачной"),
             ("continue", "Продолжить от этой точки"),
         ]
-        if self._undo_action_label:
-            actions.append(("undo", f"Отменить: {self._undo_action_label}"))
+        if self._history_action_text:
+            actions.append(("history_toggle", self._history_action_text))
         node = next((item for item in self._nodes if item.node_id == self._menu_node_id), None)
         if node is not None and node.node_id.startswith("branch_"):
             actions.extend(
