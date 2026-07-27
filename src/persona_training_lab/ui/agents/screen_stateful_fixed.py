@@ -13,6 +13,7 @@ class AgentsScreen(_StatefulAgentsScreen):
         super().__init__(view_model)
         if hasattr(self._graph, "menu_action_requested"):
             self._graph.menu_action_requested.connect(self._handle_canvas_menu_action)
+        self._sync_undo_action()
 
     def _details(self) -> QWidget:
         column = QWidget()
@@ -41,16 +42,16 @@ class AgentsScreen(_StatefulAgentsScreen):
     def _select_node(self, node_id: str) -> None:
         super()._select_node(node_id)
 
+    def _refresh_lineage(self, center: bool) -> None:
+        super()._refresh_lineage(center)
+        self._sync_undo_action()
+
     def _on_graph_zoom_anchor(self, anchor: QPointF, old_zoom: float, new_zoom: float) -> None:
         if old_zoom <= 0:
             return
         ratio = new_zoom / old_zoom
         hbar = self._graph_scroll.horizontalScrollBar()
         vbar = self._graph_scroll.verticalScrollBar()
-
-        # anchor is in the old canvas coordinate system, not viewport coordinates.
-        # Preserve the viewport point under the cursor:
-        # new_scroll = old_scroll + (ratio - 1) * canvas_anchor.
         target_h = int(round(hbar.value() + (ratio - 1.0) * anchor.x()))
         target_v = int(round(vbar.value() + (ratio - 1.0) * anchor.y()))
         QTimer.singleShot(0, lambda: self._apply_graph_zoom_scroll(target_h, target_v))
@@ -72,6 +73,8 @@ class AgentsScreen(_StatefulAgentsScreen):
             self._mark_tone("bad")
         elif action == "continue":
             self._continue_from_selected()
+        elif action == "undo":
+            self._undo_last_lineage_action()
         elif action == "rename":
             self._rename_local_branch(node_id)
         elif action == "archive_toggle":
@@ -84,6 +87,30 @@ class AgentsScreen(_StatefulAgentsScreen):
             self._reset_node_layout(node_id)
         elif action == "reset_subtree":
             self._reset_subtree_layout(node_id)
+
+    def _undo_last_lineage_action(self) -> None:
+        if self._state.undo_last_action() is None:
+            self._sync_undo_action()
+            return
+        self._lineage_nodes = self._build_nodes()
+        node_ids = {node.node_id for node in self._lineage_nodes}
+        if self._selected_node_id not in node_ids:
+            current_id = self._state.current_node_id()
+            if current_id in node_ids:
+                self._selected_node_id = current_id
+            else:
+                current = next((node.node_id for node in self._lineage_nodes if node.is_current), "")
+                self._selected_node_id = current or (self._lineage_nodes[0].node_id if self._lineage_nodes else "snapshot")
+        self._graph.set_nodes(self._lineage_nodes)
+        self._select_node(self._selected_node_id)
+        self._sync_undo_action()
+        QTimer.singleShot(0, lambda: self._center_on_node(self._selected_node_id))
+
+    def _sync_undo_action(self) -> None:
+        if not hasattr(self._graph, "set_undo_action_label"):
+            return
+        label = self._state.last_action_label() if self._state.can_undo() else None
+        self._graph.set_undo_action_label(label)
 
     def _rename_local_branch(self, node_id: str) -> None:
         node = self._node_by_id(node_id)
@@ -110,9 +137,9 @@ class AgentsScreen(_StatefulAgentsScreen):
         if node is None or not removed_ids:
             return
         descendants = len(removed_ids) - 1
-        detail = "Ветка будет удалена без возможности восстановления."
+        detail = "Ветку можно будет вернуть через отмену последнего действия."
         if descendants:
-            detail = f"Будет удалена эта ветка и дочерние точки: {descendants}."
+            detail = f"Будет удалена эта ветка и дочерние точки: {descendants}. Удаление можно отменить."
         answer = QMessageBox.question(
             self,
             "Удалить локальную ветку?",
