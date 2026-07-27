@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from persona_training_lab.ui.agents.version_graph_layout_engine import LayoutInputNode, build_version_graph_layout
@@ -38,6 +39,49 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         self.zoom_anchor_requested.emit(anchor, old_zoom, new_zoom)
         self._set_zoom(new_zoom)
         event.accept()
+
+    def forget_layout_nodes(self, node_ids: Iterable[str]) -> None:
+        removed = set(node_ids)
+        for node_id in removed:
+            self._node_offsets.pop(node_id, None)
+        if getattr(self, "_menu_node_id", None) in removed:
+            self._menu_node_id = None
+        if removed:
+            self._save_offsets()
+            self.update()
+
+    def close_node_menu(self) -> None:
+        self._menu_node_id = None
+        self.update()
+
+    def _menu_actions(self) -> tuple[tuple[str, str], ...]:
+        actions: list[tuple[str, str]] = [
+            ("make_current", "Сделать актуальной"),
+            ("mark_good", "Пометить удачной"),
+            ("mark_pending", "Пометить спорной"),
+            ("mark_bad", "Пометить неудачной"),
+            ("continue", "Продолжить от этой точки"),
+        ]
+        node = next((item for item in self._nodes if item.node_id == self._menu_node_id), None)
+        if node is not None and node.node_id.startswith("branch_"):
+            actions.extend(
+                (
+                    ("rename", "Переименовать ветку"),
+                    (
+                        "archive_toggle",
+                        "Вернуть из архива" if getattr(node, "status", "") == "архивная" else "Архивировать ветку",
+                    ),
+                    ("delete_subtree", "Удалить ветку и поддерево"),
+                )
+            )
+        actions.extend(
+            (
+                ("center", "Центрировать на точке"),
+                ("reset_node", "Сбросить смещение точки"),
+                ("reset_subtree", "Сбросить смещение поддерева"),
+            )
+        )
+        return tuple(actions)
 
     def _invalidate_tree_layout(self) -> None:
         self._layout_cache_key = None
