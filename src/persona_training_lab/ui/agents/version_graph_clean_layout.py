@@ -6,6 +6,7 @@ from typing import Any
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 
+from persona_training_lab.ui.agents.drag_scope import drag_history_label, drag_target_ids
 from persona_training_lab.ui.agents.version_graph_layout_engine import LayoutInputNode, build_version_graph_layout
 from persona_training_lab.ui.agents.version_graph_stateful import VersionGraphCanvas as StatefulVersionGraphCanvas
 
@@ -18,7 +19,8 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         self._layout_cache: Any | None = None
         self._history_action_text: str | None = None
         self._drag_history_before: dict[str, Any] | None = None
-        self._drag_history_label: str | None = None
+        self._drag_history_moved_node = False
+        self._drag_history_moved_subtree = False
         super().__init__(nodes)
 
     def set_nodes(self, nodes) -> None:
@@ -45,25 +47,53 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         self._drag_history_before = None
-        self._drag_history_label = None
+        self._drag_history_moved_node = False
+        self._drag_history_moved_subtree = False
         if event.button() == Qt.MouseButton.RightButton and not self.layout_locked():
             node_id = self._node_at(event.position())
             if node_id is not None:
                 self._drag_history_before = self.layout_snapshot()
-                self._drag_history_label = (
-                    "перемещение поддерева"
-                    if event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-                    else "перемещение точки"
-                )
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        node_id = getattr(self, "_drag_node_id", None)
+        drag_mode = getattr(self, "_drag_mode", None)
+        is_node_drag = (
+            node_id is not None
+            and drag_mode in {"node", "subtree"}
+            and bool(event.buttons() & Qt.MouseButton.RightButton)
+        )
+        scope_is_subtree = False
+        before_move: dict[str, Any] | None = None
+        if is_node_drag:
+            scope_is_subtree = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            subtree_ids = self._subtree_node_ids(node_id)
+            self._drag_mode = "subtree" if scope_is_subtree else "node"
+            self._drag_target_ids = drag_target_ids(
+                node_id,
+                subtree_ids,
+                shift_down=scope_is_subtree,
+            )
+            before_move = self.layout_snapshot()
+
+        super().mouseMoveEvent(event)
+
+        if before_move is not None and before_move != self.layout_snapshot():
+            if scope_is_subtree:
+                self._drag_history_moved_subtree = True
+            else:
+                self._drag_history_moved_node = True
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         before = self._drag_history_before
-        label = self._drag_history_label
+        moved_node = self._drag_history_moved_node
+        moved_subtree = self._drag_history_moved_subtree
         super().mouseReleaseEvent(event)
         self._drag_history_before = None
-        self._drag_history_label = None
-        if before is not None and label is not None and before != self.layout_snapshot():
+        self._drag_history_moved_node = False
+        self._drag_history_moved_subtree = False
+        if before is not None and before != self.layout_snapshot():
+            label = drag_history_label(moved_node=moved_node, moved_subtree=moved_subtree)
             self.layout_action_committed.emit(label, before, False)
 
     def layout_snapshot(self) -> dict[str, Any]:
