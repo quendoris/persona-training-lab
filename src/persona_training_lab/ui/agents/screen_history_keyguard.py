@@ -6,7 +6,7 @@ from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QAction, QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QPushButton
 
-from persona_training_lab.ui.agents.history_key_state import HistoryKeyState
+from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
 
 
@@ -88,69 +88,55 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
         control, shift = self._effective_modifiers(event)
 
-        if key_name == "control":
-            self._history_keys.control_down = True
-            return self._history_keys.z_down
+        # Prime modifiers that may already be held, but not the key that generated
+        # this event. Shift is latched by HistoryKeyState while Ctrl remains part
+        # of the gesture, so a system Ctrl+Shift layout switch may still proceed.
+        self._history_keys.prime_modifiers(
+            control=key_name != "control" and control,
+            shift=key_name != "shift" and shift,
+        )
+        actions = self._history_keys.press(key_name)
 
-        if key_name == "shift":
-            self._history_keys.shift_down = True
-            if not (self._history_keys.control_down and self._history_keys.z_down):
-                return False
-            self._block_graph_flip()
-            if self._history_keys.mode != "undo_only" and not event.isAutoRepeat():
-                self._history_keys.mode = "undo_only"
-                self._undo_history_only()
-                self._arm_undo_repeat()
-            return True
-
-        if key_name != "z" or not control:
+        # Ctrl and Shift before Z are observed but deliberately not consumed: the
+        # desktop remains free to switch keyboard layout on Ctrl+Shift.
+        claimed = bool(actions) or self._history_keys.history_gesture_active
+        if not claimed:
             return False
 
-        self._history_keys.control_down = True
-        self._history_keys.shift_down = shift
-        self._history_keys.z_down = True
         self._block_graph_flip()
-
-        if shift:
-            if self._history_keys.mode != "undo_only":
-                self._history_keys.mode = "undo_only"
-                if not event.isAutoRepeat():
-                    self._undo_history_only()
-                    self._arm_undo_repeat()
+        if event.isAutoRepeat():
             return True
-
-        if self._history_keys.mode is None:
-            self._history_keys.mode = "toggle"
-            if not event.isAutoRepeat():
+        for action in actions:
+            if action == HISTORY_TOGGLE:
+                self._stop_undo_repeat()
                 self._toggle_last_history_action()
+            elif action == HISTORY_UNDO:
+                self._undo_history_only()
+                self._arm_undo_repeat()
         return True
 
     def _handle_history_key_release(self, key_name: str) -> bool:
-        claimed = self._history_keys.history_gesture_active or self._history_keys.mode is not None
-        if key_name == "control":
-            self._history_keys.control_down = False
-            self._history_keys.mode = None
-        elif key_name == "shift":
-            self._history_keys.shift_down = False
-            if self._history_keys.mode == "undo_only":
-                self._history_keys.mode = "spent"
-        elif key_name == "z":
-            self._history_keys.z_down = False
-            self._history_keys.mode = None
-        else:
+        claimed = self._history_keys.release(key_name)
+        if not claimed:
             return False
 
-        if claimed:
+        # A Shift release may be synthesized by the desktop layout switch. The
+        # latched strict-undo gesture therefore continues until Ctrl or Z ends it.
+        if not self._history_keys.undo_repeat_active:
             self._stop_undo_repeat()
-            self._block_graph_flip()
-        return claimed
+        self._block_graph_flip()
+        return True
 
     def _effective_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
         app = QApplication.instance()
         live_modifiers = app.keyboardModifiers() if app is not None else Qt.KeyboardModifier.NoModifier
         modifiers = event.modifiers() | live_modifiers
         control = self._history_keys.control_down or bool(modifiers & Qt.KeyboardModifier.ControlModifier)
-        shift = self._history_keys.shift_down or bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        shift = (
+            self._history_keys.shift_down
+            or self._history_keys.shift_latched
+            or bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        )
         return control, shift
 
     def _arm_undo_repeat(self) -> None:
@@ -223,7 +209,19 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._flip_blocked_until = max(self._flip_blocked_until, monotonic() + self._FLIP_GUARD_SECONDS)
 
     def _graph_flip_is_blocked(self) -> bool:
-        return self._history_keys.mode is not None or monotonic() < self._flip_blocked_until
+        app = QApplication.instance()
+        modifiers = app.keyboardModifiers() if app is not None else Qt.KeyboardModifier.NoModifier
+        guarded_modifiers = (
+            Qt.KeyboardModifier.ControlModifier
+            | Qt.KeyboardModifier.ShiftModifier
+            | Qt.KeyboardModifier.AltModifier
+            | Qt.KeyboardModifier.MetaModifier
+        )
+        return (
+            self._history_keys.mode is not None
+            or bool(modifiers & guarded_modifiers)
+            or monotonic() < self._flip_blocked_until
+        )
 
     @classmethod
     def _history_key_name(cls, event: QKeyEvent) -> str | None:
