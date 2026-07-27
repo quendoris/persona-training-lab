@@ -44,15 +44,23 @@ def test_releasing_z_does_not_clear_shift_for_next_strict_undo() -> None:
     assert state.undo_repeat_active is True
 
 
-def test_physical_shift_flag_clears_only_when_shift_is_really_released() -> None:
+def test_false_shift_release_cannot_downgrade_current_ctrl_gesture() -> None:
     state = HistoryKeyState()
     state.press("control")
     state.set_physical_shift(True)
 
-    assert state.strict_undo_requested is True
+    # Qt may report Shift=false after Ctrl+Shift switches the keyboard layout.
     assert state.set_physical_shift(False) == ()
+    assert state.strict_undo_requested is True
+
+    assert state.press("z") == (HISTORY_UNDO,)
+    state.release("z")
+    assert state.press("z") == (HISTORY_UNDO,)
+
+    # Ctrl release is the reliable boundary that clears the sticky strict mode.
+    state.release("z")
+    state.release("control")
     assert state.strict_undo_requested is False
-    assert state.press("z") == (HISTORY_TOGGLE,)
 
 
 def test_layout_change_latch_survives_consumed_shift_event_until_control_release() -> None:
