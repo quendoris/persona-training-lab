@@ -176,9 +176,7 @@ class LineageStateStore:
         payloads = self._custom_node_payloads()
         root = next((raw for raw in payloads if str(raw.get("node_id", "")) == node_id), None)
         fallback_id = str(root.get("parent_id", "")) if isinstance(root, dict) else ""
-        self._payload["custom_nodes"] = [
-            raw for raw in payloads if str(raw.get("node_id", "")) not in removed_ids
-        ]
+        self._payload["custom_nodes"] = [raw for raw in payloads if str(raw.get("node_id", "")) not in removed_ids]
         overrides = self._overrides()
         for removed_id in removed:
             overrides.pop(removed_id, None)
@@ -227,12 +225,7 @@ class LineageStateStore:
     def is_custom_node(self, node_id: str) -> bool:
         return any(str(node.get("node_id", "")) == node_id for node in self._custom_node_payloads())
 
-    def _custom_nodes(
-        self,
-        existing: list[LineageVersionNode],
-        current_id: str,
-        overrides: dict[str, dict[str, Any]],
-    ) -> tuple[LineageVersionNode, ...]:
+    def _custom_nodes(self, existing: list[LineageVersionNode], current_id: str, overrides: dict[str, dict[str, Any]]) -> tuple[LineageVersionNode, ...]:
         by_id = {node.node_id: node for node in existing}
         result: list[LineageVersionNode] = []
         for raw in self._custom_node_payloads():
@@ -280,8 +273,9 @@ class LineageStateStore:
         history = self._payload.setdefault("history", [])
         if not isinstance(history, list):
             history = []
-            self._payload["history"] = history
-        return [entry for entry in history if isinstance(entry, dict)]
+        cleaned = [entry for entry in history if isinstance(entry, dict)]
+        self._payload["history"] = cleaned
+        return cleaned
 
     def _custom_node_payloads(self) -> list[dict[str, Any]]:
         custom_nodes = self._payload.setdefault("custom_nodes", [])
