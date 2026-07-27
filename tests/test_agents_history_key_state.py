@@ -30,42 +30,58 @@ def test_repeated_keypresses_do_not_duplicate_history_actions() -> None:
     assert state.press("control") == ()
 
 
-def test_releasing_shift_keeps_same_z_gesture_in_strict_undo_mode() -> None:
+def test_releasing_z_does_not_clear_shift_for_next_strict_undo() -> None:
     state = HistoryKeyState()
     state.press("control")
-    state.press("z")
     state.press("shift")
 
-    assert state.release("shift") is True
-    assert state.undo_repeat_active is True
-    assert state.press("z") == ()
-    assert state.mode == "undo_only"
-
+    assert state.press("z") == (HISTORY_UNDO,)
     assert state.release("z") is True
     assert state.mode is None
-    assert state.shift_latched is False
-    assert state.press("z") == (HISTORY_TOGGLE,)
-
-
-def test_system_layout_switch_shift_release_before_z_still_means_undo() -> None:
-    state = HistoryKeyState()
-
-    assert state.press("control") == ()
-    assert state.press("shift") == ()
-    assert state.shift_latched is True
-
-    # Linux Ctrl+Shift layout switching may report Shift release before the next
-    # application key event even while the user's physical chord continues.
-    assert state.release("shift") is False
-    assert state.shift_down is False
-    assert state.shift_latched is True
+    assert state.strict_undo_requested is True
 
     assert state.press("z") == (HISTORY_UNDO,)
     assert state.undo_repeat_active is True
 
 
+def test_physical_shift_flag_clears_only_when_shift_is_really_released() -> None:
+    state = HistoryKeyState()
+    state.press("control")
+    state.set_physical_shift(True)
+
+    assert state.strict_undo_requested is True
+    assert state.set_physical_shift(False) == ()
+    assert state.strict_undo_requested is False
+    assert state.press("z") == (HISTORY_TOGGLE,)
+
+
+def test_layout_change_latch_survives_consumed_shift_event_until_control_release() -> None:
+    state = HistoryKeyState()
+    state.press("control")
+
+    assert state.latch_layout_shift() == ()
+    assert state.layout_shift_latched is True
+    assert state.set_physical_shift(False) == ()
+    assert state.strict_undo_requested is True
+    assert state.press("z") == (HISTORY_UNDO,)
+
+    state.release("z")
+    state.release("control")
+    assert state.layout_shift_latched is False
+    assert state.strict_undo_requested is False
+
+
+def test_layout_change_while_ctrl_z_is_held_switches_toggle_to_undo() -> None:
+    state = HistoryKeyState()
+    state.press("control")
+    assert state.press("z") == (HISTORY_TOGGLE,)
+
+    assert state.latch_layout_shift() == (HISTORY_UNDO,)
+    assert state.mode == "undo_only"
+
+
 def test_modifiers_can_be_primed_when_z_event_arrives_first() -> None:
     state = HistoryKeyState()
-    state.prime_modifiers(control=True, shift=True)
+    assert state.prime_modifiers(control=True, shift=True) == ()
 
     assert state.press("z") == (HISTORY_UNDO,)
