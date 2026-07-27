@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -14,6 +15,7 @@ TONE_STATUS = {
     "bad": "неудачная",
     "neutral": "нейтральная",
 }
+HISTORY_LIMIT = 50
 
 
 class LineageStateStore:
@@ -58,6 +60,9 @@ class LineageStateStore:
         return str(current) if current else ""
 
     def set_current(self, node_id: str) -> None:
+        if self.current_node_id() == node_id:
+            return
+        self._record_history("смена актуальной версии")
         self._payload["current_node_id"] = node_id
         self._save()
 
@@ -65,6 +70,10 @@ class LineageStateStore:
         if tone not in TONE_STATUS:
             tone = "neutral"
         overrides = self._overrides()
+        existing = overrides.get(node_id, {})
+        if existing.get("tone") == tone and existing.get("status") == TONE_STATUS[tone]:
+            return
+        self._record_history("изменение статуса")
         item = dict(overrides.get(node_id, {}))
         item["tone"] = tone
         item["status"] = TONE_STATUS[tone]
@@ -76,6 +85,7 @@ class LineageStateStore:
         custom_nodes = self._custom_node_payloads()
         index = self._next_custom_index(custom_nodes)
         node_id = f"branch_{index:03d}"
+        self._record_history("создание ветки")
         custom_nodes.append(
             {
                 "node_id": node_id,
@@ -96,13 +106,17 @@ class LineageStateStore:
         if not clean_title or not self.is_custom_node(node_id):
             return False
         for raw in self._custom_node_payloads():
-            if str(raw.get("node_id", "")) == node_id:
-                raw["title"] = clean_title
-                override = self._overrides().get(node_id)
-                if isinstance(override, dict):
-                    override.pop("title", None)
-                self._save()
+            if str(raw.get("node_id", "")) != node_id:
+                continue
+            if str(raw.get("title", "")) == clean_title:
                 return True
+            self._record_history("переименование ветки")
+            raw["title"] = clean_title
+            override = self._overrides().get(node_id)
+            if isinstance(override, dict):
+                override.pop("title", None)
+            self._save()
+            return True
         return False
 
     def is_archived(self, node_id: str) -> bool:
@@ -113,6 +127,9 @@ class LineageStateStore:
         subtree_ids = self.custom_subtree_ids(node_id)
         if not subtree_ids:
             return False
+        if all(self.is_archived(target_id) == archived for target_id in subtree_ids):
+            return True
+        self._record_history("архивация ветки" if archived else "возврат ветки из архива")
         overrides = self._overrides()
         for target_id in subtree_ids:
             item = dict(overrides.get(target_id, {}))
@@ -154,6 +171,7 @@ class LineageStateStore:
         removed = self.custom_subtree_ids(node_id)
         if not removed:
             return ()
+        self._record_history("удаление ветки")
         removed_ids = set(removed)
         payloads = self._custom_node_payloads()
         root = next((raw for raw in payloads if str(raw.get("node_id", "")) == node_id), None)
@@ -168,6 +186,31 @@ class LineageStateStore:
             self._payload["current_node_id"] = fallback_id
         self._save()
         return removed
+
+    def can_undo(self) -> bool:
+        return bool(self._history())
+
+    def last_action_label(self) -> str:
+        history = self._history()
+        if not history:
+            return ""
+        return str(history[-1].get("label", "последнее действие"))
+
+    def undo_last_action(self) -> str | None:
+        history = self._history()
+        if not history:
+            return None
+        entry = history.pop()
+        snapshot = entry.get("snapshot")
+        if not isinstance(snapshot, dict):
+            self._save()
+            return None
+        remaining_history = deepcopy(history)
+        self._payload = deepcopy(snapshot)
+        self._payload["history"] = remaining_history
+        self._payload["schema"] = 3
+        self._save()
+        return str(entry.get("label", "последнее действие"))
 
     def node_state_label(self, node_id: str) -> str:
         if self.is_archived(node_id):
@@ -219,6 +262,27 @@ class LineageStateStore:
             by_id[node_id] = node
         return tuple(result)
 
+    def _record_history(self, label: str) -> None:
+        history = self._history()
+        history.append({"label": label, "snapshot": self._snapshot_payload()})
+        if len(history) > HISTORY_LIMIT:
+            del history[:-HISTORY_LIMIT]
+
+    def _snapshot_payload(self) -> dict[str, Any]:
+        return {
+            "schema": 3,
+            "current_node_id": self.current_node_id(),
+            "overrides": deepcopy(self._overrides()),
+            "custom_nodes": deepcopy(self._custom_node_payloads()),
+        }
+
+    def _history(self) -> list[dict[str, Any]]:
+        history = self._payload.setdefault("history", [])
+        if not isinstance(history, list):
+            history = []
+            self._payload["history"] = history
+        return [entry for entry in history if isinstance(entry, dict)]
+
     def _custom_node_payloads(self) -> list[dict[str, Any]]:
         custom_nodes = self._payload.setdefault("custom_nodes", [])
         if not isinstance(custom_nodes, list):
@@ -251,13 +315,13 @@ class LineageStateStore:
         try:
             payload = json.loads(self._path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return {"schema": 2, "overrides": {}, "custom_nodes": []}
-        return payload if isinstance(payload, dict) else {"schema": 2, "overrides": {}, "custom_nodes": []}
+            return {"schema": 3, "overrides": {}, "custom_nodes": [], "history": []}
+        return payload if isinstance(payload, dict) else {"schema": 3, "overrides": {}, "custom_nodes": [], "history": []}
 
     def _save(self) -> None:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._payload["schema"] = 2
+            self._payload["schema"] = 3
             self._path.write_text(json.dumps(self._payload, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
             return
