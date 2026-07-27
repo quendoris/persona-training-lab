@@ -12,12 +12,16 @@ def test_agent_graph_key_bindings_have_unique_ids_and_sequences() -> None:
     assert set(agent_graph_key_bindings_by_id()) == set(ids)
 
 
-def test_agent_graph_key_bindings_describe_delete_and_undo_actions_in_russian() -> None:
+def test_agent_graph_key_bindings_describe_delete_toggle_and_undo_only_in_russian() -> None:
     bindings = agent_graph_key_bindings_by_id()
 
     assert bindings["delete_branch"].sequence == "Del"
     assert "Удалить" in bindings["delete_branch"].title
-    assert bindings["undo_once"].sequence == "Ctrl+Z"
-    assert "Отменить" in bindings["undo_once"].title
-    assert bindings["undo_many"].sequence == "Ctrl+Shift+Z"
-    assert bindings["undo_many"].auto_repeat is True
+
+    assert bindings["history_toggle"].sequence == "Ctrl+Z"
+    assert "Отменить или вернуть" in bindings["history_toggle"].title
+    assert bindings["history_toggle"].auto_repeat is False
+
+    assert bindings["undo_only"].sequence == "Ctrl+Shift+Z"
+    assert "назад" in bindings["undo_only"].title
+    assert bindings["undo_only"].auto_repeat is True
