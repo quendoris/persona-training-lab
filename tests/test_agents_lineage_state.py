@@ -82,6 +82,36 @@ def test_custom_branch_can_be_renamed_and_archived_without_losing_tone(tmp_path)
     assert restored[branch_id].tone == "good"
 
 
+def test_archiving_branch_archives_entire_subtree_and_restores_each_tone(tmp_path) -> None:
+    path = tmp_path / "state.json"
+    store = LineageStateStore(path)
+    root_id = store.continue_from("snapshot")
+    child_id = store.continue_from(root_id)
+    grandchild_id = store.continue_from(child_id)
+    sibling_id = store.continue_from("snapshot")
+    store.set_tone(root_id, "good")
+    store.set_tone(child_id, "bad")
+    store.set_tone(grandchild_id, "pending")
+    store.set_tone(sibling_id, "good")
+
+    assert store.set_archived(root_id, True) is True
+    archived = {node.node_id: node for node in store.apply(_base_nodes())}
+    for node_id in (root_id, child_id, grandchild_id):
+        assert archived[node_id].status == "архивная"
+        assert archived[node_id].tone == "neutral"
+    assert archived[sibling_id].status == "удачная"
+    assert archived[sibling_id].tone == "good"
+
+    assert store.set_archived(root_id, False) is True
+    restored = {node.node_id: node for node in LineageStateStore(path).apply(_base_nodes())}
+    assert restored[root_id].status == "удачная"
+    assert restored[root_id].tone == "good"
+    assert restored[child_id].status == "неудачная"
+    assert restored[child_id].tone == "bad"
+    assert restored[grandchild_id].status == "спорная"
+    assert restored[grandchild_id].tone == "pending"
+
+
 def test_delete_custom_subtree_removes_descendants_and_restores_current_parent(tmp_path) -> None:
     path = tmp_path / "state.json"
     store = LineageStateStore(path)
