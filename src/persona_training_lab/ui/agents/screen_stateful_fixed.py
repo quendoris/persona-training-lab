@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QTimer
-from PySide6.QtWidgets import QGridLayout, QInputDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QDialog, QGridLayout, QInputDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
 
+from persona_training_lab.ui.agents.key_bindings import agent_graph_key_bindings_by_id
 from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _StatefulAgentsScreen
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView
@@ -13,7 +15,25 @@ class AgentsScreen(_StatefulAgentsScreen):
         super().__init__(view_model)
         if hasattr(self._graph, "menu_action_requested"):
             self._graph.menu_action_requested.connect(self._handle_canvas_menu_action)
+        self._setup_shortcuts()
         self._sync_undo_action()
+
+    def _setup_shortcuts(self) -> None:
+        definitions = agent_graph_key_bindings_by_id()
+        handlers = {
+            "delete_branch": self._delete_selected_local_branch,
+            "undo_once": self._undo_last_lineage_action,
+            "undo_many": self._undo_last_lineage_action,
+        }
+        self._shortcuts: dict[str, QShortcut] = {}
+        for binding_id, handler in handlers.items():
+            definition = definitions[binding_id]
+            sequence = QKeySequence.fromString(definition.sequence, QKeySequence.SequenceFormat.PortableText)
+            shortcut = QShortcut(sequence, self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.setAutoRepeat(definition.auto_repeat)
+            shortcut.activated.connect(handler)
+            self._shortcuts[binding_id] = shortcut
 
     def _details(self) -> QWidget:
         column = QWidget()
@@ -88,7 +108,15 @@ class AgentsScreen(_StatefulAgentsScreen):
         elif action == "reset_subtree":
             self._reset_subtree_layout(node_id)
 
+    def _delete_selected_local_branch(self) -> None:
+        node_id = self._selected_node_id
+        if not self._state.is_custom_node(node_id):
+            return
+        self._close_canvas_menu()
+        self._delete_local_branch_subtree(node_id)
+
     def _undo_last_lineage_action(self) -> None:
+        self._close_canvas_menu()
         if self._state.undo_last_action() is None:
             self._sync_undo_action()
             return
@@ -116,8 +144,16 @@ class AgentsScreen(_StatefulAgentsScreen):
         node = self._node_by_id(node_id)
         if node is None or not self._state.is_custom_node(node_id):
             return
-        title, accepted = QInputDialog.getText(self, "Переименовать ветку", "Новое название:", text=node.title)
-        if not accepted or not title.strip():
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("Переименовать ветку")
+        dialog.setLabelText("Новое название:")
+        dialog.setTextValue(node.title)
+        dialog.setOkButtonText("Сохранить")
+        dialog.setCancelButtonText("Отмена")
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        title = dialog.textValue().strip()
+        if not title:
             return
         if self._state.rename_node(node_id, title):
             self._selected_node_id = node_id
@@ -140,14 +176,7 @@ class AgentsScreen(_StatefulAgentsScreen):
         detail = "Ветку можно будет вернуть через отмену последнего действия."
         if descendants:
             detail = f"Будет удалена эта ветка и дочерние точки: {descendants}. Удаление можно отменить."
-        answer = QMessageBox.question(
-            self,
-            "Удалить локальную ветку?",
-            f"{node.title}\n\n{detail}",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+        if not self._confirm_branch_deletion(node.title, detail):
             return
         fallback_id = node.parent_id or self._graph.current_node_id()
         removed = self._state.delete_subtree(node_id)
@@ -157,6 +186,22 @@ class AgentsScreen(_StatefulAgentsScreen):
             self._graph.forget_layout_nodes(removed)
         self._selected_node_id = fallback_id
         self._refresh_lineage(center=True)
+
+    def _confirm_branch_deletion(self, title: str, detail: str) -> bool:
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle("Удалить локальную ветку?")
+        dialog.setText(f"{title}\n\n{detail}")
+        dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        dialog.setDefaultButton(QMessageBox.StandardButton.No)
+        yes_button = dialog.button(QMessageBox.StandardButton.Yes)
+        no_button = dialog.button(QMessageBox.StandardButton.No)
+        if yes_button is not None:
+            yes_button.setText("Да")
+        if no_button is not None:
+            no_button.setText("Нет")
+        dialog.exec()
+        return yes_button is not None and dialog.clickedButton() is yes_button
 
     def _close_canvas_menu(self) -> None:
         if hasattr(self._graph, "close_node_menu"):
@@ -189,8 +234,22 @@ class AgentsScreen(_StatefulAgentsScreen):
                     )
                 ),
                 checks=("Локальная ветка lineage", "Пока не связана с training run", "Перед запуском нужен snapshot/protocol record"),
-                actions=("ЛКМ по точке открывает действия на графе.", "ПКМ двигает пространство/точку."),
+                actions=(
+                    "ЛКМ по точке открывает действия на графе.",
+                    "ПКМ двигает пространство/точку.",
+                    "Del удаляет выбранную локальную ветку.",
+                    "Ctrl+Z отменяет один шаг; Ctrl+Shift+Z при удержании отменяет несколько.",
+                ),
             )
         base = self._vm.node_detail(node_id)
         body = "\n".join((base.body, "", f"Lineage state: {node.status}", f"Parent: {node.parent_id or '—'}"))
-        return AgentDetailView(base.title, body, base.checks, ("ЛКМ по точке открывает действия на графе.", "ПКМ двигает пространство/точку."))
+        return AgentDetailView(
+            base.title,
+            body,
+            base.checks,
+            (
+                "ЛКМ по точке открывает действия на графе.",
+                "ПКМ двигает пространство/точку.",
+                "Ctrl+Z отменяет один шаг; Ctrl+Shift+Z при удержании отменяет несколько.",
+            ),
+        )
