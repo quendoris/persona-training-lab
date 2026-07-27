@@ -9,10 +9,9 @@ from persona_training_lab.ui.agents.version_graph_stateful import VersionGraphCa
 
 class VersionGraphCanvas(StatefulVersionGraphCanvas):
     def __init__(self, nodes) -> None:
-        # The base canvas calculates its size during __init__, which already calls
-        # _display_levels(). Cache fields must therefore exist before super().__init__.
         self._layout_cache_key: tuple[object, ...] | None = None
         self._layout_cache: Any | None = None
+        self._undo_action_label: str | None = None
         super().__init__(nodes)
 
     def set_nodes(self, nodes) -> None:
@@ -32,9 +31,6 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         if new_zoom == old_zoom:
             event.accept()
             return
-
-        # Emit before resizing the canvas. The screen captures the old scrollbar
-        # values synchronously, then applies the corrected values after resize.
         anchor = event.position()
         self.zoom_anchor_requested.emit(anchor, old_zoom, new_zoom)
         self._set_zoom(new_zoom)
@@ -54,6 +50,10 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         self._menu_node_id = None
         self.update()
 
+    def set_undo_action_label(self, label: str | None) -> None:
+        self._undo_action_label = label.strip() if label else None
+        self.update()
+
     def _menu_actions(self) -> tuple[tuple[str, str], ...]:
         actions: list[tuple[str, str]] = [
             ("make_current", "Сделать актуальной"),
@@ -62,6 +62,8 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
             ("mark_bad", "Пометить неудачной"),
             ("continue", "Продолжить от этой точки"),
         ]
+        if self._undo_action_label:
+            actions.append(("undo", f"Отменить: {self._undo_action_label}"))
         node = next((item for item in self._nodes if item.node_id == self._menu_node_id), None)
         if node is not None and node.node_id.startswith("branch_"):
             actions.extend(
@@ -118,6 +120,4 @@ class VersionGraphCanvas(StatefulVersionGraphCanvas):
         return self._tree_layout().lanes
 
     def _lane_offsets(self, lanes: dict[str, int]) -> dict[int, float]:
-        # lanes is accepted for compatibility with the parent canvas API; the
-        # pure engine returns offsets from the same layout pass that produced lanes.
         return self._tree_layout().lane_offsets
