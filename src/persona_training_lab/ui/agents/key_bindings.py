@@ -20,16 +20,16 @@ AGENT_GRAPH_KEY_BINDINGS: tuple[KeyBindingDefinition, ...] = (
         description="Открывает подтверждение удаления выбранной локальной ветки и её поддерева.",
     ),
     KeyBindingDefinition(
-        binding_id="undo_once",
+        binding_id="history_toggle",
         sequence="Ctrl+Z",
-        title="Отменить одно действие",
-        description="Откатывает последнее изменение lineage. Каждое новое нажатие делает ещё один шаг назад.",
+        title="Отменить или вернуть последнее изменение",
+        description="Первое нажатие отменяет последний шаг, второе возвращает его; повторные нажатия переключают состояние до и после.",
     ),
     KeyBindingDefinition(
-        binding_id="undo_many",
+        binding_id="undo_only",
         sequence="Ctrl+Shift+Z",
-        title="Быстрая последовательная отмена",
-        description="Откатывает один шаг; при удержании повторяет отмену по системной частоте клавиатуры.",
+        title="Последовательно уходить назад по истории",
+        description="Всегда отменяет ещё один шаг; при удержании повторяет отмену по системной частоте клавиатуры.",
         auto_repeat=True,
     ),
 )
