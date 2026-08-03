@@ -18,6 +18,7 @@ from persona_training_lab.ui.agents.screen_stateful_fixed import (
     AgentsScreen as _StatefulFixedAgentsScreen,
 )
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
+from persona_training_lab.ui.viewmodels.agents import AgentDetailView
 
 
 class AgentsScreen(_HistoryKeyGuardAgentsScreen):
@@ -59,6 +60,29 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         panel.setMinimumSize(0, 0)
         panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         return panel
+
+    def _detail_for(self, node_id: str) -> AgentDetailView:
+        detail = super()._detail_for(node_id)
+        current = {
+            "delete": self._key_binding_manager.sequence("delete_branch"),
+            "toggle": self._key_binding_manager.sequence("history_toggle"),
+            "undo": self._key_binding_manager.sequence("undo_only"),
+        }
+        actions: list[str] = []
+        for action in detail.actions:
+            if action.startswith("Del удаляет"):
+                actions.append(f"{current['delete']} удаляет выбранную локальную ветку.")
+            elif action.startswith("Ctrl+Z переключает"):
+                actions.append(
+                    f"{current['toggle']} переключает последнее изменение: отменить / вернуть."
+                )
+            elif action.startswith("Ctrl+Shift+Z всегда"):
+                actions.append(
+                    f"{current['undo']} всегда уходит ещё на один шаг назад и поддерживает удержание."
+                )
+            else:
+                actions.append(action)
+        return AgentDetailView(detail.title, detail.body, detail.checks, tuple(actions))
 
     def _render_detail(self, detail) -> None:
         super()._render_detail(detail)
