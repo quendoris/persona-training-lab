@@ -23,4 +23,5 @@ def test_history_debug_log_has_stable_local_path() -> None:
 
 
 def test_internal_window_deactivation_is_not_an_application_history_reset() -> None:
-    assert FinalAgentsScreen._INTERNAL_WINDOW_DEACTIVATION == QEvent.Type.WindowDeactivate
+    assert FinalAgentsScreen._is_internal_window_deactivation(QEvent.Type.WindowDeactivate)
+    assert not FinalAgentsScreen._is_internal_window_deactivation(QEvent.Type.ApplicationDeactivate)
