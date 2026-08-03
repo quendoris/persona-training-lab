@@ -165,20 +165,35 @@ class KeyBindingManager(QObject):
             self._last_error = "В файле назначений клавиш отсутствует раздел bindings."
             return
 
-        loaded = self._default_bindings()
-        occupied: dict[str, str] = {}
+        defaults = self._default_bindings()
+        loaded = dict(defaults)
         for definition in self._definitions:
             candidate = raw_bindings.get(definition.binding_id, definition.sequence)
             if not isinstance(candidate, str):
-                candidate = definition.sequence
-            normalized = self.normalize_sequence(candidate) or self.normalize_sequence(definition.sequence)
-            key = normalized.casefold()
-            if key in occupied:
-                normalized = self.normalize_sequence(definition.sequence)
-                key = normalized.casefold()
-            loaded[definition.binding_id] = normalized
-            occupied[key] = definition.binding_id
+                continue
+            normalized = self.normalize_sequence(candidate)
+            if normalized:
+                loaded[definition.binding_id] = normalized
+
+        repaired = False
+        for _attempt in range(len(self._definitions) + 1):
+            groups: dict[str, list[str]] = {}
+            for binding_id, sequence in loaded.items():
+                groups.setdefault(sequence.casefold(), []).append(binding_id)
+            conflicts = [ids for ids in groups.values() if len(ids) > 1]
+            if not conflicts:
+                break
+            repaired = True
+            for binding_ids in conflicts:
+                for binding_id in binding_ids:
+                    loaded[binding_id] = defaults[binding_id]
+        else:
+            loaded = defaults
+            repaired = True
+
         self._bindings = loaded
+        if repaired:
+            self._last_error = "Конфликтующие назначения в файле были возвращены к значениям по умолчанию."
 
     def _write(self, bindings: dict[str, str]) -> str:
         payload = {
