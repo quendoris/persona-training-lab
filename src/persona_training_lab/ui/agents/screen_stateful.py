@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QAbstractScrollArea,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from persona_training_lab.ui.agents.lineage import LineageVersionNode, build_version_lineage
 from persona_training_lab.ui.agents.lineage_state import LineageStateStore
-from persona_training_lab.ui.agents.version_graph_clean_layout import VersionGraphCanvas
+from persona_training_lab.ui.agents.version_graph_dynamic_workspace import VersionGraphCanvas
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsViewModel
@@ -73,6 +85,8 @@ class AgentsScreen(QWidget):
     def _graph_panel(self) -> QWidget:
         column = QWidget()
         column.setProperty("transparentBg", True)
+        column.setMinimumSize(0, 0)
+        column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout = QVBoxLayout(column)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
@@ -96,10 +110,17 @@ class AgentsScreen(QWidget):
         self._graph.node_selected.connect(self._select_node)
         self._graph.zoom_anchor_requested.connect(self._on_graph_zoom_anchor)
         self._graph.pan_requested.connect(self._on_graph_pan)
+        if hasattr(self._graph, "workspace_origin_shifted"):
+            self._graph.workspace_origin_shifted.connect(self._on_graph_workspace_origin_shift)
         scroll = QScrollArea()
         scroll.setWidgetResizable(False)
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        scroll.setMinimumSize(0, 0)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         scroll.setWidget(self._graph)
+        scroll.viewport().setMinimumSize(0, 0)
         self._graph_scroll = scroll
         layout.addWidget(scroll, 1)
         return column
@@ -220,6 +241,17 @@ class AgentsScreen(QWidget):
         vbar = self._graph_scroll.verticalScrollBar()
         hbar.setValue(int((hbar.value() + anchor.x()) * ratio - anchor.x()))
         vbar.setValue(int((vbar.value() + anchor.y()) * ratio - anchor.y()))
+
+    def _on_graph_workspace_origin_shift(self, delta: QPointF) -> None:
+        hbar = self._graph_scroll.horizontalScrollBar()
+        vbar = self._graph_scroll.verticalScrollBar()
+        target_h = hbar.value() + int(round(delta.x()))
+        target_v = vbar.value() + int(round(delta.y()))
+        QTimer.singleShot(0, lambda: self._apply_workspace_scroll_shift(target_h, target_v))
+
+    def _apply_workspace_scroll_shift(self, horizontal: int, vertical: int) -> None:
+        self._graph_scroll.horizontalScrollBar().setValue(horizontal)
+        self._graph_scroll.verticalScrollBar().setValue(vertical)
 
     def _on_graph_pan(self, delta: QPointF) -> None:
         hbar = self._graph_scroll.horizontalScrollBar()
