@@ -82,3 +82,15 @@ def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
     assert state.shift_down is True
     assert state.strict_undo_requested is True
     assert calls == {"block": 0, "dispatch": []}
+
+
+def test_visible_agent_detail_refreshes_after_binding_change() -> None:
+    selected: list[str] = []
+    screen = SimpleNamespace(
+        _selected_node_id="branch_1",
+        _select_node=selected.append,
+    )
+
+    FinalAgentsScreen._refresh_key_binding_help(screen)
+
+    assert selected == ["branch_1"]
