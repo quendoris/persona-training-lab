@@ -3,17 +3,22 @@ from __future__ import annotations
 from time import monotonic
 
 from PySide6.QtCore import QEvent, QTimer, Qt
-from PySide6.QtGui import QAction, QGuiApplication, QKeyEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
+from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
 
 class AgentsScreen(_StatefulFixedAgentsScreen):
     """Own graph history key gestures before Qt can route them elsewhere."""
 
     _HISTORY_BINDING_IDS = ("history_toggle", "undo_only")
+    _DEFAULT_GUARDED_SEQUENCES = {
+        "history_toggle": "Ctrl+Z",
+        "undo_only": "Ctrl+Shift+Z",
+    }
     _HISTORY_SEQUENCES = frozenset({"ctrl+z", "ctrl+shift+z"})
     # Linux evdev codes and their X11/XKB (+8) equivalents.
     _PHYSICAL_SHIFT_SCAN_CODES = frozenset({42, 50, 54, 62})
@@ -24,7 +29,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     _FLIP_GUARD_SECONDS = 0.35
     _KEYBOARD_LAYOUT_CHANGE = getattr(QEvent.Type, "KeyboardLayoutChange", None)
 
-    def __init__(self, view_model) -> None:
+    def __init__(self, view_model, key_binding_manager: KeyBindingManager | None = None) -> None:
+        self._key_binding_manager = key_binding_manager or KeyBindingManager()
+        self._guarded_history_bindings: set[str] = set()
         super().__init__(view_model)
 
         self._history_keys = HistoryKeyState()
@@ -46,8 +53,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._modifier_poll.timeout.connect(self._poll_physical_modifiers)
         self._modifier_poll.start()
 
-        self._disable_conflicting_history_bindings()
-        QTimer.singleShot(0, self._disable_conflicting_history_bindings)
+        self._key_binding_manager.bindings_changed.connect(self._apply_key_binding_sequences)
+        self._apply_key_binding_sequences()
+        QTimer.singleShot(0, self._sync_history_shortcut_routing)
 
         for button in self.findChildren(QPushButton):
             if button.text().replace("&", "") == "Отразить":
@@ -110,15 +118,16 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             )
         )
         actions.extend(self._history_keys.press(key_name))
+        guarded_actions = self._guarded_actions(actions)
 
         # Ctrl and Shift before Z remain available to the desktop layout switch.
-        claimed = bool(actions) or self._history_keys.history_gesture_active
+        claimed = bool(guarded_actions) or self._guarded_history_gesture_active()
         if not claimed:
             return False
 
         self._block_graph_flip()
         if not event.isAutoRepeat():
-            self._dispatch_history_actions(actions)
+            self._dispatch_history_actions(guarded_actions)
         return True
 
     def _handle_history_key_release(self, key_name: str) -> bool:
@@ -142,16 +151,18 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return True
 
     def _handle_keyboard_layout_change(self) -> None:
+        if "undo_only" not in self._guarded_history_bindings:
+            return
         control, _shift = self._queried_modifiers()
         if not (control or self._history_keys.control_down):
             return
         self._history_keys.control_down = True
-        actions = self._history_keys.latch_layout_shift()
+        actions = self._guarded_actions(self._history_keys.latch_layout_shift())
         self._block_graph_flip()
         self._dispatch_history_actions(actions)
 
     def _poll_physical_modifiers(self) -> None:
-        if not self._history_keys_are_active():
+        if not self._history_keys_are_active() or not self._guarded_history_bindings:
             return
 
         control, shift = self._queried_modifiers()
@@ -165,13 +176,14 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         if shift:
             actions.extend(self._history_keys.set_physical_shift(True))
 
-        if actions:
+        guarded_actions = self._guarded_actions(actions)
+        if guarded_actions:
             self._block_graph_flip()
-            self._dispatch_history_actions(actions)
+            self._dispatch_history_actions(guarded_actions)
 
     def _dispatch_history_actions(self, actions) -> None:
         seen: set[str] = set()
-        for action in actions:
+        for action in self._guarded_actions(actions):
             if action in seen:
                 continue
             seen.add(action)
@@ -181,6 +193,22 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             elif action == HISTORY_UNDO:
                 self._undo_history_only()
                 self._arm_undo_repeat()
+
+    def _guarded_actions(self, actions) -> tuple[str, ...]:
+        allowed: list[str] = []
+        for action in actions:
+            if action == HISTORY_TOGGLE and "history_toggle" in self._guarded_history_bindings:
+                allowed.append(action)
+            elif action == HISTORY_UNDO and "undo_only" in self._guarded_history_bindings:
+                allowed.append(action)
+        return tuple(allowed)
+
+    def _guarded_history_gesture_active(self) -> bool:
+        if not self._history_keys.history_gesture_active:
+            return False
+        if self._history_keys.strict_undo_requested:
+            return "undo_only" in self._guarded_history_bindings
+        return "history_toggle" in self._guarded_history_bindings
 
     def _effective_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
         queried_control, queried_shift = self._queried_modifiers()
@@ -215,7 +243,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             self._undo_repeat.start()
 
     def _repeat_undo_history(self) -> None:
-        if not self._history_keys.undo_repeat_active or not self._state.can_undo():
+        if (
+            "undo_only" not in self._guarded_history_bindings
+            or not self._history_keys.undo_repeat_active
+            or not self._state.can_undo()
+        ):
             self._stop_undo_repeat()
             return
         self._block_graph_flip()
@@ -231,31 +263,51 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._block_graph_flip()
 
     def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
-        if key_name is None:
+        if key_name is None or not self._guarded_history_bindings:
             return False
-        control, _shift = self._effective_modifiers(event)
+        control, shift = self._effective_modifiers(event)
         if key_name == "z" and control:
-            return True
+            binding_id = "undo_only" if shift else "history_toggle"
+            return binding_id in self._guarded_history_bindings
         if key_name == "shift" and self._history_keys.control_down and self._history_keys.z_down:
-            return True
+            return "undo_only" in self._guarded_history_bindings
         if key_name == "control" and self._history_keys.z_down:
-            return True
+            return self._guarded_history_gesture_active()
         return self._history_keys.mode is not None and key_name in {"control", "shift", "z"}
 
-    def _disable_conflicting_history_bindings(self) -> None:
+    def _apply_key_binding_sequences(self) -> None:
+        self._reset_history_gesture_if_ready()
+        definitions = {item.binding_id: item for item in self._key_binding_manager.definitions()}
+        for binding_id, shortcut in getattr(self, "_shortcuts", {}).items():
+            sequence_text = self._key_binding_manager.sequence(binding_id)
+            sequence = QKeySequence.fromString(sequence_text, QKeySequence.SequenceFormat.PortableText)
+            shortcut.setKey(sequence)
+            definition = definitions.get(binding_id)
+            if definition is not None:
+                shortcut.setAutoRepeat(definition.auto_repeat)
+        self._sync_history_shortcut_routing()
+
+    def _reset_history_gesture_if_ready(self) -> None:
+        if hasattr(self, "_history_keys") and hasattr(self, "_undo_repeat"):
+            self._reset_history_gesture()
+
+    def _sync_history_shortcut_routing(self) -> None:
+        guarded: set[str] = set()
+        for binding_id, default_sequence in self._DEFAULT_GUARDED_SEQUENCES.items():
+            current = self._key_binding_manager.sequence(binding_id)
+            if self._normalized_sequence(current) == self._normalized_sequence(default_sequence):
+                guarded.add(binding_id)
+        self._guarded_history_bindings = guarded
+
         for binding_id in self._HISTORY_BINDING_IDS:
             shortcut = getattr(self, "_shortcuts", {}).get(binding_id)
             if shortcut is not None:
-                shortcut.setEnabled(False)
-                shortcut.setKey(QKeySequence())
-        for shortcut in self.findChildren(QShortcut):
-            if self._sequence_is_history(shortcut.key()):
-                shortcut.setEnabled(False)
-                shortcut.setKey(QKeySequence())
-        for action in self.findChildren(QAction):
-            remaining = [sequence for sequence in action.shortcuts() if not self._sequence_is_history(sequence)]
-            if len(remaining) != len(action.shortcuts()):
-                action.setShortcuts(remaining)
+                shortcut.setEnabled(binding_id not in guarded)
+
+    @staticmethod
+    def _normalized_sequence(sequence: str) -> str:
+        parsed = QKeySequence.fromString(sequence, QKeySequence.SequenceFormat.PortableText)
+        return parsed.toString(QKeySequence.SequenceFormat.PortableText).replace(" ", "").casefold()
 
     @classmethod
     def _sequence_is_history(cls, sequence: QKeySequence) -> bool:
