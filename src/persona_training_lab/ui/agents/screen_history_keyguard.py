@@ -110,6 +110,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return super().eventFilter(watched, event)
 
     def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
+        if key_name == "z" and self._has_extra_history_modifiers(event):
+            return False
+
         control, shift = self._effective_modifiers(event)
         actions = list(
             self._history_keys.prime_modifiers(
@@ -226,6 +229,12 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return control, shift
 
     @staticmethod
+    def _has_extra_history_modifiers(event: QKeyEvent) -> bool:
+        modifiers = event.modifiers()
+        extras = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier
+        return bool(modifiers & extras)
+
+    @staticmethod
     def _queried_modifiers() -> tuple[bool, bool]:
         modifiers = QGuiApplication.queryKeyboardModifiers()
         return (
@@ -265,6 +274,8 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
         if key_name is None or not self._guarded_history_bindings:
             return False
+        if key_name == "z" and self._has_extra_history_modifiers(event):
+            return False
         control, shift = self._effective_modifiers(event)
         if key_name == "z" and control:
             binding_id = "undo_only" if shift else "history_toggle"
@@ -303,6 +314,10 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             shortcut = getattr(self, "_shortcuts", {}).get(binding_id)
             if shortcut is not None:
                 shortcut.setEnabled(binding_id not in guarded)
+
+    def _disable_conflicting_history_bindings(self) -> None:
+        # Compatibility for older callers and tests.
+        self._sync_history_shortcut_routing()
 
     @staticmethod
     def _normalized_sequence(sequence: str) -> str:
