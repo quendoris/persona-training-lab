@@ -15,12 +15,33 @@ class KeyBindingDefinition:
 
 
 @dataclass(frozen=True, slots=True)
-class InputGuideDefinition:
-    guide_id: str
-    gesture: str
+class MouseBindingDefinition:
+    binding_id: str
+    button: str
+    modifier: str
+    trigger: str
+    target: str
     title: str
     description: str
     category: str = "Мышь и canvas"
+
+
+MOUSE_BUTTON_LABELS: dict[str, str] = {
+    "left": "Левая кнопка",
+    "right": "Правая кнопка",
+    "middle": "Средняя кнопка",
+    "back": "Боковая назад",
+    "forward": "Боковая вперёд",
+    "wheel": "Колесо мыши",
+}
+
+MOUSE_MODIFIER_LABELS: dict[str, str] = {
+    "none": "Без модификатора",
+    "shift": "Shift",
+    "control": "Ctrl",
+    "alt": "Alt",
+    "meta": "Meta",
+}
 
 
 AGENT_GRAPH_KEY_BINDINGS: tuple[KeyBindingDefinition, ...] = (
@@ -46,40 +67,67 @@ AGENT_GRAPH_KEY_BINDINGS: tuple[KeyBindingDefinition, ...] = (
 )
 
 
-AGENT_GRAPH_INPUT_GUIDE: tuple[InputGuideDefinition, ...] = (
-    InputGuideDefinition(
-        guide_id="open_node_menu",
-        gesture="ЛКМ по точке",
+AGENT_GRAPH_MOUSE_BINDINGS: tuple[MouseBindingDefinition, ...] = (
+    MouseBindingDefinition(
+        binding_id="open_node_menu",
+        button="left",
+        modifier="none",
+        trigger="click",
+        target="node",
         title="Открыть действия узла",
         description="Выбирает точку и открывает встроенное меню действий прямо на canvas.",
     ),
-    InputGuideDefinition(
-        guide_id="close_node_menu",
-        gesture="ЛКМ по пустому месту",
+    MouseBindingDefinition(
+        binding_id="close_node_menu",
+        button="left",
+        modifier="none",
+        trigger="click",
+        target="canvas",
         title="Закрыть меню узла",
-        description="Скрывает открытое меню, не меняя выбранную точку.",
+        description="Скрывает открытое меню кликом по пустому месту.",
     ),
-    InputGuideDefinition(
-        guide_id="pan_canvas",
-        gesture="ЛКМ или ПКМ по пустому месту + движение",
-        title="Перемещать пространство",
-        description="Панорамирует рабочую область графа в пределах динамического canvas.",
+    MouseBindingDefinition(
+        binding_id="pan_canvas_primary",
+        button="left",
+        modifier="none",
+        trigger="drag",
+        target="canvas",
+        title="Перемещать пространство — основной жест",
+        description="Панорамирует рабочую область графа по пустому canvas.",
     ),
-    InputGuideDefinition(
-        guide_id="move_node",
-        gesture="ПКМ по точке + движение",
+    MouseBindingDefinition(
+        binding_id="pan_canvas_secondary",
+        button="right",
+        modifier="none",
+        trigger="drag",
+        target="canvas",
+        title="Перемещать пространство — дополнительный жест",
+        description="Второй независимый способ панорамирования рабочей области.",
+    ),
+    MouseBindingDefinition(
+        binding_id="move_node",
+        button="right",
+        modifier="none",
+        trigger="drag",
+        target="node",
         title="Перемещать одну точку",
         description="Меняет ручное положение только выбранного узла.",
     ),
-    InputGuideDefinition(
-        guide_id="move_subtree",
-        gesture="Shift + ПКМ по точке + движение",
+    MouseBindingDefinition(
+        binding_id="move_subtree",
+        button="right",
+        modifier="shift",
+        trigger="drag",
+        target="node",
         title="Перемещать поддерево",
-        description="Переключается динамически и перемещает выбранную точку вместе с дочерними узлами.",
+        description="Перемещает выбранную точку вместе с дочерними узлами; режим меняется динамически при нажатии модификатора.",
     ),
-    InputGuideDefinition(
-        guide_id="zoom_canvas",
-        gesture="Колесо мыши",
+    MouseBindingDefinition(
+        binding_id="zoom_canvas",
+        button="wheel",
+        modifier="none",
+        trigger="wheel",
+        target="canvas",
         title="Масштабировать граф",
         description="Изменяет масштаб относительно позиции курсора.",
     ),
@@ -90,5 +138,5 @@ def agent_graph_key_bindings_by_id() -> dict[str, KeyBindingDefinition]:
     return {binding.binding_id: binding for binding in AGENT_GRAPH_KEY_BINDINGS}
 
 
-def agent_graph_input_guide_by_id() -> dict[str, InputGuideDefinition]:
-    return {guide.guide_id: guide for guide in AGENT_GRAPH_INPUT_GUIDE}
+def agent_graph_mouse_bindings_by_id() -> dict[str, MouseBindingDefinition]:
+    return {binding.binding_id: binding for binding in AGENT_GRAPH_MOUSE_BINDINGS}
