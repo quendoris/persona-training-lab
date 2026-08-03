@@ -8,7 +8,7 @@ from typing import Iterable
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QKeySequence
 
-from persona_training_lab.ui.agents.key_bindings import (
+from persona_training_lab.ui.keybindings.definitions import (
     AGENT_GRAPH_INPUT_GUIDE,
     AGENT_GRAPH_KEY_BINDINGS,
     InputGuideDefinition,
