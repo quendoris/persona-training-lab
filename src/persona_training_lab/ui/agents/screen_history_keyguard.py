@@ -11,7 +11,7 @@ from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as
 
 
 class AgentsScreen(_StatefulFixedAgentsScreen):
-    """Own history key gestures before Qt can route them to another action."""
+    """Own graph history key gestures before Qt can route them elsewhere."""
 
     _HISTORY_BINDING_IDS = ("history_toggle", "undo_only")
     _HISTORY_SEQUENCES = frozenset({"ctrl+z", "ctrl+shift+z"})
@@ -21,7 +21,6 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     _REPEAT_DELAY_MS = 330
     _REPEAT_INTERVAL_MS = 85
     _MODIFIER_POLL_MS = 16
-    _MODIFIER_RELEASE_CONFIRM_POLLS = 4
     _FLIP_GUARD_SECONDS = 0.35
     _KEYBOARD_LAYOUT_CHANGE = getattr(QEvent.Type, "KeyboardLayoutChange", None)
 
@@ -30,8 +29,6 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
         self._history_keys = HistoryKeyState()
         self._flip_blocked_until = 0.0
-        self._control_release_polls = 0
-        self._shift_release_polls = 0
 
         self._undo_repeat_delay = QTimer(self)
         self._undo_repeat_delay.setSingleShot(True)
@@ -42,8 +39,8 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._undo_repeat.setInterval(self._REPEAT_INTERVAL_MS)
         self._undo_repeat.timeout.connect(self._repeat_undo_history)
 
-        # This timer reads the current physical modifier state instead of relying
-        # on key events that a desktop layout switch may consume or rewrite.
+        # Polling is a positive-only fallback for modifier events consumed by the
+        # desktop. Real KeyRelease events remain the authoritative release signal.
         self._modifier_poll = QTimer(self)
         self._modifier_poll.setInterval(self._MODIFIER_POLL_MS)
         self._modifier_poll.timeout.connect(self._poll_physical_modifiers)
@@ -65,7 +62,12 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
         event_type = event.type()
-        if event_type in (QEvent.Type.ApplicationDeactivate, QEvent.Type.WindowDeactivate):
+
+        # Internal dialogs deactivate child windows without deactivating the whole
+        # application. Only a real application deactivation ends a key gesture.
+        if event_type == QEvent.Type.WindowDeactivate:
+            return False
+        if event_type == QEvent.Type.ApplicationDeactivate:
             self._reset_history_gesture()
             return super().eventFilter(watched, event)
 
@@ -120,14 +122,16 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return True
 
     def _handle_history_key_release(self, key_name: str) -> bool:
-        # A Ctrl+Shift layout switch may emit a misleading Shift release. Physical
-        # polling confirms the real release, so do not lower the flag here while
-        # Ctrl remains part of the gesture.
-        if key_name == "shift" and self._history_keys.control_down:
-            claimed = self._history_keys.history_gesture_active or self._history_keys.mode is not None
-            if claimed:
+        if key_name == "shift":
+            # XKB may hide Shift from logical modifiers during Ctrl+Shift layout
+            # switching, but a physical Shift KeyRelease remains authoritative.
+            was_control_down = self._history_keys.control_down
+            was_strict = self._history_keys.strict_undo_requested
+            claimed = self._history_keys.release("shift")
+            self._stop_undo_repeat()
+            if claimed or was_control_down or was_strict:
                 self._block_graph_flip()
-            return claimed
+            return claimed or (was_control_down and was_strict)
 
         claimed = self._history_keys.release(key_name)
         if not claimed:
@@ -149,31 +153,17 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     def _poll_physical_modifiers(self) -> None:
         if not self._history_keys_are_active():
             return
+
         control, shift = self._queried_modifiers()
         actions: list[str] = []
 
-        if control:
-            self._control_release_polls = 0
-            if not self._history_keys.control_down:
-                actions.extend(self._history_keys.press("control"))
-        else:
-            self._control_release_polls += 1
-            if (
-                self._control_release_polls >= self._MODIFIER_RELEASE_CONFIRM_POLLS
-                and self._history_keys.control_down
-            ):
-                self._history_keys.release("control")
-                self._stop_undo_repeat()
-
+        # Polling can only confirm a pressed modifier. queryKeyboardModifiers()
+        # may briefly report False while Ctrl+Shift changes the XKB layout, so it
+        # must never release an already observed key.
+        if control and not self._history_keys.control_down:
+            actions.extend(self._history_keys.press("control"))
         if shift:
-            self._shift_release_polls = 0
             actions.extend(self._history_keys.set_physical_shift(True))
-        else:
-            self._shift_release_polls += 1
-            if self._shift_release_polls >= self._MODIFIER_RELEASE_CONFIRM_POLLS:
-                actions.extend(self._history_keys.set_physical_shift(False))
-                if not self._history_keys.undo_repeat_active:
-                    self._stop_undo_repeat()
 
         if actions:
             self._block_graph_flip()
@@ -238,8 +228,6 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     def _reset_history_gesture(self) -> None:
         self._stop_undo_repeat()
         self._history_keys.reset()
-        self._control_release_polls = 0
-        self._shift_release_polls = 0
         self._block_graph_flip()
 
     def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
