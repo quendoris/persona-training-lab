@@ -33,19 +33,20 @@ class HistoryKeyState:
                 return ()
             return self._activate_chord()
 
+        # Modifier polling never calls this negative path. It is reserved for a
+        # real physical Shift KeyRelease, recognised by its native scan code even
+        # when XKB reports key=0 during Ctrl+Shift layout switching.
         self.shift_down = False
-        # Ctrl+Shift layout switching can make Qt report a false Shift release
-        # while the physical editing chord is still in progress. Once Shift has
-        # participated in the current Ctrl gesture, keep strict undo latched until
-        # Ctrl is released. Releasing and pressing Z must not change that mode.
-        if not self.control_down and not self.layout_shift_latched:
-            self.shift_latched = False
-        if self.mode == "undo_only" and not self.strict_undo_requested and self.z_down:
+        self.shift_latched = False
+        self.layout_shift_latched = False
+        if self.mode == "undo_only" and self.z_down:
+            # Do not convert the currently held strict chord into a toggle. The
+            # next action is chosen only after Z is released and pressed again.
             self.mode = "spent"
         return ()
 
     def latch_layout_shift(self) -> tuple[str, ...]:
-        """Remember Ctrl+Shift even if the desktop consumes the Shift event."""
+        """Remember Ctrl+Shift even if the desktop consumes the logical Shift key."""
         if not self.control_down:
             return ()
         self.layout_shift_latched = True
@@ -77,9 +78,9 @@ class HistoryKeyState:
         elif key == "shift":
             self.set_physical_shift(False)
         elif key == "z":
-            # Shift is an independent modifier flag. Releasing Z ends only the
-            # current history action, so the next Z press can remain strict undo
-            # while Ctrl+Shift are still physically held.
+            # Shift is an independent physical modifier. Releasing Z ends only
+            # the current history action; if Shift is still held, the next Z press
+            # remains strict undo.
             self.z_down = False
             self.mode = None
         return was_history_gesture
