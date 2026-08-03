@@ -29,11 +29,22 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
     _DETAILS_MIN_WIDTH = 390
     _DETAILS_MAX_WIDTH = 560
 
-    def __init__(self, view_model, key_binding_manager: KeyBindingManager | None = None) -> None:
+    def __init__(
+        self,
+        view_model,
+        key_binding_manager: KeyBindingManager | None = None,
+    ) -> None:
         super().__init__(view_model, key_binding_manager)
         self.setMinimumSize(0, 0)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._key_binding_manager.bindings_changed.connect(self._refresh_key_binding_help)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        if hasattr(self._graph, "set_input_bindings"):
+            self._graph.set_input_bindings(self._key_binding_manager)
+        self._key_binding_manager.bindings_changed.connect(
+            self._refresh_key_binding_help
+        )
 
     def _roles(self) -> QWidget:
         content = _StatefulAgentsScreen._roles(self)
@@ -59,7 +70,10 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
     def _graph_panel(self) -> QWidget:
         panel = _StatefulAgentsScreen._graph_panel(self)
         panel.setMinimumSize(0, 0)
-        panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         return panel
 
     def _detail_for(self, node_id: str) -> AgentDetailView:
@@ -68,11 +82,29 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             "delete": self._key_binding_manager.sequence("delete_branch"),
             "toggle": self._key_binding_manager.sequence("history_toggle"),
             "undo": self._key_binding_manager.sequence("undo_only"),
+            "open": self._key_binding_manager.mouse_binding_text(
+                "open_node_menu"
+            ),
+            "pan_primary": self._key_binding_manager.mouse_binding_text(
+                "pan_canvas_primary"
+            ),
+            "pan_secondary": self._key_binding_manager.mouse_binding_text(
+                "pan_canvas_secondary"
+            ),
+            "move": self._key_binding_manager.mouse_binding_text("move_node"),
+            "subtree": self._key_binding_manager.mouse_binding_text(
+                "move_subtree"
+            ),
+            "zoom": self._key_binding_manager.mouse_binding_text(
+                "zoom_canvas"
+            ),
         }
         actions: list[str] = []
         for action in detail.actions:
             if action.startswith("Del удаляет"):
-                actions.append(f"{current['delete']} удаляет выбранную локальную ветку.")
+                actions.append(
+                    f"{current['delete']} удаляет выбранную локальную ветку."
+                )
             elif action.startswith("Ctrl+Z переключает"):
                 actions.append(
                     f"{current['toggle']} переключает последнее изменение: отменить / вернуть."
@@ -81,9 +113,27 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
                 actions.append(
                     f"{current['undo']} всегда уходит ещё на один шаг назад и поддерживает удержание."
                 )
+            elif action.startswith("ЛКМ по точке"):
+                actions.append(
+                    f"{current['open']} по точке открывает действия на графе."
+                )
+            elif action.startswith("ПКМ двигает пространство/точку"):
+                actions.extend(
+                    (
+                        f"{current['pan_primary']} или {current['pan_secondary']} по пустому месту перемещает пространство.",
+                        f"{current['move']} по точке перемещает один узел.",
+                        f"{current['subtree']} по точке перемещает поддерево.",
+                        f"{current['zoom']} масштабирует граф.",
+                    )
+                )
             else:
                 actions.append(action)
-        return AgentDetailView(detail.title, detail.body, detail.checks, tuple(actions))
+        return AgentDetailView(
+            detail.title,
+            detail.body,
+            detail.checks,
+            tuple(actions),
+        )
 
     def _refresh_key_binding_help(self) -> None:
         node_id = getattr(self, "_selected_node_id", "")
@@ -105,20 +155,32 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         maximum_width: int,
     ) -> QScrollArea:
         content.setMinimumSize(0, 0)
-        content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        content.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
 
         scroll = QScrollArea()
         scroll.setObjectName(object_name)
         scroll.setProperty("transparentBg", True)
         scroll.setWidgetResizable(True)
-        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
-        scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        scroll.setSizeAdjustPolicy(
+            QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored
+        )
+        scroll.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
         scroll.setMinimumWidth(minimum_width)
         scroll.setMaximumWidth(maximum_width)
         scroll.setMinimumHeight(0)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
         scroll.setWidget(content)
         scroll.viewport().setMinimumSize(0, 0)
         scroll.viewport().setProperty("transparentBg", True)
@@ -129,6 +191,9 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         for label in root.findChildren(QLabel):
             label.setMinimumWidth(0)
             label.setWordWrap(True)
-            label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            label.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Preferred,
+            )
             if label.text() and not label.toolTip():
                 label.setToolTip(label.text())
