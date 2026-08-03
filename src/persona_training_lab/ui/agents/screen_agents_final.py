@@ -55,6 +55,21 @@ class AgentsScreen(_DiagnosticsCompatAgentsScreen):
     def _is_internal_window_deactivation(cls, event_type: QEvent.Type) -> bool:
         return event_type == cls._INTERNAL_WINDOW_DEACTIVATION
 
+    def _handle_history_key_release(self, key_name: str) -> bool:
+        if key_name != "shift":
+            return super()._handle_history_key_release(key_name)
+
+        # XKB can hide Shift from logical modifiers during Ctrl+Shift layout
+        # switching, but the physical KeyRelease still arrives with the Shift scan
+        # code. That event is authoritative and must lower strict undo immediately.
+        was_control_down = self._history_keys.control_down
+        was_strict = self._history_keys.strict_undo_requested
+        claimed = self._history_keys.release("shift")
+        self._stop_undo_repeat()
+        if claimed or was_control_down or was_strict:
+            self._block_graph_flip()
+        return claimed or (was_control_down and was_strict)
+
     def _reset_history_gesture(self) -> None:
         state = getattr(self, "_history_keys", None)
         delay = getattr(self, "_undo_repeat_delay", None)
