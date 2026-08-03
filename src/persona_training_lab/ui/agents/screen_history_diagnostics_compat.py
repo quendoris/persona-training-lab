@@ -4,13 +4,40 @@ from typing import Any
 
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import (
+    QAbstractScrollArea,
+    QFrame,
+    QScrollArea,
+    QSizePolicy,
+    QWidget,
+)
 
 from persona_training_lab.ui.agents.screen_history_diagnostics import AgentsScreen as _DiagnosticsAgentsScreen
 from persona_training_lab.ui.agents.screen_history_keyguard_sticky import AgentsScreen as _StickyHistoryAgentsScreen
 
 
 class AgentsScreen(_DiagnosticsAgentsScreen):
-    """Log history key events without assuming Qt enums inherit from int."""
+    """Final agents screen compatibility and bounded-column behaviour."""
+
+    def _roles(self) -> QWidget:
+        column = super()._roles()
+        column.setMinimumSize(0, 0)
+        column.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("AgentsRolesScroll")
+        scroll.setProperty("transparentBg", True)
+        scroll.setWidgetResizable(True)
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        scroll.setMinimumSize(0, 0)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setWidget(column)
+        scroll.viewport().setMinimumSize(0, 0)
+        scroll.viewport().setProperty("transparentBg", True)
+        return scroll
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
         if isinstance(event, QKeyEvent):
