@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QKeyEvent
+
+from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen as HistoryKeyGuardAgentsScreen
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
@@ -55,6 +58,23 @@ def test_custom_history_binding_switches_to_qshortcut_live(tmp_path) -> None:
     assert HistoryKeyGuardAgentsScreen._guarded_actions(screen, (HISTORY_TOGGLE, HISTORY_UNDO)) == (
         HISTORY_UNDO,
     )
+
+
+def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
+    modifiers = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Z, modifiers, "\x1a")
+    state = HistoryKeyState(control_down=True)
+    screen = SimpleNamespace(
+        _guarded_history_bindings={"history_toggle"},
+        _history_keys=state,
+        _has_extra_history_modifiers=HistoryKeyGuardAgentsScreen._has_extra_history_modifiers,
+        _effective_modifiers=lambda _event: (True, False),
+        _guarded_history_gesture_active=lambda: False,
+    )
+
+    assert HistoryKeyGuardAgentsScreen._claims_history_override(screen, event, "z") is False
+    assert HistoryKeyGuardAgentsScreen._handle_history_key_press(screen, event, "z") is False
+    assert state.z_down is False
 
 
 def test_reset_to_default_restores_physical_guard(tmp_path) -> None:
