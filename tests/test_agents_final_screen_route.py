@@ -29,10 +29,15 @@ def test_final_screen_owns_layout_without_interaction_overrides() -> None:
     assert "_reset_history_gesture" not in FinalAgentsScreen.__dict__
 
 
-def test_legacy_diagnostics_import_is_clean_final_screen_alias() -> None:
-    legacy_module = importlib.import_module("persona_training_lab.ui.agents.screen_history_diagnostics")
-
-    assert legacy_module.AgentsScreen is FinalAgentsScreen
+def test_historical_screen_imports_are_clean_final_screen_aliases() -> None:
+    for module_name in (
+        "screen",
+        "screen_locked_layout",
+        "screen_stateful",
+        "screen_history_diagnostics",
+    ):
+        module = importlib.import_module(f"persona_training_lab.ui.agents.{module_name}")
+        assert module.AgentsScreen is FinalAgentsScreen
 
 
 def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() -> None:
