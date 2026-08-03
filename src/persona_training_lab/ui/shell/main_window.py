@@ -15,7 +15,7 @@ from persona_training_lab.ui.panels.inspector_panel import InspectorPanel
 from persona_training_lab.ui.panels.issues_panel import IssuesPanel
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
 from persona_training_lab.ui.profiles.screen import ProfilesScreen
-from persona_training_lab.ui.shell.sidebar import Sidebar
+from persona_training_lab.ui.shell.app_sidebar import Sidebar
 from persona_training_lab.ui.shell.status_bar import AppStatusBar
 from persona_training_lab.ui.shell.workspace import WorkspaceStack
 from persona_training_lab.ui.style.screen import StyleScreen
