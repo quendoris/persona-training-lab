@@ -47,9 +47,13 @@ class AgentsScreen(_DiagnosticsCompatAgentsScreen):
         # The application-level filter sees WindowDeactivate once for many child
         # widgets when an internal dialog opens. That is not a loss of application
         # focus and must not reset the Ctrl/Shift/Z gesture hundreds of times.
-        if event.type() == self._INTERNAL_WINDOW_DEACTIVATION:
+        if self._is_internal_window_deactivation(event.type()):
             return False
         return super().eventFilter(watched, event)
+
+    @classmethod
+    def _is_internal_window_deactivation(cls, event_type: QEvent.Type) -> bool:
+        return event_type == cls._INTERNAL_WINDOW_DEACTIVATION
 
     def _reset_history_gesture(self) -> None:
         state = getattr(self, "_history_keys", None)
