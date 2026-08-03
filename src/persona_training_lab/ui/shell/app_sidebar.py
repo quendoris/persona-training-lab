@@ -5,12 +5,18 @@ from PySide6.QtWidgets import QFrame, QVBoxLayout
 from persona_training_lab.ui.shell.sidebar import NavButton, Sidebar as _BaseSidebar
 
 
+APPLICATION_NAV_ITEMS: tuple[tuple[str, str, str], ...] = (
+    ("keybindings", "КЛ", "Назначения клавиш"),
+)
+
+
 class Sidebar(_BaseSidebar):
     """Application navigation additions layered on the stable base sidebar."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.add_navigation_item("keybindings", "КЛ", "Назначения клавиш")
+        for screen_id, icon_text, title in APPLICATION_NAV_ITEMS:
+            self.add_navigation_item(screen_id, icon_text, title)
         self._sync_accent_from_app()
 
     def add_navigation_item(self, screen_id: str, icon_text: str, title: str) -> NavButton:
