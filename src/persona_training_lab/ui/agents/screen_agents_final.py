@@ -17,6 +17,7 @@ from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _Stat
 from persona_training_lab.ui.agents.screen_stateful_fixed import (
     AgentsScreen as _StatefulFixedAgentsScreen,
 )
+from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
 
 class AgentsScreen(_HistoryKeyGuardAgentsScreen):
@@ -27,8 +28,8 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
     _DETAILS_MIN_WIDTH = 390
     _DETAILS_MAX_WIDTH = 560
 
-    def __init__(self, view_model) -> None:
-        super().__init__(view_model)
+    def __init__(self, view_model, key_binding_manager: KeyBindingManager | None = None) -> None:
+        super().__init__(view_model, key_binding_manager)
         self.setMinimumSize(0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
