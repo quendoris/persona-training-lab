@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QEvent
+
 from persona_training_lab.ui.agents import AgentsScreen as PublicAgentsScreen
 from persona_training_lab.ui.agents.screen_agents_final import AgentsScreen as FinalAgentsScreen
 
@@ -18,3 +20,7 @@ def test_history_debug_log_has_stable_local_path() -> None:
     assert isinstance(path, Path)
     assert path.name == "history_input_debug.log"
     assert path.parent.name == ".persona_training_lab"
+
+
+def test_internal_window_deactivation_is_not_an_application_history_reset() -> None:
+    assert FinalAgentsScreen._INTERNAL_WINDOW_DEACTIVATION == QEvent.Type.WindowDeactivate
