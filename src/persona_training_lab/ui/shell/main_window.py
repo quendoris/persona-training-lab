@@ -8,6 +8,8 @@ from persona_training_lab.ui.agents.screen import AgentsScreen
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.docs.screen import DocsScreen
+from persona_training_lab.ui.keybindings.manager import KeyBindingManager
+from persona_training_lab.ui.keybindings.screen import KeyBindingsScreen
 from persona_training_lab.ui.panels.activity_panel import ActivityPanel
 from persona_training_lab.ui.panels.inspector_panel import InspectorPanel
 from persona_training_lab.ui.panels.issues_panel import IssuesPanel
@@ -105,10 +107,11 @@ class MainWindow(QMainWindow):
             on_apply_theme=self._apply_style,
             active_workflows=["Training · trn_014", "Evaluation · evr_004"],
         )
+        self._key_binding_manager = KeyBindingManager(self)
         self._workspace = WorkspaceStack()
         self._workspace.register("dashboard", DashboardScreen(dashboard_vm))
         self._workspace.register("profiles", ProfilesScreen(profiles_vm))
-        self._workspace.register("agents", AgentsScreen(agents_vm))
+        self._workspace.register("agents", AgentsScreen(agents_vm, self._key_binding_manager))
         self._workspace.register("datasets", DatasetsScreen(datasets_vm))
         self._workspace.register("training", TrainingScreen(training_vm))
         self._workspace.register("snapshots", SnapshotsScreen(snapshots_vm))
@@ -117,6 +120,7 @@ class MainWindow(QMainWindow):
         self._workspace.register("tests", tests_screen)
         self._workspace.register("analysis", AnalysisScreen(analysis_vm))
         self._workspace.register("style", StyleScreen(style_vm, self._apply_style))
+        self._workspace.register("keybindings", KeyBindingsScreen(self._key_binding_manager))
         self._workspace.register("docs", DocsScreen(docs_vm))
 
         body.addWidget(self._sidebar)
