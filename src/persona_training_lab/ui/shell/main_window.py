@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
             on_apply_theme=self._apply_style,
             active_workflows=["Training · trn_014", "Evaluation · evr_004"],
         )
-        self._key_binding_manager = KeyBindingManager(self)
+        self._key_binding_manager = KeyBindingManager(parent=self)
         self._workspace = WorkspaceStack()
         self._workspace.register("dashboard", DashboardScreen(dashboard_vm))
         self._workspace.register("profiles", ProfilesScreen(profiles_vm))
