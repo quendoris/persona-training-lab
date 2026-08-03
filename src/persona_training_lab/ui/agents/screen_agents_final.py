@@ -33,6 +33,7 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         super().__init__(view_model, key_binding_manager)
         self.setMinimumSize(0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._key_binding_manager.bindings_changed.connect(self._refresh_key_binding_help)
 
     def _roles(self) -> QWidget:
         content = _StatefulAgentsScreen._roles(self)
@@ -83,6 +84,11 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             else:
                 actions.append(action)
         return AgentDetailView(detail.title, detail.body, detail.checks, tuple(actions))
+
+    def _refresh_key_binding_help(self) -> None:
+        node_id = getattr(self, "_selected_node_id", "")
+        if node_id:
+            self._select_node(node_id)
 
     def _render_detail(self, detail) -> None:
         super()._render_detail(detail)
