@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QFrame,
@@ -30,6 +30,7 @@ class AgentsScreen(_DiagnosticsCompatAgentsScreen):
     _DETAILS_MIN_WIDTH = 390
     _DETAILS_MAX_WIDTH = 560
     _DEBUG_AUTOSAVE_DELAY_MS = 120
+    _INTERNAL_WINDOW_DEACTIVATION = QEvent.Type.WindowDeactivate
 
     def __init__(self, view_model) -> None:
         super().__init__(view_model)
@@ -41,6 +42,36 @@ class AgentsScreen(_DiagnosticsCompatAgentsScreen):
         self._history_debug_autosave.setInterval(self._DEBUG_AUTOSAVE_DELAY_MS)
         self._history_debug_autosave.timeout.connect(self._autosave_history_debug)
         self._autosave_history_debug()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        # The application-level filter sees WindowDeactivate once for many child
+        # widgets when an internal dialog opens. That is not a loss of application
+        # focus and must not reset the Ctrl/Shift/Z gesture hundreds of times.
+        if event.type() == self._INTERNAL_WINDOW_DEACTIVATION:
+            return False
+        return super().eventFilter(watched, event)
+
+    def _reset_history_gesture(self) -> None:
+        state = getattr(self, "_history_keys", None)
+        delay = getattr(self, "_undo_repeat_delay", None)
+        repeat = getattr(self, "_undo_repeat", None)
+        has_activity = bool(
+            state is not None
+            and (
+                state.control_down
+                or state.shift_down
+                or state.shift_latched
+                or state.layout_shift_latched
+                or state.z_down
+                or state.mode is not None
+                or state.strict_undo_requested
+            )
+        )
+        has_activity = has_activity or bool(delay is not None and delay.isActive())
+        has_activity = has_activity or bool(repeat is not None and repeat.isActive())
+        if not has_activity:
+            return
+        super()._reset_history_gesture()
 
     def _roles(self) -> QWidget:
         # Bypass the temporary compatibility wrapper that allowed the column to
