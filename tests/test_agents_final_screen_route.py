@@ -53,3 +53,25 @@ def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() ->
     assert state.strict_undo_requested is False
     assert calls == {"stop": 1, "block": 1}
     assert state.press("z") == (HISTORY_TOGGLE,)
+
+
+def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
+    state = HistoryKeyState()
+    state.press("control")
+    state.press("shift")
+
+    calls = {"block": 0, "dispatch": []}
+    screen = SimpleNamespace(
+        _history_keys=state,
+        _history_keys_are_active=lambda: True,
+        _queried_modifiers=lambda: (False, False),
+        _block_graph_flip=lambda: calls.__setitem__("block", calls["block"] + 1),
+        _dispatch_history_actions=lambda actions: calls["dispatch"].append(tuple(actions)),
+    )
+
+    HistoryKeyGuardAgentsScreen._poll_physical_modifiers(screen)
+
+    assert state.control_down is True
+    assert state.shift_down is True
+    assert state.strict_undo_requested is True
+    assert calls == {"block": 0, "dispatch": []}
