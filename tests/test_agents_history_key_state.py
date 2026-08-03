@@ -44,33 +44,45 @@ def test_releasing_z_does_not_clear_shift_for_next_strict_undo() -> None:
     assert state.undo_repeat_active is True
 
 
-def test_false_shift_release_cannot_downgrade_current_ctrl_gesture() -> None:
+def test_physical_shift_release_restores_toggle_while_control_stays_down() -> None:
     state = HistoryKeyState()
     state.press("control")
-    state.set_physical_shift(True)
+    state.press("shift")
+    assert state.press("z") == (HISTORY_UNDO,)
 
-    # Qt may report Shift=false after Ctrl+Shift switches the keyboard layout.
-    assert state.set_physical_shift(False) == ()
+    state.release("z")
     assert state.strict_undo_requested is True
 
-    assert state.press("z") == (HISTORY_UNDO,)
-    state.release("z")
-    assert state.press("z") == (HISTORY_UNDO,)
-
-    # Ctrl release is the reliable boundary that clears the sticky strict mode.
-    state.release("z")
-    state.release("control")
+    state.release("shift")
+    assert state.control_down is True
+    assert state.shift_down is False
+    assert state.shift_latched is False
     assert state.strict_undo_requested is False
 
+    assert state.press("z") == (HISTORY_TOGGLE,)
 
-def test_layout_change_latch_survives_consumed_shift_event_until_control_release() -> None:
+
+def test_physical_shift_release_clears_layout_fallback_latch() -> None:
     state = HistoryKeyState()
     state.press("control")
 
     assert state.latch_layout_shift() == ()
     assert state.layout_shift_latched is True
-    assert state.set_physical_shift(False) == ()
     assert state.strict_undo_requested is True
+
+    state.release("shift")
+    assert state.layout_shift_latched is False
+    assert state.shift_latched is False
+    assert state.strict_undo_requested is False
+    assert state.press("z") == (HISTORY_TOGGLE,)
+
+
+def test_layout_change_latch_survives_until_control_release_without_physical_release() -> None:
+    state = HistoryKeyState()
+    state.press("control")
+
+    assert state.latch_layout_shift() == ()
+    assert state.layout_shift_latched is True
     assert state.press("z") == (HISTORY_UNDO,)
 
     state.release("z")
