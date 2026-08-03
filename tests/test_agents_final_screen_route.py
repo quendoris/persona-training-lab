@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from PySide6.QtCore import QEvent
 
 from persona_training_lab.ui.agents import AgentsScreen as PublicAgentsScreen
+from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.screen_agents_final import AgentsScreen as FinalAgentsScreen
 
 
@@ -25,3 +27,23 @@ def test_history_debug_log_has_stable_local_path() -> None:
 def test_internal_window_deactivation_is_not_an_application_history_reset() -> None:
     assert FinalAgentsScreen._is_internal_window_deactivation(QEvent.Type.WindowDeactivate)
     assert not FinalAgentsScreen._is_internal_window_deactivation(QEvent.Type.ApplicationDeactivate)
+
+
+def test_final_screen_accepts_physical_shift_release_before_next_ctrl_z() -> None:
+    state = HistoryKeyState()
+    state.press("control")
+    state.press("shift")
+    assert state.press("z") == (HISTORY_UNDO,)
+    state.release("z")
+
+    calls = {"stop": 0, "block": 0}
+    screen = SimpleNamespace(
+        _history_keys=state,
+        _stop_undo_repeat=lambda: calls.__setitem__("stop", calls["stop"] + 1),
+        _block_graph_flip=lambda: calls.__setitem__("block", calls["block"] + 1),
+    )
+
+    assert FinalAgentsScreen._handle_history_key_release(screen, "shift") is True
+    assert state.strict_undo_requested is False
+    assert calls == {"stop": 1, "block": 1}
+    assert state.press("z") == (HISTORY_TOGGLE,)
