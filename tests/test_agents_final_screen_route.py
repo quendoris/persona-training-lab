@@ -68,8 +68,10 @@ def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
     calls = {"block": 0, "dispatch": []}
     screen = SimpleNamespace(
         _history_keys=state,
+        _guarded_history_bindings={"history_toggle", "undo_only"},
         _history_keys_are_active=lambda: True,
         _queried_modifiers=lambda: (False, False),
+        _guarded_actions=lambda actions: tuple(actions),
         _block_graph_flip=lambda: calls.__setitem__("block", calls["block"] + 1),
         _dispatch_history_actions=lambda actions: calls["dispatch"].append(tuple(actions)),
     )
