@@ -23,9 +23,9 @@ def test_qt_numeric_value_accepts_key_and_event_enums() -> None:
     assert AgentsScreen._event_type_name(QEvent.Type.KeyPress) == "KeyPress"
 
 
-def test_legacy_history_diagnostics_import_routes_to_compatible_screen() -> None:
+def test_legacy_history_diagnostics_import_routes_to_final_screen() -> None:
     legacy_module = importlib.import_module("persona_training_lab.ui.agents.screen_history_diagnostics")
-    compatible_module = importlib.import_module("persona_training_lab.ui.agents.screen_history_diagnostics_compat")
+    final_module = importlib.import_module("persona_training_lab.ui.agents.screen_agents_final")
 
-    assert legacy_module is compatible_module
+    assert legacy_module is final_module
     assert legacy_module.AgentsScreen is agents_package.AgentsScreen
