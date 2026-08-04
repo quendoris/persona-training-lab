@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from persona_training_lab.application.runtime.operations import (
-    RuntimeOperationCoordinator,
+from persona_training_lab.application.lineage.runtime_safety import (
+    LineageRuntimeSafety,
 )
 from persona_training_lab.ui.agents.screen import AgentsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
@@ -113,12 +113,12 @@ class MainWindow(QMainWindow):
         tests_vm: TestsViewModel,
         analysis_vm: AnalysisViewModel,
         telemetry_vm: TelemetryViewModel,
-        runtime_operations: RuntimeOperationCoordinator | None = None,
+        lineage_runtime_safety: LineageRuntimeSafety | None = None,
     ) -> None:
         super().__init__()
         self._shell_vm = shell_vm
         self._style_vm = style_vm
-        self._runtime_operations = runtime_operations
+        self._lineage_runtime_safety = lineage_runtime_safety
         self._density = screen_density()
         self.setWindowTitle(shell_vm.title)
         self.resize(
@@ -167,7 +167,7 @@ class MainWindow(QMainWindow):
             AgentsScreen(
                 agents_vm,
                 self._key_binding_manager,
-                runtime_operations,
+                lineage_runtime_safety,
             ),
         )
         self._workspace.register(
