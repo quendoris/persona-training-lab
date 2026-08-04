@@ -41,6 +41,25 @@ def test_keyboard_conflict_stays_draft_until_resolved(tmp_path) -> None:
     assert payload["bindings"]["history_toggle"] == "Ctrl+Y"
 
 
+def test_keyboard_swap_commits_without_intermediate_active_conflict(
+    tmp_path,
+) -> None:
+    path = tmp_path / "key_bindings.json"
+    manager = KeyBindingManager(storage_path=path)
+    draft = KeyBindingDraftSession(manager)
+
+    draft.set_sequence("delete_branch", "Ctrl+Z")
+    assert draft.has_conflicts is True
+    assert manager.sequence("delete_branch") == "Del"
+
+    result = draft.set_sequence("history_toggle", "Del")
+
+    assert result.accepted is True
+    assert draft.has_conflicts is False
+    assert manager.sequence("delete_branch") == "Ctrl+Z"
+    assert manager.sequence("history_toggle") == "Del"
+
+
 def test_mouse_conflict_uses_draft_and_commits_atomically(tmp_path) -> None:
     path = tmp_path / "key_bindings.json"
     manager = KeyBindingManager(storage_path=path)
