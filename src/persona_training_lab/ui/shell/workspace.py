@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QScrollArea, QStackedWidget, QWidget
 
@@ -38,7 +36,7 @@ class WorkspaceStack(QScrollArea):
         if current is None:
             return True
         guard = getattr(current, "request_leave_workspace", None)
-        if not isinstance(guard, Callable):
+        if not callable(guard):
             return True
         return bool(guard())
 
