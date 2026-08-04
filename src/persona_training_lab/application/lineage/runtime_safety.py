@@ -33,7 +33,8 @@ class LineageRuntimeSafety:
         claims: Iterable[ResourceClaim],
     ) -> tuple[ResourceClaim, ...]:
         normalized = self._normalise_read_links(claims)
-        self.repository.replace_links(node_id, normalized)
+        if self.repository.list_links(node_id) != normalized:
+            self.repository.replace_links(node_id, normalized)
         return normalized
 
     def inherit_node(
@@ -46,7 +47,8 @@ class LineageRuntimeSafety:
         inherited = self.repository.list_links(parent_node_id)
         if not inherited:
             inherited = self._normalise_read_links(fallback_claims)
-        self.repository.replace_links(child_node_id, inherited)
+        if self.repository.list_links(child_node_id) != inherited:
+            self.repository.replace_links(child_node_id, inherited)
         return inherited
 
     def links_for_node(self, node_id: str) -> tuple[ResourceClaim, ...]:
