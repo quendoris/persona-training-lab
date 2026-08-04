@@ -48,6 +48,7 @@ def main() -> int:
         analysis_vm=container.analysis_vm,
         telemetry_vm=container.telemetry_vm,
         lineage_runtime_safety=container.lineage_runtime_safety,
+        operations_center=container.operations_center,
     )
     window.setProperty("ptl_density_name", density.name)
     window.show()
@@ -110,7 +111,6 @@ def _install_qt_message_boundary(error_reporter):
 
     def handle_qt_message(message_type, context, message) -> None:
         level = levels.get(message_type, "WARNING")
-        # Debug paint/layout chatter is intentionally ignored in normal runs.
         if level == "DEBUG":
             return
         error_reporter.report_message(
