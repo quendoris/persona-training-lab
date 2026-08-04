@@ -137,6 +137,11 @@ class Sidebar(_BaseSidebar):
         brand_layout.setContentsMargins(14, 12, 14, 12)
         brand_layout.setSpacing(0)
 
+        # The compact reparenting changes sibling stacking. Keep the control and
+        # its accent outline above transparent identity/title layers.
+        identity.raise_()
+        toggle.raise_()
+
     def _find_workflow_layout(self) -> QVBoxLayout | None:
         for label in self.findChildren(QLabel):
             if label.text() != "Активные процессы":
