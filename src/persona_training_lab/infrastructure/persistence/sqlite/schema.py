@@ -209,6 +209,7 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
     _ensure_dataset_columns(connection)
     _ensure_training_run_columns(connection)
     _ensure_training_log_table(connection)
+    _ensure_lineage_resource_links_table(connection)
     connection.commit()
 
 
@@ -227,7 +228,9 @@ def _ensure_profile_columns(connection: sqlite3.Connection) -> None:
     ]
     for name, definition in additions:
         if name not in columns:
-            connection.execute(f"ALTER TABLE persona_profiles ADD COLUMN {name} {definition}")
+            connection.execute(
+                f"ALTER TABLE persona_profiles ADD COLUMN {name} {definition}"
+            )
 
 
 def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
@@ -245,7 +248,9 @@ def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
     ]
     for name, definition in additions:
         if name not in columns:
-            connection.execute(f"ALTER TABLE datasets ADD COLUMN {name} {definition}")
+            connection.execute(
+                f"ALTER TABLE datasets ADD COLUMN {name} {definition}"
+            )
 
 
 def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
@@ -262,7 +267,9 @@ def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
     ]
     for name, definition in additions:
         if name not in columns:
-            connection.execute(f"ALTER TABLE training_runs ADD COLUMN {name} {definition}")
+            connection.execute(
+                f"ALTER TABLE training_runs ADD COLUMN {name} {definition}"
+            )
 
 
 def _ensure_training_log_table(connection: sqlite3.Connection) -> None:
@@ -275,5 +282,24 @@ def _ensure_training_log_table(connection: sqlite3.Connection) -> None:
             message TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
+        """
+    )
+
+
+def _ensure_lineage_resource_links_table(
+    connection: sqlite3.Connection,
+) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS lineage_resource_links (
+            node_id TEXT NOT NULL,
+            resource_kind TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            access_mode TEXT NOT NULL CHECK(access_mode IN ('read', 'write')),
+            PRIMARY KEY (node_id, resource_kind, resource_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_lineage_resource_links_lookup
+        ON lineage_resource_links(resource_kind, resource_id, node_id);
         """
     )
