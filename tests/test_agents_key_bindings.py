@@ -8,13 +8,28 @@ from persona_training_lab.ui.agents.key_bindings import (
 )
 
 
-def test_agent_graph_key_bindings_have_unique_ids_and_sequences() -> None:
+def test_keyboard_bindings_have_unique_ids_and_sequences() -> None:
     ids = [binding.binding_id for binding in AGENT_GRAPH_KEY_BINDINGS]
     sequences = [binding.sequence for binding in AGENT_GRAPH_KEY_BINDINGS]
 
     assert len(ids) == len(set(ids))
     assert len(sequences) == len(set(sequences))
-    assert set(agent_graph_key_bindings_by_id()) == set(ids)
+
+
+def test_agent_graph_registry_only_exposes_graph_actions() -> None:
+    all_ids = {binding.binding_id for binding in AGENT_GRAPH_KEY_BINDINGS}
+    graph_bindings = agent_graph_key_bindings_by_id()
+
+    assert set(graph_bindings) == {
+        "delete_branch",
+        "history_toggle",
+        "undo_only",
+    }
+    assert set(graph_bindings).issubset(all_ids)
+    assert all(
+        binding.category == "История и ветки"
+        for binding in graph_bindings.values()
+    )
 
 
 def test_agent_graph_mouse_bindings_have_unique_ids() -> None:
