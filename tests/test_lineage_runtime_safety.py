@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
 from persona_training_lab.application.runtime.operations import (
+    OperationConflictError,
     ResourceClaim,
     RuntimeOperationCoordinator,
 )
@@ -86,6 +89,37 @@ def test_active_portrait_blocks_deleting_linked_branch() -> None:
     assert "personality_test" in safety.blocker_text(blockers)
     lease.succeed()
     assert safety.deletion_blockers(("branch_001",)) == ()
+
+
+def test_deletion_lease_closes_check_to_delete_race() -> None:
+    _connection, operations, safety = _services()
+    safety.bind_node(
+        "branch_001",
+        (ResourceClaim("model_version", "mdl_001", "read"),),
+    )
+    reader = operations.begin(
+        operation_kind="personality_test",
+        subject_kind="experiment",
+        subject_id="evr_001",
+        claims=(ResourceClaim("model_version", "mdl_001", "read"),),
+    )
+
+    with pytest.raises(OperationConflictError):
+        safety.begin_deletion(("branch_001",), subject_id="branch_001")
+
+    reader.succeed()
+    deletion = safety.begin_deletion(
+        ("branch_001",),
+        subject_id="branch_001",
+    )
+    with pytest.raises(OperationConflictError):
+        operations.begin(
+            operation_kind="personality_test",
+            subject_kind="experiment",
+            subject_id="evr_race",
+            claims=(ResourceClaim("model_version", "mdl_001", "read"),),
+        )
+    deletion.succeed()
 
 
 def test_forgetting_subtree_links_is_atomic() -> None:
