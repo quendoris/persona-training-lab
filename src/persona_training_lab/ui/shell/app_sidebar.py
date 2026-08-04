@@ -55,7 +55,11 @@ class Sidebar(_BaseSidebar):
         button = self._buttons.get(screen_id)
         if button is None:
             return
-        title = button.text().split("  ·  Alt+")[0]
+        title = str(
+            button.property("navigation_base_title")
+            or button.text().split("  ·  ", 1)[0]
+        )
+        button.setProperty("navigation_base_title", title)
         button.setText(f"{title}  ·  {shortcut}")
         button.setToolTip(f"Открыть вкладку · {shortcut}")
 
