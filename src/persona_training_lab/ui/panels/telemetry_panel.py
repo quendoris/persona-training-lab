@@ -145,6 +145,7 @@ class TelemetryPanel(QFrame):
         self._refresh_pending = False
         self._metrics_widgets: list[_VerticalMetric | _HorizontalMetric] = []
         self._metrics_layout: QVBoxLayout | QHBoxLayout | None = None
+        self._metrics_viewport: QWidget | None = None
         self._auto_refresh_timer = QTimer(self)
         self._auto_refresh_timer.setInterval(30_000)
         self._auto_refresh_timer.timeout.connect(self._on_auto_refresh)
@@ -180,6 +181,9 @@ class TelemetryPanel(QFrame):
         self._content = QWidget()
         self._content.setObjectName("TelemetryMetricsHost")
         self._content.setProperty("transparentBg", True)
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(0, 0, 0, 0)
+        self._content_layout.setSpacing(8)
         body_row.addWidget(self._content, 0)
 
         processes_shell = QFrame()
@@ -332,46 +336,40 @@ class TelemetryPanel(QFrame):
 
     def _rebuild(self, mode: str) -> None:
         self._mode = mode
-        old_layout = self._content.layout()
-        if old_layout is not None:
-            while old_layout.count():
-                item = old_layout.takeAt(0)
-                widget = item.widget()
-                if widget is not None:
-                    widget.deleteLater()
-            old_layout.deleteLater()
+
+        if self._metrics_viewport is not None:
+            self._content_layout.removeWidget(self._metrics_viewport)
+            self._metrics_viewport.hide()
+            self._metrics_viewport.deleteLater()
+            self._metrics_viewport = None
+
+        self._metrics_layout = None
+        self._metrics_widgets = []
+
+        viewport = QWidget()
+        viewport.setObjectName("TelemetryMetricsViewport")
+        viewport.setProperty("transparentBg", True)
 
         if mode == "side":
-            outer = QVBoxLayout(self._content)
-            outer.setContentsMargins(0, 0, 0, 0)
-            outer.setSpacing(8)
-            center = QWidget()
-            center.setObjectName("TelemetryMetricsViewport")
-            center.setProperty("transparentBg", True)
-            layout = QVBoxLayout(center)
+            layout = QVBoxLayout(viewport)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(12)
             self._metrics_layout = layout
-            self._metrics_widgets = []
             for item in self._items:
                 metric = _HorizontalMetric(item)
                 self._metrics_widgets.append(metric)
                 layout.addWidget(metric)
-            outer.addWidget(center, 0, Qt.AlignTop)
+            alignment = Qt.AlignTop
         else:
-            outer = QVBoxLayout(self._content)
-            outer.setContentsMargins(0, 0, 0, 0)
-            outer.setSpacing(8)
-            row = QWidget()
-            row.setObjectName("TelemetryMetricsViewport")
-            row.setProperty("transparentBg", True)
-            layout = QHBoxLayout(row)
+            layout = QHBoxLayout(viewport)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(10)
             self._metrics_layout = layout
-            self._metrics_widgets = []
             for item in self._items:
                 metric = _VerticalMetric(item)
                 self._metrics_widgets.append(metric)
                 layout.addWidget(metric)
-            outer.addWidget(row, 0, Qt.AlignLeft | Qt.AlignTop)
+            alignment = Qt.AlignLeft | Qt.AlignTop
+
+        self._metrics_viewport = viewport
+        self._content_layout.addWidget(viewport, 0, alignment)
