@@ -1,21 +1,31 @@
 from __future__ import annotations
 
 import sys
-
-from PySide6.QtWidgets import QApplication
+import threading
 
 from persona_training_lab.bootstrap.wiring import build_container
-from persona_training_lab.ui.density import apply_density, apply_scaled_styles
+from persona_training_lab.ui.density import (
+    apply_density,
+    apply_scaled_styles,
+)
+from persona_training_lab.ui.safe_application import SafeApplication
 from persona_training_lab.ui.shell.main_window import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
+    app = SafeApplication(sys.argv)
     container = build_container()
+    app.set_error_reporter(container.error_reporter)
+    _install_exception_boundaries(container.error_reporter)
+
     prefs = container.style_vm.load()
     density = apply_density(app, prefs.get("ui_scale"))
-    apply_theme(app, prefs.get("theme"), prefs.get("accent_palette"))
+    apply_theme(
+        app,
+        prefs.get("theme"),
+        prefs.get("accent_palette"),
+    )
     apply_scaled_styles(app, density.scale, immediate=True)
 
     window = MainWindow(
@@ -31,10 +41,50 @@ def main() -> int:
         tests_vm=container.tests_vm,
         analysis_vm=container.analysis_vm,
         telemetry_vm=container.telemetry_vm,
+        runtime_operations=container.runtime_operations,
     )
     window.setProperty("ptl_density_name", density.name)
     window.show()
     return app.exec()
+
+
+def _install_exception_boundaries(error_reporter) -> None:
+    def handle_exception(exc_type, exc, traceback_object) -> None:
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc, traceback_object)
+            return
+        exc.__traceback__ = traceback_object
+        error_reporter.capture(
+            exc,
+            component="python.main_thread",
+            user_message=(
+                "Фоновая операция завершилась с ошибкой, но приложение "
+                "осталось доступно."
+            ),
+            entity_kind="python",
+            entity_id="main_thread",
+        )
+
+    def handle_thread_exception(args: threading.ExceptHookArgs) -> None:
+        if args.exc_type is SystemExit:
+            return
+        error = args.exc_value or RuntimeError(
+            f"Thread failed with {args.exc_type.__name__}"
+        )
+        error.__traceback__ = args.exc_traceback
+        error_reporter.capture(
+            error,
+            component="python.worker_thread",
+            user_message=(
+                "Фоновая задача остановлена безопасно; интерфейс продолжает "
+                "работать."
+            ),
+            entity_kind="thread",
+            entity_id=args.thread.name if args.thread is not None else "unknown",
+        )
+
+    sys.excepthook = handle_exception
+    threading.excepthook = handle_thread_exception
 
 
 if __name__ == "__main__":
