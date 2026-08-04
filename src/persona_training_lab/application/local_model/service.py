@@ -17,13 +17,45 @@ class LocalModelService:
     model_path: str = "models/qwen3.5-0.8b"
 
     def probe_model_files(self) -> ModelProbeResult:
-        return self.probe_provider.check_model_files(self.model_path)
+        return self.probe_model_files_at(self.model_path)
+
+    def probe_model_files_at(self, model_path: str) -> ModelProbeResult:
+        return self.probe_provider.check_model_files(model_path)
 
     def probe_inference_backend(self) -> InferenceProbeResult:
-        return self.probe_provider.check_inference_backend(self.model_path)
+        return self.probe_inference_backend_at(self.model_path)
 
-    def generate_smoke(self, prompt: str, instruction_prompt: str | None = None) -> LocalInferenceResult:
-        model_probe = self.probe_model_files()
+    def probe_inference_backend_at(
+        self,
+        model_path: str,
+    ) -> InferenceProbeResult:
+        return self.probe_provider.check_inference_backend(model_path)
+
+    def generate_smoke(
+        self,
+        prompt: str,
+        instruction_prompt: str | None = None,
+    ) -> LocalInferenceResult:
+        return self.generate_at(
+            self.model_path,
+            prompt,
+            instruction_prompt=instruction_prompt,
+        )
+
+    def generate_at(
+        self,
+        model_path: str,
+        prompt: str,
+        instruction_prompt: str | None = None,
+    ) -> LocalInferenceResult:
+        model_probe = self.probe_model_files_at(model_path)
         if model_probe.status != "Модель найдена":
-            return LocalInferenceResult(status="Модель не загружена", message=model_probe.details)
-        return self.probe_provider.generate(self.model_path, prompt, instruction_prompt=instruction_prompt)
+            return LocalInferenceResult(
+                status="Модель не загружена",
+                message=model_probe.details,
+            )
+        return self.probe_provider.generate(
+            model_path,
+            prompt,
+            instruction_prompt=instruction_prompt,
+        )
