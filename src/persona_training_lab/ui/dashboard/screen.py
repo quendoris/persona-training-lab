@@ -41,7 +41,9 @@ class _NavigationCard(QFrame):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
-            activate = self._pressed and self.rect().contains(event.position().toPoint())
+            activate = self._pressed and self.rect().contains(
+                event.position().toPoint()
+            )
             self._pressed = False
             if activate:
                 self.clicked.emit()
@@ -50,7 +52,11 @@ class _NavigationCard(QFrame):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        if event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}:
+        if event.key() in {
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        }:
             self.clicked.emit()
             event.accept()
             return
@@ -198,7 +204,10 @@ class DashboardScreen(QWidget):
             icon.setObjectName("ActionIcon")
             icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
             icon.setFixedSize(34, 34)
-            icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            icon.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+                True,
+            )
             top.addWidget(icon, 0, Qt.AlignmentFlag.AlignLeft)
             top.addStretch(1)
             action_layout.addLayout(top)
@@ -237,14 +246,23 @@ class DashboardScreen(QWidget):
             texts = QVBoxLayout()
             title = QLabel(title_text)
             title.setWordWrap(True)
-            title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            title.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+                True,
+            )
             note = make_muted_label(note_text)
-            note.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            note.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+                True,
+            )
             texts.addWidget(title)
             texts.addWidget(note)
             row_layout.addLayout(texts, 1)
             state = self._state_label(note_text)
-            state.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            state.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+                True,
+            )
             row_layout.addWidget(state, 0, Qt.AlignmentFlag.AlignTop)
             self._activity_card.add_widget(row)
 
@@ -282,7 +300,9 @@ class DashboardScreen(QWidget):
         warning_layout = QVBoxLayout(warning)
         warning_layout.setContentsMargins(14, 12, 14, 12)
         warning_layout.setSpacing(8)
-        warning_title = QLabel("Следующий шаг · нажмите, чтобы продолжить")
+        warning_title = QLabel(
+            "Следующий шаг · нажмите, чтобы продолжить"
+        )
         warning_title.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents,
             True,
@@ -336,7 +356,10 @@ class DashboardScreen(QWidget):
             pill_layout.addWidget(chevron)
             label = QLabel(item)
             label.setWordWrap(True)
-            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            label.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+                True,
+            )
             pill_layout.addWidget(label, 1)
             self._lineage_card.add_widget(pill)
 
@@ -356,10 +379,10 @@ class DashboardScreen(QWidget):
         lowered = step.casefold()
         if "датасет" in lowered:
             return "datasets", "Добав"
-        if "training" in lowered or "обучен" in lowered or "artifact" in lowered:
-            return "training", "Запуст"
         if "сним" in lowered or "верс" in lowered:
             return "snapshots", ""
+        if "training" in lowered or "обучен" in lowered or "artifact" in lowered:
+            return "training", "Запуст"
         if "портрет" in lowered or "score" in lowered:
             return "tests", "Собрать портрет"
         if "анализ" in lowered or "delta" in lowered:
@@ -400,7 +423,11 @@ class DashboardScreen(QWidget):
         text = "есть"
         warning = False
         lowered = note_text.lower()
-        if "ошиб" in lowered or "invalid" in lowered or "внимание" in lowered:
+        if (
+            "ошиб" in lowered
+            or "invalid" in lowered
+            or "внимание" in lowered
+        ):
             text = "внимание"
             warning = True
         elif "нет" in lowered or "—" in note_text:
