@@ -84,6 +84,28 @@ class SQLiteRuntimeOperationsRepository:
             if (operation := self._to_operation(row)) is not None
         ]
 
+    def list_recent_operations(self, limit: int = 50) -> list[RuntimeOperation]:
+        safe_limit = max(1, min(int(limit), 500))
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT id, operation_kind, subject_kind, subject_id, state,
+                       correlation_id, owner_pid, started_at, heartbeat_at,
+                       finished_at, error_message
+                FROM runtime_operations
+                ORDER BY COALESCE(NULLIF(finished_at, ''), heartbeat_at, started_at)
+                         DESC,
+                         id DESC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        return [
+            operation
+            for row in rows
+            if (operation := self._to_operation(row)) is not None
+        ]
+
     def list_claims(
         self,
         operation_id: str,
