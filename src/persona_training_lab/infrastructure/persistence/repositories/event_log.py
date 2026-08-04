@@ -36,3 +36,38 @@ class SQLiteEventLogRepository(EventLogPort):
                     record.occurred_at,
                 ),
             )
+
+    def list_recent(self, limit: int = 50) -> list[EventRecord]:
+        safe_limit = max(1, min(int(limit), 500))
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT id, event_type, entity_kind, entity_id,
+                       correlation_id, causation_id, payload_json, occurred_at
+                FROM event_log
+                ORDER BY occurred_at DESC, id DESC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        return [
+            EventRecord(
+                id=str(row["id"]),
+                event_type=str(row["event_type"]),
+                entity_kind=str(row["entity_kind"]),
+                entity_id=str(row["entity_id"]),
+                correlation_id=(
+                    str(row["correlation_id"])
+                    if row["correlation_id"] is not None
+                    else None
+                ),
+                causation_id=(
+                    str(row["causation_id"])
+                    if row["causation_id"] is not None
+                    else None
+                ),
+                payload_json=str(row["payload_json"]),
+                occurred_at=str(row["occurred_at"]),
+            )
+            for row in rows
+        ]
