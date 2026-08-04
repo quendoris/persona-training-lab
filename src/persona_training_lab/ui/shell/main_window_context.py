@@ -1,10 +1,56 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGraphicsDropShadowEffect,
+    QPushButton,
+    QWidget,
+)
+
+from persona_training_lab.application.operations_center import OperationsCenterService
 from persona_training_lab.ui.shell.main_window import MainWindow as _MainWindow
 
 
+TAB_SHORTCUTS: tuple[tuple[str, str], ...] = (
+    ("dashboard", "Alt+H"),
+    ("profiles", "Alt+P"),
+    ("agents", "Alt+A"),
+    ("datasets", "Alt+D"),
+    ("training", "Alt+T"),
+    ("snapshots", "Alt+S"),
+    ("tests", "Alt+E"),
+    ("analysis", "Alt+L"),
+    ("style", "Alt+Y"),
+    ("docs", "Alt+O"),
+    ("keybindings", "Alt+K"),
+)
+
+
 class MainWindow(_MainWindow):
-    """Main window with explicit context transfer between workspaces."""
+    """Context navigation, live operations center and global tab shortcuts."""
+
+    def __init__(
+        self,
+        *args,
+        operations_center: OperationsCenterService | None = None,
+        **kwargs,
+    ) -> None:
+        self._operations_center = operations_center
+        self._tab_shortcuts: list[QShortcut] = []
+        self._guidance_generation = 0
+        super().__init__(*args, **kwargs)
+        self._connect_operations_center()
+        self._connect_dashboard_navigation()
+        self._install_tab_shortcuts()
+
+        self._operations_timer = QTimer(self)
+        self._operations_timer.setInterval(900)
+        self._operations_timer.timeout.connect(self._refresh_operations_chrome)
+        self._operations_timer.start()
+        self._refresh_operations_chrome()
 
     def _go_to_screen_with_context(
         self,
@@ -25,3 +71,134 @@ class MainWindow(_MainWindow):
                     if callable(refresher):
                         refresher()
         self._go_to_screen(screen)
+
+    def _connect_operations_center(self) -> None:
+        service = self._operations_center
+        if service is None:
+            return
+        for dock_name in ("Активность", "Проблемы"):
+            dock = self._docks.get(dock_name)
+            panel = dock.widget() if dock is not None else None
+            setter = getattr(panel, "set_service", None)
+            if callable(setter):
+                setter(service)
+            signal = getattr(panel, "navigate_requested", None)
+            if signal is not None:
+                signal.connect(self._navigate_with_guidance)
+
+    def _connect_dashboard_navigation(self) -> None:
+        dashboard = self._workspace.workspace("dashboard")
+        signal = getattr(dashboard, "navigate_requested", None)
+        if signal is not None:
+            signal.connect(self._navigate_with_guidance)
+
+    def _install_tab_shortcuts(self) -> None:
+        for screen, sequence in TAB_SHORTCUTS:
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(
+                lambda screen=screen: self._go_to_screen(screen)
+            )
+            self._tab_shortcuts.append(shortcut)
+            hint = getattr(self._sidebar, "set_navigation_shortcut_hint", None)
+            if callable(hint):
+                hint(screen, sequence)
+
+    def _navigate_with_guidance(self, screen: str, focus_text: str = "") -> None:
+        self._go_to_screen(screen)
+        if focus_text:
+            QTimer.singleShot(
+                0,
+                lambda: self._pulse_guidance_target(screen, focus_text),
+            )
+
+    def _pulse_guidance_target(self, screen: str, focus_text: str) -> None:
+        workspace = self._workspace.workspace(screen)
+        if workspace is None:
+            return
+        target = self._find_guidance_target(workspace, focus_text)
+        if target is None:
+            self._status.set_message(
+                f"Открыта вкладка {screen}: {focus_text}"
+            )
+            return
+
+        self._guidance_generation += 1
+        generation = self._guidance_generation
+        previous_effect = target.graphicsEffect()
+        effect = QGraphicsDropShadowEffect(target)
+        palette = target.palette()
+        accent = palette.color(QPalette.ColorRole.Highlight)
+        if not accent.isValid():
+            accent = QColor("#22D3EE")
+        effect.setColor(accent)
+        effect.setOffset(0, 0)
+        effect.setBlurRadius(26)
+        target.setGraphicsEffect(effect)
+        target.setFocus(Qt.FocusReason.ShortcutFocusReason)
+
+        def pulse(step: int = 0) -> None:
+            if generation != self._guidance_generation:
+                return
+            if step >= 8:
+                target.setGraphicsEffect(previous_effect)
+                return
+            effect.setBlurRadius(10 if step % 2 else 28)
+            QTimer.singleShot(180, lambda: pulse(step + 1))
+
+        pulse()
+
+    @staticmethod
+    def _find_guidance_target(
+        workspace: QWidget,
+        focus_text: str,
+    ) -> QWidget | None:
+        needle = " ".join(focus_text.casefold().split())
+        buttons = [
+            button
+            for button in workspace.findChildren(QPushButton)
+            if button.isVisible() and button.isEnabled()
+        ]
+        for button in buttons:
+            haystack = " ".join(
+                f"{button.text()} {button.toolTip()}".casefold().split()
+            )
+            if needle and needle in haystack:
+                return button
+        if buttons:
+            return buttons[0]
+        for frame in workspace.findChildren(QFrame):
+            if not frame.isVisible():
+                continue
+            if frame.objectName() in {"ActionCard", "WarningBlock"}:
+                return frame
+        return None
+
+    def _refresh_operations_chrome(self) -> None:
+        service = self._operations_center
+        if service is None:
+            return
+        active = service.active_items()
+        setter = getattr(self._sidebar, "set_active_workflows", None)
+        if callable(setter):
+            setter(
+                tuple(
+                    f"{item.title} · {item.status}"
+                    for item in active[:6]
+                )
+            )
+        issues = service.issue_items(100)
+        inspector_setter = getattr(
+            self._inspector_panel,
+            "set_runtime_context",
+            None,
+        )
+        if callable(inspector_setter):
+            inspector_setter(
+                tuple(item.title for item in active),
+                len(issues),
+            )
+
+    def _on_screen_selected(self, screen: str) -> None:
+        super()._on_screen_selected(screen)
+        self._refresh_operations_chrome()
