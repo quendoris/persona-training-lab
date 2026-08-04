@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
 from persona_training_lab.ui.shell.sidebar import NavButton, Sidebar as _BaseSidebar
 
@@ -15,6 +21,7 @@ class Sidebar(_BaseSidebar):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._compact_brand_panel()
         for screen_id, icon_text, title in APPLICATION_NAV_ITEMS:
             self.add_navigation_item(screen_id, icon_text, title)
         self._workflow_layout = self._find_workflow_layout()
@@ -52,6 +59,8 @@ class Sidebar(_BaseSidebar):
         screen_id: str,
         shortcut: str,
     ) -> None:
+        """Keep navigation compact; expose shortcuts through tooltip/inspector."""
+
         button = self._buttons.get(screen_id)
         if button is None:
             return
@@ -60,8 +69,9 @@ class Sidebar(_BaseSidebar):
             or button.text().split("  ·  ", 1)[0]
         )
         button.setProperty("navigation_base_title", title)
-        button.setText(f"{title}  ·  {shortcut}")
-        button.setToolTip(f"Открыть вкладку · {shortcut}")
+        button.setProperty("navigation_shortcut", shortcut)
+        button.setText(title)
+        button.setToolTip(f"Открыть вкладку «{title}» · {shortcut}")
 
     def set_active_workflows(self, items) -> None:
         layout = self._workflow_layout
@@ -83,6 +93,49 @@ class Sidebar(_BaseSidebar):
             pill.setObjectName("WorkflowPill")
             pill.setToolTip(text)
             layout.addWidget(pill)
+
+    def _compact_brand_panel(self) -> None:
+        """Place the panels menu beneath the title instead of below the card."""
+
+        badge = self._brand_badge
+        toggle = self._window_toggle
+        if badge is None:
+            return
+        brand = badge.parentWidget()
+        brand_layout = brand.layout() if brand is not None else None
+        if not isinstance(brand_layout, QVBoxLayout):
+            return
+        top_item = brand_layout.itemAt(0)
+        top_row = top_item.layout() if top_item is not None else None
+        if not isinstance(top_row, QHBoxLayout):
+            return
+        title = brand.findChild(QLabel, "SidebarTitle")
+        if title is None:
+            return
+
+        top_row.removeWidget(title)
+        brand_layout.removeWidget(toggle)
+
+        identity = QWidget(brand)
+        identity.setProperty("transparentBg", True)
+        identity_layout = QVBoxLayout(identity)
+        identity_layout.setContentsMargins(0, 0, 0, 0)
+        identity_layout.setSpacing(5)
+        identity_layout.addWidget(title)
+
+        toggle.setText("──── панели ────")
+        toggle.setMinimumHeight(28)
+        toggle.setMaximumHeight(28)
+        toggle.setMinimumWidth(148)
+        toggle.setMaximumWidth(172)
+        identity_layout.addWidget(toggle)
+        identity_layout.addStretch(1)
+
+        top_row.addWidget(identity, 1)
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(12)
+        brand_layout.setContentsMargins(14, 12, 14, 12)
+        brand_layout.setSpacing(0)
 
     def _find_workflow_layout(self) -> QVBoxLayout | None:
         for label in self.findChildren(QLabel):
