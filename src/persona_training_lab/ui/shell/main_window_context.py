@@ -14,17 +14,17 @@ from persona_training_lab.ui.shell.main_window import MainWindow as _MainWindow
 
 
 TAB_SHORTCUTS: tuple[tuple[str, str], ...] = (
-    ("dashboard", "Alt+H"),
-    ("profiles", "Alt+P"),
-    ("agents", "Alt+A"),
-    ("datasets", "Alt+D"),
-    ("training", "Alt+T"),
-    ("snapshots", "Alt+S"),
-    ("tests", "Alt+E"),
-    ("analysis", "Alt+L"),
-    ("style", "Alt+Y"),
-    ("docs", "Alt+O"),
-    ("keybindings", "Alt+K"),
+    ("nav_dashboard", "dashboard"),
+    ("nav_profiles", "profiles"),
+    ("nav_agents", "agents"),
+    ("nav_datasets", "datasets"),
+    ("nav_training", "training"),
+    ("nav_snapshots", "snapshots"),
+    ("nav_tests", "tests"),
+    ("nav_analysis", "analysis"),
+    ("nav_style", "style"),
+    ("nav_docs", "docs"),
+    ("nav_keybindings", "keybindings"),
 )
 
 
@@ -43,7 +43,10 @@ class MainWindow(_MainWindow):
         super().__init__(*args, **kwargs)
         self._connect_operations_center()
         self._connect_dashboard_navigation()
-        self._install_tab_shortcuts()
+        self._key_binding_manager.bindings_changed.connect(
+            self._sync_tab_shortcuts
+        )
+        self._sync_tab_shortcuts()
 
         self._operations_timer = QTimer(self)
         self._operations_timer.setInterval(900)
@@ -91,9 +94,15 @@ class MainWindow(_MainWindow):
         if signal is not None:
             signal.connect(self._navigate_with_guidance)
 
-    def _install_tab_shortcuts(self) -> None:
-        for screen, sequence in TAB_SHORTCUTS:
-            shortcut = QShortcut(QKeySequence(sequence), self)
+    def _sync_tab_shortcuts(self) -> None:
+        for shortcut in self._tab_shortcuts:
+            shortcut.setEnabled(False)
+            shortcut.deleteLater()
+        self._tab_shortcuts.clear()
+
+        for binding_id, screen in TAB_SHORTCUTS:
+            sequence_text = self._key_binding_manager.sequence(binding_id)
+            shortcut = QShortcut(QKeySequence(sequence_text), self)
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
             shortcut.activated.connect(
                 lambda screen=screen: self._go_to_screen(screen)
@@ -101,7 +110,7 @@ class MainWindow(_MainWindow):
             self._tab_shortcuts.append(shortcut)
             hint = getattr(self._sidebar, "set_navigation_shortcut_hint", None)
             if callable(hint):
-                hint(screen, sequence)
+                hint(screen, sequence_text)
 
     def _navigate_with_guidance(self, screen: str, focus_text: str = "") -> None:
         self._go_to_screen(screen)
@@ -140,7 +149,10 @@ class MainWindow(_MainWindow):
             if step >= 8:
                 target.setGraphicsEffect(None)
                 return
-            effect.setBlurRadius(10 if step % 2 else 28)
+            try:
+                effect.setBlurRadius(10 if step % 2 else 28)
+            except RuntimeError:
+                return
             QTimer.singleShot(180, lambda: pulse(step + 1))
 
         pulse()
