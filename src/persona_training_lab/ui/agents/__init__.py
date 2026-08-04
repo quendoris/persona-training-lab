@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import sys
 
-from . import screen_runtime_safe as _screen_runtime_safe
+from . import screen_contextual as _screen_contextual
 
 
-AgentsScreen = _screen_runtime_safe.AgentsScreen
+AgentsScreen = _screen_contextual.AgentsScreen
 
 # Keep historical import paths as aliases to the single public screen. New code
 # should import AgentsScreen from persona_training_lab.ui.agents directly.
@@ -16,6 +16,6 @@ _COMPATIBILITY_SCREEN_MODULES = (
     "screen_history_diagnostics",
 )
 for module_name in _COMPATIBILITY_SCREEN_MODULES:
-    sys.modules[f"{__name__}.{module_name}"] = _screen_runtime_safe
+    sys.modules[f"{__name__}.{module_name}"] = _screen_contextual
 
 __all__ = ["AgentsScreen"]
