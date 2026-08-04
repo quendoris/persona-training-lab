@@ -117,7 +117,7 @@ def test_capture_chip_pulse_survives_live_theme_change(tmp_path) -> None:
     app.setProperty("ptl_theme_name", "velvet")
     app.setProperty("ptl_accent_name", "cyan")
     first = chip.grab()
-    app.setProperty("ptl_accent_name", "magenta")
+    app.setProperty("ptl_accent_name", "violet")
     chip._toggle_pulse()
     second = chip.grab()
 
