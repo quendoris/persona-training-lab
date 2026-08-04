@@ -41,7 +41,7 @@ def main() -> int:
         tests_vm=container.tests_vm,
         analysis_vm=container.analysis_vm,
         telemetry_vm=container.telemetry_vm,
-        runtime_operations=container.runtime_operations,
+        lineage_runtime_safety=container.lineage_runtime_safety,
     )
     window.setProperty("ptl_density_name", density.name)
     window.show()
@@ -80,7 +80,11 @@ def _install_exception_boundaries(error_reporter) -> None:
                 "работать."
             ),
             entity_kind="thread",
-            entity_id=args.thread.name if args.thread is not None else "unknown",
+            entity_id=(
+                args.thread.name
+                if args.thread is not None
+                else "unknown"
+            ),
         )
 
     sys.excepthook = handle_exception
