@@ -4,18 +4,28 @@ import importlib
 from types import SimpleNamespace
 
 from persona_training_lab.ui.agents import AgentsScreen as PublicAgentsScreen
-from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
-from persona_training_lab.ui.agents.screen_agents_final import AgentsScreen as FinalAgentsScreen
+from persona_training_lab.ui.agents.history_key_state import (
+    HISTORY_TOGGLE,
+    HISTORY_UNDO,
+    HistoryKeyState,
+)
+from persona_training_lab.ui.agents.screen_agents_final import (
+    AgentsScreen as FinalAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_history_keyguard import (
     AgentsScreen as HistoryKeyGuardAgentsScreen,
 )
 from persona_training_lab.ui.agents.screen_history_keyguard_sticky import (
     AgentsScreen as StickyHistoryAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_runtime_safe import (
+    AgentsScreen as RuntimeSafeAgentsScreen,
+)
 
 
-def test_public_agents_screen_uses_final_bounded_layout() -> None:
-    assert PublicAgentsScreen is FinalAgentsScreen
+def test_public_agents_screen_uses_runtime_safe_bounded_layout() -> None:
+    assert PublicAgentsScreen is RuntimeSafeAgentsScreen
+    assert RuntimeSafeAgentsScreen.__bases__ == (FinalAgentsScreen,)
     assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
     assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
     assert FinalAgentsScreen._ROLES_MIN_WIDTH >= 280
@@ -29,15 +39,17 @@ def test_final_screen_owns_layout_without_interaction_overrides() -> None:
     assert "_reset_history_gesture" not in FinalAgentsScreen.__dict__
 
 
-def test_historical_screen_imports_are_clean_final_screen_aliases() -> None:
+def test_historical_screen_imports_are_clean_runtime_safe_aliases() -> None:
     for module_name in (
         "screen",
         "screen_locked_layout",
         "screen_stateful",
         "screen_history_diagnostics",
     ):
-        module = importlib.import_module(f"persona_training_lab.ui.agents.{module_name}")
-        assert module.AgentsScreen is FinalAgentsScreen
+        module = importlib.import_module(
+            f"persona_training_lab.ui.agents.{module_name}"
+        )
+        assert module.AgentsScreen is RuntimeSafeAgentsScreen
 
 
 def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() -> None:
@@ -50,11 +62,20 @@ def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() ->
     calls = {"stop": 0, "block": 0}
     screen = SimpleNamespace(
         _history_keys=state,
-        _stop_undo_repeat=lambda: calls.__setitem__("stop", calls["stop"] + 1),
-        _block_graph_flip=lambda: calls.__setitem__("block", calls["block"] + 1),
+        _stop_undo_repeat=lambda: calls.__setitem__(
+            "stop",
+            calls["stop"] + 1,
+        ),
+        _block_graph_flip=lambda: calls.__setitem__(
+            "block",
+            calls["block"] + 1,
+        ),
     )
 
-    assert HistoryKeyGuardAgentsScreen._handle_history_key_release(screen, "shift") is True
+    assert HistoryKeyGuardAgentsScreen._handle_history_key_release(
+        screen,
+        "shift",
+    ) is True
     assert state.strict_undo_requested is False
     assert calls == {"stop": 1, "block": 1}
     assert state.press("z") == (HISTORY_TOGGLE,)
@@ -72,8 +93,13 @@ def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
         _history_keys_are_active=lambda: True,
         _queried_modifiers=lambda: (False, False),
         _guarded_actions=lambda actions: tuple(actions),
-        _block_graph_flip=lambda: calls.__setitem__("block", calls["block"] + 1),
-        _dispatch_history_actions=lambda actions: calls["dispatch"].append(tuple(actions)),
+        _block_graph_flip=lambda: calls.__setitem__(
+            "block",
+            calls["block"] + 1,
+        ),
+        _dispatch_history_actions=lambda actions: calls[
+            "dispatch"
+        ].append(tuple(actions)),
     )
 
     HistoryKeyGuardAgentsScreen._poll_physical_modifiers(screen)
