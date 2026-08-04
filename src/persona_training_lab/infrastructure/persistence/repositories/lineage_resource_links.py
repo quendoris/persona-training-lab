@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import sqlite3
-from threading import RLock
 
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.infrastructure.persistence.sqlite.locking import (
+    connection_lock,
+)
 
 
 class SQLiteLineageResourceLinksRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
-        self._lock = RLock()
+        self._lock = connection_lock(connection)
 
     def replace_links(
         self,
