@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.agents.lineage import LineageVersionNode, build_version_lineage
 from persona_training_lab.ui.agents.lineage_state import LineageStateStore
-from persona_training_lab.ui.agents.version_graph_dynamic_workspace import VersionGraphCanvas
+from persona_training_lab.ui.agents.version_graph_free_zoom import VersionGraphCanvas
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView, AgentsViewModel
@@ -239,8 +239,14 @@ class AgentsScreen(QWidget):
         ratio = new_zoom / old_zoom
         hbar = self._graph_scroll.horizontalScrollBar()
         vbar = self._graph_scroll.verticalScrollBar()
-        hbar.setValue(int((hbar.value() + anchor.x()) * ratio - anchor.x()))
-        vbar.setValue(int((vbar.value() + anchor.y()) * ratio - anchor.y()))
+        # anchor is expressed in canvas coordinates. Preserve the point beneath
+        # the cursor without multiplying the existing scroll offset twice.
+        target_h = hbar.value() + int(round(anchor.x() * (ratio - 1.0)))
+        target_v = vbar.value() + int(round(anchor.y() * (ratio - 1.0)))
+        QTimer.singleShot(
+            0,
+            lambda: self._apply_workspace_scroll_shift(target_h, target_v),
+        )
 
     def _on_graph_workspace_origin_shift(self, delta: QPointF) -> None:
         hbar = self._graph_scroll.horizontalScrollBar()
