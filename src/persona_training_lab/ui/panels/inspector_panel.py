@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
 from persona_training_lab.ui.components.panels import make_muted_label
 
@@ -160,6 +160,9 @@ class InspectorPanel(QFrame):
         self._next = QLabel("Выберите вкладку слева.")
         self._next.setWordWrap(True)
         self._next.setObjectName("CardTitle")
+        self._shortcut_title = QLabel("Быстрый переход")
+        self._shortcut_title.setObjectName("CardTitle")
+        self._shortcut = make_muted_label("Горячая клавиша появится здесь.")
         self._checks_title = QLabel("Проверить")
         self._checks_title.setObjectName("CardTitle")
         self._checks: list[QLabel] = []
@@ -172,6 +175,8 @@ class InspectorPanel(QFrame):
         self._layout.addWidget(self._title)
         self._layout.addWidget(self._status)
         self._layout.addWidget(self._next)
+        self._layout.addWidget(self._shortcut_title)
+        self._layout.addWidget(self._shortcut)
         self._layout.addWidget(self._checks_title)
         for _ in range(4):
             label = make_muted_label("—")
@@ -210,6 +215,14 @@ class InspectorPanel(QFrame):
                 else ""
             )
         self._risk.setText(context.risk)
+
+    def set_navigation_shortcut(self, screen: str, shortcut: str) -> None:
+        context = INSPECTOR_CONTEXTS.get(screen)
+        title = context.title if context is not None else screen
+        if shortcut:
+            self._shortcut.setText(f"{shortcut} · открыть «{title}»")
+        else:
+            self._shortcut.setText("Для этой вкладки сочетание не назначено.")
 
     def set_runtime_context(
         self,
