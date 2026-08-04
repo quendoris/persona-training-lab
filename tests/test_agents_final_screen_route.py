@@ -12,6 +12,9 @@ from persona_training_lab.ui.agents.history_key_state import (
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as FinalAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_contextual import (
+    AgentsScreen as ContextualAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_history_keyguard import (
     AgentsScreen as HistoryKeyGuardAgentsScreen,
 )
@@ -23,8 +26,9 @@ from persona_training_lab.ui.agents.screen_runtime_safe import (
 )
 
 
-def test_public_agents_screen_uses_runtime_safe_bounded_layout() -> None:
-    assert PublicAgentsScreen is RuntimeSafeAgentsScreen
+def test_public_agents_screen_uses_contextual_runtime_safe_layout() -> None:
+    assert PublicAgentsScreen is ContextualAgentsScreen
+    assert ContextualAgentsScreen.__bases__ == (RuntimeSafeAgentsScreen,)
     assert RuntimeSafeAgentsScreen.__bases__ == (FinalAgentsScreen,)
     assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
     assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
@@ -39,7 +43,7 @@ def test_final_screen_owns_layout_without_interaction_overrides() -> None:
     assert "_reset_history_gesture" not in FinalAgentsScreen.__dict__
 
 
-def test_historical_screen_imports_are_clean_runtime_safe_aliases() -> None:
+def test_historical_screen_imports_are_clean_contextual_aliases() -> None:
     for module_name in (
         "screen",
         "screen_locked_layout",
@@ -49,7 +53,7 @@ def test_historical_screen_imports_are_clean_runtime_safe_aliases() -> None:
         module = importlib.import_module(
             f"persona_training_lab.ui.agents.{module_name}"
         )
-        assert module.AgentsScreen is RuntimeSafeAgentsScreen
+        assert module.AgentsScreen is ContextualAgentsScreen
 
 
 def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() -> None:
