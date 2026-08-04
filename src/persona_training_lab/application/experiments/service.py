@@ -139,19 +139,54 @@ class ExperimentsService:
             for row in rows
         ]
 
-    def run_smoke_test_pack(self) -> ExperimentRunResult:
-        return self.run_personality_portrait_test_pack()
+    def run_smoke_test_pack(
+        self,
+        model_version_id: str | None = None,
+    ) -> ExperimentRunResult:
+        return self.run_personality_portrait_test_pack(model_version_id)
 
-    def run_personality_portrait_test_pack(self) -> ExperimentRunResult:
+    def run_personality_portrait_test_pack(
+        self,
+        model_version_id: str | None = None,
+    ) -> ExperimentRunResult:
         if self.local_model_service is None:
             return ExperimentRunResult(
                 False,
                 "Локальная модель не подключена",
             )
 
-        model_probe = self.local_model_service.probe_model_files()
+        versions = (
+            self.model_versions_service.list_model_versions()
+            if self.model_versions_service is not None
+            else []
+        )
+        selected_version = self._select_model_version(
+            versions,
+            model_version_id,
+        )
+        if model_version_id and selected_version is None:
+            return ExperimentRunResult(
+                False,
+                f"Версия модели не найдена: {model_version_id}",
+            )
+
+        model_path = (
+            selected_version.artifact_path
+            if selected_version is not None
+            and selected_version.artifact_path
+            else self.local_model_service.model_path
+        )
+        model_probe = self.local_model_service.probe_model_files_at(model_path)
         if model_probe.status != "Модель найдена":
-            return ExperimentRunResult(False, model_probe.details)
+            return ExperimentRunResult(
+                False,
+                (
+                    "Выбранные веса недоступны: "
+                    if selected_version is not None
+                    else ""
+                )
+                + model_probe.details,
+            )
 
         try:
             test_cases = load_portrait_test_cases(self.battery_resource)
@@ -163,17 +198,12 @@ class ExperimentsService:
             )
 
         experiment_id = f"evr_{uuid4().hex[:8]}"
-        versions = (
-            self.model_versions_service.list_model_versions()
-            if self.model_versions_service is not None
-            else []
-        )
-        selected_version = versions[0] if versions else None
         lease: RuntimeOperationLease | None = None
         try:
             lease = self._begin_portrait_operation(
                 experiment_id,
                 selected_version,
+                model_path,
             )
         except OperationConflictError as conflict:
             message = (
@@ -188,10 +218,12 @@ class ExperimentsService:
                     entity_kind="experiment",
                     entity_id=experiment_id,
                     context={
+                        "model_version_id": model_version_id or "latest",
+                        "model_path": model_path,
                         "blockers": [
                             blocker.message
                             for blocker in conflict.blockers
-                        ]
+                        ],
                     },
                 )
             return ExperimentRunResult(False, message)
@@ -203,6 +235,7 @@ class ExperimentsService:
                 experiment_id=experiment_id,
                 test_cases=test_cases,
                 selected_version=selected_version,
+                model_path=model_path,
             )
             if lease is not None:
                 if result.ok:
@@ -230,6 +263,7 @@ class ExperimentsService:
                             "version_id",
                             "",
                         ),
+                        "model_path": model_path,
                         "battery_resource": self.battery_resource,
                     },
                 )
@@ -247,20 +281,32 @@ class ExperimentsService:
             if lease is not None and not lease.closed:
                 lease.fail("Операция завершилась без терминального статуса")
 
+    @staticmethod
+    def _select_model_version(versions, model_version_id: str | None):
+        if not versions:
+            return None
+        if not model_version_id:
+            return versions[0]
+        return next(
+            (
+                version
+                for version in versions
+                if version.version_id == model_version_id
+            ),
+            None,
+        )
+
     def _begin_portrait_operation(
         self,
         experiment_id: str,
         selected_version,
+        model_path: str,
     ) -> RuntimeOperationLease | None:
         if self.operation_coordinator is None:
             return None
         claims = [
             ResourceClaim("experiment", experiment_id, "write"),
-            ResourceClaim(
-                "model_path",
-                self.local_model_service.model_path,
-                "read",
-            ),
+            ResourceClaim("model_path", model_path, "read"),
             ResourceClaim(
                 "compute_device",
                 "local_inference",
@@ -297,11 +343,13 @@ class ExperimentsService:
         experiment_id: str,
         test_cases: tuple[PortraitTestCase, ...],
         selected_version,
+        model_path: str,
     ) -> ExperimentRunResult:
         responses: list[str] = []
         failures = 0
         for index, case in enumerate(test_cases, start=1):
-            result = self.local_model_service.generate_smoke(
+            result = self.local_model_service.generate_at(
+                model_path,
                 case.prompt,
                 instruction_prompt=PORTRAIT_SCORE_INSTRUCTION,
             )
@@ -344,7 +392,7 @@ class ExperimentsService:
         artifact_path = (
             selected_version.artifact_path
             if selected_version is not None
-            else ""
+            else model_path
         )
         status = "Портрет собран" if failures == 0 else "Есть ошибки"
         passed = len(test_cases) - failures
@@ -380,7 +428,11 @@ class ExperimentsService:
         )
         return ExperimentRunResult(
             failures == 0,
-            f"Психологический портрет: {status}",
+            (
+                f"Психологический портрет {version_id}: {status}"
+                if version_id
+                else f"Психологический портрет: {status}"
+            ),
             experiment_id,
         )
 
