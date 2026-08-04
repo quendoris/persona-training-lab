@@ -169,6 +169,40 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_model_versions_updated
         ON model_versions(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS runtime_operations (
+            id TEXT PRIMARY KEY,
+            operation_kind TEXT NOT NULL,
+            subject_kind TEXT NOT NULL,
+            subject_id TEXT NOT NULL,
+            state TEXT NOT NULL,
+            correlation_id TEXT NOT NULL,
+            owner_pid INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            heartbeat_at TEXT NOT NULL,
+            finished_at TEXT NOT NULL DEFAULT '',
+            error_message TEXT NOT NULL DEFAULT ''
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_runtime_operations_active
+        ON runtime_operations(state, heartbeat_at);
+
+        CREATE INDEX IF NOT EXISTS idx_runtime_operations_subject
+        ON runtime_operations(subject_kind, subject_id, started_at);
+
+        CREATE TABLE IF NOT EXISTS runtime_operation_resources (
+            operation_id TEXT NOT NULL,
+            resource_kind TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            access_mode TEXT NOT NULL CHECK(access_mode IN ('read', 'write')),
+            PRIMARY KEY (operation_id, resource_kind, resource_id),
+            FOREIGN KEY (operation_id)
+                REFERENCES runtime_operations(id)
+                ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_runtime_resources_lookup
+        ON runtime_operation_resources(resource_kind, resource_id, operation_id);
         """
     )
     _ensure_profile_columns(connection)
@@ -215,7 +249,10 @@ def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
 
 
 def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
-    columns = {row[1] for row in connection.execute("PRAGMA table_info(training_runs)").fetchall()}
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(training_runs)").fetchall()
+    }
     additions = [
         ("started_at", "TEXT NOT NULL DEFAULT ''"),
         ("finished_at", "TEXT NOT NULL DEFAULT ''"),
