@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 import sqlite3
-from threading import RLock
 
 from persona_training_lab.application.runtime.operations import (
     ACTIVE_OPERATION_STATES,
     ResourceClaim,
     RuntimeOperation,
 )
+from persona_training_lab.infrastructure.persistence.sqlite.locking import (
+    connection_lock,
+)
 
 
 class SQLiteRuntimeOperationsRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
-        self._lock = RLock()
+        self._lock = connection_lock(connection)
 
     def create_operation(
         self,
@@ -45,7 +47,10 @@ class SQLiteRuntimeOperationsRepository:
             )
             self._insert_claims(operation.operation_id, claims)
 
-    def get_operation(self, operation_id: str) -> RuntimeOperation | None:
+    def get_operation(
+        self,
+        operation_id: str,
+    ) -> RuntimeOperation | None:
         with self._lock:
             row = self._connection.execute(
                 """
@@ -79,7 +84,10 @@ class SQLiteRuntimeOperationsRepository:
             if (operation := self._to_operation(row)) is not None
         ]
 
-    def list_claims(self, operation_id: str) -> tuple[ResourceClaim, ...]:
+    def list_claims(
+        self,
+        operation_id: str,
+    ) -> tuple[ResourceClaim, ...]:
         with self._lock:
             rows = self._connection.execute(
                 """
@@ -109,7 +117,11 @@ class SQLiteRuntimeOperationsRepository:
         with self._lock, self._connection:
             self._insert_claims(operation_id, claims)
 
-    def heartbeat(self, operation_id: str, heartbeat_at: str) -> bool:
+    def heartbeat(
+        self,
+        operation_id: str,
+        heartbeat_at: str,
+    ) -> bool:
         placeholders = ",".join("?" for _ in ACTIVE_OPERATION_STATES)
         with self._lock, self._connection:
             cursor = self._connection.execute(
@@ -139,7 +151,8 @@ class SQLiteRuntimeOperationsRepository:
             cursor = self._connection.execute(
                 f"""
                 UPDATE runtime_operations
-                SET state = ?, heartbeat_at = ?, finished_at = ?, error_message = ?
+                SET state = ?, heartbeat_at = ?, finished_at = ?,
+                    error_message = ?
                 WHERE id = ? AND state IN ({placeholders})
                 """,
                 (
@@ -153,7 +166,11 @@ class SQLiteRuntimeOperationsRepository:
             )
         return cursor.rowcount > 0
 
-    def abandon_operations(self, operation_ids: tuple[str, ...], at: str) -> int:
+    def abandon_operations(
+        self,
+        operation_ids: tuple[str, ...],
+        at: str,
+    ) -> int:
         if not operation_ids:
             return 0
         operation_placeholders = ",".join("?" for _ in operation_ids)
@@ -164,7 +181,8 @@ class SQLiteRuntimeOperationsRepository:
                 UPDATE runtime_operations
                 SET state = 'abandoned', heartbeat_at = ?, finished_at = ?,
                     error_message = CASE
-                        WHEN error_message = '' THEN 'Операция прервана завершением процесса'
+                        WHEN error_message = ''
+                        THEN 'Операция прервана завершением процесса'
                         ELSE error_message
                     END
                 WHERE id IN ({operation_placeholders})
