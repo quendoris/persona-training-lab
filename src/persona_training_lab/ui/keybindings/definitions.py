@@ -44,6 +44,11 @@ MOUSE_MODIFIER_LABELS: dict[str, str] = {
 }
 
 
+_GRAPH_BINDING_IDS = frozenset(
+    {"delete_branch", "history_toggle", "undo_only"}
+)
+
+
 AGENT_GRAPH_KEY_BINDINGS: tuple[KeyBindingDefinition, ...] = (
     KeyBindingDefinition(
         binding_id="delete_branch",
@@ -63,6 +68,83 @@ AGENT_GRAPH_KEY_BINDINGS: tuple[KeyBindingDefinition, ...] = (
         title="Последовательно уходить назад по истории",
         description="Всегда отменяет ещё один шаг; при удержании повторяет отмену.",
         auto_repeat=True,
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_dashboard",
+        sequence="Alt+H",
+        title="Открыть панель управления",
+        description="Переключает приложение на главную панель из любой вкладки.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_profiles",
+        sequence="Alt+P",
+        title="Открыть профили",
+        description="Переключает приложение на вкладку профилей.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_agents",
+        sequence="Alt+A",
+        title="Открыть агентов",
+        description="Переключает приложение на lineage-дерево агентов и версий.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_datasets",
+        sequence="Alt+D",
+        title="Открыть датасеты",
+        description="Переключает приложение на вкладку датасетов.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_training",
+        sequence="Alt+T",
+        title="Открыть обучение",
+        description="Переключает приложение на вкладку обучения.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_snapshots",
+        sequence="Alt+S",
+        title="Открыть снимки",
+        description="Переключает приложение на реестр снимков и весов.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_tests",
+        sequence="Alt+E",
+        title="Открыть тесты",
+        description="Переключает приложение на вкладку тестирования и портретов.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_analysis",
+        sequence="Alt+L",
+        title="Открыть анализ",
+        description="Переключает приложение на вкладку анализа результатов.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_style",
+        sequence="Alt+Y",
+        title="Открыть оформление",
+        description="Переключает приложение на вкладку тем, акцента и масштаба.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_docs",
+        sequence="Alt+O",
+        title="Открыть документацию",
+        description="Переключает приложение на вкладку документации.",
+        category="Навигация по вкладкам",
+    ),
+    KeyBindingDefinition(
+        binding_id="nav_keybindings",
+        sequence="Alt+K",
+        title="Открыть назначения клавиш",
+        description="Переключает приложение на редактор клавиатуры и мыши.",
+        category="Навигация по вкладкам",
     ),
 )
 
@@ -135,7 +217,11 @@ AGENT_GRAPH_MOUSE_BINDINGS: tuple[MouseBindingDefinition, ...] = (
 
 
 def agent_graph_key_bindings_by_id() -> dict[str, KeyBindingDefinition]:
-    return {binding.binding_id: binding for binding in AGENT_GRAPH_KEY_BINDINGS}
+    return {
+        binding.binding_id: binding
+        for binding in AGENT_GRAPH_KEY_BINDINGS
+        if binding.binding_id in _GRAPH_BINDING_IDS
+    }
 
 
 def agent_graph_mouse_bindings_by_id() -> dict[str, MouseBindingDefinition]:
