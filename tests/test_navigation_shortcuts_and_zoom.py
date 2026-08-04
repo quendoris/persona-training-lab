@@ -78,6 +78,12 @@ def test_dashboard_steps_route_to_their_real_workspaces() -> None:
         "training",
         "Запуст",
     )
+    assert DashboardScreen._target_for_step(
+        "Зарегистрируйте artifact как снимок модели"
+    ) == (
+        "snapshots",
+        "",
+    )
     assert DashboardScreen._target_for_step("Соберите портрет") == (
         "tests",
         "Собрать портрет",
