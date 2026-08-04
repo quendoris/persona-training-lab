@@ -45,9 +45,15 @@ class _ActivityRow(QPushButton):
         title = QLabel(item.title)
         title.setObjectName("CardTitle")
         title.setWordWrap(True)
-        title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        title.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         note = make_muted_label(item.summary)
-        note.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        note.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         text.addWidget(title)
         text.addWidget(note)
         layout.addLayout(text, 1)
@@ -56,7 +62,10 @@ class _ActivityRow(QPushButton):
             item.status,
             warning=item.severity in {"warning", "error", "critical"},
         )
-        status.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        status.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         layout.addWidget(status, 0, Qt.AlignmentFlag.AlignTop)
         self.clicked.connect(
             lambda: self.navigate_requested.emit(
@@ -76,6 +85,7 @@ class ActivityPanel(QFrame):
         super().__init__()
         self.setObjectName("PanelCard")
         self._operations_center = operations_center
+        self._render_signature: tuple[object, ...] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -110,25 +120,51 @@ class ActivityPanel(QFrame):
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
-        self.refresh()
+        self.refresh(force=True)
 
     def set_service(self, operations_center: OperationsCenterService) -> None:
         self._operations_center = operations_center
-        self.refresh()
+        self._render_signature = None
+        self.refresh(force=True)
 
-    def refresh(self) -> None:
-        self._clear_rows()
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        self._timer.start()
+        self.refresh(force=True)
+        super().showEvent(event)
+
+    def hideEvent(self, event) -> None:  # type: ignore[override]
+        self._timer.stop()
+        super().hideEvent(event)
+
+    def refresh(self, *, force: bool = False) -> None:
         service = self._operations_center
         if service is None:
+            signature: tuple[object, ...] = ("disconnected",)
+            if not force and signature == self._render_signature:
+                return
+            self._render_signature = signature
+            self._clear_rows()
             self._subtitle.setText("Ожидание подключения журнала операций.")
-            self._rows.addWidget(make_muted_label("Нет подключённого источника."))
+            self._rows.addWidget(
+                make_muted_label("Нет подключённого источника.")
+            )
             self._rows.addStretch(1)
             return
 
         active = service.active_items()
         recent = service.recent_activity(24)
         active_ids = {item.item_id for item in active}
-        history = tuple(item for item in recent if item.item_id not in active_ids)
+        history = tuple(
+            item for item in recent if item.item_id not in active_ids
+        )
+        signature = (
+            tuple(self._item_signature(item) for item in active),
+            tuple(self._item_signature(item) for item in history),
+        )
+        if not force and signature == self._render_signature:
+            return
+        self._render_signature = signature
+        self._clear_rows()
         self._subtitle.setText(
             f"Активно: {len(active)} · в истории: {len(history)}"
         )
@@ -148,6 +184,20 @@ class ActivityPanel(QFrame):
                 )
             )
         self._rows.addStretch(1)
+
+    @staticmethod
+    def _item_signature(item: OperationsCenterItem) -> tuple[str, ...]:
+        return (
+            item.item_id,
+            item.title,
+            item.summary,
+            item.status,
+            item.severity,
+            item.occurred_at,
+            item.target_screen,
+            item.focus_text,
+            item.correlation_id,
+        )
 
     def _add_section(self, text: str) -> None:
         label = QLabel(text)
