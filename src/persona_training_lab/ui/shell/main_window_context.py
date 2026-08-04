@@ -40,6 +40,7 @@ class MainWindow(_MainWindow):
         self._operations_center = operations_center
         self._tab_shortcuts: list[QShortcut] = []
         self._guidance_generation = 0
+        self._guidance_target: QWidget | None = None
         super().__init__(*args, **kwargs)
         self._connect_operations_center()
         self._connect_dashboard_navigation()
@@ -131,8 +132,10 @@ class MainWindow(_MainWindow):
             )
             return
 
+        self._clear_guidance_effect()
         self._guidance_generation += 1
         generation = self._guidance_generation
+        self._guidance_target = target
         effect = QGraphicsDropShadowEffect(target)
         accent = target.palette().color(QPalette.ColorRole.Highlight)
         if not accent.isValid():
@@ -147,15 +150,26 @@ class MainWindow(_MainWindow):
             if generation != self._guidance_generation:
                 return
             if step >= 8:
-                target.setGraphicsEffect(None)
+                self._clear_guidance_effect(target)
                 return
             try:
                 effect.setBlurRadius(10 if step % 2 else 28)
             except RuntimeError:
+                self._guidance_target = None
                 return
             QTimer.singleShot(180, lambda: pulse(step + 1))
 
         pulse()
+
+    def _clear_guidance_effect(self, expected: QWidget | None = None) -> None:
+        target = self._guidance_target
+        if target is None or (expected is not None and target is not expected):
+            return
+        self._guidance_target = None
+        try:
+            target.setGraphicsEffect(None)
+        except RuntimeError:
+            return
 
     @staticmethod
     def _find_guidance_target(
