@@ -13,7 +13,7 @@ from persona_training_lab.application.local_model.service import LocalModelServi
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.profiles.service import ProfilesService
-from persona_training_lab.application.runtime.operations import (
+from persona_training_lab.application.runtime.atomic import (
     RuntimeOperationCoordinator,
 )
 from persona_training_lab.application.style.service import StylePreferencesService
@@ -60,7 +60,7 @@ from persona_training_lab.infrastructure.persistence.repositories.profiles impor
 from persona_training_lab.infrastructure.persistence.repositories.projects import (
     SQLiteProjectsRepository,
 )
-from persona_training_lab.infrastructure.persistence.repositories.runtime_operations import (
+from persona_training_lab.infrastructure.persistence.repositories.runtime_operations_atomic import (
     SQLiteRuntimeOperationsRepository,
 )
 from persona_training_lab.infrastructure.persistence.repositories.training import (
