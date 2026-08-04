@@ -3,7 +3,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QGraphicsDropShadowEffect,
     QPushButton,
@@ -125,10 +124,8 @@ class MainWindow(_MainWindow):
 
         self._guidance_generation += 1
         generation = self._guidance_generation
-        previous_effect = target.graphicsEffect()
         effect = QGraphicsDropShadowEffect(target)
-        palette = target.palette()
-        accent = palette.color(QPalette.ColorRole.Highlight)
+        accent = target.palette().color(QPalette.ColorRole.Highlight)
         if not accent.isValid():
             accent = QColor("#22D3EE")
         effect.setColor(accent)
@@ -141,7 +138,7 @@ class MainWindow(_MainWindow):
             if generation != self._guidance_generation:
                 return
             if step >= 8:
-                target.setGraphicsEffect(previous_effect)
+                target.setGraphicsEffect(None)
                 return
             effect.setBlurRadius(10 if step % 2 else 28)
             QTimer.singleShot(180, lambda: pulse(step + 1))
