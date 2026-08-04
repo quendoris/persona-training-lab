@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from PySide6.QtCore import QtMsgType
+from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 
 from persona_training_lab.bootstrap.app import _install_qt_message_boundary
 
@@ -25,29 +25,33 @@ def test_qt_warning_is_logged_once_without_writing_console() -> None:
         function="rebuild",
         category="default",
     )
+    try:
+        handler(
+            QtMsgType.QtWarningMsg,
+            context,
+            "QLayout warning",
+        )
 
-    handler(
-        QtMsgType.QtWarningMsg,
-        context,
-        "QLayout warning",
-    )
-
-    assert len(reporter.calls) == 1
-    message, kwargs = reporter.calls[0]
-    assert message == "QLayout warning"
-    assert kwargs["component"] == "qt.message"
-    assert kwargs["level"] == "WARNING"
-    assert kwargs["context"]["line"] == 42
+        assert len(reporter.calls) == 1
+        message, kwargs = reporter.calls[0]
+        assert message == "QLayout warning"
+        assert kwargs["component"] == "qt.message"
+        assert kwargs["level"] == "WARNING"
+        assert kwargs["context"]["line"] == 42
+    finally:
+        qInstallMessageHandler(None)
 
 
 def test_qt_debug_message_is_ignored_in_normal_runtime() -> None:
     reporter = _Reporter()
     handler = _install_qt_message_boundary(reporter)
+    try:
+        handler(
+            QtMsgType.QtDebugMsg,
+            SimpleNamespace(),
+            "paint debug",
+        )
 
-    handler(
-        QtMsgType.QtDebugMsg,
-        SimpleNamespace(),
-        "paint debug",
-    )
-
-    assert reporter.calls == []
+        assert reporter.calls == []
+    finally:
+        qInstallMessageHandler(None)
