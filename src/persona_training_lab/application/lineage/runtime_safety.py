@@ -7,6 +7,7 @@ from persona_training_lab.application.runtime.operations import (
     OperationBlocker,
     ResourceClaim,
     RuntimeOperationCoordinator,
+    RuntimeOperationLease,
 )
 
 
@@ -79,6 +80,22 @@ class LineageRuntimeSafety:
     ) -> tuple[OperationBlocker, ...]:
         return self.operations.deletion_blockers(
             self.claims_for_nodes(node_ids)
+        )
+
+    def begin_deletion(
+        self,
+        node_ids: Iterable[str],
+        *,
+        subject_id: str,
+    ) -> RuntimeOperationLease:
+        """Atomically reserve a subtree and all linked real resources."""
+
+        claims = self.claims_for_nodes(node_ids)
+        return self.operations.begin(
+            operation_kind="lineage_delete",
+            subject_kind="lineage_subtree",
+            subject_id=subject_id,
+            claims=claims,
         )
 
     def forget_nodes(self, node_ids: Iterable[str]) -> int:
