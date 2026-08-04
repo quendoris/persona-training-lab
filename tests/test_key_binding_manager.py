@@ -14,11 +14,26 @@ def test_key_binding_manager_uses_stable_defaults(tmp_path) -> None:
     assert manager.sequence("delete_branch") == "Del"
     assert manager.sequence("history_toggle") == "Ctrl+Z"
     assert manager.sequence("undo_only") == "Ctrl+Shift+Z"
-    assert {item.binding_id for item in manager.definitions()} == {
+    assert manager.sequence("nav_dashboard") == "Alt+H"
+    assert manager.sequence("nav_agents") == "Alt+A"
+    assert manager.sequence("nav_keybindings") == "Alt+K"
+    binding_ids = {item.binding_id for item in manager.definitions()}
+    assert {
         "delete_branch",
         "history_toggle",
         "undo_only",
-    }
+        "nav_dashboard",
+        "nav_profiles",
+        "nav_agents",
+        "nav_datasets",
+        "nav_training",
+        "nav_snapshots",
+        "nav_tests",
+        "nav_analysis",
+        "nav_style",
+        "nav_docs",
+        "nav_keybindings",
+    } <= binding_ids
     assert manager.mouse_binding("open_node_menu") == MouseBindingValue(
         "left",
         "none",
@@ -194,6 +209,7 @@ def test_reset_binding_and_reset_all_restore_defaults(tmp_path) -> None:
     assert all_result.accepted is True
     assert manager.sequence("history_toggle") == "Ctrl+Z"
     assert manager.sequence("undo_only") == "Ctrl+Shift+Z"
+    assert manager.sequence("nav_agents") == "Alt+A"
     assert manager.mouse_binding("zoom_canvas") == MouseBindingValue(
         "wheel",
         "none",
@@ -223,6 +239,7 @@ def test_version_one_file_migrates_keyboard_and_uses_mouse_defaults(
 
     assert manager.sequence("history_toggle") == "Ctrl+Y"
     assert manager.sequence("undo_only") == "Ctrl+Shift+Y"
+    assert manager.sequence("nav_agents") == "Alt+A"
     assert manager.mouse_binding("move_node") == MouseBindingValue(
         "right",
         "none",
@@ -266,4 +283,5 @@ def test_conflicting_saved_bindings_are_repaired_to_unique_defaults(
     assert manager.sequence("delete_branch") == "Del"
     assert manager.sequence("history_toggle") == "Ctrl+Z"
     assert manager.sequence("undo_only") == "Ctrl+Shift+Z"
+    assert manager.sequence("nav_agents") == "Alt+A"
     assert "Конфликтующие" in manager.last_error
