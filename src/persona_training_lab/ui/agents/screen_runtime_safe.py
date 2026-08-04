@@ -6,6 +6,11 @@ from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.ui.agents.lineage import build_version_lineage
+from persona_training_lab.ui.agents.real_lineage import (
+    RealLineageProjection,
+    build_real_lineage,
+)
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as _FinalAgentsScreen,
 )
@@ -14,9 +19,12 @@ from persona_training_lab.ui.viewmodels.agents import AgentDetailView
 
 
 class AgentsScreen(_FinalAgentsScreen):
-    """Final agents workspace with live runtime dependency protection."""
+    """Final agents workspace backed by real persisted lineage and leases."""
 
-    _RUNTIME_REFRESH_MS = 750
+    _RUNTIME_REFRESH_MS = 1_200
+    _CANONICAL_NODE_IDS = frozenset(
+        {"base", "dataset", "training", "snapshot", "portrait", "delta"}
+    )
 
     def __init__(
         self,
@@ -26,6 +34,10 @@ class AgentsScreen(_FinalAgentsScreen):
     ) -> None:
         self._lineage_runtime_safety = lineage_runtime_safety
         self._runtime_blocker_signature: tuple[tuple[str, str, str], ...] = ()
+        self._real_projection: RealLineageProjection | None = None
+        self._real_projection_signature: tuple[
+            tuple[str, str, str, str], ...
+        ] = ()
         super().__init__(view_model, key_binding_manager)
         self._runtime_safety_timer = QTimer(self)
         self._runtime_safety_timer.setInterval(self._RUNTIME_REFRESH_MS)
@@ -33,8 +45,25 @@ class AgentsScreen(_FinalAgentsScreen):
             self._refresh_runtime_safety
         )
         self._runtime_safety_timer.start()
-        self._bind_existing_fixed_nodes()
+        self._bind_projection_resources()
         self._refresh_runtime_safety(force=True)
+
+    def _build_nodes(self):
+        projection = build_real_lineage(self._vm)
+        self._real_projection = projection
+        self._real_projection_signature = projection.signature
+        return self._state.apply(build_version_lineage(projection.nodes))
+
+    def _detail_for(self, node_id: str) -> AgentDetailView:
+        projection = self._real_projection
+        if (
+            projection is not None
+            and node_id not in self._CANONICAL_NODE_IDS
+            and node_id in projection.details
+            and not self._state.is_custom_node(node_id)
+        ):
+            return projection.details[node_id]
+        return super()._detail_for(node_id)
 
     def _continue_from_selected(self) -> None:
         parent_id = getattr(self, "_selected_node_id", "")
@@ -65,7 +94,7 @@ class AgentsScreen(_FinalAgentsScreen):
 
         super()._delete_local_branch_subtree(node_id)
         if self._state.is_custom_node(node_id):
-            # The confirmation was cancelled; keep dependency links intact.
+            # Confirmation was cancelled; dependency links stay untouched.
             return
         safety = self._lineage_runtime_safety
         if safety is not None:
@@ -86,6 +115,20 @@ class AgentsScreen(_FinalAgentsScreen):
             is_current=is_current,
             is_archived=is_archived,
         )
+        context = self._node_context(node_id)
+        if context.get("node_kind") == "model_version" and not is_custom:
+            self._make_current_action.setEnabled(
+                not is_current and not is_archived
+            )
+            self._compare_action.setEnabled(not is_current)
+            self._portrait_action.setEnabled(True)
+            self._branch_action.setEnabled(not is_archived)
+            self._delete_action.setEnabled(False)
+            self._delete_action.setToolTip(
+                "Зарегистрированные model versions удаляются только через "
+                "отдельную транзакцию хранения, не из локального lineage."
+            )
+
         if not is_custom:
             return
         subtree_ids = self._state.custom_subtree_ids(node_id)
@@ -100,11 +143,30 @@ class AgentsScreen(_FinalAgentsScreen):
 
     def _render_detail(self, detail: AgentDetailView) -> None:
         super()._render_detail(detail)
+        context = self._node_context(
+            getattr(self, "_selected_node_id", "")
+        )
+        kind = context.get("node_kind", "")
+        if kind:
+            self._detail_type_value.setText(
+                {
+                    "base_model": "Базовая модель",
+                    "dataset": "Набор данных",
+                    "training_run": "Реальный запуск обучения",
+                    "model_version": "Снимок весов / model version",
+                    "experiment": "Реальный тест / портрет",
+                    "analysis_delta": "Сравнение реальных тестов",
+                }.get(kind, self._detail_type_value.text())
+            )
         self._apply_runtime_dependency_text()
 
     def _refresh_runtime_safety(self, *, force: bool = False) -> None:
         if not self.isVisible() and not force:
             return
+        projection = build_real_lineage(self._vm)
+        if force or projection.signature != self._real_projection_signature:
+            self._apply_projection(projection)
+
         node_id = getattr(self, "_selected_node_id", "")
         node = self._node_by_id(node_id) if node_id else None
         if node is None:
@@ -129,6 +191,24 @@ class AgentsScreen(_FinalAgentsScreen):
             return
         self._runtime_blocker_signature = signature
         self._select_node(node_id)
+
+    def _apply_projection(self, projection: RealLineageProjection) -> None:
+        selected = getattr(self, "_selected_node_id", "")
+        self._real_projection = projection
+        self._real_projection_signature = projection.signature
+        self._lineage_nodes = self._state.apply(
+            build_version_lineage(projection.nodes)
+        )
+        self._graph.set_nodes(self._lineage_nodes)
+        node_ids = {node.node_id for node in self._lineage_nodes}
+        if selected not in node_ids:
+            selected = self._graph.current_node_id()
+            if selected not in node_ids and self._lineage_nodes:
+                selected = self._lineage_nodes[0].node_id
+            self._selected_node_id = selected
+        self._bind_projection_resources()
+        if selected:
+            self._select_node(selected)
 
     def _apply_runtime_dependency_text(self) -> None:
         safety = self._lineage_runtime_safety
@@ -188,21 +268,13 @@ class AgentsScreen(_FinalAgentsScreen):
             return ()
         return safety.deletion_blockers(node_ids)
 
-    def _bind_existing_fixed_nodes(self) -> None:
+    def _bind_projection_resources(self) -> None:
         safety = self._lineage_runtime_safety
-        if safety is None:
+        projection = self._real_projection
+        if safety is None or projection is None:
             return
-        for node_id in (
-            "base",
-            "dataset",
-            "training",
-            "snapshot",
-            "portrait",
-            "delta",
-        ):
-            claims = self._runtime_claims_for_node(node_id)
-            if claims:
-                safety.bind_node(node_id, claims)
+        for node_id, claims in projection.resources.items():
+            safety.bind_node(node_id, claims)
 
     def _runtime_claims_for_node(
         self,
@@ -213,80 +285,15 @@ class AgentsScreen(_FinalAgentsScreen):
             inherited = safety.links_for_node(node_id)
             if inherited:
                 return inherited
+        projection = self._real_projection
+        if projection is not None:
+            projected = projection.resources.get(node_id, ())
+            if projected:
+                return projected
+        return ()
 
-        claims: list[ResourceClaim] = []
-        runs = self._vm._training_runs()  # noqa: SLF001
-        versions = self._vm._model_versions()  # noqa: SLF001
-        datasets = self._vm._datasets()  # noqa: SLF001
-        portraits = self._vm._portraits()  # noqa: SLF001
-        latest_run = runs[0] if runs else None
-        latest_version = versions[0] if versions else None
-        latest_dataset = datasets[0] if datasets else None
-
-        if node_id == "base" and latest_run is not None:
-            self._append_claim(
-                claims,
-                "model_definition",
-                getattr(latest_run, "base_model", ""),
-            )
-        if node_id == "dataset" and latest_dataset is not None:
-            self._append_claim(
-                claims,
-                "dataset",
-                getattr(latest_dataset, "dataset_id", "")
-                or getattr(latest_dataset, "title", ""),
-            )
-        if node_id in {"training", "snapshot", "portrait", "delta"}:
-            if latest_run is not None:
-                self._append_claim(
-                    claims,
-                    "training_run",
-                    getattr(latest_run, "run_id", ""),
-                )
-                self._append_claim(
-                    claims,
-                    "dataset",
-                    getattr(latest_run, "dataset_version", ""),
-                )
-                self._append_claim(
-                    claims,
-                    "profile",
-                    getattr(latest_run, "profile", ""),
-                )
-                self._append_claim(
-                    claims,
-                    "artifact_path",
-                    getattr(latest_run, "artifact_path", ""),
-                )
-        if node_id in {"snapshot", "portrait", "delta"}:
-            if latest_version is not None:
-                self._append_claim(
-                    claims,
-                    "model_version",
-                    getattr(latest_version, "version_id", ""),
-                )
-                self._append_claim(
-                    claims,
-                    "artifact_path",
-                    getattr(latest_version, "artifact_path", ""),
-                )
-        if node_id in {"portrait", "delta"}:
-            limit = 2 if node_id == "delta" else 1
-            for portrait in portraits[:limit]:
-                self._append_claim(
-                    claims,
-                    "experiment",
-                    getattr(portrait, "experiment_id", ""),
-                )
-        unique = {claim.key: claim for claim in claims}
-        return tuple(sorted(unique.values()))
-
-    @staticmethod
-    def _append_claim(
-        claims: list[ResourceClaim],
-        resource_kind: str,
-        resource_id: object,
-    ) -> None:
-        identifier = str(resource_id or "").strip()
-        if identifier:
-            claims.append(ResourceClaim(resource_kind, identifier, "read"))
+    def _node_context(self, node_id: str) -> dict[str, str]:
+        projection = self._real_projection
+        if projection is None:
+            return {}
+        return projection.entity_context.get(node_id, {})
