@@ -25,6 +25,13 @@ class WorkspaceStack(QScrollArea):
         widget.setProperty("workspace_key", key)
         self._stack.addWidget(widget)
 
+    def workspace(self, key: str) -> QWidget | None:
+        for index in range(self._stack.count()):
+            widget = self._stack.widget(index)
+            if widget.property("workspace_key") == key:
+                return widget
+        return None
+
     def current_workspace_key(self) -> str:
         current = self._stack.currentWidget()
         if current is None:
