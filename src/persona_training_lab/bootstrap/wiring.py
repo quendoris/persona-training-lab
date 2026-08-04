@@ -78,7 +78,7 @@ from persona_training_lab.infrastructure.telemetry.collector import (
     PsutilTelemetryProvider,
 )
 from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
-from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
+from persona_training_lab.ui.viewmodels.analysis_lineage import AnalysisViewModel
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 from persona_training_lab.ui.viewmodels.docs import DocsViewModel
@@ -87,7 +87,7 @@ from persona_training_lab.ui.viewmodels.shell import ShellViewModel
 from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
-from persona_training_lab.ui.viewmodels.tests import TestsViewModel
+from persona_training_lab.ui.viewmodels.tests_lineage import TestsViewModel
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
 
