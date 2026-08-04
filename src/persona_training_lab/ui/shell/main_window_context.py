@@ -113,6 +113,10 @@ class MainWindow(_MainWindow):
             if callable(hint):
                 hint(screen, sequence_text)
 
+        self._sync_inspector_shortcut(
+            self._workspace.current_workspace_key() or "dashboard"
+        )
+
     def _navigate_with_guidance(self, screen: str, focus_text: str = "") -> None:
         self._go_to_screen(screen)
         if focus_text:
@@ -197,6 +201,21 @@ class MainWindow(_MainWindow):
                 return frame
         return None
 
+    def _sync_inspector_shortcut(self, screen: str) -> None:
+        setter = getattr(
+            self._inspector_panel,
+            "set_navigation_shortcut",
+            None,
+        )
+        if not callable(setter):
+            return
+        for binding_id, target_screen in TAB_SHORTCUTS:
+            if target_screen != screen:
+                continue
+            setter(screen, self._key_binding_manager.sequence(binding_id))
+            return
+        setter(screen, "")
+
     def _refresh_operations_chrome(self) -> None:
         service = self._operations_center
         if service is None:
@@ -224,4 +243,5 @@ class MainWindow(_MainWindow):
 
     def _on_screen_selected(self, screen: str) -> None:
         super()._on_screen_selected(screen)
+        self._sync_inspector_shortcut(screen)
         self._refresh_operations_chrome()
