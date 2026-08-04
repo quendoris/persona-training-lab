@@ -9,7 +9,7 @@ from persona_training_lab.ui.density import (
     apply_scaled_styles,
 )
 from persona_training_lab.ui.safe_application import SafeApplication
-from persona_training_lab.ui.shell.main_window import MainWindow
+from persona_training_lab.ui.shell.main_window_context import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
 
 
