@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 import threading
 
+from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+
 from persona_training_lab.bootstrap.wiring import build_container
 from persona_training_lab.ui.density import (
     apply_density,
@@ -13,11 +15,15 @@ from persona_training_lab.ui.shell.main_window_context import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
 
 
+_QT_MESSAGE_HANDLER = None
+
+
 def main() -> int:
     app = SafeApplication(sys.argv)
     container = build_container()
     app.set_error_reporter(container.error_reporter)
     _install_exception_boundaries(container.error_reporter)
+    _install_qt_message_boundary(container.error_reporter)
 
     prefs = container.style_vm.load()
     density = apply_density(app, prefs.get("ui_scale"))
@@ -89,6 +95,43 @@ def _install_exception_boundaries(error_reporter) -> None:
 
     sys.excepthook = handle_exception
     threading.excepthook = handle_thread_exception
+
+
+def _install_qt_message_boundary(error_reporter):
+    """Route Qt diagnostics into throttled logs instead of stderr spam."""
+
+    levels = {
+        QtMsgType.QtDebugMsg: "DEBUG",
+        QtMsgType.QtInfoMsg: "INFO",
+        QtMsgType.QtWarningMsg: "WARNING",
+        QtMsgType.QtCriticalMsg: "ERROR",
+        QtMsgType.QtFatalMsg: "CRITICAL",
+    }
+
+    def handle_qt_message(message_type, context, message) -> None:
+        level = levels.get(message_type, "WARNING")
+        # Debug paint/layout chatter is intentionally ignored in normal runs.
+        if level == "DEBUG":
+            return
+        error_reporter.report_message(
+            str(message),
+            component="qt.message",
+            level=level,
+            entity_kind="qt",
+            entity_id=getattr(context, "category", "") or "runtime",
+            context={
+                "file": getattr(context, "file", "") or "",
+                "line": getattr(context, "line", 0) or 0,
+                "function": getattr(context, "function", "") or "",
+                "category": getattr(context, "category", "") or "",
+                "qt_message_type": str(message_type),
+            },
+        )
+
+    global _QT_MESSAGE_HANDLER
+    _QT_MESSAGE_HANDLER = handle_qt_message
+    qInstallMessageHandler(handle_qt_message)
+    return handle_qt_message
 
 
 if __name__ == "__main__":
