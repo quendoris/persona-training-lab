@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QPointF
+
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
 )
@@ -37,6 +39,33 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
             contextual_navigator(workspace_key, payload)
             return
         super()._open_workspace(workspace_key)
+
+    def _on_graph_zoom_anchor(
+        self,
+        anchor: QPointF,
+        old_zoom: float,
+        new_zoom: float,
+    ) -> None:
+        """Apply each pointer anchor immediately, without stale queued jumps."""
+
+        if old_zoom <= 0:
+            return
+        ratio = new_zoom / old_zoom
+        hbar = self._graph_scroll.horizontalScrollBar()
+        vbar = self._graph_scroll.verticalScrollBar()
+        target_h = hbar.value() + int(round(anchor.x() * (ratio - 1.0)))
+        target_v = vbar.value() + int(round(anchor.y() * (ratio - 1.0)))
+        self._apply_workspace_scroll_shift(target_h, target_v)
+
+    def _on_graph_workspace_origin_shift(self, delta: QPointF) -> None:
+        """Compensate geometry growth synchronously during rapid gestures."""
+
+        hbar = self._graph_scroll.horizontalScrollBar()
+        vbar = self._graph_scroll.verticalScrollBar()
+        self._apply_workspace_scroll_shift(
+            hbar.value() + int(round(delta.x())),
+            vbar.value() + int(round(delta.y())),
+        )
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
         safety = self._lineage_runtime_safety
