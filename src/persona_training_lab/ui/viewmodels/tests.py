@@ -42,7 +42,10 @@ class TestsViewModel:
         EvaluationMetric("Ошибки", "—", "нет результата"),
     )
     problematic_cases: tuple[EvaluationCase, ...] = (
-        EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить SCORE-ответы модели."),
+        EvaluationCase(
+            "Портрет пока не собран",
+            "Нажмите «Собрать портрет», чтобы получить SCORE-ответы модели.",
+        ),
     )
     context_rows: tuple[str, ...] = (
         "Основа: Big Five/IPIP-style шкала",
@@ -50,25 +53,70 @@ class TestsViewModel:
         "Это исследовательская метрика модели, не клиническая диагностика человека",
     )
     run_in_progress: bool = False
+    target_node_id: str = ""
+    target_model_version_id: str = ""
+    target_artifact_path: str = ""
 
     def __post_init__(self) -> None:
         self.refresh()
 
+    def set_lineage_context(self, context: dict[str, str]) -> None:
+        self.target_node_id = context.get("node_id", "")
+        self.target_model_version_id = context.get(
+            "model_version_id",
+            "",
+        )
+        self.target_artifact_path = context.get("artifact_path", "")
+        self.refresh()
+
     def refresh(self) -> None:
         self._apply_tests_connector()
+        self._apply_target_context()
+
+    def _apply_target_context(self) -> None:
+        target = self.target_model_version_id or "последняя зарегистрированная"
+        artifact = self.target_artifact_path or "будет разрешён из реестра версий"
+        self.setup_rows = (
+            ("Цель", "Big Five KPI портрет модели"),
+            ("Режим", "scored self-report items"),
+            ("Версия", target),
+            ("Веса", artifact),
+            ("Ответ", "только SCORE: 1-5"),
+        )
+        if self.target_model_version_id:
+            self.context_rows = (
+                f"Выбрана из lineage · {self.target_model_version_id}",
+                f"Artifact · {artifact}",
+                *tuple(
+                    item
+                    for item in self.context_rows
+                    if not item.startswith("Выбрана из lineage")
+                    and not item.startswith("Artifact ·")
+                ),
+            )
 
     def _apply_tests_connector(self) -> None:
         if self.experiments_service is None:
             self.title = "Тесты"
             self.subtitle = "Сервис тестов не подключён"
-            self.problematic_cases = (EvaluationCase("Сервис тестов не подключён", "Проверьте wiring приложения."),)
+            self.problematic_cases = (
+                EvaluationCase(
+                    "Сервис тестов не подключён",
+                    "Проверьте wiring приложения.",
+                ),
+            )
             return
         try:
             scenarios = self.experiments_service.list_experiments()
         except Exception:
             self.title = "Тесты"
             self.subtitle = "Не удалось загрузить тесты"
-            self.problematic_cases = (EvaluationCase("Не удалось загрузить тесты", "Проверьте подключение к базе данных."),)
+            self.problematic_cases = (
+                EvaluationCase(
+                    "Не удалось загрузить тесты",
+                    "Проверьте подключение к базе данных.",
+                ),
+            )
             self.context_rows = ("Big Five KPI портрет модели",)
             return
 
@@ -76,13 +124,20 @@ class TestsViewModel:
             self.title = "Тесты"
             self.subtitle = "Психологический портрет пока не собран"
             self.metrics = (
-                EvaluationMetric("Запусков", "0", "портреты пока не собирались"),
+                EvaluationMetric(
+                    "Запусков",
+                    "0",
+                    "портреты пока не собирались",
+                ),
                 EvaluationMetric("Последний статус", "—", "нет результата"),
                 EvaluationMetric("Пункты", "—", "нет результата"),
                 EvaluationMetric("Ошибки", "—", "нет результата"),
             )
             self.problematic_cases = (
-                EvaluationCase("Портрет пока не собран", "Нажмите «Собрать портрет», чтобы получить SCORE-ответы модели."),
+                EvaluationCase(
+                    "Портрет пока не собран",
+                    "Нажмите «Собрать портрет», чтобы получить SCORE-ответы модели.",
+                ),
             )
             self.context_rows = (
                 "Big Five/IPIP-style scored pack",
@@ -91,25 +146,65 @@ class TestsViewModel:
             )
             return
 
-        latest = scenarios[0]
+        latest = self._latest_for_target(scenarios)
         summary, cases = self._parse_subtitle(latest.subtitle)
-        invalid_count = sum(1 for case in cases if "Валидность: нет" in case.note)
-        failures = invalid_count if latest.status in {"Портрет собран", "Пройден"} else max(1, invalid_count)
+        invalid_count = sum(
+            1 for case in cases if "Валидность: нет" in case.note
+        )
+        failures = (
+            invalid_count
+            if latest.status in {"Портрет собран", "Пройден"}
+            else max(1, invalid_count)
+        )
         answers_value = self._answers_value(summary)
         self.title = f"Тесты · {latest.title}"
         self.subtitle = summary or latest.subtitle
         self.metrics = (
-            EvaluationMetric("Запусков", str(len(scenarios)), "сохранённые portrait/test runs"),
-            EvaluationMetric("Последний статус", latest.status, "последний сохранённый запуск"),
-            EvaluationMetric("Пункты", answers_value, "валидные SCORE-ответы"),
-            EvaluationMetric("Ошибки", str(failures), "пункты без валидного SCORE"),
+            EvaluationMetric(
+                "Запусков",
+                str(len(scenarios)),
+                "сохранённые portrait/test runs",
+            ),
+            EvaluationMetric(
+                "Последний статус",
+                latest.status,
+                "последний сохранённый запуск выбранной версии",
+            ),
+            EvaluationMetric(
+                "Пункты",
+                answers_value,
+                "валидные SCORE-ответы",
+            ),
+            EvaluationMetric(
+                "Ошибки",
+                str(failures),
+                "пункты без валидного SCORE",
+            ),
         )
-        self.problematic_cases = cases or (EvaluationCase("Ответы не сохранены", "Запустите сбор портрета ещё раз."),)
+        self.problematic_cases = cases or (
+            EvaluationCase(
+                "Ответы не сохранены",
+                "Запустите сбор портрета ещё раз.",
+            ),
+        )
         self.context_rows = (
             f"Последний портрет · {latest.experiment_id}",
             f"Статус · {latest.status}",
             "Big Five scored items",
             "KPI: средние баллы по факторам с reverse scoring",
+        )
+
+    def _latest_for_target(self, scenarios):
+        if not self.target_model_version_id:
+            return scenarios[0]
+        marker = f"model_version={self.target_model_version_id}"
+        return next(
+            (
+                scenario
+                for scenario in scenarios
+                if marker in scenario.subtitle
+            ),
+            scenarios[0],
         )
 
     def _answers_value(self, summary: str) -> str:
@@ -123,63 +218,150 @@ class TestsViewModel:
         if match is None:
             return subtitle.strip(), []
         summary = subtitle[: match.start()].strip()
-        records = [record.strip() for record in CASE_HEADER_RE.split(subtitle[match.start():]) if record.strip()]
-        headers = CASE_HEADER_RE.findall(subtitle[match.start():])
-        return summary, [f"{header}\n{record}" for header, record in zip(headers, records, strict=False)]
+        records = [
+            record.strip()
+            for record in CASE_HEADER_RE.split(subtitle[match.start() :])
+            if record.strip()
+        ]
+        headers = CASE_HEADER_RE.findall(subtitle[match.start() :])
+        return summary, [
+            f"{header}\n{record}"
+            for header, record in zip(headers, records, strict=False)
+        ]
 
-    def _parse_subtitle(self, subtitle: str) -> tuple[str, tuple[EvaluationCase, ...]]:
+    def _parse_subtitle(
+        self,
+        subtitle: str,
+    ) -> tuple[str, tuple[EvaluationCase, ...]]:
         summary, blocks = self._split_case_records(subtitle)
         if not summary and not blocks:
             return subtitle, ()
         cases: list[EvaluationCase] = []
         for block in blocks:
-            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            lines = [
+                line.strip()
+                for line in block.splitlines()
+                if line.strip()
+            ]
             if not lines:
                 continue
             case_title = lines[0].replace("CASE ", "Пункт ")
-            trait = next((line.removeprefix("TRAIT: ").strip() for line in lines if line.startswith("TRAIT: ")), "")
-            key = next((line.removeprefix("KEY: ").strip() for line in lines if line.startswith("KEY: ")), "")
-            reverse = next((line.removeprefix("REVERSE: ").strip() for line in lines if line.startswith("REVERSE: ")), "")
-            item = next((line.removeprefix("ITEM: ").strip() for line in lines if line.startswith("ITEM: ")), "")
-            status = next((line.removeprefix("STATUS: ").strip() for line in lines if line.startswith("STATUS: ")), "")
-            valid_score = next((line.removeprefix("VALID_SCORE: ").strip() for line in lines if line.startswith("VALID_SCORE: ")), "")
-            raw_response = next((line.removeprefix("RAW_RESPONSE: ").strip() for line in lines if line.startswith("RAW_RESPONSE: ")), "")
-            response = next((line.removeprefix("RESPONSE: ").strip() for line in lines if line.startswith("RESPONSE: ")), "")
+            trait = next(
+                (
+                    line.removeprefix("TRAIT: ").strip()
+                    for line in lines
+                    if line.startswith("TRAIT: ")
+                ),
+                "",
+            )
+            key = next(
+                (
+                    line.removeprefix("KEY: ").strip()
+                    for line in lines
+                    if line.startswith("KEY: ")
+                ),
+                "",
+            )
+            reverse = next(
+                (
+                    line.removeprefix("REVERSE: ").strip()
+                    for line in lines
+                    if line.startswith("REVERSE: ")
+                ),
+                "",
+            )
+            item = next(
+                (
+                    line.removeprefix("ITEM: ").strip()
+                    for line in lines
+                    if line.startswith("ITEM: ")
+                ),
+                "",
+            )
+            status = next(
+                (
+                    line.removeprefix("STATUS: ").strip()
+                    for line in lines
+                    if line.startswith("STATUS: ")
+                ),
+                "",
+            )
+            valid_score = next(
+                (
+                    line.removeprefix("VALID_SCORE: ").strip()
+                    for line in lines
+                    if line.startswith("VALID_SCORE: ")
+                ),
+                "",
+            )
+            raw_response = next(
+                (
+                    line.removeprefix("RAW_RESPONSE: ").strip()
+                    for line in lines
+                    if line.startswith("RAW_RESPONSE: ")
+                ),
+                "",
+            )
+            response = next(
+                (
+                    line.removeprefix("RESPONSE: ").strip()
+                    for line in lines
+                    if line.startswith("RESPONSE: ")
+                ),
+                "",
+            )
             note_parts = []
             if trait:
                 note_parts.append(f"Фактор: {trait}")
             if key:
-                note_parts.append(f"Ключ: {key} · reverse={reverse or '0'}")
+                note_parts.append(
+                    f"Ключ: {key} · reverse={reverse or '0'}"
+                )
             if item:
                 note_parts.append(f"Пункт: {item}")
             if status:
                 note_parts.append(f"Статус: {status}")
             if valid_score:
-                note_parts.append(f"Валидность: {'да' if valid_score == '1' else 'нет'}")
+                note_parts.append(
+                    f"Валидность: {'да' if valid_score == '1' else 'нет'}"
+                )
             if response:
                 note_parts.append(f"Ответ: {response}")
             if raw_response and raw_response != response:
                 note_parts.append(f"Сырой ответ: {raw_response}")
-            cases.append(EvaluationCase(case_title, "\n".join(note_parts) if note_parts else block))
+            cases.append(
+                EvaluationCase(
+                    case_title,
+                    "\n".join(note_parts) if note_parts else block,
+                )
+            )
         if cases:
             return summary, tuple(cases)
 
-        legacy_lines = [line for line in subtitle.splitlines() if line.strip()]
+        legacy_lines = [
+            line for line in subtitle.splitlines() if line.strip()
+        ]
         legacy_summary = legacy_lines[0] if legacy_lines else subtitle
-        legacy_cases = tuple(EvaluationCase(f"Ответ {idx + 1}", line) for idx, line in enumerate(legacy_lines[1:12]))
+        legacy_cases = tuple(
+            EvaluationCase(f"Ответ {idx + 1}", line)
+            for idx, line in enumerate(legacy_lines[1:12])
+        )
         return legacy_summary, legacy_cases
 
     def begin_run(self) -> bool:
         if self.run_in_progress:
             return False
         self.run_in_progress = True
-        self.subtitle = "Сбор психологического портрета выполняется…"
+        target = self.target_model_version_id or "последней версии"
+        self.subtitle = f"Сбор психологического портрета {target} выполняется…"
         return True
 
     def run_tests_sync(self) -> tuple[bool, str]:
         if self.experiments_service is None:
             return False, "Сервис тестов не подключён"
-        result = self.experiments_service.run_personality_portrait_test_pack()
+        result = self.experiments_service.run_personality_portrait_test_pack(
+            self.target_model_version_id or None
+        )
         return result.ok, result.message
 
     def finish_run(self, _ok: bool, message: str) -> None:
