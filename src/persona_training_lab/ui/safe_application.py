@@ -29,26 +29,39 @@ class SafeApplication(QApplication):
             reporter = self._error_reporter
             if reporter is not None:
                 with self._report_lock:
-                    report = reporter.capture(
-                        error,
-                        component="qt.event_dispatch",
-                        user_message=(
-                            "Операция интерфейса не выполнена, но приложение "
-                            "продолжает работу."
-                        ),
-                        entity_kind="qt_widget",
-                        entity_id=(
-                            receiver.objectName()
-                            or receiver.metaObject().className()
-                        ),
-                        context={
-                            "event_type": int(event.type()),
-                            "receiver_class": receiver.metaObject().className(),
-                        },
-                    )
-                    self.setProperty("ptl_last_error_id", report.error_id)
-                    self.setProperty(
-                        "ptl_last_error_message",
-                        report.user_message,
-                    )
+                    try:
+                        event_type = getattr(
+                            event.type(),
+                            "value",
+                            str(event.type()),
+                        )
+                        receiver_class = receiver.metaObject().className()
+                        report = reporter.capture(
+                            error,
+                            component="qt.event_dispatch",
+                            user_message=(
+                                "Операция интерфейса не выполнена, но приложение "
+                                "продолжает работу."
+                            ),
+                            entity_kind="qt_widget",
+                            entity_id=(
+                                receiver.objectName() or receiver_class
+                            ),
+                            context={
+                                "event_type": event_type,
+                                "receiver_class": receiver_class,
+                            },
+                        )
+                        self.setProperty(
+                            "ptl_last_error_id",
+                            report.error_id,
+                        )
+                        self.setProperty(
+                            "ptl_last_error_message",
+                            report.user_message,
+                        )
+                    except Exception:
+                        # The final containment boundary cannot be allowed to
+                        # raise while it is already handling a UI failure.
+                        pass
             return False
