@@ -11,6 +11,7 @@ from persona_training_lab.application.experiments.service import ExperimentsServ
 from persona_training_lab.application.lineage.runtime_safety import LineageRuntimeSafety
 from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
+from persona_training_lab.application.operations_center import OperationsCenterService
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.profiles.service import ProfilesService
 from persona_training_lab.application.runtime.atomic import (
@@ -108,6 +109,7 @@ class AppContainer:
     telemetry_vm: TelemetryViewModel
     runtime_operations: RuntimeOperationCoordinator
     lineage_runtime_safety: LineageRuntimeSafety
+    operations_center: OperationsCenterService
     error_reporter: ApplicationErrorReporter
 
 
@@ -139,6 +141,10 @@ def build_container() -> AppContainer:
 
     error_reporter = ApplicationErrorReporter(event_log_repo)
     runtime_operations = RuntimeOperationCoordinator(runtime_operations_repo)
+    operations_center = OperationsCenterService(
+        event_log=event_log_repo,
+        runtime_operations=runtime_operations_repo,
+    )
     lineage_runtime_safety = LineageRuntimeSafety(
         lineage_resource_links_repo,
         runtime_operations,
@@ -240,5 +246,6 @@ def build_container() -> AppContainer:
         telemetry_vm=telemetry_vm,
         runtime_operations=runtime_operations,
         lineage_runtime_safety=lineage_runtime_safety,
+        operations_center=operations_center,
         error_reporter=error_reporter,
     )
