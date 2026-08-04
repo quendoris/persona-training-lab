@@ -8,6 +8,7 @@ from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
 from persona_training_lab.application.experiments.service import ExperimentsService
+from persona_training_lab.application.lineage.runtime_safety import LineageRuntimeSafety
 from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.projects.service import ProjectsService
@@ -46,6 +47,9 @@ from persona_training_lab.infrastructure.persistence.repositories.event_log impo
 )
 from persona_training_lab.infrastructure.persistence.repositories.experiments import (
     SQLiteExperimentsRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.lineage_resource_links import (
+    SQLiteLineageResourceLinksRepository,
 )
 from persona_training_lab.infrastructure.persistence.repositories.model_versions import (
     SQLiteModelVersionsRepository,
@@ -103,6 +107,7 @@ class AppContainer:
     analysis_vm: AnalysisViewModel
     telemetry_vm: TelemetryViewModel
     runtime_operations: RuntimeOperationCoordinator
+    lineage_runtime_safety: LineageRuntimeSafety
     error_reporter: ApplicationErrorReporter
 
 
@@ -130,9 +135,14 @@ def build_container() -> AppContainer:
     model_versions_repo = SQLiteModelVersionsRepository(connection)
     training_repo = SQLiteTrainingRepository(connection)
     runtime_operations_repo = SQLiteRuntimeOperationsRepository(connection)
+    lineage_resource_links_repo = SQLiteLineageResourceLinksRepository(connection)
 
     error_reporter = ApplicationErrorReporter(event_log_repo)
     runtime_operations = RuntimeOperationCoordinator(runtime_operations_repo)
+    lineage_runtime_safety = LineageRuntimeSafety(
+        lineage_resource_links_repo,
+        runtime_operations,
+    )
     abandoned = runtime_operations.recover_orphaned_operations()
     if abandoned:
         error_reporter.report_message(
@@ -229,5 +239,6 @@ def build_container() -> AppContainer:
         analysis_vm=analysis_vm,
         telemetry_vm=telemetry_vm,
         runtime_operations=runtime_operations,
+        lineage_runtime_safety=lineage_runtime_safety,
         error_reporter=error_reporter,
     )
