@@ -44,15 +44,24 @@ class _IssueRow(QPushButton):
         title = QLabel(item.title)
         title.setObjectName("CardTitle")
         title.setWordWrap(True)
-        title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        title.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         note = make_muted_label(item.summary)
-        note.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        note.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         text.addWidget(title)
         text.addWidget(note)
         layout.addLayout(text, 1)
 
         badge = make_status_label(item.status, warning=True)
-        badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        badge.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents,
+            True,
+        )
         layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
         self.clicked.connect(
             lambda: self.navigate_requested.emit(
@@ -72,6 +81,7 @@ class IssuesPanel(QFrame):
         super().__init__()
         self.setObjectName("PanelCard")
         self._operations_center = operations_center
+        self._render_signature: tuple[object, ...] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -106,22 +116,43 @@ class IssuesPanel(QFrame):
         self._timer.setInterval(1500)
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
-        self.refresh()
+        self.refresh(force=True)
 
     def set_service(self, operations_center: OperationsCenterService) -> None:
         self._operations_center = operations_center
-        self.refresh()
+        self._render_signature = None
+        self.refresh(force=True)
 
-    def refresh(self) -> None:
-        self._clear_rows()
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        self._timer.start()
+        self.refresh(force=True)
+        super().showEvent(event)
+
+    def hideEvent(self, event) -> None:  # type: ignore[override]
+        self._timer.stop()
+        super().hideEvent(event)
+
+    def refresh(self, *, force: bool = False) -> None:
         service = self._operations_center
         if service is None:
+            signature: tuple[object, ...] = ("disconnected",)
+            if not force and signature == self._render_signature:
+                return
+            self._render_signature = signature
+            self._clear_rows()
             self._subtitle.setText("Ожидание подключения журнала проблем.")
-            self._rows.addWidget(make_muted_label("Нет подключённого источника."))
+            self._rows.addWidget(
+                make_muted_label("Нет подключённого источника.")
+            )
             self._rows.addStretch(1)
             return
 
         issues = service.issue_items(24)
+        signature = tuple(self._item_signature(item) for item in issues)
+        if not force and signature == self._render_signature:
+            return
+        self._render_signature = signature
+        self._clear_rows()
         self._subtitle.setText(
             "Проблем нет — рабочий контур чист."
             if not issues
@@ -147,6 +178,20 @@ class IssuesPanel(QFrame):
                 row.navigate_requested.connect(self.navigate_requested.emit)
                 self._rows.addWidget(row)
         self._rows.addStretch(1)
+
+    @staticmethod
+    def _item_signature(item: OperationsCenterItem) -> tuple[str, ...]:
+        return (
+            item.item_id,
+            item.title,
+            item.summary,
+            item.status,
+            item.severity,
+            item.occurred_at,
+            item.target_screen,
+            item.focus_text,
+            item.correlation_id,
+        )
 
     def _clear_rows(self) -> None:
         while self._rows.count():
