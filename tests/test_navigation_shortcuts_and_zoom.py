@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from persona_training_lab.ui.agents.version_graph_free_zoom import VersionGraphCanvas
+from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.keybindings.definitions import AGENT_GRAPH_KEY_BINDINGS
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 from persona_training_lab.ui.shell.main_window_context import TAB_SHORTCUTS
@@ -66,6 +67,29 @@ def test_navigation_shortcut_conflicts_are_rejected(tmp_path: Path) -> None:
     assert not result.accepted
     assert result.conflict_binding_id == "nav_training"
     assert manager.sequence("nav_agents") == "Alt+A"
+
+
+def test_dashboard_steps_route_to_their_real_workspaces() -> None:
+    assert DashboardScreen._target_for_step("Добавьте датасет") == (
+        "datasets",
+        "Добав",
+    )
+    assert DashboardScreen._target_for_step("Доведите training run до artifact") == (
+        "training",
+        "Запуст",
+    )
+    assert DashboardScreen._target_for_step("Соберите портрет") == (
+        "tests",
+        "Собрать портрет",
+    )
+    assert DashboardScreen._target_for_step("Откройте Анализ и смотрите delta") == (
+        "analysis",
+        "",
+    )
+    assert DashboardScreen._lineage_target("Snapshot · mdl_001") == (
+        "snapshots",
+        "",
+    )
 
 
 def test_lineage_zoom_range_is_wide_but_bounded() -> None:
