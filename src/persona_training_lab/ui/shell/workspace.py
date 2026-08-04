@@ -1,18 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QScrollArea, QStackedWidget
+from PySide6.QtWidgets import QFrame, QScrollArea, QStackedWidget, QWidget
 
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 
 
 class WorkspaceStack(QScrollArea):
-    """Scrollable workspace host.
-
-    Individual screens can still own their local scroll areas, but this outer
-    safety rail keeps the app usable on notebook-sized displays when a screen
-    has a larger enterprise layout than the available height.
-    """
+    """Scrollable workspace host with an optional leave guard per screen."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -26,13 +23,34 @@ class WorkspaceStack(QScrollArea):
         self.setWidget(self._stack)
         apply_scrollbar_style(self)
 
-    def register(self, key: str, widget) -> None:
+    def register(self, key: str, widget: QWidget) -> None:
         widget.setProperty("workspace_key", key)
         self._stack.addWidget(widget)
 
-    def show_workspace(self, key: str) -> None:
+    def current_workspace_key(self) -> str:
+        current = self._stack.currentWidget()
+        if current is None:
+            return ""
+        return str(current.property("workspace_key") or "")
+
+    def request_current_leave(self) -> bool:
+        current = self._stack.currentWidget()
+        if current is None:
+            return True
+        guard = getattr(current, "request_leave_workspace", None)
+        if not isinstance(guard, Callable):
+            return True
+        return bool(guard())
+
+    def show_workspace(self, key: str) -> bool:
         for index in range(self._stack.count()):
             widget = self._stack.widget(index)
-            if widget.property("workspace_key") == key:
-                self._stack.setCurrentIndex(index)
-                return
+            if widget.property("workspace_key") != key:
+                continue
+            if index == self._stack.currentIndex():
+                return True
+            if not self.request_current_leave():
+                return False
+            self._stack.setCurrentIndex(index)
+            return True
+        return False
