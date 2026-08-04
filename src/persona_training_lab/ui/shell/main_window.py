@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QDockWidget, QFrame, QHBoxLayout, QLabel, QMainWindow, QMenu, QVBoxLayout, QWidget
 
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
@@ -189,8 +190,12 @@ class MainWindow(QMainWindow):
         self._on_screen_selected(screen)
 
     def _on_screen_selected(self, screen: str) -> None:
+        previous = self._workspace.current_workspace_key()
+        if not self._workspace.show_workspace(screen):
+            if previous:
+                self._sidebar.set_current(previous)
+            return
         self._shell_vm.navigate(screen)
-        self._workspace.show_workspace(screen)
         self._inspector_panel.set_context(screen)
         self._status.set_message(f"Текущее пространство: {screen}")
 
@@ -202,3 +207,9 @@ class MainWindow(QMainWindow):
         self._current_accent = accent_name
         apply_theme(app, theme_name, accent_name)
         self._status.set_style_message(f"{theme_name.title()} · {accent_name.title()} · {self._density.name}")
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+        if not self._workspace.request_current_leave():
+            event.ignore()
+            return
+        super().closeEvent(event)
