@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import ClassVar
 
 from PySide6.QtGui import QKeySequence
@@ -21,10 +22,12 @@ class HistoryShortcutRouting:
         "history_toggle",
         "undo_only",
     )
-    default_sequences: ClassVar[Mapping[str, str]] = {
-        "history_toggle": "Ctrl+Z",
-        "undo_only": "Ctrl+Shift+Z",
-    }
+    default_sequences: ClassVar[Mapping[str, str]] = MappingProxyType(
+        {
+            "history_toggle": "Ctrl+Z",
+            "undo_only": "Ctrl+Shift+Z",
+        }
+    )
     history_sequences: ClassVar[frozenset[str]] = frozenset(
         {"ctrl+z", "ctrl+shift+z"}
     )
