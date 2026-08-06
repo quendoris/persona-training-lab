@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         )
         self._workspace.register(
             "profiles",
-            ProfilesScreen(profiles_vm),
+            ProfilesScreen(profiles_vm, localization),
         )
         self._workspace.register(
             "agents",
