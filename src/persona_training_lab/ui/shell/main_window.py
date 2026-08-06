@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -28,7 +28,7 @@ from persona_training_lab.ui.panels.inspector_panel import InspectorPanel
 from persona_training_lab.ui.panels.issues_panel import IssuesPanel
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
 from persona_training_lab.ui.profiles.screen import ProfilesScreen
-from persona_training_lab.ui.shell.app_sidebar import Sidebar
+from persona_training_lab.ui.shell.app_sidebar import NAVIGATION_KEYS, Sidebar
 from persona_training_lab.ui.shell.status_bar import AppStatusBar
 from persona_training_lab.ui.shell.workspace import WorkspaceStack
 from persona_training_lab.ui.snapshots.screen import SnapshotsScreen
@@ -48,6 +48,14 @@ from persona_training_lab.ui.viewmodels.style import StyleViewModel
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
+
+
+DOCK_TITLE_KEYS: dict[str, str] = {
+    "inspector": "dock.inspector",
+    "activity": "dock.activity",
+    "telemetry": "dock.telemetry",
+    "issues": "dock.issues",
+}
 
 
 class MainWindow(QMainWindow):
@@ -74,7 +82,9 @@ class MainWindow(QMainWindow):
         self._lineage_runtime_safety = lineage_runtime_safety
         self._localization = localization
         self._density = screen_density()
-        self.setWindowTitle(shell_vm.title)
+        self._current_screen = "dashboard"
+        self._dock_actions: dict[str, QAction] = {}
+        self.setWindowTitle(self._text("app.name"))
         if localization is not None:
             localization.bind_window_title(self, "app.name")
         self.resize(
@@ -161,9 +171,9 @@ class MainWindow(QMainWindow):
 
         self._sidebar.screen_selected.connect(self._on_screen_selected)
 
-        self._status = AppStatusBar()
+        self._status = AppStatusBar(localization)
         self.setStatusBar(self._status)
-        self._status.set_message(shell_vm.status_message)
+        self._status.set_message_key("status.ready")
         self._status.set_style_message(
             f"{self._current_theme.title()} · "
             f"{self._current_accent.title()} · {self._density.name}"
@@ -172,22 +182,22 @@ class MainWindow(QMainWindow):
         self._docks: dict[str, QDockWidget] = {}
         self._inspector_panel = InspectorPanel()
         inspector = self._register_dock(
-            "Инспектор",
+            "inspector",
             self._inspector_panel,
             Qt.RightDockWidgetArea,
         )
         activity = self._register_dock(
-            "Активность",
+            "activity",
             ActivityPanel(),
             Qt.BottomDockWidgetArea,
         )
         telemetry = self._register_dock(
-            "Телеметрия",
+            "telemetry",
             TelemetryPanel(telemetry_vm),
             Qt.BottomDockWidgetArea,
         )
         issues = self._register_dock(
-            "Проблемы",
+            "issues",
             IssuesPanel(),
             Qt.BottomDockWidgetArea,
         )
@@ -201,21 +211,26 @@ class MainWindow(QMainWindow):
         self.menuBar().hide()
         self._inspector_panel.set_context("dashboard")
         self._schedule_rebalance()
+        if localization is not None:
+            localization.language_changed.connect(self._refresh_shell_language)
 
     def _register_dock(
         self,
-        title: str,
+        dock_id: str,
         widget: QWidget,
         area: Qt.DockWidgetArea,
     ) -> QDockWidget:
-        dock = QDockWidget(title, self)
+        title_key = DOCK_TITLE_KEYS[dock_id]
+        dock = QDockWidget(self._text(title_key), self)
         dock.setWidget(widget)
-        dock.setObjectName(title)
+        dock.setObjectName(f"ptl.dock.{dock_id}")
         dock.setFeatures(
             QDockWidget.DockWidgetMovable
             | QDockWidget.DockWidgetClosable
             | QDockWidget.DockWidgetFloatable
         )
+        if self._localization is not None:
+            self._localization.bind_window_title(dock, title_key)
         self.addDockWidget(area, dock)
         dock.topLevelChanged.connect(
             lambda _floating, _dock=dock: self._schedule_rebalance()
@@ -223,7 +238,7 @@ class MainWindow(QMainWindow):
         dock.visibilityChanged.connect(
             lambda _visible, _dock=dock: self._schedule_rebalance()
         )
-        self._docks[title] = dock
+        self._docks[dock_id] = dock
         return dock
 
     def _schedule_rebalance(self) -> None:
@@ -260,17 +275,14 @@ class MainWindow(QMainWindow):
             self.centralWidget().updateGeometry()
 
     def _build_windows_menu(self) -> QMenu:
-        menu = QMenu("Панели", self)
-        for title in [
-            "Инспектор",
-            "Активность",
-            "Телеметрия",
-            "Проблемы",
-        ]:
-            dock = self._docks[title]
-            action = dock.toggleViewAction()
-            action.setText(f"Показать / скрыть: {title}")
+        menu = QMenu(self._text("shell.panels"), self)
+        if self._localization is not None:
+            self._localization.bind_title(menu, "shell.panels")
+        for dock_id in DOCK_TITLE_KEYS:
+            action = self._docks[dock_id].toggleViewAction()
+            action.setText(self._text(DOCK_TITLE_KEYS[dock_id]))
             menu.addAction(action)
+            self._dock_actions[dock_id] = action
         return menu
 
     def _go_to_screen(self, screen: str) -> None:
@@ -283,9 +295,10 @@ class MainWindow(QMainWindow):
             if previous:
                 self._sidebar.set_current(previous)
             return
+        self._current_screen = screen
         self._shell_vm.navigate(screen)
         self._inspector_panel.set_context(screen)
-        self._status.set_message(f"Текущее пространство: {screen}")
+        self._refresh_workspace_status()
 
     def _apply_style(
         self,
@@ -302,6 +315,26 @@ class MainWindow(QMainWindow):
             f"{theme_name.title()} · {accent_name.title()} · "
             f"{self._density.name}"
         )
+
+    def _refresh_shell_language(self, _locale: str = "") -> None:
+        for dock_id, action in self._dock_actions.items():
+            action.setText(self._text(DOCK_TITLE_KEYS[dock_id]))
+        self._refresh_workspace_status()
+
+    def _refresh_workspace_status(self) -> None:
+        self._status.set_message_key(
+            "status.current_workspace",
+            title=self._screen_title(self._current_screen),
+        )
+
+    def _screen_title(self, screen: str) -> str:
+        key = NAVIGATION_KEYS.get(screen)
+        return self._text(key) if key is not None else screen
+
+    def _text(self, key: str, **values: object) -> str:
+        if self._localization is None:
+            return key
+        return self._localization.text(key, **values)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         if not self._workspace.request_current_leave():
