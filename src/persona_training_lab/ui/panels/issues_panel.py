@@ -42,11 +42,7 @@ class _IssueRow(QPushButton):
         self.setObjectName("WarningBlock")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(68)
-        tooltip = panel_text(
-            localization,
-            "operations.open_related",
-            "Открыть связанную вкладку",
-        )
+        tooltip = panel_text(localization, "operations.open_related")
         self.setToolTip(
             tooltip
             + (f" · {item.correlation_id}" if item.correlation_id else "")
@@ -106,15 +102,10 @@ class IssuesPanel(QFrame):
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
-        self._title = QLabel(
-            self._text("panel.issues.title", "Проблемы")
-        )
+        self._title = QLabel(self._text("panel.issues.title"))
         self._title.setObjectName("SectionTitle")
         self._subtitle = make_muted_label(
-            self._text(
-                "panel.issues.description",
-                "Восстановимые ошибки и предупреждения без спама в консоль.",
-            )
+            self._text("panel.issues.description")
         )
         layout.addWidget(self._title)
         layout.addWidget(self._subtitle)
@@ -166,19 +157,9 @@ class IssuesPanel(QFrame):
                 return
             self._render_signature = signature
             self._clear_rows()
-            self._subtitle.setText(
-                self._text(
-                    "panel.issues.waiting",
-                    "Ожидание подключения журнала проблем.",
-                )
-            )
+            self._subtitle.setText(self._text("panel.issues.waiting"))
             self._rows.addWidget(
-                make_muted_label(
-                    self._text(
-                        "panel.common.no_source",
-                        "Нет подключённого источника.",
-                    )
-                )
+                make_muted_label(self._text("panel.common.no_source"))
             )
             self._rows.addStretch(1)
             return
@@ -190,14 +171,10 @@ class IssuesPanel(QFrame):
         self._render_signature = signature
         self._clear_rows()
         self._subtitle.setText(
-            self._text(
-                "panel.issues.clean",
-                "Проблем нет — рабочий контур чист.",
-            )
+            self._text("panel.issues.clean")
             if not issues
             else self._text(
                 "panel.issues.attention",
-                "Требуют внимания: {count}",
                 count=len(issues),
             )
         )
@@ -208,19 +185,13 @@ class IssuesPanel(QFrame):
             clean_layout.setContentsMargins(12, 10, 12, 10)
             clean_layout.addWidget(
                 make_status_label(
-                    self._text(
-                        "panel.issues.none_critical",
-                        "0 критических проблем",
-                    ),
+                    self._text("panel.issues.none_critical"),
                     warning=False,
                 )
             )
             clean_layout.addWidget(
                 make_muted_label(
-                    self._text(
-                        "panel.issues.new_errors_hint",
-                        "Новые ошибки появятся здесь с error_id и correlation_id.",
-                    )
+                    self._text("panel.issues.new_errors_hint")
                 )
             )
             self._rows.addWidget(clean)
@@ -258,21 +229,13 @@ class IssuesPanel(QFrame):
                 widget.deleteLater()
 
     def _on_language_changed(self, _locale: str) -> None:
-        self._title.setText(
-            self._text("panel.issues.title", "Проблемы")
-        )
+        self._title.setText(self._text("panel.issues.title"))
         self._render_signature = None
         self.refresh(force=True)
 
-    def _text(
-        self,
-        key: str,
-        fallback: str,
-        **values: object,
-    ) -> str:
+    def _text(self, key: str, **values: object) -> str:
         return panel_text(
             self._localization,
             key,
-            fallback,
             **values,
         )
