@@ -22,6 +22,10 @@
     "dialog.information.title": "Информация",
     "dialog.question.title": "Подтверждение",
     "dialog.warning.title": "Предупреждение",
+    "dock.activity": "Активность",
+    "dock.inspector": "Инспектор",
+    "dock.issues": "Проблемы",
+    "dock.telemetry": "Телеметрия",
     "language.current": "Язык интерфейса",
     "language.english": "English",
     "language.restart_not_required": "Язык меняется без перезапуска приложения.",
@@ -49,6 +53,10 @@
     "release.i18n.incomplete": "Перевод интерфейса не завершён.",
     "release.i18n.ready": "Все пользовательские строки переведены.",
     "shell.active_processes": "Активные процессы",
-    "shell.panels.decorated": "──── панели ────"
+    "shell.panels": "Панели",
+    "shell.panels.decorated": "──── панели ────",
+    "status.current_workspace": "Текущее пространство: {title}",
+    "status.opened_with_focus": "Открыта вкладка «{title}»: {focus}",
+    "status.ready": "Готово"
   }
 }
