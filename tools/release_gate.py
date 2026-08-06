@@ -40,6 +40,8 @@ QUICK_TESTS = (
     "tests/test_training_runner.py",
     "tests/test_local_model_probe.py",
     "tests/test_model_versions_connector.py",
+    "tests/test_model_version_statuses.py",
+    "tests/test_snapshots_i18n.py",
     "tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py",
     "tests/test_navigation_shortcuts_and_zoom.py",
     "tests/test_workspace_leave_guard.py",
