@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 
+import pytest
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
 
@@ -18,6 +19,7 @@ from persona_training_lab.application.lineage.snapshot import (
 from persona_training_lab.ui.agents.refresh_coordinator import (
     LineageRefreshCoordinator,
 )
+from persona_training_lab.ui.agents.refresh_worker import LineageRefreshResult
 
 
 def _app() -> QApplication:
@@ -113,11 +115,33 @@ def test_worker_builds_and_closes_loader_off_the_gui_thread() -> None:
     try:
         coordinator.request_refresh(force=True)
         assert _wait_until(lambda: len(received) == 1)
-        assert loader.build_threads == [loader.build_threads[0]]
+        assert len(loader.build_threads) == 1
         assert loader.build_threads[0] != main_thread
         assert coordinator.shutdown(2_000) is True
-        assert loader.close_threads == [loader.close_threads[0]]
+        assert len(loader.close_threads) == 1
         assert loader.close_threads[0] == loader.build_threads[0]
+    finally:
+        coordinator.shutdown(2_000)
+
+
+def test_projection_crosses_threads_as_immutable_data() -> None:
+    app = _app()
+    assert app is not None
+    loader = _SequenceLoader([_empty_snapshot()])
+    coordinator = LineageRefreshCoordinator(lambda: loader)
+    received: list[object] = []
+    coordinator.projection_ready.connect(received.append)
+
+    try:
+        coordinator.request_refresh(force=True)
+        assert _wait_until(lambda: len(received) == 1)
+        result = received[0]
+        assert isinstance(result, LineageRefreshResult)
+
+        with pytest.raises(TypeError):
+            result.projection.details["evil"] = object()  # type: ignore[index]
+        with pytest.raises(TypeError):
+            result.projection.entity_context["snapshot"]["status"] = "evil"  # type: ignore[index]
     finally:
         coordinator.shutdown(2_000)
 
