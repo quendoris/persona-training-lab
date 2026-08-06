@@ -19,8 +19,8 @@ from persona_training_lab.infrastructure.persistence.sqlite.schema import (
 from persona_training_lab.ui.agents.atomic_lineage_public import (
     build_empty_lineage,
 )
-from persona_training_lab.ui.agents.screen_background_reconciled import (
-    AgentsScreen as ReconciledAgentsScreen,
+from persona_training_lab.ui.agents.projection_runtime import (
+    ProjectionSafetyBinding,
 )
 
 
@@ -109,21 +109,13 @@ def test_placeholder_projection_never_mutates_registry_before_last_good() -> Non
             calls.append((resources, previous))
             return tuple(sorted(resources))
 
-    coordinator = SimpleNamespace(last_good=None)
-    screen = SimpleNamespace(
-        _lineage_runtime_safety=_Safety(),
-        _real_projection=build_empty_lineage(),
-        _lineage_refresh_coordinator=coordinator,
-        _bound_projection_node_ids=None,
-    )
+    resources = build_empty_lineage().resources
+    binding = ProjectionSafetyBinding(_Safety())  # type: ignore[arg-type]
 
-    ReconciledAgentsScreen._bind_projection_resources(screen)  # type: ignore[arg-type]
+    assert binding.reconcile(resources, snapshot_proven=False) is None
     assert calls == []
 
-    coordinator.last_good = object()
-    ReconciledAgentsScreen._bind_projection_resources(screen)  # type: ignore[arg-type]
-    assert len(calls) == 1
-    assert screen._bound_projection_node_ids == (
+    expected = (
         "base",
         "dataset",
         "delta",
@@ -131,6 +123,9 @@ def test_placeholder_projection_never_mutates_registry_before_last_good() -> Non
         "snapshot",
         "training",
     )
+    assert binding.reconcile(resources, snapshot_proven=True) == expected
+    assert len(calls) == 1
+    assert binding.bound_node_ids == expected
 
 
 def test_reconciliation_rolls_back_every_node_when_one_claim_is_invalid(
