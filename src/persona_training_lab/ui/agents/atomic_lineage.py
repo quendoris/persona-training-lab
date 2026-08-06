@@ -81,6 +81,7 @@ def _build_canvas_projection(
             if parent_semantic
             else None
         )
+        is_canonical = node_id in _CANONICAL_BY_KIND.values()
         nodes.append(
             ProjectedVersionNode(
                 node_id=node_id,
@@ -92,7 +93,7 @@ def _build_canvas_projection(
                 branch_note=(
                     "current"
                     if node_id == "snapshot"
-                    else "main" if node_id in _CANONICAL_BY_KIND.values() else "side"
+                    else "main" if is_canonical else "side"
                 ),
                 parent_id=parent_id,
             )
@@ -115,7 +116,7 @@ def _build_canvas_projection(
                 "atomic-lineage",
                 projection.topology_revision,
                 projection.content_revision,
-                "",
+                _presentation_signature(aliases, atomic),
             ),
         ),
     )
@@ -161,6 +162,26 @@ def _canonical_aliases(
     if evaluation_node_id:
         aliases[evaluation_node_id] = "portrait"
     return aliases
+
+
+def _presentation_signature(
+    aliases: dict[str, str],
+    atomic: AtomicLineageSnapshot,
+) -> str:
+    alias_items = [
+        f"{semantic_id}->{display_id}"
+        for semantic_id, display_id in sorted(aliases.items())
+    ]
+    evaluations = sorted(
+        atomic.source.evaluations,
+        key=lambda item: (item.updated_at, item.experiment_id),
+        reverse=True,
+    )[:2]
+    alias_items.extend(
+        f"delta:{index}={item.experiment_id}"
+        for index, item in enumerate(evaluations)
+    )
+    return "|".join(alias_items)
 
 
 def _latest(records: Iterable[object], id_field: str) -> object | None:
@@ -351,7 +372,9 @@ def _ensure_placeholders(
                 subtitle="presentation placeholder",
                 status=LineageState.PENDING.value,
                 tone="pending",
-                branch_note="current" if node_id == "snapshot" else "main",
+                branch_note=(
+                    "current" if node_id == "snapshot" else "main"
+                ),
                 parent_id=parent_id,
             )
         )
