@@ -32,15 +32,34 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         lineage_runtime_safety: LineageRuntimeSafety | None = None,
         lineage_refresh_coordinator: LineageRefreshCoordinator | None = None,
     ) -> None:
-        self._lineage_refresh_coordinator = lineage_refresh_coordinator
-        super().__init__(
-            view_model,
-            key_binding_manager,
-            lineage_runtime_safety,
-        )
-        coordinator = self._lineage_refresh_coordinator
+        coordinator = lineage_refresh_coordinator
+        owns_coordinator = False
+        if coordinator is None:
+            loader_factory = getattr(
+                view_model,
+                "lineage_loader_factory",
+                None,
+            )
+            if loader_factory is not None:
+                coordinator = LineageRefreshCoordinator(loader_factory)
+                owns_coordinator = True
+        self._lineage_refresh_coordinator = coordinator
+        self._owns_lineage_refresh_coordinator = owns_coordinator
+        try:
+            super().__init__(
+                view_model,
+                key_binding_manager,
+                lineage_runtime_safety,
+            )
+        except Exception:
+            if owns_coordinator and coordinator is not None:
+                coordinator.shutdown()
+            raise
+
         if coordinator is None:
             return
+        if owns_coordinator:
+            coordinator.setParent(self)
         self._runtime_safety_timer.stop()
         coordinator.projection_ready.connect(self._on_projection_ready)
         coordinator.refresh_failed.connect(self._on_projection_failed)
@@ -96,6 +115,12 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         coordinator = self._lineage_refresh_coordinator
         if coordinator is not None:
             coordinator.request_refresh(force=force)
+
+    def shutdown_background_work(self, timeout_ms: int = 6_500) -> bool:
+        coordinator = self._lineage_refresh_coordinator
+        if coordinator is None:
+            return True
+        return coordinator.shutdown(timeout_ms)
 
     def showEvent(self, event: QShowEvent) -> None:  # type: ignore[override]
         super().showEvent(event)
