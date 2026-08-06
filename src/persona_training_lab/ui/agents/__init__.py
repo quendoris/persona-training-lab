@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import sys
 
-from . import screen_contextual as _screen_contextual
+from . import screen_background as _screen_background
 
 
-AgentsScreen = _screen_contextual.AgentsScreen
+AgentsScreen = _screen_background.AgentsScreen
 
 # Keep historical import paths as aliases to the single public screen. New code
 # should import AgentsScreen from persona_training_lab.ui.agents directly.
@@ -16,6 +16,6 @@ _COMPATIBILITY_SCREEN_MODULES = (
     "screen_history_diagnostics",
 )
 for module_name in _COMPATIBILITY_SCREEN_MODULES:
-    sys.modules[f"{__name__}.{module_name}"] = _screen_contextual
+    sys.modules[f"{__name__}.{module_name}"] = _screen_background
 
 __all__ = ["AgentsScreen"]
