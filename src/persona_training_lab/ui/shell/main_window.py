@@ -20,6 +20,7 @@ from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.density import screen_density, scaled
 from persona_training_lab.ui.docs.screen import DocsScreen
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 from persona_training_lab.ui.keybindings.screen import KeyBindingsScreen
 from persona_training_lab.ui.panels.activity_panel import ActivityPanel
@@ -65,13 +66,17 @@ class MainWindow(QMainWindow):
         analysis_vm: AnalysisViewModel,
         telemetry_vm: TelemetryViewModel,
         lineage_runtime_safety: LineageRuntimeSafety | None = None,
+        localization: LocalizationManager | None = None,
     ) -> None:
         super().__init__()
         self._shell_vm = shell_vm
         self._style_vm = style_vm
         self._lineage_runtime_safety = lineage_runtime_safety
+        self._localization = localization
         self._density = screen_density()
         self.setWindowTitle(shell_vm.title)
+        if localization is not None:
+            localization.bind_window_title(self, "app.name")
         self.resize(
             self._density.window_width,
             self._density.window_height,
@@ -99,6 +104,7 @@ class MainWindow(QMainWindow):
             style_vm=style_vm,
             on_apply_theme=self._apply_style,
             active_workflows=[],
+            localization=localization,
         )
         self._key_binding_manager = KeyBindingManager(parent=self)
         self._workspace = WorkspaceStack()
