@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtGui import QHideEvent, QShowEvent
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
@@ -18,6 +19,11 @@ from persona_training_lab.ui.agents.refresh_worker import (
 )
 from persona_training_lab.ui.agents.screen_runtime_safe import (
     AgentsScreen as _RuntimeSafeAgentsScreen,
+)
+from persona_training_lab.ui.components.cards import PanelCard
+from persona_training_lab.ui.components.panels import (
+    make_muted_label,
+    make_status_label,
 )
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
@@ -78,6 +84,141 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         self._real_projection = projection
         self._real_projection_signature = projection.signature
         return self._state.apply(build_version_lineage(projection.nodes))
+
+    def _roles(self) -> QWidget:
+        content = QWidget()
+        content.setProperty("transparentBg", True)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        card = PanelCard(
+            "Рабочие роли",
+            "Подсказки рассчитаны из того же атомарного lineage snapshot.",
+        )
+        self._projection_roles_layout = QVBoxLayout()
+        self._projection_roles_layout.setSpacing(8)
+        card._layout.addLayout(self._projection_roles_layout)
+        layout.addWidget(card)
+        layout.addStretch(1)
+        self._roles_content = content
+        self._refresh_projection_roles()
+        return self._bounded_column_scroll(
+            content,
+            object_name="AgentsRolesScroll",
+            minimum_width=self._ROLES_MIN_WIDTH,
+            maximum_width=self._ROLES_MAX_WIDTH,
+        )
+
+    def _refresh_projection_roles(self) -> None:
+        layout = getattr(self, "_projection_roles_layout", None)
+        if layout is None:
+            return
+        self._clear_layout(layout)
+        for title, mission, next_action, status in self._projection_roles():
+            row = QFrame()
+            row.setObjectName("LineageRow")
+            row_layout = QVBoxLayout(row)
+            row_layout.setContentsMargins(12, 10, 12, 10)
+            title_label = QLabel(title)
+            title_label.setObjectName("CardTitle")
+            row_layout.addWidget(title_label)
+            row_layout.addWidget(make_muted_label(mission))
+            row_layout.addWidget(make_muted_label(next_action))
+            row_layout.addWidget(make_status_label(status, "pending"))
+            layout.addWidget(row)
+
+    def _projection_roles(
+        self,
+    ) -> tuple[tuple[str, str, str, str], ...]:
+        projection = self._real_projection
+        if projection is None:
+            return ()
+        contexts = projection.entity_context
+        real_contexts = tuple(
+            context
+            for context in contexts.values()
+            if not context.get("node_kind", "").endswith("_placeholder")
+        )
+        dataset_count = sum(
+            context.get("node_kind") == "dataset"
+            for context in real_contexts
+        )
+        evaluation_count = sum(
+            context.get("node_kind") == "evaluation_run"
+            for context in real_contexts
+        )
+        bad_count = sum(node.tone == "bad" for node in projection.nodes)
+        pending_count = sum(
+            node.tone == "pending"
+            and not contexts.get(node.node_id, {})
+            .get("node_kind", "")
+            .endswith("_placeholder")
+            for node in projection.nodes
+        )
+        unresolved_count = sum(
+            "unresolved:" in node.subtitle
+            for node in projection.nodes
+        )
+        snapshot_context = contexts.get("snapshot", {})
+        current_version = snapshot_context.get("model_version_id", "")
+        delta_context = contexts.get("delta", {})
+        delta_ready = bool(
+            delta_context.get("left_experiment_id")
+            and delta_context.get("right_experiment_id")
+        )
+        next_action = self._projection_next_action(contexts, delta_ready)
+        return (
+            (
+                "Версионный навигатор",
+                "Следит за причинной цепочкой model lineage.",
+                next_action,
+                "главный",
+            ),
+            (
+                "Исследователь",
+                "Сверяет реальные evaluation runs и delta.",
+                f"Портретов: {evaluation_count}; delta: "
+                + ("готова" if delta_ready else "нужен второй запуск"),
+                "анализ",
+            ),
+            (
+                "Аудитор датасета",
+                "Проверяет состояние данных до продолжения обучения.",
+                f"Датасетов: {dataset_count}; проблемных узлов: {bad_count}.",
+                "проверка",
+            ),
+            (
+                "Протоколист",
+                "Не позволяет скрыть разорванные зависимости.",
+                f"Unresolved связей: {unresolved_count}; current: "
+                f"{current_version or '—'}.",
+                "протокол",
+            ),
+            (
+                "Разметчик",
+                "Готовит corrective data по неустойчивым результатам.",
+                f"Ожидающих или partial узлов: {pending_count}.",
+                "позже",
+            ),
+        )
+
+    @staticmethod
+    def _projection_next_action(
+        contexts: dict[str, dict[str, str]],
+        delta_ready: bool,
+    ) -> str:
+        for node_id, action in (
+            ("dataset", "Добавьте и проверьте датасет."),
+            ("training", "Создайте и завершите training run."),
+            ("snapshot", "Зарегистрируйте model version из artifact."),
+            ("portrait", "Соберите портрет текущей model version."),
+        ):
+            if contexts.get(node_id, {}).get("node_kind", "").endswith(
+                "_placeholder"
+            ):
+                return action
+        if not delta_ready:
+            return "Соберите второй сопоставимый portrait для delta."
+        return "Откройте анализ и проверьте следующую ветку."
 
     def _refresh_runtime_safety(self, *, force: bool = False) -> None:
         if self._lineage_refresh_coordinator is None:
@@ -141,6 +282,7 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         else:
             self._real_projection = projection
             self._bind_projection_resources()
+        self._refresh_projection_roles()
         self._refresh_runtime_blockers(force=True)
 
     def _on_projection_failed(self, failure: LineageRefreshFailure) -> None:
