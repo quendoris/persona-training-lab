@@ -12,6 +12,18 @@ from persona_training_lab.ui.agents.history_key_state import (
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as FinalAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_background import (
+    AgentsScreen as BackgroundAgentsScreen,
+)
+from persona_training_lab.ui.agents.screen_background_fast import (
+    AgentsScreen as FastBackgroundAgentsScreen,
+)
+from persona_training_lab.ui.agents.screen_background_reconciled import (
+    AgentsScreen as ReconciledBackgroundAgentsScreen,
+)
+from persona_training_lab.ui.agents.screen_background_reported import (
+    AgentsScreen as ReportedBackgroundAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_contextual import (
     AgentsScreen as ContextualAgentsScreen,
 )
@@ -28,7 +40,17 @@ from persona_training_lab.ui.agents.screen_runtime_safe import (
 
 def test_public_agents_screen_uses_contextual_runtime_safe_layout() -> None:
     assert PublicAgentsScreen is ContextualAgentsScreen
-    assert ContextualAgentsScreen.__bases__ == (RuntimeSafeAgentsScreen,)
+    assert ContextualAgentsScreen.__bases__ == (ReportedBackgroundAgentsScreen,)
+    assert ReportedBackgroundAgentsScreen.__bases__ == (
+        FastBackgroundAgentsScreen,
+    )
+    assert FastBackgroundAgentsScreen.__bases__ == (
+        ReconciledBackgroundAgentsScreen,
+    )
+    assert ReconciledBackgroundAgentsScreen.__bases__ == (
+        BackgroundAgentsScreen,
+    )
+    assert BackgroundAgentsScreen.__bases__ == (RuntimeSafeAgentsScreen,)
     assert RuntimeSafeAgentsScreen.__bases__ == (FinalAgentsScreen,)
     assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
     assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
