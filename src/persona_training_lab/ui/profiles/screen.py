@@ -306,9 +306,6 @@ class ProfilesScreen(QWidget):
         self._next_card.set_subtitle(
             self._text("profiles.card.next.description")
         )
-        self._readiness_badge.setText(
-            self._text("profiles.badge.structure")
-        )
 
     def _refresh_language(self, _locale: str = "") -> None:
         self._apply_static_text()
@@ -344,6 +341,7 @@ class ProfilesScreen(QWidget):
     def _refresh_summary(self) -> None:
         profile = self._vm.current_profile()
         self._summary_text.setText(self._render(profile.summary))
+        self._readiness_badge.setText(self._render(profile.readiness))
         while self._constraints_wrap.count():
             item = self._constraints_wrap.takeAt(0)
             widget = item.widget()
