@@ -49,7 +49,6 @@
     "datasets.error.load_failed": "Could not load datasets",
     "datasets.error.only_jsonl": "Only the .jsonl format is supported",
     "datasets.error.validate_failed": "Could not validate the dataset",
-    "datasets.header.subtitle": "JSONL, structural validation, and readiness for personality training.",
     "datasets.header.summary": "{subtitle} · {version} · {records}",
     "datasets.header.title": "Datasets · {title}",
     "datasets.message.added": "Dataset added: {title}",
@@ -96,7 +95,6 @@
     "datasets.table.schema": "Schema",
     "datasets.table.status": "Status",
     "datasets.title": "Datasets",
-    "datasets.version.item": "{label} · {status} · {records}",
-    "datasets.worker.unknown_action": "Unknown dataset operation"
+    "datasets.version.item": "{label} · {status} · {records}"
   }
 }
