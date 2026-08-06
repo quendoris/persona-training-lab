@@ -36,6 +36,11 @@ class TelemetrySnapshot:
     status: str
     last_updated_at: str
     error_message: str
+    cpu_status_code: str = "normal"
+    gpu_status_code: str = "gpu_unavailable"
+    processes_status_code: str = "processes_unavailable"
+    status_code: str = "active"
+    error_code: str = ""
 
 
 @dataclass(slots=True)
@@ -66,30 +71,46 @@ class SystemTelemetryService:
                 status="Телеметрия активна",
                 last_updated_at=now,
                 error_message="Не удалось обновить телеметрию",
+                cpu_status_code="normal",
+                gpu_status_code="gpu_unavailable",
+                processes_status_code="processes_unavailable",
+                status_code="active",
+                error_code="refresh_failed",
             )
 
         gpu_status = "Источник GPU не подключён"
+        gpu_status_code = "gpu_unavailable"
         gpu_util: float | None = None
         vram_used: float | None = None
         vram_total: float | None = None
         gpu_temp: float | None = None
         error_message = ""
+        error_code = ""
 
         if self.gpu_provider is not None:
             try:
                 gpu = self.gpu_provider.collect_gpu_metrics()
                 gpu_status = "Норма" if gpu.gpu_util_percent < 90 else "Высокая нагрузка"
+                gpu_status_code = (
+                    "normal" if gpu.gpu_util_percent < 90 else "high_load"
+                )
                 gpu_util = gpu.gpu_util_percent
                 vram_used = gpu.vram_used_mb
                 vram_total = gpu.vram_total_mb
                 gpu_temp = gpu.temperature_c
             except Exception:
                 gpu_status = "Источник GPU не подключён"
+                gpu_status_code = "gpu_unavailable"
 
         cpu_status = "Высокая нагрузка" if base.cpu_percent >= 85 else "Норма"
+        cpu_status_code = "high_load" if base.cpu_percent >= 85 else "normal"
         processes_status = "Норма" if base.processes else "Данные процессов пока недоступны"
+        processes_status_code = (
+            "normal" if base.processes else "processes_unavailable"
+        )
         if not base.processes:
             error_message = error_message or "Данные процессов пока недоступны"
+            error_code = "processes_unavailable"
 
         now = datetime.now(timezone.utc).strftime("%H:%M:%S")
         return TelemetrySnapshot(
@@ -117,4 +138,9 @@ class SystemTelemetryService:
             status="Телеметрия активна",
             last_updated_at=now,
             error_message=error_message,
+            cpu_status_code=cpu_status_code,
+            gpu_status_code=gpu_status_code,
+            processes_status_code=processes_status_code,
+            status_code="active",
+            error_code=error_code,
         )
