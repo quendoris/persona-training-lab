@@ -75,6 +75,7 @@ class Sidebar(_BaseSidebar):
             self._text(title_key, screen_id),
         )
         button.setProperty("navigation_key", title_key)
+        button.setProperty("navigation_base_title", button.text())
         button.clicked.connect(
             lambda _checked=False, sid=screen_id: self._select_screen(sid)
         )
@@ -96,7 +97,20 @@ class Sidebar(_BaseSidebar):
         if button is None:
             return
         button.setProperty("navigation_shortcut", shortcut)
-        self._refresh_navigation_button(button)
+        refresh = getattr(self, "_refresh_navigation_button", None)
+        if callable(refresh):
+            refresh(button)
+            return
+
+        # Keep this helper independently testable and safe for compatibility
+        # adapters that only provide the button registry.
+        title = str(
+            button.property("navigation_base_title")
+            or button.text().split("  ·  ", 1)[0]
+        )
+        button.setProperty("navigation_base_title", title)
+        button.setText(title)
+        button.setToolTip(f"Открыть вкладку «{title}» · {shortcut}")
 
     def set_active_workflows(self, items) -> None:
         layout = self._workflow_layout
@@ -155,11 +169,12 @@ class Sidebar(_BaseSidebar):
         identity_layout.setSpacing(5)
         identity_layout.addWidget(title)
 
+        fallback = "──── панели ────"
+        text_resolver = getattr(self, "_text", None)
         toggle.setText(
-            self._text(
-                "shell.panels.decorated",
-                "──── панели ────",
-            )
+            text_resolver("shell.panels.decorated", fallback)
+            if callable(text_resolver)
+            else fallback
         )
         toggle.setMinimumHeight(28)
         toggle.setMaximumHeight(28)
@@ -229,8 +244,12 @@ class Sidebar(_BaseSidebar):
         if key:
             title = self._text(key, button.text())
             button.setText(title)
+            button.setProperty("navigation_base_title", title)
         else:
-            title = button.text()
+            title = str(
+                button.property("navigation_base_title")
+                or button.text()
+            )
         shortcut = str(button.property("navigation_shortcut") or "")
         if shortcut:
             button.setToolTip(
