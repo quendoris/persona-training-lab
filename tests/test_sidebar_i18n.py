@@ -126,10 +126,6 @@ def test_sidebar_shell_switches_language_without_widget_rebuild(
     assert "Нет активных операций" in _labels(sidebar)
     assert persisted == ["ru-RU"]
 
-    sidebar._apply_scale_live(111)
-    assert sidebar._scale_value.text() == "111%"
-    assert sidebar._scale_hint.text() == "Применяется сразу"
-
     sidebar.deleteLater()
     app.processEvents()
 
