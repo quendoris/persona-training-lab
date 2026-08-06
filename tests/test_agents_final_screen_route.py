@@ -40,10 +40,10 @@ from persona_training_lab.ui.agents.screen_runtime_safe import (
 
 def test_public_agents_screen_uses_composed_background_runtime_layout() -> None:
     assert PublicAgentsScreen is ContextualAgentsScreen
-    assert ContextualAgentsScreen.__bases__ == (FastBackgroundAgentsScreen,)
-    assert FastBackgroundAgentsScreen.__bases__ == (BackgroundAgentsScreen,)
+    assert ContextualAgentsScreen.__bases__ == (BackgroundAgentsScreen,)
+    assert FastBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReconciledBackgroundAgentsScreen is BackgroundAgentsScreen
-    assert ReportedBackgroundAgentsScreen is FastBackgroundAgentsScreen
+    assert ReportedBackgroundAgentsScreen is BackgroundAgentsScreen
     assert BackgroundAgentsScreen.__bases__ == (RuntimeSafeAgentsScreen,)
     assert RuntimeSafeAgentsScreen.__bases__ == (FinalAgentsScreen,)
     assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
