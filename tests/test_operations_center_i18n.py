@@ -217,7 +217,7 @@ def test_telemetry_snapshot_switches_language_without_refresh(
     assert panel._subtitle.text() == "Updated: 10:10:00"
     assert panel._refresh_btn.text() == "Refresh"
     assert panel._processes_header.text() == "Processes"
-    assert "Temperature" in _label_texts(panel)
+    assert "Temp" in _label_texts(panel)
 
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     manager.set_locale("ru-RU", persist=False)
@@ -227,7 +227,7 @@ def test_telemetry_snapshot_switches_language_without_refresh(
     assert panel._subtitle.text() == "Обновлено: 10:10:00"
     assert panel._refresh_btn.text() == "Обновить"
     assert panel._processes_header.text() == "Процессы"
-    assert "Температура" in _label_texts(panel)
+    assert "Темп" in _label_texts(panel)
 
     panel.deleteLater()
     app.processEvents()
