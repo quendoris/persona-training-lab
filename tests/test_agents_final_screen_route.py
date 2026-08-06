@@ -38,9 +38,9 @@ from persona_training_lab.ui.agents.screen_runtime_safe import (
 )
 
 
-def test_public_agents_screen_uses_composed_background_runtime_layout() -> None:
-    assert PublicAgentsScreen is ContextualAgentsScreen
-    assert ContextualAgentsScreen.__bases__ == (BackgroundAgentsScreen,)
+def test_public_agents_screen_uses_single_composed_background_layout() -> None:
+    assert PublicAgentsScreen is BackgroundAgentsScreen
+    assert ContextualAgentsScreen is BackgroundAgentsScreen
     assert FastBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReconciledBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReportedBackgroundAgentsScreen is BackgroundAgentsScreen
@@ -52,13 +52,19 @@ def test_public_agents_screen_uses_composed_background_runtime_layout() -> None:
     assert FinalAgentsScreen._DETAILS_MIN_WIDTH >= 360
 
 
-def test_background_screen_owns_only_runtime_ui_adapters() -> None:
+def test_background_screen_owns_runtime_and_contextual_ui_adapters() -> None:
     for method_name in (
         "_detail_for",
         "_sync_detail_actions",
         "_render_detail",
         "_apply_projection",
         "_show_runtime_blockers",
+        "_open_workspace",
+        "_on_graph_zoom_anchor",
+        "_on_graph_workspace_origin_shift",
+        "_delete_local_branch_subtree",
+        "_apply_branch_deletion_result",
+        "_context_for_node",
     ):
         assert method_name in BackgroundAgentsScreen.__dict__
     assert "eventFilter" not in BackgroundAgentsScreen.__dict__
@@ -72,7 +78,7 @@ def test_final_screen_owns_layout_without_interaction_overrides() -> None:
     assert "_reset_history_gesture" not in FinalAgentsScreen.__dict__
 
 
-def test_historical_screen_imports_are_clean_contextual_aliases() -> None:
+def test_historical_screen_imports_are_clean_background_aliases() -> None:
     for module_name in (
         "screen",
         "screen_locked_layout",
@@ -82,7 +88,7 @@ def test_historical_screen_imports_are_clean_contextual_aliases() -> None:
         module = importlib.import_module(
             f"persona_training_lab.ui.agents.{module_name}"
         )
-        assert module.AgentsScreen is ContextualAgentsScreen
+        assert module.AgentsScreen is BackgroundAgentsScreen
 
 
 def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() -> None:
