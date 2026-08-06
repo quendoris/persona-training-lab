@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from urllib.parse import quote
 
 
 class SQLiteDatabase:
@@ -18,9 +19,12 @@ class SQLiteDatabase:
         return connection
 
     def connect_read_only(self) -> sqlite3.Connection:
-        uri = f"file:{self._path.resolve().as_posix()}?mode=ro"
+        encoded_path = quote(
+            self._path.resolve().as_posix(),
+            safe="/:",
+        )
         connection = sqlite3.connect(
-            uri,
+            f"file:{encoded_path}?mode=ro",
             uri=True,
             timeout=30.0,
             check_same_thread=False,
