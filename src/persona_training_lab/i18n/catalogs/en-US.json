@@ -33,6 +33,7 @@
     "nav.datasets": "Datasets",
     "nav.docs": "Documentation",
     "nav.keybindings": "Key bindings",
+    "nav.open_tooltip": "Open the “{title}” tab · {shortcut}",
     "nav.profiles": "Profiles",
     "nav.snapshots": "Snapshots",
     "nav.style": "Appearance",
@@ -42,7 +43,10 @@
       "one": "{count} active operation",
       "other": "{count} active operations"
     },
+    "operations.none_active": "No active operations",
     "release.i18n.incomplete": "The interface translation is incomplete.",
-    "release.i18n.ready": "All user-facing strings are translated."
+    "release.i18n.ready": "All user-facing strings are translated.",
+    "shell.active_processes": "Active processes",
+    "shell.panels.decorated": "──── panels ────"
   }
 }
