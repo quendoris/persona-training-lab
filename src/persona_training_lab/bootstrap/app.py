@@ -11,6 +11,7 @@ from persona_training_lab.ui.density import (
     apply_density,
     apply_scaled_styles,
 )
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.safe_application import SafeApplication
 from persona_training_lab.ui.shell.main_window_context import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
@@ -32,6 +33,11 @@ def main() -> int:
     _install_qt_message_boundary(container.error_reporter)
 
     prefs = container.style_vm.load()
+    localization = LocalizationManager(
+        app,
+        initial_locale=prefs.get("language") or "ru-RU",
+        persist_locale=container.style_vm.save_language,
+    )
     density = apply_density(app, prefs.get("ui_scale"))
     apply_theme(
         app,
@@ -55,6 +61,7 @@ def main() -> int:
         telemetry_vm=container.telemetry_vm,
         lineage_runtime_safety=container.lineage_runtime_safety,
         operations_center=container.operations_center,
+        localization=localization,
     )
     window.setProperty("ptl_density_name", density.name)
     window.show()
