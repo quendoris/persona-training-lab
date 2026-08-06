@@ -5,6 +5,7 @@ import threading
 
 from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 
+from persona_training_lab import __version__
 from persona_training_lab.bootstrap.wiring import build_container
 from persona_training_lab.ui.density import (
     apply_density,
@@ -20,6 +21,11 @@ _QT_MESSAGE_HANDLER = None
 
 def main() -> int:
     app = SafeApplication(sys.argv)
+    app.setOrganizationName("Persona Training Lab")
+    app.setOrganizationDomain("persona-training-lab.local")
+    app.setApplicationName("Persona Training Lab")
+    app.setApplicationVersion(__version__)
+
     container = build_container()
     app.set_error_reporter(container.error_reporter)
     _install_exception_boundaries(container.error_reporter)
