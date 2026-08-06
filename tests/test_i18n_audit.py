@@ -15,8 +15,9 @@ NAVIGATION_KEYS = {
 }
 
 
-def configure(localization, widget, self):
+def configure(localization, widget, menu, self):
     localization.bind_text(widget, "app.name")
+    localization.bind_title(menu, "shell.panels")
     localization.bind_tooltip(widget, key="nav.open_tooltip")
     self._text("shell.panels.decorated", "──── panels ────")
     localization.text("missing.translation.key")
@@ -29,6 +30,7 @@ def configure(localization, widget, self):
                 "app.name",
                 "nav.agents",
                 "nav.open_tooltip",
+                "shell.panels",
                 "shell.panels.decorated",
             }
         ),
@@ -41,6 +43,7 @@ def configure(localization, widget, self):
         "missing.translation.key",
         "nav.agents",
         "nav.open_tooltip",
+        "shell.panels",
         "shell.panels.decorated",
     }
     assert [finding.text for finding in visitor.literals] == [
