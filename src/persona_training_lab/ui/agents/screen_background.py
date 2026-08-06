@@ -16,6 +16,10 @@ from persona_training_lab.ui.agents.projection_runtime import (
     LineageRefreshIncidentReporter,
     ProjectionSafetyBinding,
 )
+from persona_training_lab.ui.agents.projection_updates import (
+    ProjectionUpdateKind,
+    ProjectionUpdatePlanner,
+)
 from persona_training_lab.ui.agents.refresh_coordinator import (
     LineageRefreshCoordinator,
 )
@@ -63,6 +67,7 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         self._refresh_incident_reporter = LineageRefreshIncidentReporter(
             getattr(view_model, "lineage_error_reporter", None)
         )
+        self._projection_update_planner = ProjectionUpdatePlanner()
         try:
             super().__init__(
                 view_model,
@@ -306,14 +311,39 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         super().hideEvent(event)
 
     def _on_projection_ready(self, result: LineageRefreshResult) -> None:
-        projection = result.projection
-        if projection.signature != self._real_projection_signature:
-            self._apply_projection(projection)
-        else:
-            self._real_projection = projection
-            self._bind_projection_resources()
+        plan = self._projection_update_planner.plan(result.revisions)
+        if plan is ProjectionUpdateKind.NOOP:
+            self._refresh_runtime_blockers(force=False)
+            return
+        if plan is ProjectionUpdateKind.FULL:
+            self._apply_projection(result.projection)
+        elif not self._apply_projection_content(result):
+            self._apply_projection(result.projection)
+
+        self._projection_update_planner.commit(result.revisions)
         self._refresh_projection_roles()
         self._refresh_runtime_blockers(force=True)
+
+    def _apply_projection_content(
+        self,
+        result: LineageRefreshResult,
+    ) -> bool:
+        projection = result.projection
+        next_nodes = self._state.apply(
+            build_version_lineage(projection.nodes)
+        )
+        updater = getattr(self._graph, "update_node_content", None)
+        if not callable(updater) or not updater(next_nodes):
+            return False
+
+        selected = getattr(self, "_selected_node_id", "")
+        self._real_projection = projection
+        self._real_projection_signature = projection.signature
+        self._lineage_nodes = next_nodes
+        self._bind_projection_resources()
+        if selected and self._node_by_id(selected) is not None:
+            self._select_node(selected)
+        return True
 
     def _on_projection_failed(self, failure: LineageRefreshFailure) -> None:
         coordinator = self._lineage_refresh_coordinator
