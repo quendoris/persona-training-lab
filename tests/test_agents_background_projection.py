@@ -66,6 +66,26 @@ class _Loader:
         self.closed = True
 
 
+class _FailingLoader:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def build_snapshot(self) -> AtomicLineageSnapshot:
+        raise RuntimeError("database temporarily unavailable")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _Reporter:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def report_message(self, message: str, **kwargs) -> str:
+        self.calls.append((message, kwargs))
+        return "corr_lineage_test"
+
+
 def test_agents_constructor_and_refresh_never_read_legacy_lineage_services() -> None:
     app = _app()
     assert app is not None
@@ -90,6 +110,40 @@ def test_agents_constructor_and_refresh_never_read_legacy_lineage_services() -> 
         assert coordinator is not None
         assert _wait_until(lambda: coordinator.last_good is not None)
         assert loader.calls == 1
+    finally:
+        assert screen.shutdown_background_work(2_000) is True
+        assert loader.closed is True
+        screen.deleteLater()
+
+
+def test_refresh_failure_is_reported_without_replacing_placeholder_state() -> None:
+    app = _app()
+    assert app is not None
+    loader = _FailingLoader()
+    reporter = _Reporter()
+    vm = AgentsViewModel(
+        lineage_loader_factory=lambda: loader,
+        lineage_error_reporter=reporter,  # type: ignore[arg-type]
+    )
+    screen = AgentsScreen(vm)
+
+    try:
+        screen.request_projection_refresh(force=True)
+        assert _wait_until(lambda: len(reporter.calls) == 1)
+
+        message, payload = reporter.calls[0]
+        assert "RuntimeError" in message
+        assert payload["component"] == "ui.agents.lineage_refresh"
+        assert payload["level"] == "ERROR"
+        context = payload["context"]
+        assert isinstance(context, dict)
+        assert context["generation"] == 1
+        assert "RuntimeError" in str(context["traceback"])
+        assert context["last_good_available"] is False
+        assert screen._real_projection is not None
+        assert screen._real_projection.entity_context["snapshot"][
+            "node_kind"
+        ] == "snapshot_placeholder"
     finally:
         assert screen.shutdown_background_work(2_000) is True
         assert loader.closed is True
