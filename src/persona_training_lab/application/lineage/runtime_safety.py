@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Iterable, Protocol
+from typing import Protocol
 
 from persona_training_lab.application.runtime.operations import (
     OperationBlocker,
@@ -37,6 +38,39 @@ class LineageRuntimeSafety:
         if self.repository.list_links(node_id) != normalized:
             self.repository.replace_links(node_id, normalized)
         return normalized
+
+    def reconcile_projection(
+        self,
+        claims_by_node: Mapping[str, Iterable[ResourceClaim]],
+        previous_node_ids: Iterable[str] = (),
+    ) -> tuple[str, ...]:
+        """Replace one persisted projection link-set and forget stale nodes."""
+
+        normalized = {
+            node_id: self._normalise_read_links(claims)
+            for node_id, claims in claims_by_node.items()
+            if node_id
+        }
+        current_ids = tuple(sorted(normalized))
+        current_set = set(current_ids)
+        stale_ids = tuple(
+            node_id
+            for node_id in dict.fromkeys(previous_node_ids)
+            if node_id and node_id not in current_set
+        )
+        reconciler = getattr(
+            self.repository,
+            "reconcile_projection_links",
+            None,
+        )
+        if callable(reconciler):
+            reconciler(normalized, stale_ids)
+            return current_ids
+
+        for node_id in current_ids:
+            self.bind_node(node_id, normalized[node_id])
+        self.forget_nodes(stale_ids)
+        return current_ids
 
     def inherit_node(
         self,
