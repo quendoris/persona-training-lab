@@ -18,7 +18,7 @@ from persona_training_lab.domain.evaluation.statuses import (
 )
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
-from persona_training_lab.ui.tests.screen import TestsScreen
+from persona_training_lab.ui.tests.screen import TestsScreen as _TestsScreen
 from persona_training_lab.ui.viewmodels.analysis_lineage import AnalysisViewModel
 from persona_training_lab.ui.viewmodels.tests_lineage import TestsViewModel
 
@@ -102,7 +102,7 @@ def test_empty_tests_workspace_switches_live(
         "_prepare_qt_translator",
         lambda _locale: None,
     )
-    screen = TestsScreen(
+    screen = _TestsScreen(
         TestsViewModel(experiments_service=_Experiments()),
         manager,
     )
@@ -144,7 +144,7 @@ def test_legacy_portrait_status_and_case_status_use_current_locale(
             [_portrait("evr_1", "Mia portrait", "mdl_1", 5)]
         )
     )
-    screen = TestsScreen(vm, manager)
+    screen = _TestsScreen(vm, manager)
     screen.show()
     app.processEvents()
 
@@ -180,7 +180,7 @@ def test_open_cases_dialog_switches_without_recreation(
         "_prepare_qt_translator",
         lambda _locale: None,
     )
-    screen = TestsScreen(
+    screen = _TestsScreen(
         TestsViewModel(
             experiments_service=_Experiments(
                 [_portrait("evr_1", "Mia portrait", "mdl_1", 4)]
@@ -248,7 +248,10 @@ def test_analysis_pair_switches_live_and_never_substitutes_versions(
 
     assert screen._title.text() == "Анализ · mdl_old ↔ mdl_current"
     assert screen._compare.title_label.text() == "Портрет и устойчивость"
-    assert any("Самое заметное изменение" in text for text in _visible_texts(screen))
+    assert any(
+        "Самое заметное изменение" in text
+        for text in _visible_texts(screen)
+    )
 
     screen.close()
     screen.deleteLater()
