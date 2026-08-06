@@ -17,6 +17,7 @@ SRC = ROOT / "src" / "persona_training_lab"
 CATALOGS = SRC / "i18n" / "catalogs"
 _TRANSLATION_CALLS = {
     "text",
+    "_text",
     "bind_text",
     "bind_tooltip",
     "bind_window_title",
