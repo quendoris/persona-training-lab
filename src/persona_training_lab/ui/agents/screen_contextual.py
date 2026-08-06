@@ -5,13 +5,24 @@ from PySide6.QtCore import QPointF
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
 )
+from persona_training_lab.ui.agents.context_navigation import (
+    LineageContextRouter,
+)
 from persona_training_lab.ui.agents.screen_background import (
     AgentsScreen as _BackgroundAgentsScreen,
 )
+from persona_training_lab.ui.agents.scroll_compensation import (
+    ScrollPosition,
+    WorkspaceScrollCompensator,
+)
+
+
+_CONTEXT_ROUTER = LineageContextRouter()
+_SCROLL_COMPENSATOR = WorkspaceScrollCompensator()
 
 
 class AgentsScreen(_BackgroundAgentsScreen):
-    """Runtime-safe lineage with exact context navigation to tests/analysis."""
+    """Lineage workspace with contextual routing and atomic branch deletion."""
 
     def _open_workspace(self, workspace_key: str) -> None:
         selected_id = getattr(self, "_selected_node_id", "")
@@ -19,16 +30,11 @@ class AgentsScreen(_BackgroundAgentsScreen):
         if not current_id:
             current_id = self._graph.current_node_id()
 
-        selected = self._context_for_node(selected_id)
-        current = self._context_for_node(current_id)
-        if workspace_key == "analysis":
-            payload: dict[str, object] = {
-                "selected": selected,
-                "current": current,
-            }
-        else:
-            payload = selected
-
+        request = _CONTEXT_ROUTER.request(
+            workspace_key,
+            selected=self._context_for_node(selected_id),
+            current=self._context_for_node(current_id),
+        )
         window = self.window()
         contextual_navigator = getattr(
             window,
@@ -36,7 +42,10 @@ class AgentsScreen(_BackgroundAgentsScreen):
             None,
         )
         if callable(contextual_navigator):
-            contextual_navigator(workspace_key, payload)
+            contextual_navigator(
+                request.workspace_key,
+                request.mutable_payload(),
+            )
             return
         super()._open_workspace(workspace_key)
 
@@ -48,23 +57,35 @@ class AgentsScreen(_BackgroundAgentsScreen):
     ) -> None:
         """Apply each pointer anchor immediately, without stale queued jumps."""
 
-        if old_zoom <= 0:
-            return
-        ratio = new_zoom / old_zoom
         hbar = self._graph_scroll.horizontalScrollBar()
         vbar = self._graph_scroll.verticalScrollBar()
-        target_h = hbar.value() + int(round(anchor.x() * (ratio - 1.0)))
-        target_v = vbar.value() + int(round(anchor.y() * (ratio - 1.0)))
-        self._apply_workspace_scroll_shift(target_h, target_v)
+        target = _SCROLL_COMPENSATOR.zoom_target(
+            ScrollPosition(hbar.value(), vbar.value()),
+            anchor_x=anchor.x(),
+            anchor_y=anchor.y(),
+            old_zoom=old_zoom,
+            new_zoom=new_zoom,
+        )
+        if target is None:
+            return
+        self._apply_workspace_scroll_shift(
+            target.horizontal,
+            target.vertical,
+        )
 
     def _on_graph_workspace_origin_shift(self, delta: QPointF) -> None:
         """Compensate geometry growth synchronously during rapid gestures."""
 
         hbar = self._graph_scroll.horizontalScrollBar()
         vbar = self._graph_scroll.verticalScrollBar()
+        target = _SCROLL_COMPENSATOR.origin_shift_target(
+            ScrollPosition(hbar.value(), vbar.value()),
+            delta_x=delta.x(),
+            delta_y=delta.y(),
+        )
         self._apply_workspace_scroll_shift(
-            hbar.value() + int(round(delta.x())),
-            vbar.value() + int(round(delta.y())),
+            target.horizontal,
+            target.vertical,
         )
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
@@ -123,24 +144,12 @@ class AgentsScreen(_BackgroundAgentsScreen):
             raise
 
     def _context_for_node(self, node_id: str) -> dict[str, str]:
-        context = dict(self._node_context(node_id))
-        context["node_id"] = node_id
         node = self._node_by_id(node_id) if node_id else None
-        if node is not None:
-            context.setdefault("node_title", node.title)
-            context.setdefault("node_status", node.status)
-
-        for claim in self._runtime_claims_for_node(node_id):
-            if claim.resource_kind == "model_version":
-                context.setdefault("model_version_id", claim.resource_id)
-            elif claim.resource_kind == "artifact_path":
-                context.setdefault("artifact_path", claim.resource_id)
-            elif claim.resource_kind == "training_run":
-                context.setdefault("training_run_id", claim.resource_id)
-            elif claim.resource_kind == "dataset":
-                context.setdefault("dataset_title", claim.resource_id)
-            elif claim.resource_kind == "profile":
-                context.setdefault("profile_title", claim.resource_id)
-            elif claim.resource_kind == "model_definition":
-                context.setdefault("base_model", claim.resource_id)
-        return context
+        context = _CONTEXT_ROUTER.node_context(
+            node_id,
+            base_context=self._node_context(node_id),
+            node_title="" if node is None else node.title,
+            node_status="" if node is None else node.status,
+            claims=self._runtime_claims_for_node(node_id),
+        )
+        return dict(context)
