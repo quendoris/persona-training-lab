@@ -63,6 +63,38 @@ def test_projection_reconciliation_updates_current_and_forgets_stale_nodes(
         connection.close()
 
 
+def test_first_reconciliation_cleans_old_projection_but_keeps_local_branch(
+    tmp_path,
+) -> None:
+    connection, repository = _repository(tmp_path)
+    safety = LineageRuntimeSafety(repository, SimpleNamespace())
+    old_projection = (
+        ResourceClaim("model_version", "mdl_removed", "read"),
+    )
+    local_branch = (
+        ResourceClaim("model_version", "mdl_parent", "read"),
+    )
+    repository.replace_links("version:mdl_removed", old_projection)
+    repository.replace_links("branch_001", local_branch)
+    try:
+        safety.reconcile_projection(
+            {
+                "snapshot": (
+                    ResourceClaim("model_version", "mdl_current", "read"),
+                ),
+            },
+            None,
+        )
+
+        assert repository.list_links("version:mdl_removed") == ()
+        assert repository.list_links("branch_001") == local_branch
+        assert repository.list_links("snapshot") == (
+            ResourceClaim("model_version", "mdl_current", "read"),
+        )
+    finally:
+        connection.close()
+
+
 def test_reconciliation_rolls_back_every_node_when_one_claim_is_invalid(
     tmp_path,
 ) -> None:
