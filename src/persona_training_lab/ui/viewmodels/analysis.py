@@ -1,15 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import re
+from dataclasses import dataclass, field
 
 from persona_training_lab.application.analysis.service import AnalysisService
-from persona_training_lab.application.experiments.service import ExperimentsService
+from persona_training_lab.application.experiments.portrait import (
+    PortraitRunRecord,
+    parse_portrait_payload,
+)
+from persona_training_lab.application.experiments.service import (
+    ExperimentSummary,
+    ExperimentsService,
+)
+from persona_training_lab.domain.evaluation.statuses import (
+    EvaluationRunStatus,
+)
+from persona_training_lab.ui.viewmodels.evaluation import (
+    EvaluationText,
+    evaluation_status_text,
+    evaluation_text,
+)
 
 
-SCORE_RE = re.compile(r"\bSCORE\s*:\s*([1-5])\b", re.IGNORECASE)
-CASE_HEADER_RE = re.compile(r"(?m)^CASE\s+\d+")
-TRAIT_ORDER = ["Extraversion", "Agreeableness", "Conscientiousness", "Emotional Stability", "Openness"]
+TRAIT_ORDER = (
+    "Extraversion",
+    "Agreeableness",
+    "Conscientiousness",
+    "Emotional Stability",
+    "Openness",
+)
 TRAIT_LABELS = {
     "Extraversion": "E",
     "Agreeableness": "A",
@@ -24,6 +42,8 @@ class CompareMetric:
     title: str
     delta: str
     note: str
+    title_model: str | EvaluationText | None = None
+    note_model: str | EvaluationText | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -33,6 +53,9 @@ class CompareSummary:
     profile_match: str
     stability: str
     contradiction: str
+    title_model: str | EvaluationText | None = None
+    subtitle_model: str | EvaluationText | None = None
+    stability_model: str | EvaluationText | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -40,18 +63,28 @@ class CompareSample:
     title: str
     left_note: str
     right_note: str
+    title_model: str | EvaluationText | None = None
+    left_models: tuple[str | EvaluationText, ...] = ()
+    right_models: tuple[str | EvaluationText, ...] = ()
 
 
 @dataclass(slots=True, frozen=True)
 class PortraitStats:
     title: str
-    status: str
-    summary: str
-    passed: int
-    total: int
+    raw_status: str
+    status_code: EvaluationRunStatus
+    record: PortraitRunRecord
     failures: int
     scores: dict[str, float]
     samples: tuple[CompareSample, ...]
+
+    @property
+    def passed(self) -> int:
+        return self.record.passed
+
+    @property
+    def total(self) -> int:
+        return self.record.total
 
 
 @dataclass(slots=True)
@@ -60,238 +93,842 @@ class AnalysisViewModel:
     experiments_service: ExperimentsService | None = None
     title: str = "Анализ"
     subtitle: str = "Нет результатов тестов для анализа"
-    left: CompareSummary = CompareSummary("Метод", "Big Five scored items", "ручн.", "ручн.", "ручн.")
-    right: CompareSummary = CompareSummary("Последний портрет", "ожидание", "—", "—", "—")
-    metrics: tuple[CompareMetric, ...] = (
-        CompareMetric("Big Five KPI", "—", "тесты пока не запускались"),
-        CompareMetric("Дельта", "—", "нужны два портрета"),
-        CompareMetric("Ошибки", "—", "тесты пока не запускались"),
+    left: CompareSummary = CompareSummary(
+        "Метод",
+        "Big Five scored items",
+        "ручн.",
+        "ручн.",
+        "ручн.",
     )
-    insights: tuple[str, ...] = ("Соберите портрет во вкладке «Тесты».",)
-    deltas: tuple[str, ...] = ("После двух SCORE-прогонов анализ рассчитает изменение факторов.",)
-    samples: tuple[CompareSample, ...] = (CompareSample("Нет данных", "—", "Нет сохранённых ответов"),)
+    right: CompareSummary = CompareSummary(
+        "Последний портрет",
+        "ожидание",
+        "—",
+        "—",
+        "—",
+    )
+    metrics: tuple[CompareMetric, ...] = ()
+    insights: tuple[str, ...] = ()
+    deltas: tuple[str, ...] = ()
+    samples: tuple[CompareSample, ...] = ()
+    selected_model_version_id: str = ""
+    current_model_version_id: str = ""
+    selected_node_id: str = ""
+    current_node_id: str = ""
+    _title_model: str | EvaluationText = field(
+        default_factory=lambda: evaluation_text("analysis.header.title")
+    )
+    _subtitle_model: str | EvaluationText = field(
+        default_factory=lambda: evaluation_text(
+            "analysis.header.subtitle.empty"
+        )
+    )
+    _insight_models: tuple[str | EvaluationText, ...] = ()
+    _delta_models: tuple[str | EvaluationText, ...] = ()
 
     def __post_init__(self) -> None:
         self.refresh()
 
+    def set_lineage_context(self, payload: dict[str, object]) -> None:
+        selected_raw = payload.get("selected", payload)
+        current_raw = payload.get("current", {})
+        selected = selected_raw if isinstance(selected_raw, dict) else {}
+        current = current_raw if isinstance(current_raw, dict) else {}
+        self.selected_model_version_id = str(
+            selected.get("model_version_id", "") or ""
+        )
+        self.current_model_version_id = str(
+            current.get("model_version_id", "") or ""
+        )
+        self.selected_node_id = str(
+            selected.get("node_id", "") or ""
+        )
+        self.current_node_id = str(
+            current.get("node_id", "") or ""
+        )
+        self.refresh()
+
     def refresh(self) -> None:
+        if (
+            self.selected_model_version_id
+            and self.current_model_version_id
+        ):
+            self._refresh_lineage_pair()
+            return
         if self.experiments_service is None:
             self._apply_analysis_connector()
             return
         try:
             experiments = self.experiments_service.list_experiments()
         except Exception:
-            self.title = "Анализ"
-            self.subtitle = "Не удалось загрузить результаты тестов"
-            self.insights = ("Проверьте SQLite-реестр experiments.",)
+            self._set_load_failed()
             return
         if not experiments:
-            self.title = "Анализ"
-            self.subtitle = "Нет результатов тестов для анализа"
+            self._set_empty()
             return
         previous = experiments[1] if len(experiments) > 1 else None
         self._apply_experiment(experiments[0], previous)
 
-    def _apply_experiment(self, latest: object, previous: object | None = None) -> None:
+    def _refresh_lineage_pair(self) -> None:
+        selected_id = self.selected_model_version_id
+        current_id = self.current_model_version_id
+        service = self.experiments_service
+        if service is None:
+            self._set_missing_pair(
+                selected_id,
+                current_id,
+                "service_unavailable",
+            )
+            return
+        try:
+            experiments = service.list_experiments()
+        except Exception:
+            self._set_missing_pair(
+                selected_id,
+                current_id,
+                "load_failed",
+            )
+            return
+        selected_experiment = self._experiment_for_version(
+            experiments,
+            selected_id,
+        )
+        current_experiment = self._experiment_for_version(
+            experiments,
+            current_id,
+        )
+        missing = tuple(
+            dict.fromkeys(
+                version_id
+                for version_id, experiment in (
+                    (selected_id, selected_experiment),
+                    (current_id, current_experiment),
+                )
+                if experiment is None
+            )
+        )
+        if missing:
+            self._set_missing_pair(
+                selected_id,
+                current_id,
+                "portrait_missing",
+                missing=", ".join(missing),
+            )
+            return
+        assert selected_experiment is not None
+        assert current_experiment is not None
+        self._apply_experiment(current_experiment, selected_experiment)
+        self.title = f"Анализ · {selected_id} ↔ {current_id}"
+        self.subtitle = (
+            "Точное сравнение версий из lineage. Левый портрет относится к "
+            f"{selected_id}, правый — к {current_id}."
+        )
+        self._title_model = evaluation_text(
+            "analysis.header.title.pair",
+            selected_id=selected_id,
+            current_id=current_id,
+        )
+        self._subtitle_model = evaluation_text(
+            "analysis.header.subtitle.pair",
+            selected_id=selected_id,
+            current_id=current_id,
+        )
+
+    @staticmethod
+    def _experiment_for_version(
+        experiments,
+        version_id: str,
+    ) -> ExperimentSummary | None:
+        return next(
+            (
+                experiment
+                for experiment in experiments
+                if parse_portrait_payload(
+                    experiment.subtitle
+                ).model_version_id
+                == version_id
+            ),
+            None,
+        )
+
+    def _apply_experiment(
+        self,
+        latest: ExperimentSummary,
+        previous: ExperimentSummary | None = None,
+    ) -> None:
         latest_stats = self._stats_from_experiment(latest)
-        previous_stats = self._stats_from_experiment(previous) if previous is not None else None
+        previous_stats = (
+            self._stats_from_experiment(previous)
+            if previous is not None
+            else None
+        )
         profile_type = self._profile_type(latest_stats.scores)
         score_line = self._score_line(latest_stats.scores)
-        delta_line = self._delta_line(previous_stats.scores, latest_stats.scores) if previous_stats else "нужны 2 портрета"
+        delta_line = (
+            self._delta_line(
+                previous_stats.scores,
+                latest_stats.scores,
+            )
+            if previous_stats is not None
+            else "—"
+        )
 
         self.title = f"Анализ · {latest_stats.title}"
-        self.subtitle = latest_stats.summary
+        self.subtitle = latest_stats.record.raw_summary
+        self._title_model = evaluation_text(
+            "analysis.header.title.run",
+            title=latest_stats.title,
+        )
+        self._subtitle_model = self._summary_model(latest_stats.record)
         if previous_stats is not None:
             self.left = CompareSummary(
                 "Предыдущий портрет",
                 previous_stats.title,
                 self._score_line(previous_stats.scores) or "—",
-                previous_stats.status,
+                previous_stats.raw_status,
                 str(previous_stats.failures),
+                evaluation_text("analysis.summary.previous"),
+                previous_stats.title,
+                evaluation_status_text(
+                    previous_stats.status_code,
+                    previous_stats.raw_status,
+                ),
             )
         else:
-            self.left = CompareSummary("Метод", "Big Five / IPIP-style KPI", "1-5", "reverse", "manual")
+            self.left = CompareSummary(
+                "Метод",
+                "Big Five / IPIP-style KPI",
+                "1-5",
+                "reverse",
+                "manual",
+                evaluation_text("analysis.summary.method"),
+                evaluation_text("analysis.summary.method.subtitle"),
+                evaluation_text("analysis.summary.method.stability"),
+            )
         self.right = CompareSummary(
             "Последний портрет",
             latest_stats.title,
-            f"{latest_stats.passed}/{latest_stats.total}" if latest_stats.total else "—",
-            latest_stats.status,
+            (
+                f"{latest_stats.passed}/{latest_stats.total}"
+                if latest_stats.total
+                else "—"
+            ),
+            latest_stats.raw_status,
             str(latest_stats.failures),
+            evaluation_text("analysis.summary.latest"),
+            latest_stats.title,
+            evaluation_status_text(
+                latest_stats.status_code,
+                latest_stats.raw_status,
+            ),
         )
         self.metrics = (
-            CompareMetric("Big Five KPI", score_line or "—", "текущий средний балл по валидным SCORE"),
-            CompareMetric("Дельта", delta_line, "latest - previous по факторам"),
-            CompareMetric("Ошибки", str(latest_stats.failures), "пункты без валидного SCORE"),
+            CompareMetric(
+                "Big Five KPI",
+                score_line or "—",
+                "текущий средний балл по валидным SCORE",
+                evaluation_text("analysis.metric.kpi"),
+                evaluation_text("analysis.metric.note.kpi"),
+            ),
+            CompareMetric(
+                "Дельта",
+                delta_line,
+                "latest - previous по факторам",
+                evaluation_text("analysis.metric.delta"),
+                evaluation_text(
+                    "analysis.metric.note.delta.ready"
+                    if previous_stats is not None
+                    else "analysis.metric.note.delta.missing"
+                ),
+            ),
+            CompareMetric(
+                "Ошибки",
+                str(latest_stats.failures),
+                "пункты без валидного SCORE",
+                evaluation_text("analysis.metric.errors"),
+                evaluation_text("analysis.metric.note.errors"),
+            ),
         )
-        self.insights = self._build_insights(latest_stats, previous_stats, profile_type)
-        self.deltas = self._build_delta_notes(latest_stats, previous_stats)
-        self.samples = self._compare_samples(latest_stats, previous_stats)
+        self._insight_models = self._build_insight_models(
+            latest_stats,
+            previous_stats,
+            profile_type,
+        )
+        self.insights = tuple(
+            self._legacy_text(item) for item in self._insight_models
+        )
+        self._delta_models = self._build_delta_models(
+            latest_stats,
+            previous_stats,
+        )
+        self.deltas = tuple(
+            self._legacy_text(item) for item in self._delta_models
+        )
+        self.samples = self._compare_samples(
+            latest_stats,
+            previous_stats,
+        )
 
-    def _stats_from_experiment(self, experiment: object | None) -> PortraitStats:
+    @staticmethod
+    def _stats_from_experiment(
+        experiment: ExperimentSummary | None,
+    ) -> PortraitStats:
         if experiment is None:
-            return PortraitStats("—", "—", "—", 0, 0, 0, {}, ())
-        subtitle = getattr(experiment, "subtitle", "")
-        status = getattr(experiment, "status", "")
-        title = getattr(experiment, "title", "")
-        summary, samples, trait_values, invalid_count = self._parse_big_five(subtitle)
-        passed, total = self._parse_passed_total(summary)
-        failures = max(invalid_count, max(0, total - passed)) if total else invalid_count
-        if not total and status not in {"Портрет собран", "Пройден"}:
-            failures = max(failures, 1)
+            return PortraitStats(
+                title="—",
+                raw_status="—",
+                status_code=EvaluationRunStatus.UNKNOWN,
+                record=PortraitRunRecord("—", 0, 0, (), cases=()),
+                failures=0,
+                scores={},
+                samples=(),
+            )
+        record = parse_portrait_payload(experiment.subtitle)
+        failures = max(
+            record.invalid_count,
+            max(0, record.total - record.passed),
+        )
+        if experiment.status_code in {
+            EvaluationRunStatus.PARTIAL,
+            EvaluationRunStatus.FAILED,
+        }:
+            failures = max(1, failures)
         return PortraitStats(
-            title=title,
-            status=status,
-            summary=summary or subtitle,
-            passed=passed,
-            total=total,
+            title=experiment.title,
+            raw_status=experiment.status,
+            status_code=experiment.status_code,
+            record=record,
             failures=failures,
-            scores=self._trait_scores(trait_values),
-            samples=samples,
+            scores=record.trait_scores(),
+            samples=tuple(
+                AnalysisViewModel._sample_from_case(case)
+                for case in record.cases
+            ),
         )
 
-    def _split_case_records(self, subtitle: str) -> tuple[str, list[str]]:
-        match = CASE_HEADER_RE.search(subtitle)
-        if match is None:
-            return subtitle.strip(), []
-        summary = subtitle[: match.start()].strip()
-        records = [record.strip() for record in CASE_HEADER_RE.split(subtitle[match.start():]) if record.strip()]
-        headers = CASE_HEADER_RE.findall(subtitle[match.start():])
-        return summary, [f"{header}\n{record}" for header, record in zip(headers, records, strict=False)]
-
-    def _parse_big_five(self, subtitle: str) -> tuple[str, tuple[CompareSample, ...], dict[str, list[float]], int]:
-        summary, blocks = self._split_case_records(subtitle)
-        if not summary and not blocks:
-            return subtitle, (), {}, 0
-        samples: list[CompareSample] = []
-        trait_values: dict[str, list[float]] = {}
-        invalid_count = 0
-        for block in blocks:
-            lines = [line.strip() for line in block.splitlines() if line.strip()]
-            if not lines:
-                continue
-            title = lines[0].replace("CASE ", "Пункт ")
-            trait = self._field(lines, "TRAIT") or self._field(lines, "DIMENSION")
-            key = self._field(lines, "KEY")
-            reverse = self._field(lines, "REVERSE") == "1"
-            valid_score = self._field(lines, "VALID_SCORE")
-            item = self._field(lines, "ITEM") or self._field(lines, "QUESTION") or self._field(lines, "PROMPT")
-            status = self._field(lines, "STATUS")
-            response = self._field(lines, "RESPONSE")
-            raw_response = self._field(lines, "RAW_RESPONSE")
-            raw_score = self._score_from_response(response)
-            score = 6 - raw_score if raw_score is not None and reverse else raw_score
-            if raw_score is None or valid_score == "0":
-                invalid_count += 1
-            elif trait and score is not None:
-                trait_values.setdefault(trait, []).append(float(score))
-            left = "\n".join(part for part in (f"Фактор: {trait}" if trait else "", f"Ключ: {key}" if key else "", f"Пункт: {item}" if item else "") if part)
-            right = "\n".join(
-                part
-                for part in (
-                    f"Статус: {status}" if status else "",
-                    f"Raw: {raw_score}" if raw_score is not None else "Raw: —",
-                    f"Score: {score}" if score is not None else "Score: —",
-                    f"Ответ: {response}" if response else "",
-                    f"Raw response: {raw_response}" if raw_response and raw_response != response else "",
+    @staticmethod
+    def _sample_from_case(case) -> CompareSample:
+        left_models: list[str | EvaluationText] = []
+        right_models: list[str | EvaluationText] = []
+        if case.trait:
+            left_models.append(
+                evaluation_text(
+                    "analysis.sample.field.trait",
+                    value=case.trait,
                 )
-                if part
             )
-            samples.append(CompareSample(title, left or "Пункт не сохранён", right or block))
-        return summary, tuple(samples), trait_values, invalid_count
+        if case.key:
+            left_models.append(
+                evaluation_text(
+                    "analysis.sample.field.key",
+                    value=case.key,
+                )
+            )
+        if case.item:
+            left_models.append(
+                evaluation_text(
+                    "analysis.sample.field.item",
+                    value=case.item,
+                )
+            )
+        right_models.extend(
+            (
+                evaluation_text(
+                    "analysis.sample.field.status",
+                    status=evaluation_text(
+                        f"tests.model_status.{case.status_code.value}"
+                    ),
+                ),
+                evaluation_text(
+                    "analysis.sample.field.raw_score",
+                    value=case.score if case.score is not None else "—",
+                ),
+                evaluation_text(
+                    "analysis.sample.field.score",
+                    value=(
+                        case.adjusted_score
+                        if case.adjusted_score is not None
+                        else "—"
+                    ),
+                ),
+            )
+        )
+        if case.response:
+            right_models.append(
+                evaluation_text(
+                    "analysis.sample.field.response",
+                    value=case.response,
+                )
+            )
+        if case.raw_response and case.raw_response != case.response:
+            right_models.append(
+                evaluation_text(
+                    "analysis.sample.field.raw_response",
+                    value=case.raw_response,
+                )
+            )
+        return CompareSample(
+            title=f"Пункт {case.index}",
+            left_note="\n".join(
+                (
+                    f"Фактор: {case.trait}" if case.trait else "",
+                    f"Ключ: {case.key}" if case.key else "",
+                    f"Пункт: {case.item}" if case.item else "",
+                )
+            ).strip(),
+            right_note=(
+                f"Raw: {case.score if case.score is not None else '—'}\n"
+                "Score: "
+                f"{case.adjusted_score if case.adjusted_score is not None else '—'}"
+            ),
+            title_model=evaluation_text(
+                "analysis.sample.title",
+                index=case.index,
+            ),
+            left_models=tuple(left_models),
+            right_models=tuple(right_models),
+        )
 
-    def _field(self, lines: list[str], name: str) -> str:
-        prefix = f"{name}: "
-        return next((line.removeprefix(prefix).strip() for line in lines if line.startswith(prefix)), "")
+    @staticmethod
+    def _score_line(scores: dict[str, float]) -> str:
+        return " · ".join(
+            f"{TRAIT_LABELS[key]}={scores[key]:.2f}"
+            for key in TRAIT_ORDER
+            if key in scores
+        )
 
-    def _score_from_response(self, response: str) -> int | None:
-        match = SCORE_RE.search(response)
-        return int(match.group(1)) if match else None
-
-    def _trait_scores(self, values: dict[str, list[float]]) -> dict[str, float]:
-        return {trait: round(sum(items) / len(items), 2) for trait, items in values.items() if items}
-
-    def _score_line(self, scores: dict[str, float]) -> str:
-        return " · ".join(f"{TRAIT_LABELS[key]}={scores[key]:.2f}" for key in TRAIT_ORDER if key in scores)
-
-    def _delta_line(self, previous: dict[str, float], latest: dict[str, float]) -> str:
+    @staticmethod
+    def _delta_line(
+        previous: dict[str, float],
+        latest: dict[str, float],
+    ) -> str:
         parts: list[str] = []
         for key in TRAIT_ORDER:
             if key not in previous or key not in latest:
                 continue
-            delta = latest[key] - previous[key]
-            parts.append(f"{TRAIT_LABELS[key]}={delta:+.2f}")
-        return " · ".join(parts) if parts else "нет общей базы"
+            parts.append(
+                f"{TRAIT_LABELS[key]}={latest[key] - previous[key]:+.2f}"
+            )
+        return " · ".join(parts) if parts else "—"
 
-    def _profile_type(self, scores: dict[str, float]) -> str:
+    @staticmethod
+    def _profile_type(scores: dict[str, float]) -> str:
         if not scores:
-            return "нет score"
-        top = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:2]
-        return " + ".join(name for name, _ in top)
+            return ""
+        top = sorted(
+            scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:2]
+        return " + ".join(name for name, _value in top)
 
-    def _parse_passed_total(self, summary: str) -> tuple[int, int]:
-        marker = summary.replace("PORTRAIT:", "").replace("SUMMARY:", "").strip().split(" ")[0]
-        if "/" not in marker:
-            return 0, 0
-        left, right = marker.split("/", 1)
-        try:
-            return int(left), int(right)
-        except ValueError:
-            return 0, 0
-
-    def _build_insights(self, latest: PortraitStats, previous: PortraitStats | None, profile_type: str) -> tuple[str, ...]:
+    def _build_insight_models(
+        self,
+        latest: PortraitStats,
+        previous: PortraitStats | None,
+        profile_type: str,
+    ) -> tuple[str | EvaluationText, ...]:
         if not latest.scores:
             return (
-                "SCORE-значения не распознаны: проверьте ответы модели во вкладке «Тесты».",
-                "Модель должна возвращать строго SCORE: 1-5.",
-                "Без чисел анализ не строит KPI и тип профиля.",
+                evaluation_text("analysis.insight.no_scores.detect"),
+                evaluation_text("analysis.insight.no_scores.format"),
+                evaluation_text("analysis.insight.no_scores.limit"),
             )
-        strongest = max(latest.scores.items(), key=lambda item: item[1])
+        strongest = max(
+            latest.scores.items(),
+            key=lambda item: item[1],
+        )
+        status_model = evaluation_status_text(
+            latest.status_code,
+            latest.raw_status,
+        )
         if previous is None or not previous.scores:
             return (
-                f"Портрет собран: {latest.passed}/{latest.total} пунктов, статус: {latest.status}.",
-                f"Тип текущего профиля: {profile_type}.",
-                "Для расчёта дельты нужен ещё один портрет после следующего fine-tune или нового запуска.",
+                evaluation_text(
+                    "analysis.insight.portrait",
+                    passed=latest.passed,
+                    total=latest.total,
+                    status=status_model,
+                ),
+                evaluation_text(
+                    "analysis.insight.profile_type",
+                    profile_type=profile_type,
+                ),
+                evaluation_text("analysis.insight.need_second"),
             )
-        biggest_trait, biggest_delta = self._largest_abs_delta(previous.scores, latest.scores)
+        biggest_trait, biggest_delta = self._largest_abs_delta(
+            previous.scores,
+            latest.scores,
+        )
         return (
-            f"Портрет собран: {latest.passed}/{latest.total} пунктов, статус: {latest.status}.",
-            f"Сильнейший текущий фактор: {strongest[0]} = {strongest[1]:.2f}.",
-            f"Самое заметное изменение: {biggest_trait} {biggest_delta:+.2f}.",
+            evaluation_text(
+                "analysis.insight.portrait",
+                passed=latest.passed,
+                total=latest.total,
+                status=status_model,
+            ),
+            evaluation_text(
+                "analysis.insight.strongest",
+                trait=strongest[0],
+                value=f"{strongest[1]:.2f}",
+            ),
+            evaluation_text(
+                "analysis.insight.biggest_delta",
+                trait=biggest_trait,
+                delta=f"{biggest_delta:+.2f}",
+            ),
         )
 
-    def _build_delta_notes(self, latest: PortraitStats, previous: PortraitStats | None) -> tuple[str, ...]:
+    @staticmethod
+    def _build_delta_models(
+        latest: PortraitStats,
+        previous: PortraitStats | None,
+    ) -> tuple[str | EvaluationText, ...]:
         if previous is None or not previous.scores or not latest.scores:
             return (
-                "Для научного сравнения нужны минимум два портретных прогона.",
-                "После следующего fine-tune запустите «Собрать портрет» ещё раз.",
-                "Анализ автоматически покажет latest - previous по каждому фактору.",
+                evaluation_text("analysis.delta.need_two"),
+                evaluation_text("analysis.delta.run_again"),
+                evaluation_text("analysis.delta.auto_compare"),
             )
-        notes = [f"{trait}: {previous.scores[trait]:.2f} → {latest.scores[trait]:.2f} ({latest.scores[trait] - previous.scores[trait]:+.2f})" for trait in TRAIT_ORDER if trait in previous.scores and trait in latest.scores]
-        return tuple(notes) or ("Нет общей базы факторов для сравнения.",)
+        rows = tuple(
+            evaluation_text(
+                "analysis.delta.value",
+                trait=trait,
+                previous=f"{previous.scores[trait]:.2f}",
+                latest=f"{latest.scores[trait]:.2f}",
+                delta=f"{latest.scores[trait] - previous.scores[trait]:+.2f}",
+            )
+            for trait in TRAIT_ORDER
+            if trait in previous.scores and trait in latest.scores
+        )
+        return rows or (evaluation_text("analysis.delta.no_common"),)
 
-    def _compare_samples(self, latest: PortraitStats, previous: PortraitStats | None) -> tuple[CompareSample, ...]:
+    @staticmethod
+    def _compare_samples(
+        latest: PortraitStats,
+        previous: PortraitStats | None,
+    ) -> tuple[CompareSample, ...]:
         if previous is None or not previous.samples:
-            return latest.samples or (CompareSample("Ответы не найдены", "—", latest.summary),)
+            return latest.samples or (
+                CompareSample(
+                    "Ответы не найдены",
+                    "—",
+                    latest.record.raw_summary,
+                    evaluation_text("analysis.sample.empty.title"),
+                    (evaluation_text("analysis.value.unavailable"),),
+                    (latest.record.raw_summary,),
+                ),
+            )
         compared: list[CompareSample] = []
-        for idx, sample in enumerate(latest.samples[:10]):
-            left = previous.samples[idx].right_note if idx < len(previous.samples) else "предыдущий пункт отсутствует"
-            compared.append(CompareSample(sample.title, left, sample.right_note))
+        for index, sample in enumerate(latest.samples[:10]):
+            if index < len(previous.samples):
+                left_sample = previous.samples[index]
+                left_models = left_sample.right_models or (
+                    left_sample.right_note,
+                )
+                left_note = left_sample.right_note
+            else:
+                left_models = (
+                    evaluation_text("analysis.sample.previous_missing"),
+                )
+                left_note = "предыдущий пункт отсутствует"
+            compared.append(
+                CompareSample(
+                    sample.title,
+                    left_note,
+                    sample.right_note,
+                    sample.title_model,
+                    left_models,
+                    sample.right_models,
+                )
+            )
         return tuple(compared)
 
-    def _largest_abs_delta(self, previous: dict[str, float], latest: dict[str, float]) -> tuple[str, float]:
-        common = [(trait, latest[trait] - previous[trait]) for trait in TRAIT_ORDER if trait in previous and trait in latest]
+    @staticmethod
+    def _largest_abs_delta(
+        previous: dict[str, float],
+        latest: dict[str, float],
+    ) -> tuple[str, float]:
+        common = [
+            (trait, latest[trait] - previous[trait])
+            for trait in TRAIT_ORDER
+            if trait in previous and trait in latest
+        ]
         if not common:
-            return "нет общей базы", 0.0
+            return "—", 0.0
         return max(common, key=lambda item: abs(item[1]))
+
+    def _set_empty(self) -> None:
+        self.title = "Анализ"
+        self.subtitle = "Нет результатов тестов для анализа"
+        self._title_model = evaluation_text("analysis.header.title")
+        self._subtitle_model = evaluation_text(
+            "analysis.header.subtitle.empty"
+        )
+        self.left = CompareSummary(
+            "Метод",
+            "Big Five scored items",
+            "1-5",
+            "reverse",
+            "manual",
+            evaluation_text("analysis.summary.method"),
+            evaluation_text("analysis.summary.method.subtitle"),
+            evaluation_text("analysis.summary.method.stability"),
+        )
+        self.right = CompareSummary(
+            "Последний портрет",
+            "ожидание",
+            "—",
+            "—",
+            "—",
+            evaluation_text("analysis.summary.latest"),
+            evaluation_text("analysis.value.waiting"),
+            evaluation_text("analysis.value.unavailable"),
+        )
+        self.metrics = self._empty_metrics()
+        self._insight_models = (
+            evaluation_text("analysis.insight.empty"),
+        )
+        self.insights = ("Соберите портрет во вкладке «Тесты».",)
+        self._delta_models = (
+            evaluation_text("analysis.delta.need_two"),
+        )
+        self.deltas = (
+            "После двух SCORE-прогонов анализ рассчитает изменение факторов.",
+        )
+        self.samples = (
+            CompareSample(
+                "Нет данных",
+                "—",
+                "Нет сохранённых ответов",
+                evaluation_text("analysis.sample.empty.title"),
+                (evaluation_text("analysis.value.unavailable"),),
+                (evaluation_text("analysis.sample.empty.note"),),
+            ),
+        )
+
+    def _set_load_failed(self) -> None:
+        self._set_empty()
+        self.subtitle = "Не удалось загрузить результаты тестов"
+        self._subtitle_model = evaluation_text(
+            "analysis.header.subtitle.load_failed"
+        )
+        self._insight_models = (
+            evaluation_text("analysis.insight.load_failed"),
+        )
+        self.insights = ("Проверьте SQLite-реестр experiments.",)
+
+    def _set_missing_pair(
+        self,
+        selected_id: str,
+        current_id: str,
+        reason_code: str,
+        **values: object,
+    ) -> None:
+        self.title = f"Анализ · {selected_id} ↔ {current_id}"
+        self.subtitle = "Сравнение недоступно для выбранной пары"
+        self._title_model = evaluation_text(
+            "analysis.header.title.pair",
+            selected_id=selected_id,
+            current_id=current_id,
+        )
+        reason = evaluation_text(
+            f"analysis.pair.reason.{reason_code}",
+            **values,
+        )
+        self._subtitle_model = evaluation_text(
+            "analysis.header.subtitle.pair_missing",
+            reason=reason,
+        )
+        self.left = CompareSummary(
+            "Выбранная версия",
+            selected_id,
+            "—",
+            "портрет отсутствует",
+            "—",
+            evaluation_text("analysis.summary.selected"),
+            selected_id,
+            evaluation_text("analysis.value.portrait_missing"),
+        )
+        self.right = CompareSummary(
+            "Актуальная версия",
+            current_id,
+            "—",
+            "портрет отсутствует",
+            "—",
+            evaluation_text("analysis.summary.current"),
+            current_id,
+            evaluation_text("analysis.value.portrait_missing"),
+        )
+        self.metrics = (
+            CompareMetric(
+                "Big Five KPI",
+                "—",
+                "нужны портреты обеих версий",
+                evaluation_text("analysis.metric.kpi"),
+                evaluation_text("analysis.metric.note.pair_required"),
+            ),
+            CompareMetric(
+                "Дельта",
+                "—",
+                "сравнение не вычисляется на неполной паре",
+                evaluation_text("analysis.metric.delta"),
+                evaluation_text("analysis.metric.note.pair_incomplete"),
+            ),
+            CompareMetric(
+                "Ошибки",
+                "—",
+                "Сравнение недоступно",
+                evaluation_text("analysis.metric.errors"),
+                reason,
+            ),
+        )
+        self._insight_models = (
+            evaluation_text("analysis.pair.run_each"),
+            evaluation_text("analysis.pair.same_protocol"),
+            evaluation_text("analysis.pair.auto_select"),
+        )
+        self.insights = tuple(
+            self._legacy_text(item) for item in self._insight_models
+        )
+        self._delta_models = (
+            evaluation_text("analysis.pair.no_substitution"),
+        )
+        self.deltas = (
+            "Никакие данные другой версии не подставлены автоматически.",
+        )
+        self.samples = (
+            CompareSample(
+                "Сравнение ожидает данные",
+                selected_id,
+                current_id,
+                evaluation_text("analysis.sample.pair_waiting"),
+                (selected_id,),
+                (current_id,),
+            ),
+        )
+
+    @staticmethod
+    def _empty_metrics() -> tuple[CompareMetric, ...]:
+        return (
+            CompareMetric(
+                "Big Five KPI",
+                "—",
+                "тесты пока не запускались",
+                evaluation_text("analysis.metric.kpi"),
+                evaluation_text("analysis.metric.note.empty"),
+            ),
+            CompareMetric(
+                "Дельта",
+                "—",
+                "нужны два портрета",
+                evaluation_text("analysis.metric.delta"),
+                evaluation_text("analysis.metric.note.delta.missing"),
+            ),
+            CompareMetric(
+                "Ошибки",
+                "—",
+                "тесты пока не запускались",
+                evaluation_text("analysis.metric.errors"),
+                evaluation_text("analysis.metric.note.empty"),
+            ),
+        )
+
+    @staticmethod
+    def _summary_model(
+        record: PortraitRunRecord,
+    ) -> str | EvaluationText:
+        if record.total:
+            return evaluation_text(
+                "analysis.header.subtitle.summary",
+                passed=record.passed,
+                total=record.total,
+                model_version=record.model_version_id or "—",
+            )
+        return record.raw_summary
 
     def _apply_analysis_connector(self) -> None:
         if self.analysis_service is None:
+            self._set_empty()
             return
         try:
             results = self.analysis_service.list_analysis_results()
         except Exception:
+            self._set_load_failed()
             return
-        if results:
-            result = results[0]
-            self.title = f"Анализ · {result.result_id}"
-            self.subtitle = result.subtitle
+        if not results:
+            self._set_empty()
+            return
+        result = results[0]
+        self._set_empty()
+        self.title = f"Анализ · {result.result_id}"
+        self.subtitle = result.subtitle
+        self._title_model = evaluation_text(
+            "analysis.header.title.result",
+            result_id=result.result_id,
+        )
+        self._subtitle_model = result.subtitle
+
+    def header_title_model(self) -> str | EvaluationText:
+        return self._title_model
+
+    def header_subtitle_model(self) -> str | EvaluationText:
+        return self._subtitle_model
+
+    @staticmethod
+    def summary_title_model(
+        summary: CompareSummary,
+    ) -> str | EvaluationText:
+        return summary.title_model or summary.title
+
+    @staticmethod
+    def summary_subtitle_model(
+        summary: CompareSummary,
+    ) -> str | EvaluationText:
+        return summary.subtitle_model or summary.subtitle
+
+    @staticmethod
+    def summary_stability_model(
+        summary: CompareSummary,
+    ) -> str | EvaluationText:
+        return summary.stability_model or summary.stability
+
+    @staticmethod
+    def metric_title_model(
+        metric: CompareMetric,
+    ) -> str | EvaluationText:
+        return metric.title_model or metric.title
+
+    @staticmethod
+    def metric_note_model(
+        metric: CompareMetric,
+    ) -> str | EvaluationText:
+        return metric.note_model or metric.note
+
+    def insight_models(self) -> tuple[str | EvaluationText, ...]:
+        return self._insight_models
+
+    def delta_models(self) -> tuple[str | EvaluationText, ...]:
+        return self._delta_models
+
+    @staticmethod
+    def sample_title_model(
+        sample: CompareSample,
+    ) -> str | EvaluationText:
+        return sample.title_model or sample.title
+
+    @staticmethod
+    def sample_left_models(
+        sample: CompareSample,
+    ) -> tuple[str | EvaluationText, ...]:
+        return sample.left_models or (sample.left_note,)
+
+    @staticmethod
+    def sample_right_models(
+        sample: CompareSample,
+    ) -> tuple[str | EvaluationText, ...]:
+        return sample.right_models or (sample.right_note,)
+
+    @staticmethod
+    def _legacy_text(value: str | EvaluationText) -> str:
+        return value if isinstance(value, str) else value.key
