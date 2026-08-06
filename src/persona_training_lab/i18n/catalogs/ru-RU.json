@@ -33,6 +33,7 @@
     "nav.datasets": "Датасеты",
     "nav.docs": "Документация",
     "nav.keybindings": "Назначения клавиш",
+    "nav.open_tooltip": "Открыть вкладку «{title}» · {shortcut}",
     "nav.profiles": "Профили",
     "nav.snapshots": "Снимки",
     "nav.style": "Оформление",
@@ -44,7 +45,10 @@
       "many": "{count} активных операций",
       "other": "{count} активной операции"
     },
+    "operations.none_active": "Нет активных операций",
     "release.i18n.incomplete": "Перевод интерфейса не завершён.",
-    "release.i18n.ready": "Все пользовательские строки переведены."
+    "release.i18n.ready": "Все пользовательские строки переведены.",
+    "shell.active_processes": "Активные процессы",
+    "shell.panels.decorated": "──── панели ────"
   }
 }
