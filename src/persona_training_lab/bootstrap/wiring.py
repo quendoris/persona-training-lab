@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 
 from persona_training_lab.application.agents.service import AgentsService
 from persona_training_lab.application.analysis.service import AnalysisService
@@ -8,9 +9,7 @@ from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
 from persona_training_lab.application.experiments.service import ExperimentsService
-from persona_training_lab.application.lineage.atomic_projection import (
-    AtomicLineageProjectionService,
-)
+from persona_training_lab.application.lineage.loader import LineageLoaderFactory
 from persona_training_lab.application.lineage.runtime_safety import LineageRuntimeSafety
 from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
@@ -37,6 +36,9 @@ from persona_training_lab.infrastructure.local_model.probe_provider import (
     FilesystemLocalModelProbeProvider,
 )
 from persona_training_lab.infrastructure.logging.structured import configure_logging
+from persona_training_lab.infrastructure.persistence.lineage_loader import (
+    SQLiteLineageProjectionLoader,
+)
 from persona_training_lab.infrastructure.persistence.repositories.agents import (
     SQLiteAgentsRepository,
 )
@@ -54,9 +56,6 @@ from persona_training_lab.infrastructure.persistence.repositories.experiments im
 )
 from persona_training_lab.infrastructure.persistence.repositories.lineage_resource_links import (
     SQLiteLineageResourceLinksRepository,
-)
-from persona_training_lab.infrastructure.persistence.repositories.lineage_snapshot import (
-    SQLiteLineageSnapshotRepository,
 )
 from persona_training_lab.infrastructure.persistence.repositories.model_versions import (
     SQLiteModelVersionsRepository,
@@ -114,7 +113,7 @@ class AppContainer:
     analysis_vm: AnalysisViewModel
     telemetry_vm: TelemetryViewModel
     runtime_operations: RuntimeOperationCoordinator
-    lineage_projection: AtomicLineageProjectionService
+    lineage_loader_factory: LineageLoaderFactory
     lineage_runtime_safety: LineageRuntimeSafety
     operations_center: OperationsCenterService
     error_reporter: ApplicationErrorReporter
@@ -129,7 +128,10 @@ def build_container() -> AppContainer:
     db = SQLiteDatabase(paths.sqlite_db)
     connection = db.connect()
     create_minimal_schema(connection)
-    lineage_read_connection = db.connect_read_only()
+    lineage_loader_factory: LineageLoaderFactory = partial(
+        SQLiteLineageProjectionLoader,
+        paths.sqlite_db,
+    )
 
     artifact_manager = LocalArtifactManager(paths)
     artifact_manager.ensure_layout()
@@ -146,18 +148,12 @@ def build_container() -> AppContainer:
     training_repo = SQLiteTrainingRepository(connection)
     runtime_operations_repo = SQLiteRuntimeOperationsRepository(connection)
     lineage_resource_links_repo = SQLiteLineageResourceLinksRepository(connection)
-    lineage_snapshot_repo = SQLiteLineageSnapshotRepository(
-        lineage_read_connection
-    )
 
     error_reporter = ApplicationErrorReporter(event_log_repo)
     runtime_operations = RuntimeOperationCoordinator(runtime_operations_repo)
     operations_center = OperationsCenterService(
         event_log=event_log_repo,
         runtime_operations=runtime_operations_repo,
-    )
-    lineage_projection = AtomicLineageProjectionService(
-        lineage_snapshot_repo
     )
     lineage_runtime_safety = LineageRuntimeSafety(
         lineage_resource_links_repo,
@@ -228,7 +224,6 @@ def build_container() -> AppContainer:
         model_versions_service=model_versions_service,
         datasets_service=datasets_service,
         experiments_service=experiments_service,
-        lineage_projection_service=lineage_projection,
     )
     training_vm = TrainingViewModel(
         training_service=training_service,
@@ -260,7 +255,7 @@ def build_container() -> AppContainer:
         analysis_vm=analysis_vm,
         telemetry_vm=telemetry_vm,
         runtime_operations=runtime_operations,
-        lineage_projection=lineage_projection,
+        lineage_loader_factory=lineage_loader_factory,
         lineage_runtime_safety=lineage_runtime_safety,
         operations_center=operations_center,
         error_reporter=error_reporter,
