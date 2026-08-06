@@ -12,6 +12,24 @@ from persona_training_lab.application.runtime.operations import (
 )
 
 
+_PERSISTED_PROJECTION_IDS = frozenset(
+    {"base", "dataset", "training", "snapshot", "portrait", "delta"}
+)
+_PERSISTED_PROJECTION_PREFIXES = (
+    "base_model:",
+    "persona_profile:",
+    "dataset:",
+    "training_run:",
+    "artifact:",
+    "model_version:",
+    "evaluation_run:",
+    "base:",
+    "training:",
+    "version:",
+    "portrait:",
+)
+
+
 class LineageResourceLinksRepositoryPort(Protocol):
     def replace_links(
         self,
@@ -42,7 +60,7 @@ class LineageRuntimeSafety:
     def reconcile_projection(
         self,
         claims_by_node: Mapping[str, Iterable[ResourceClaim]],
-        previous_node_ids: Iterable[str] = (),
+        previous_node_ids: Iterable[str] | None = None,
     ) -> tuple[str, ...]:
         """Replace one persisted projection link-set and forget stale nodes."""
 
@@ -53,9 +71,14 @@ class LineageRuntimeSafety:
         }
         current_ids = tuple(sorted(normalized))
         current_set = set(current_ids)
+        previous = (
+            tuple(previous_node_ids)
+            if previous_node_ids is not None
+            else self._persisted_projection_node_ids()
+        )
         stale_ids = tuple(
             node_id
-            for node_id in dict.fromkeys(previous_node_ids)
+            for node_id in dict.fromkeys(previous)
             if node_id and node_id not in current_set
         )
         reconciler = getattr(
@@ -98,8 +121,6 @@ class LineageRuntimeSafety:
             lineage_claim = ResourceClaim("lineage_node", node_id, "write")
             unique[lineage_claim.key] = lineage_claim
             for claim in self.repository.list_links(node_id):
-                # Destructive checks do not care about read/write semantics, but
-                # write expresses that the referenced entity would be affected.
                 destructive = ResourceClaim(
                     claim.resource_kind,
                     claim.resource_id,
@@ -122,8 +143,6 @@ class LineageRuntimeSafety:
         *,
         subject_id: str,
     ) -> RuntimeOperationLease:
-        """Atomically reserve a subtree and all linked real resources."""
-
         claims = self.claims_for_nodes(node_ids)
         return self.operations.begin(
             operation_kind="lineage_delete",
@@ -152,6 +171,22 @@ class LineageRuntimeSafety:
             if text not in unique:
                 unique.append(text)
         return "; ".join(unique)
+
+    def _persisted_projection_node_ids(self) -> tuple[str, ...]:
+        reader = getattr(self.repository, "list_node_ids", None)
+        if not callable(reader):
+            return ()
+        return tuple(
+            node_id
+            for node_id in reader()
+            if self._is_persisted_projection_id(node_id)
+        )
+
+    @staticmethod
+    def _is_persisted_projection_id(node_id: str) -> bool:
+        return node_id in _PERSISTED_PROJECTION_IDS or node_id.startswith(
+            _PERSISTED_PROJECTION_PREFIXES
+        )
 
     @staticmethod
     def _normalise_read_links(
