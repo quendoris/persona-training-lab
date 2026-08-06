@@ -9,11 +9,18 @@ from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 def _portrait(title: str, e1: int, e2r: int, a1: int) -> SimpleNamespace:
     subtitle = (
         "PORTRAIT: 3/3 Big Five items · snapshot\n\n"
-        f"CASE 1\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: item\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRESPONSE: SCORE: {e1}\n\n"
-        f"CASE 2\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: item\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRESPONSE: SCORE: {e2r}\n\n"
-        f"CASE 3\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: item\nSTATUS: Модель отвечает\nVALID_SCORE: 1\nRESPONSE: SCORE: {a1}"
+        f"CASE 1\nTRAIT: Extraversion\nKEY: E1\nREVERSE: 0\nITEM: item\n"
+        f"STATUS: Модель отвечает\nVALID_SCORE: 1\nRESPONSE: SCORE: {e1}\n\n"
+        f"CASE 2\nTRAIT: Extraversion\nKEY: E2R\nREVERSE: 1\nITEM: item\n"
+        f"STATUS: Модель отвечает\nVALID_SCORE: 1\nRESPONSE: SCORE: {e2r}\n\n"
+        f"CASE 3\nTRAIT: Agreeableness\nKEY: A1\nREVERSE: 0\nITEM: item\n"
+        f"STATUS: Модель отвечает\nVALID_SCORE: 1\nRESPONSE: SCORE: {a1}"
     )
-    return SimpleNamespace(title=title, subtitle=subtitle, status="Портрет собран")
+    return SimpleNamespace(
+        title=title,
+        subtitle=subtitle,
+        status="Портрет собран",
+    )
 
 
 class FakeProjectsService:
@@ -82,33 +89,45 @@ def _build_vm() -> DashboardViewModel:
     )
 
 
-def test_dashboard_stats_use_live_services() -> None:
+def test_dashboard_stats_use_semantic_messages_and_live_services() -> None:
     vm = _build_vm()
     stats = vm.stats()
 
-    assert stats[0][0] == "Обучение"
-    assert stats[0][1] == "Завершён"
-    assert stats[1][1] == "01"
-    assert stats[2][2] == "одобрено 1 · с ошибками 0"
-    assert "E=4.00" in stats[3][1]
-    assert "A=5.00" in stats[3][1]
+    assert stats[0].label_key == "dashboard.stat.training"
+    assert stats[0].value.key == "dashboard.status.completed"
+    assert stats[1].value.values["value"] == "01"
+    assert stats[2].note.key == "dashboard.note.dataset_summary"
+    assert stats[2].note.values == {"approved": 1, "errors": 0}
+    assert "E=4.00" in str(stats[3].value.values["value"])
+    assert "A=5.00" in str(stats[3].value.values["value"])
 
 
-def test_dashboard_attention_shows_delta() -> None:
+def test_dashboard_attention_and_next_step_are_language_neutral() -> None:
     vm = _build_vm()
-    attention = dict(vm.attention_items())
+    attention = {
+        item.title_key: item.body
+        for item in vm.attention_items()
+    }
 
-    assert "Delta" in attention
-    assert "E=+2.00" in attention["Delta"]
-    assert "A=+2.00" in attention["Delta"]
-    assert vm.next_best_step() == "Откройте «Анализ» и смотрите delta latest - previous."
+    delta = attention["dashboard.attention.delta"]
+    assert delta.key == "dashboard.raw"
+    assert "E=+2.00" in str(delta.values["value"])
+    assert "A=+2.00" in str(delta.values["value"])
+
+    step = vm.next_best_step()
+    assert step.message.key == "dashboard.step.open_analysis"
+    assert step.route.screen == "analysis"
+    assert step.route.focus_key == ""
 
 
-def test_dashboard_lineage_is_live() -> None:
+def test_dashboard_lineage_contains_routes_instead_of_parsed_labels() -> None:
     vm = _build_vm()
     lineage = vm.quick_lineage()
 
-    assert "Base model · Qwen local" in lineage
-    assert "Training · trn_new" in lineage
-    assert "Snapshot · mdl_new" in lineage
-    assert "Portrait · portrait new" in lineage
+    assert lineage[0].label_key == "dashboard.lineage.base_model"
+    assert lineage[0].value == "Qwen local"
+    assert lineage[0].route.screen == "agents"
+    assert lineage[2].value == "trn_new"
+    assert lineage[2].route.screen == "training"
+    assert lineage[3].value == "mdl_new"
+    assert lineage[4].value == "portrait new"
