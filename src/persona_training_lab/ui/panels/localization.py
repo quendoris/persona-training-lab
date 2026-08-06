@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from functools import lru_cache
-from importlib.resources import files
-from pathlib import Path
-
 from persona_training_lab.application.operations_center import OperationsCenterItem
-from persona_training_lab.i18n.catalog import LocaleCatalog
 from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.i18n.text import text
 
 
 _OPERATION_KIND_KEYS: dict[str, str] = {
@@ -35,31 +31,6 @@ _SEVERITY_KEYS: dict[str, str] = {
     "error": "operations.severity.error",
     "critical": "operations.severity.critical",
 }
-
-
-@lru_cache(maxsize=1)
-def _base_catalog() -> LocaleCatalog:
-    path = Path(
-        str(
-            files("persona_training_lab.i18n").joinpath(
-                "catalogs",
-                "ru-RU.json",
-            )
-        )
-    )
-    return LocaleCatalog.load(path)
-
-
-def text(
-    localization: LocalizationManager | None,
-    key: str,
-    *,
-    count: int | None = None,
-    **values: object,
-) -> str:
-    if localization is not None:
-        return localization.text(key, count=count, **values)
-    return _base_catalog().text(key, count=count, values=values)
 
 
 def item_title(
