@@ -4,10 +4,35 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QTimer, Qt, QSize
 from PySide6.QtGui import QPainter, QPainterPath
-from PySide6.QtWidgets import QDockWidget, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStyle, QStyleOptionFrame, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QDockWidget,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QStyle,
+    QStyleOptionFrame,
+    QVBoxLayout,
+    QWidget,
+)
 
+from persona_training_lab.application.telemetry.service import TelemetrySnapshot
+from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.panels.localization import text as panel_text
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
-from persona_training_lab.ui.viewmodels.telemetry import TelemetryMetricView, TelemetryViewModel
+from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
+
+
+_STATUS_KEYS: dict[str, str] = {
+    "normal": "panel.telemetry.status.normal",
+    "high_load": "panel.telemetry.status.high_load",
+    "gpu_unavailable": "panel.telemetry.status.gpu_unavailable",
+    "processes_unavailable": "panel.telemetry.status.processes_unavailable",
+    "active": "panel.telemetry.status.active",
+    "refresh_failed": "panel.telemetry.status.refresh_failed",
+}
 
 
 @dataclass(slots=True, frozen=True)
@@ -63,7 +88,12 @@ class _TelemetryBarTrack(QFrame):
         fill_opt = QStyleOptionFrame()
         fill_opt.initFrom(self._fill_probe)
         fill_opt.rect = fill_rect
-        self._fill_probe.style().drawPrimitive(QStyle.PE_Widget, fill_opt, painter, self._fill_probe)
+        self._fill_probe.style().drawPrimitive(
+            QStyle.PE_Widget,
+            fill_opt,
+            painter,
+            self._fill_probe,
+        )
         painter.restore()
 
 
@@ -92,11 +122,13 @@ class _VerticalMetric(QFrame):
         value_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(value_label)
         self._track = track
+        self._caption = caption
         self._value_label = value_label
 
     def set_item(self, item: TelemetryItem) -> None:
         self.setToolTip(item.tooltip)
         self._track.set_value(item.value)
+        self._caption.setText(item.short_label)
         self._value_label.setText(item.value_text)
 
 
@@ -126,21 +158,28 @@ class _HorizontalMetric(QFrame):
         value_label.setObjectName("TelemetryCaption")
         layout.addWidget(value_label)
         layout.addStretch(1)
+        self._label = label
         self._track = track
         self._value_label = value_label
 
     def set_item(self, item: TelemetryItem) -> None:
         self.setToolTip(item.tooltip)
+        self._label.setText(item.full_label)
         self._track.set_value(item.value)
         self._value_label.setText(item.value_text)
 
 
 class TelemetryPanel(QFrame):
-    def __init__(self, view_model: TelemetryViewModel) -> None:
+    def __init__(
+        self,
+        view_model: TelemetryViewModel,
+        localization: LocalizationManager | None = None,
+    ) -> None:
         super().__init__()
         self.setObjectName("PanelCard")
         self._vm = view_model
-        self._items = self._to_items(self._vm.metric_items())
+        self._localization = localization
+        self._items = self._to_items()
         self._mode: str | None = None
         self._refresh_pending = False
         self._metrics_widgets: list[_VerticalMetric | _HorizontalMetric] = []
@@ -157,21 +196,23 @@ class TelemetryPanel(QFrame):
 
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
-        self._title = QLabel(self._vm.status_title)
+        self._title = QLabel(self._status_title())
         title_row.addWidget(self._title)
-        self._subtitle = QLabel(self._vm.status_subtitle)
+        self._subtitle = QLabel(self._status_subtitle())
         self._subtitle.setObjectName("MutedText")
         title_row.addWidget(self._subtitle, 0, Qt.AlignVCenter)
         title_row.addStretch(1)
-        self._refresh_btn = QPushButton("Обновить")
+        self._refresh_btn = QPushButton(
+            self._text("panel.telemetry.refresh")
+        )
         self._refresh_btn.setObjectName("SecondaryButton")
         self._refresh_btn.clicked.connect(self._on_refresh)
         title_row.addWidget(self._refresh_btn)
         self._root.addLayout(title_row)
 
-        self._error = QLabel(self._vm.status_error)
+        self._error = QLabel(self._status_error())
         self._error.setObjectName("MutedText")
-        self._error.setVisible(bool(self._vm.status_error.strip()))
+        self._error.setVisible(bool(self._error.text().strip()))
         self._root.addWidget(self._error)
 
         body_row = QHBoxLayout()
@@ -190,26 +231,40 @@ class TelemetryPanel(QFrame):
         processes_shell.setObjectName("PanelCardSoft")
         processes_shell.setMinimumWidth(340)
         processes_shell.setMaximumWidth(460)
-        processes_shell.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        processes_shell.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
         processes_shell_layout = QVBoxLayout(processes_shell)
         processes_shell_layout.setContentsMargins(10, 10, 10, 10)
         processes_shell_layout.setSpacing(8)
 
-        header = QLabel("Процессы")
-        header.setObjectName("TelemetryChip")
-        processes_shell_layout.addWidget(header)
+        self._processes_header = QLabel(
+            self._text("panel.telemetry.processes")
+        )
+        self._processes_header.setObjectName("TelemetryChip")
+        processes_shell_layout.addWidget(self._processes_header)
 
         self._processes_scroll = QScrollArea()
         self._processes_scroll.setObjectName("TelemetryProcessesScroll")
         self._processes_scroll.setWidgetResizable(True)
         self._processes_scroll.setFrameShape(QFrame.NoFrame)
-        self._processes_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._processes_scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self._processes_scroll.viewport().setObjectName("TelemetryProcessesViewport")
+        self._processes_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAlwaysOff
+        )
+        self._processes_scroll.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
+        self._processes_scroll.viewport().setObjectName(
+            "TelemetryProcessesViewport"
+        )
         apply_scrollbar_style(self._processes_scroll)
 
         self._processes_container = QWidget()
-        self._processes_container.setObjectName("TelemetryProcessesContainer")
+        self._processes_container.setObjectName(
+            "TelemetryProcessesContainer"
+        )
         self._processes_container.setProperty("transparentBg", True)
         self._processes = QVBoxLayout(self._processes_container)
         self._processes.setContentsMargins(0, 0, 10, 0)
@@ -224,10 +279,16 @@ class TelemetryPanel(QFrame):
         self._refresh_processes()
         self._rebuild("bottom")
         self._auto_refresh_timer.start()
+        if localization is not None:
+            localization.language_changed.connect(self._on_language_changed)
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        desired = "side" if self.width() < max(460, self.height() * 0.72) else "bottom"
+        desired = (
+            "side"
+            if self.width() < max(460, self.height() * 0.72)
+            else "bottom"
+        )
         if desired != self._mode:
             self._rebuild(desired)
 
@@ -250,7 +311,9 @@ class TelemetryPanel(QFrame):
         while parent is not None:
             if isinstance(parent, QDockWidget):
                 self._dock_widget = parent
-                self._dock_widget.topLevelChanged.connect(lambda _floating: self._apply_floating_size_policy())
+                self._dock_widget.topLevelChanged.connect(
+                    lambda _floating: self._apply_floating_size_policy()
+                )
                 break
             parent = parent.parentWidget()
 
@@ -266,17 +329,118 @@ class TelemetryPanel(QFrame):
             self._dock_widget.setMinimumSize(QSize(0, 0))
             self._dock_widget.setMaximumSize(QSize(16777215, 16777215))
 
-    def _to_items(self, metrics: tuple[TelemetryMetricView, ...]) -> list[TelemetryItem]:
-        cpu_tooltip = self._vm.cpu_cores_text.strip()
+    def _to_items(self) -> list[TelemetryItem]:
+        snapshot = self._vm.snapshot
+        if snapshot is None:
+            return []
+
+        cpu_tooltip = self._text(
+            "panel.telemetry.cpu_tooltip",
+            status=self._status_text(snapshot.cpu_status_code),
+            value=f"{snapshot.cpu_percent:.1f}%",
+            cores=snapshot.cpu_logical_cores,
+        )
+        ram_text = (
+            f"{self._format_bytes(snapshot.ram_used_bytes)} / "
+            f"{self._format_bytes(snapshot.ram_total_bytes)}"
+        )
+        if (
+            snapshot.vram_used_mb is not None
+            and snapshot.vram_total_mb is not None
+        ):
+            vram_percent = int(
+                round(
+                    (
+                        snapshot.vram_used_mb
+                        / max(snapshot.vram_total_mb, 1.0)
+                    )
+                    * 100
+                )
+            )
+            vram_text = (
+                f"{snapshot.vram_used_mb:.0f} / "
+                f"{snapshot.vram_total_mb:.0f} MB"
+            )
+        else:
+            vram_percent = 0
+            vram_text = self._text(
+                "panel.telemetry.status.gpu_unavailable"
+            )
+
+        if snapshot.gpu_temperature_c is None:
+            temp_percent = 0
+            temp_text = "—"
+        else:
+            temp_percent = int(
+                min(100, round(snapshot.gpu_temperature_c))
+            )
+            temp_text = f"{snapshot.gpu_temperature_c:.0f}°C"
+
+        proc_value = (
+            int(min(100, round(snapshot.processes[0].cpu_percent)))
+            if snapshot.processes
+            else 0
+        )
+
         return [
             TelemetryItem(
-                short_label=item.short_label,
-                full_label=item.full_label,
-                value=max(0, min(100, item.value_percent)),
-                tooltip=f"{item.tooltip}\n{cpu_tooltip}" if item.short_label == "CPU" and cpu_tooltip else item.tooltip,
-                value_text=item.value_text,
-            )
-            for item in metrics
+                short_label="CPU",
+                full_label="CPU",
+                value=int(round(snapshot.cpu_percent)),
+                tooltip=cpu_tooltip,
+                value_text=f"{snapshot.cpu_percent:.1f}%",
+            ),
+            TelemetryItem(
+                short_label="RAM",
+                full_label="RAM",
+                value=int(round(snapshot.ram_percent)),
+                tooltip=ram_text,
+                value_text=f"{snapshot.ram_percent:.1f}%",
+            ),
+            TelemetryItem(
+                short_label="GPU",
+                full_label="GPU",
+                value=int(round(snapshot.gpu_util_percent or 0.0)),
+                tooltip=self._status_text(snapshot.gpu_status_code),
+                value_text=(
+                    f"{snapshot.gpu_util_percent:.1f}%"
+                    if snapshot.gpu_util_percent is not None
+                    else "—"
+                ),
+            ),
+            TelemetryItem(
+                short_label="VRAM",
+                full_label="VRAM",
+                value=vram_percent,
+                tooltip=vram_text,
+                value_text=vram_text,
+            ),
+            TelemetryItem(
+                short_label=self._text(
+                    "panel.telemetry.metric.temperature.short"
+                ),
+                full_label=self._text(
+                    "panel.telemetry.metric.temperature.full"
+                ),
+                value=temp_percent,
+                tooltip=temp_text,
+                value_text=temp_text,
+            ),
+            TelemetryItem(
+                short_label=self._text(
+                    "panel.telemetry.metric.process.short"
+                ),
+                full_label=self._text(
+                    "panel.telemetry.metric.process.full"
+                ),
+                value=proc_value,
+                tooltip=self._status_text(
+                    snapshot.processes_status_code
+                ),
+                value_text=(
+                    f"{proc_value}%" if snapshot.processes else "—"
+                ),
+            ),
         ]
 
     def _on_refresh(self) -> None:
@@ -291,29 +455,27 @@ class TelemetryPanel(QFrame):
         self._refresh_pending = True
         if show_pending:
             self._refresh_btn.setEnabled(False)
-            self._refresh_btn.setText("Обновление...")
+            self._refresh_btn.setText(
+                self._text("panel.telemetry.refreshing")
+            )
         QTimer.singleShot(0, self._finish_refresh)
 
     def _finish_refresh(self) -> None:
         try:
             self._vm.refresh()
-            self._title.setText(self._vm.status_title)
-            self._subtitle.setText(self._compact_updated_text(self._vm.status_subtitle))
-            self._error.setText(self._vm.status_error)
-            self._error.setVisible(bool(self._vm.status_error.strip()))
-            self._items = self._to_items(self._vm.metric_items())
+            self._title.setText(self._status_title())
+            self._subtitle.setText(self._status_subtitle())
+            self._error.setText(self._status_error())
+            self._error.setVisible(bool(self._error.text().strip()))
+            self._items = self._to_items()
             self._refresh_processes()
             self._update_metric_widgets()
         finally:
-            self._refresh_btn.setText("Обновить")
+            self._refresh_btn.setText(
+                self._text("panel.telemetry.refresh")
+            )
             self._refresh_btn.setEnabled(True)
             self._refresh_pending = False
-
-    def _compact_updated_text(self, subtitle: str) -> str:
-        prefix = "Последнее обновление:"
-        if subtitle.startswith(prefix):
-            return f"Обновлено:{subtitle[len(prefix):]}"
-        return subtitle
 
     def _update_metric_widgets(self) -> None:
         if len(self._metrics_widgets) != len(self._items):
@@ -329,8 +491,27 @@ class TelemetryPanel(QFrame):
             if widget is not None:
                 widget.deleteLater()
 
-        for row in self._vm.processes_rows:
-            label = QLabel(row)
+        snapshot = self._vm.snapshot
+        if snapshot is None or not snapshot.processes:
+            label = QLabel(
+                self._text(
+                    "panel.telemetry.status.processes_unavailable"
+                )
+            )
+            label.setWordWrap(True)
+            self._processes.addWidget(label)
+            return
+
+        for process in snapshot.processes:
+            label = QLabel(
+                self._text(
+                    "panel.telemetry.process_row",
+                    pid=process.pid,
+                    name=process.name,
+                    cpu=f"{process.cpu_percent:.1f}",
+                    ram=f"{process.ram_percent:.1f}",
+                )
+            )
             label.setWordWrap(True)
             self._processes.addWidget(label)
 
@@ -373,3 +554,63 @@ class TelemetryPanel(QFrame):
 
         self._metrics_viewport = viewport
         self._content_layout.addWidget(viewport, 0, alignment)
+
+    def _on_language_changed(self, _locale: str) -> None:
+        self._title.setText(self._status_title())
+        self._subtitle.setText(self._status_subtitle())
+        self._error.setText(self._status_error())
+        self._error.setVisible(bool(self._error.text().strip()))
+        self._processes_header.setText(
+            self._text("panel.telemetry.processes")
+        )
+        self._refresh_btn.setText(
+            self._text(
+                "panel.telemetry.refreshing"
+                if self._refresh_pending
+                else "panel.telemetry.refresh"
+            )
+        )
+        self._items = self._to_items()
+        self._refresh_processes()
+        self._update_metric_widgets()
+
+    def _status_title(self) -> str:
+        snapshot = self._vm.snapshot
+        code = snapshot.status_code if snapshot is not None else "active"
+        return self._status_text(code)
+
+    def _status_subtitle(self) -> str:
+        snapshot = self._vm.snapshot
+        if snapshot is None:
+            return self._text("panel.telemetry.status.active")
+        return self._text(
+            "panel.telemetry.updated_at",
+            time=snapshot.last_updated_at,
+        )
+
+    def _status_error(self) -> str:
+        snapshot = self._vm.snapshot
+        if snapshot is None or not snapshot.error_code:
+            return ""
+        key = _STATUS_KEYS.get(snapshot.error_code)
+        return self._text(key) if key is not None else snapshot.error_message
+
+    def _status_text(self, code: str) -> str:
+        key = _STATUS_KEYS.get(code)
+        if key is None:
+            return code.replace("_", " ").title()
+        return self._text(key)
+
+    def _text(self, key: str, **values: object) -> str:
+        return panel_text(
+            self._localization,
+            key,
+            **values,
+        )
+
+    @staticmethod
+    def _format_bytes(value: int) -> str:
+        if value <= 0:
+            return "0 GB"
+        gb = value / (1024**3)
+        return f"{gb:.1f} GB"
