@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from PySide6.QtGui import QKeySequence
 
 from persona_training_lab.ui.agents.history_key_state import (
@@ -23,6 +24,15 @@ def test_default_history_sequences_are_guarded_but_custom_ones_are_not() -> None
     )
 
     assert guarded == frozenset({"history_toggle"})
+
+
+def test_routing_defaults_are_immutable_global_contract() -> None:
+    routing = HistoryShortcutRouting()
+
+    with pytest.raises(TypeError):
+        routing.default_sequences["history_toggle"] = "Alt+Z"  # type: ignore[index]
+
+    assert routing.default_sequences["history_toggle"] == "Ctrl+Z"
 
 
 def test_allowed_actions_preserve_order_and_drop_unowned_history_actions() -> None:
