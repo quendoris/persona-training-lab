@@ -13,7 +13,7 @@ class VersionGraphCanvas(_DynamicWorkspaceCanvas):
     ZOOM_FACTOR = 1.12
 
     def update_node_content(self, nodes) -> bool:
-        """Repaint immutable node content without rebuilding workspace geometry."""
+        """Repaint content that cannot change the cached layout footprint."""
 
         next_nodes = tuple(nodes)
         if self._visual_structure(self._nodes) != self._visual_structure(
@@ -31,6 +31,7 @@ class VersionGraphCanvas(_DynamicWorkspaceCanvas):
             (
                 node.node_id,
                 node.parent_id,
+                node.title,
                 node.level,
                 node.branch_note,
                 node.is_current,
