@@ -3,8 +3,12 @@ from __future__ import annotations
 import sqlite3
 
 from persona_training_lab.application.datasets.service import DatasetsService
-from persona_training_lab.infrastructure.persistence.repositories.datasets import SQLiteDatasetsRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
+from persona_training_lab.infrastructure.persistence.repositories.datasets import (
+    SQLiteDatasetsRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 
 
@@ -23,9 +27,12 @@ def test_datasets_connector_empty_state() -> None:
     assert rows == []
 
     vm = DatasetsViewModel(datasets_service=service)
-    title, subtitle = vm.header_summary()
-    assert title == "Датасеты"
-    assert "Датасеты пока не добавлены" in subtitle
+    dataset = vm.current_dataset()
+    version = vm.current_version()
+    assert dataset.dataset_id == "datasets_empty"
+    assert dataset.subtitle.key == "datasets.empty.registry"
+    assert version.status_code == "empty"
+    assert vm.header_summary_model()[1].key == "datasets.header.summary"
 
 
 def test_datasets_connector_single_row() -> None:
@@ -66,4 +73,5 @@ def test_datasets_connector_single_row() -> None:
     assert dataset.dataset_id == "ds_001"
     assert dataset.title == "curated_rose"
     assert version.status == "одобрен"
+    assert version.status_code == "approved"
     assert version.record_count == 74
