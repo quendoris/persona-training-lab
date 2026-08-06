@@ -13,6 +13,9 @@ def test_source_audit_finds_bound_dynamic_and_missing_translation_keys(
 NAVIGATION_KEYS = {
     "agents": "nav.agents",
 }
+I18N_KEY_PREFIXES = (
+    "inspector.context.",
+)
 
 
 def configure(localization, widget, menu, self):
@@ -46,6 +49,7 @@ def configure(localization, widget, menu, self):
         "shell.panels",
         "shell.panels.decorated",
     }
+    assert visitor.translation_prefixes == {"inspector.context."}
     assert [finding.text for finding in visitor.literals] == [
         "──── panels ────"
     ]
