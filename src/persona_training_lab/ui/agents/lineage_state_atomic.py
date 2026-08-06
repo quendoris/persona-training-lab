@@ -33,11 +33,11 @@ class AtomicLineageStateStore(LineageStateStore):
 
     def _save(self) -> None:
         payload = deepcopy(self._payload)
-        serialized = json.dumps(payload, ensure_ascii=False, indent=2)
         path = self._path
         temporary_path: Path | None = None
 
         try:
+            serialized = json.dumps(payload, ensure_ascii=False, indent=2)
             path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -54,7 +54,6 @@ class AtomicLineageStateStore(LineageStateStore):
 
             os.replace(temporary_path, path)
             temporary_path = None
-            self._fsync_directory(path.parent)
         except Exception:
             if temporary_path is not None:
                 try:
@@ -65,6 +64,7 @@ class AtomicLineageStateStore(LineageStateStore):
             raise
 
         self._persisted_payload = payload
+        self._fsync_directory(path.parent)
 
     @staticmethod
     def _fsync_directory(directory: Path) -> None:
@@ -74,7 +74,10 @@ class AtomicLineageStateStore(LineageStateStore):
         except OSError:
             return
         try:
-            os.fsync(descriptor)
+            try:
+                os.fsync(descriptor)
+            except OSError:
+                return
         finally:
             os.close(descriptor)
 
