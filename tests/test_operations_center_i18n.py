@@ -16,7 +16,10 @@ from persona_training_lab.application.telemetry.service import (
 )
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.panels.activity_panel import ActivityPanel
-from persona_training_lab.ui.panels.inspector_panel import InspectorPanel
+from persona_training_lab.ui.panels.inspector_panel import (
+    INSPECTOR_CONTEXT_IDS,
+    InspectorPanel,
+)
 from persona_training_lab.ui.panels.issues_panel import IssuesPanel
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
 
@@ -170,6 +173,36 @@ def test_inspector_context_and_runtime_switch_language(
     assert panel._shortcut.text() == "Alt+T · открыть «Обучение»"
     assert panel._runtime_title.text() == "Операционный контекст"
     assert panel._issues.text() == "2 проблемы требуют внимания"
+
+    panel.deleteLater()
+    app.processEvents()
+
+
+def test_all_inspector_contexts_render_in_both_catalogs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    panel = InspectorPanel(manager)
+
+    for screen in INSPECTOR_CONTEXT_IDS:
+        panel.set_context(screen)
+        assert panel._title.text().strip()
+        assert panel._status.text().strip()
+        assert panel._next.text().strip()
+        assert panel._risk.text().strip()
+        assert sum(bool(label.text().strip()) for label in panel._checks) >= 3
+
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+    manager.set_locale("ru-RU", persist=False)
+
+    for screen in INSPECTOR_CONTEXT_IDS:
+        panel.set_context(screen)
+        assert panel._title.text().strip()
+        assert panel._status.text().strip()
+        assert panel._next.text().strip()
+        assert panel._risk.text().strip()
+        assert sum(bool(label.text().strip()) for label in panel._checks) >= 3
 
     panel.deleteLater()
     app.processEvents()
