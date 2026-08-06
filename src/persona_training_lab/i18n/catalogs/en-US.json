@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "name": "English",
+    "native_name": "English",
+    "direction": "ltr"
+  },
+  "messages": {
+    "app.name": "Persona Training Lab",
+    "common.cancel": "Cancel",
+    "common.close": "Close",
+    "common.continue": "Continue",
+    "common.delete": "Delete",
+    "common.discard": "Discard",
+    "common.no": "No",
+    "common.ok": "OK",
+    "common.retry": "Retry",
+    "common.save": "Save",
+    "common.yes": "Yes",
+    "dialog.error.title": "Error",
+    "dialog.information.title": "Information",
+    "dialog.question.title": "Confirmation",
+    "dialog.warning.title": "Warning",
+    "language.current": "Interface language",
+    "language.english": "English",
+    "language.restart_not_required": "The interface language changes without restarting the application.",
+    "language.russian": "Russian",
+    "language.unavailable_incomplete": "Locale {locale} is unavailable because its translation is incomplete.",
+    "nav.agents": "Agents",
+    "nav.analysis": "Analysis",
+    "nav.dashboard": "Dashboard",
+    "nav.datasets": "Datasets",
+    "nav.docs": "Documentation",
+    "nav.keybindings": "Key bindings",
+    "nav.profiles": "Profiles",
+    "nav.snapshots": "Snapshots",
+    "nav.style": "Appearance",
+    "nav.tests": "Tests",
+    "nav.training": "Training",
+    "operations.active_count": {
+      "one": "{count} active operation",
+      "other": "{count} active operations"
+    },
+    "release.i18n.incomplete": "The interface translation is incomplete.",
+    "release.i18n.ready": "All user-facing strings are translated."
+  }
+}
