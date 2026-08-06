@@ -80,7 +80,7 @@ class ReleaseGate:
 
     def run(self) -> int:
         results: list[StepResult] = []
-        print(f"Persona Training Lab release gate")
+        print("Persona Training Lab release gate")
         print(f"Output: {self.output_dir}")
         print(f"Seed: {self._seed}")
         print(f"Test runs: {self._runs}")
