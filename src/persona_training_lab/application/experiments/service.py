@@ -1,14 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from importlib.resources import files
+from types import MappingProxyType
+from typing import Mapping
 import json
 import re
 from uuid import uuid4
 
-from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
-from persona_training_lab.application.local_model.service import LocalModelService
+from persona_training_lab.application.errors.reporter import (
+    ApplicationErrorReporter,
+)
+from persona_training_lab.application.experiments.status_mapping import (
+    normalize_evaluation_status,
+)
+from persona_training_lab.application.local_model.service import (
+    LocalModelService,
+)
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+    normalize_local_model_status,
+)
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
@@ -21,6 +34,9 @@ from persona_training_lab.application.runtime.operations import (
     ResourceClaim,
     RuntimeOperationCoordinator,
     RuntimeOperationLease,
+)
+from persona_training_lab.domain.evaluation.statuses import (
+    EvaluationRunStatus,
 )
 
 
@@ -109,6 +125,7 @@ class ExperimentSummary:
     title: str
     subtitle: str
     status: str
+    status_code: EvaluationRunStatus = EvaluationRunStatus.UNKNOWN
 
 
 @dataclass(slots=True, frozen=True)
@@ -116,11 +133,32 @@ class ExperimentRunResult:
     ok: bool
     message: str
     experiment_id: str = ""
+    message_code: str = ""
+    message_values: Mapping[str, object] = field(default_factory=dict)
+
+
+def experiment_result(
+    ok: bool,
+    message: str,
+    *,
+    experiment_id: str = "",
+    message_code: str = "",
+    **values: object,
+) -> ExperimentRunResult:
+    return ExperimentRunResult(
+        ok=ok,
+        message=message,
+        experiment_id=experiment_id,
+        message_code=message_code,
+        message_values=MappingProxyType(dict(values)),
+    )
 
 
 @dataclass(slots=True)
 class ExperimentsService:
-    experiments_repo: ExperimentsReadRepositoryPort | ExperimentsWriteRepositoryPort
+    experiments_repo: (
+        ExperimentsReadRepositoryPort | ExperimentsWriteRepositoryPort
+    )
     local_model_service: LocalModelService | None = None
     model_versions_service: ModelVersionsService | None = None
     battery_resource: str = BATTERY_RESOURCE
@@ -135,6 +173,9 @@ class ExperimentsService:
                 title=row.get("title", ""),
                 subtitle=row.get("subtitle", ""),
                 status=row.get("status", ""),
+                status_code=normalize_evaluation_status(
+                    row.get("status", "")
+                ),
             )
             for row in rows
         ]
@@ -150,9 +191,10 @@ class ExperimentsService:
         model_version_id: str | None = None,
     ) -> ExperimentRunResult:
         if self.local_model_service is None:
-            return ExperimentRunResult(
+            return experiment_result(
                 False,
                 "Локальная модель не подключена",
+                message_code="local_model_unavailable",
             )
 
         versions = (
@@ -165,9 +207,11 @@ class ExperimentsService:
             model_version_id,
         )
         if model_version_id and selected_version is None:
-            return ExperimentRunResult(
+            return experiment_result(
                 False,
                 f"Версия модели не найдена: {model_version_id}",
+                message_code="model_version_not_found",
+                model_version_id=model_version_id,
             )
 
         model_path = (
@@ -176,9 +220,14 @@ class ExperimentsService:
             and selected_version.artifact_path
             else self.local_model_service.model_path
         )
-        model_probe = self.local_model_service.probe_model_files_at(model_path)
-        if model_probe.status != "Модель найдена":
-            return ExperimentRunResult(
+        model_probe = self.local_model_service.probe_model_files_at(
+            model_path
+        )
+        if (
+            normalize_local_model_status(model_probe.status)
+            is not LocalModelStatus.FOUND
+        ):
+            return experiment_result(
                 False,
                 (
                     "Выбранные веса недоступны: "
@@ -186,6 +235,12 @@ class ExperimentsService:
                     else ""
                 )
                 + model_probe.details,
+                message_code=(
+                    "selected_weights_unavailable"
+                    if selected_version is not None
+                    else "model_unavailable"
+                ),
+                details=model_probe.details,
             )
 
         try:
@@ -195,6 +250,7 @@ class ExperimentsService:
                 error,
                 component="experiments.load_battery",
                 user_message="Не удалось загрузить батарею тестов",
+                message_code="battery_load_failed",
             )
 
         experiment_id = f"evr_{uuid4().hex[:8]}"
@@ -226,7 +282,11 @@ class ExperimentsService:
                         ],
                     },
                 )
-            return ExperimentRunResult(False, message)
+            return experiment_result(
+                False,
+                message,
+                message_code="resource_busy",
+            )
 
         operation_id = lease.operation_id if lease is not None else ""
         correlation_id = lease.correlation_id if lease is not None else ""
@@ -272,14 +332,20 @@ class ExperimentsService:
                 if report is not None
                 else "Тест остановлен безопасно"
             )
-            if report is not None:
-                message += f" Код: {report.error_id}."
+            error_id = report.error_id if report is not None else ""
+            if error_id:
+                message += f" Код: {error_id}."
             if lease is not None:
                 lease.fail(message)
-            return ExperimentRunResult(False, message)
+            return experiment_result(
+                False,
+                message,
+                message_code="safe_stop",
+                error_id=error_id,
+            )
         finally:
             if lease is not None and not lease.closed:
-                lease.fail("Операция завершилась без терминального статуса")
+                lease.fail("Operation ended without a terminal status")
 
     @staticmethod
     def _select_model_version(versions, model_version_id: str | None):
@@ -359,7 +425,11 @@ class ExperimentsService:
             response, score_valid = self._normalise_score_response(
                 raw_response
             )
-            if result.status != "Модель отвечает" or not score_valid:
+            model_responded = (
+                normalize_local_model_status(result.status)
+                is LocalModelStatus.RESPONDING
+            )
+            if not model_responded or not score_valid:
                 failures += 1
             responses.append(
                 f"CASE {index}\n"
@@ -379,26 +449,31 @@ class ExperimentsService:
             )
 
         first_case = test_cases[0]
-        snapshot_note = (
-            selected_version.title
-            if selected_version is not None
-            else "без зарегистрированного снимка"
-        )
         version_id = (
             selected_version.version_id
             if selected_version is not None
             else ""
+        )
+        snapshot_title = (
+            selected_version.title
+            if selected_version is not None
+            else "unregistered"
         )
         artifact_path = (
             selected_version.artifact_path
             if selected_version is not None
             else model_path
         )
-        status = "Портрет собран" if failures == 0 else "Есть ошибки"
+        status_code = (
+            EvaluationRunStatus.COMPLETED
+            if failures == 0
+            else EvaluationRunStatus.PARTIAL
+        )
         passed = len(test_cases) - failures
         subtitle = (
             f"PORTRAIT: {passed}/{len(test_cases)} Big Five items · "
-            f"{snapshot_note} · model_version={version_id or '—'} · "
+            f"snapshot={snapshot_title} · "
+            f"model_version={version_id or '—'} · "
             f"artifact={artifact_path or '—'} · "
             f"battery={first_case.battery_version} · "
             f"scoring={first_case.scoring_version}\n\n"
@@ -410,9 +485,10 @@ class ExperimentsService:
             None,
         )
         if creator is None:
-            return ExperimentRunResult(
+            return experiment_result(
                 False,
                 "Хранилище тестов не поддерживает запись",
+                message_code="storage_read_only",
             )
         creator(
             {
@@ -422,18 +498,31 @@ class ExperimentsService:
                     f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
                 ),
                 "subtitle": subtitle,
-                "status": status,
+                "status": status_code.value,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        return ExperimentRunResult(
-            failures == 0,
+        legacy_status = (
+            "Портрет собран"
+            if status_code is EvaluationRunStatus.COMPLETED
+            else "Есть ошибки"
+        )
+        return experiment_result(
+            status_code is EvaluationRunStatus.COMPLETED,
             (
-                f"Психологический портрет {version_id}: {status}"
+                f"Психологический портрет {version_id}: {legacy_status}"
                 if version_id
-                else f"Психологический портрет: {status}"
+                else f"Психологический портрет: {legacy_status}"
             ),
-            experiment_id,
+            experiment_id=experiment_id,
+            message_code=(
+                "portrait_completed"
+                if status_code is EvaluationRunStatus.COMPLETED
+                else "portrait_partial"
+            ),
+            model_version_id=version_id,
+            passed=passed,
+            total=len(test_cases),
         )
 
     def _safe_failure(
@@ -442,9 +531,14 @@ class ExperimentsService:
         *,
         component: str,
         user_message: str,
+        message_code: str,
     ) -> ExperimentRunResult:
         if self.error_reporter is None:
-            return ExperimentRunResult(False, user_message)
+            return experiment_result(
+                False,
+                user_message,
+                message_code=message_code,
+            )
         report = self.error_reporter.capture(
             error,
             component=component,
@@ -452,26 +546,30 @@ class ExperimentsService:
             entity_kind="experiment",
             entity_id="pending",
         )
-        return ExperimentRunResult(
+        return experiment_result(
             False,
             f"{user_message}. Код: {report.error_id}.",
+            message_code=message_code,
+            error_id=report.error_id,
         )
 
-    def _one_line(self, value: str) -> str:
+    @staticmethod
+    def _one_line(value: str) -> str:
         return " ".join(value.split())
 
-    def _format_response(self, value: str) -> str:
+    @staticmethod
+    def _format_response(value: str) -> str:
         compact = " ".join(value.replace("\x00", " ").split())
         compact = compact.replace("<think>", "").replace(
             "</think>",
             "",
         ).strip()
         if not compact:
-            return "<пустой ответ>"
+            return "<empty response>"
         return compact if len(compact) <= 120 else compact[:119] + "…"
 
+    @staticmethod
     def _normalise_score_response(
-        self,
         value: str,
     ) -> tuple[str, bool]:
         match = SCORE_RE.search(value)
