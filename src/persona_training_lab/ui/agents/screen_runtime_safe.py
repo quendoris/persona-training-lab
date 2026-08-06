@@ -20,9 +20,6 @@ class AgentsScreen(_FinalAgentsScreen):
     """Final agents workspace backed by real persisted lineage and leases."""
 
     _RUNTIME_REFRESH_MS = 1_200
-    _CANONICAL_NODE_IDS = frozenset(
-        {"base", "dataset", "training", "snapshot", "portrait", "delta"}
-    )
 
     def __init__(
         self,
@@ -56,7 +53,6 @@ class AgentsScreen(_FinalAgentsScreen):
         projection = self._real_projection
         if (
             projection is not None
-            and node_id not in self._CANONICAL_NODE_IDS
             and node_id in projection.details
             and not self._state.is_custom_node(node_id)
         ):
