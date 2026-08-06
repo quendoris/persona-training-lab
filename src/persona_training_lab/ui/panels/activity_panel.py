@@ -19,20 +19,37 @@ from persona_training_lab.ui.components.panels import (
     make_muted_label,
     make_status_label,
 )
+from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.panels.localization import (
+    item_focus,
+    item_status,
+    item_summary,
+    item_title,
+    text as panel_text,
+)
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 
 
 class _ActivityRow(QPushButton):
     navigate_requested = Signal(str, str)
 
-    def __init__(self, item: OperationsCenterItem) -> None:
+    def __init__(
+        self,
+        item: OperationsCenterItem,
+        localization: LocalizationManager | None,
+    ) -> None:
         super().__init__()
         self._item = item
         self.setObjectName("PanelCardSoft")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(64)
+        tooltip = panel_text(
+            localization,
+            "operations.open_related",
+            "Открыть связанную вкладку",
+        )
         self.setToolTip(
-            "Открыть связанную вкладку"
+            tooltip
             + (f" · {item.correlation_id}" if item.correlation_id else "")
         )
 
@@ -40,26 +57,26 @@ class _ActivityRow(QPushButton):
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(10)
 
-        text = QVBoxLayout()
-        text.setSpacing(4)
-        title = QLabel(item.title)
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(4)
+        title = QLabel(item_title(item, localization))
         title.setObjectName("CardTitle")
         title.setWordWrap(True)
         title.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents,
             True,
         )
-        note = make_muted_label(item.summary)
+        note = make_muted_label(item_summary(item, localization))
         note.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents,
             True,
         )
-        text.addWidget(title)
-        text.addWidget(note)
-        layout.addLayout(text, 1)
+        text_layout.addWidget(title)
+        text_layout.addWidget(note)
+        layout.addLayout(text_layout, 1)
 
         status = make_status_label(
-            item.status,
+            item_status(item, localization),
             warning=item.severity in {"warning", "error", "critical"},
         )
         status.setAttribute(
@@ -70,7 +87,7 @@ class _ActivityRow(QPushButton):
         self.clicked.connect(
             lambda: self.navigate_requested.emit(
                 item.target_screen,
-                item.focus_text,
+                item_focus(item, localization),
             )
         )
 
@@ -81,22 +98,29 @@ class ActivityPanel(QFrame):
     def __init__(
         self,
         operations_center: OperationsCenterService | None = None,
+        localization: LocalizationManager | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("PanelCard")
         self._operations_center = operations_center
+        self._localization = localization
         self._render_signature: tuple[object, ...] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
-        title = QLabel("Активность")
-        title.setObjectName("SectionTitle")
-        self._subtitle = make_muted_label(
-            "Реальные операции и структурированные события приложения."
+        self._title = QLabel(
+            self._text("panel.activity.title", "Активность")
         )
-        layout.addWidget(title)
+        self._title.setObjectName("SectionTitle")
+        self._subtitle = make_muted_label(
+            self._text(
+                "panel.activity.description",
+                "Реальные операции и структурированные события приложения.",
+            )
+        )
+        layout.addWidget(self._title)
         layout.addWidget(self._subtitle)
 
         scroll = QScrollArea()
@@ -120,6 +144,8 @@ class ActivityPanel(QFrame):
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
+        if localization is not None:
+            localization.language_changed.connect(self._on_language_changed)
         self.refresh(force=True)
 
     def set_service(self, operations_center: OperationsCenterService) -> None:
@@ -144,9 +170,19 @@ class ActivityPanel(QFrame):
                 return
             self._render_signature = signature
             self._clear_rows()
-            self._subtitle.setText("Ожидание подключения журнала операций.")
+            self._subtitle.setText(
+                self._text(
+                    "panel.activity.waiting",
+                    "Ожидание подключения журнала операций.",
+                )
+            )
             self._rows.addWidget(
-                make_muted_label("Нет подключённого источника.")
+                make_muted_label(
+                    self._text(
+                        "panel.common.no_source",
+                        "Нет подключённого источника.",
+                    )
+                )
             )
             self._rows.addStretch(1)
             return
@@ -166,21 +202,36 @@ class ActivityPanel(QFrame):
         self._render_signature = signature
         self._clear_rows()
         self._subtitle.setText(
-            f"Активно: {len(active)} · в истории: {len(history)}"
+            self._text(
+                "panel.activity.summary",
+                "Активно: {active} · в истории: {history}",
+                active=len(active),
+                history=len(history),
+            )
         )
 
         if active:
-            self._add_section("Сейчас")
+            self._add_section(
+                self._text("panel.activity.now", "Сейчас")
+            )
             for item in active:
                 self._add_item(item)
         if history:
-            self._add_section("Недавние события")
+            self._add_section(
+                self._text(
+                    "panel.activity.recent",
+                    "Недавние события",
+                )
+            )
             for item in history:
                 self._add_item(item)
         if not active and not history:
             self._rows.addWidget(
                 make_muted_label(
-                    "Журнал пока пуст. Новые операции появятся здесь автоматически."
+                    self._text(
+                        "panel.activity.empty",
+                        "Журнал пока пуст. Новые операции появятся здесь автоматически.",
+                    )
                 )
             )
         self._rows.addStretch(1)
@@ -197,6 +248,11 @@ class ActivityPanel(QFrame):
             item.target_screen,
             item.focus_text,
             item.correlation_id,
+            item.operation_kind,
+            item.operation_state,
+            item.operation_subject,
+            item.operation_error,
+            item.focus_key,
         )
 
     def _add_section(self, text: str) -> None:
@@ -205,7 +261,7 @@ class ActivityPanel(QFrame):
         self._rows.addWidget(label)
 
     def _add_item(self, item: OperationsCenterItem) -> None:
-        row = _ActivityRow(item)
+        row = _ActivityRow(item, self._localization)
         row.navigate_requested.connect(self.navigate_requested.emit)
         self._rows.addWidget(row)
 
@@ -215,3 +271,23 @@ class ActivityPanel(QFrame):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+
+    def _on_language_changed(self, _locale: str) -> None:
+        self._title.setText(
+            self._text("panel.activity.title", "Активность")
+        )
+        self._render_signature = None
+        self.refresh(force=True)
+
+    def _text(
+        self,
+        key: str,
+        fallback: str,
+        **values: object,
+    ) -> str:
+        return panel_text(
+            self._localization,
+            key,
+            fallback,
+            **values,
+        )
