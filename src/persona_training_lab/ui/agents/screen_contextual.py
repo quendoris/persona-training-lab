@@ -68,8 +68,8 @@ class AgentsScreen(_BackgroundAgentsScreen):
         )
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
-        safety = self._lineage_runtime_safety
-        if safety is None:
+        transactions = getattr(self, "_branch_transactions", None)
+        if transactions is None:
             super()._delete_local_branch_subtree(node_id)
             return
 
@@ -90,12 +90,15 @@ class AgentsScreen(_BackgroundAgentsScreen):
             return
 
         try:
-            lease = safety.begin_deletion(
+            lease = transactions.begin_deletion(
                 removed_ids,
                 subject_id=node_id,
             )
         except OperationConflictError as conflict:
             self._show_runtime_blockers(conflict.blockers)
+            return
+        if lease is None:
+            super()._delete_local_branch_subtree(node_id)
             return
 
         try:
@@ -109,7 +112,7 @@ class AgentsScreen(_BackgroundAgentsScreen):
                 return
             if hasattr(self._graph, "forget_layout_nodes"):
                 self._graph.forget_layout_nodes(removed)
-            safety.forget_nodes(removed)
+            transactions.forget(removed)
             self._selected_node_id = fallback_id
             lease.succeed()
             self._refresh_lineage(center=True)
