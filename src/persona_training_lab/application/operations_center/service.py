@@ -29,6 +29,11 @@ class OperationsCenterItem:
     target_screen: str
     focus_text: str = ""
     correlation_id: str = ""
+    operation_kind: str = ""
+    operation_state: str = ""
+    operation_subject: str = ""
+    operation_error: str = ""
+    focus_key: str = ""
 
 
 @dataclass(slots=True)
@@ -82,10 +87,11 @@ class OperationsCenterService:
         return tuple(issues[: max(1, limit)])
 
     def _operation_item(self, operation: RuntimeOperation) -> OperationsCenterItem:
-        screen, focus = _operation_target(operation.operation_kind)
+        screen, focus, focus_key = _operation_target(operation.operation_kind)
         label = _operation_label(operation.operation_kind)
         status = _state_label(operation.state)
-        summary_parts = [operation.subject_id or operation.subject_kind, status]
+        subject = operation.subject_id or operation.subject_kind
+        summary_parts = [subject, status]
         if operation.error_message:
             summary_parts.append(operation.error_message)
         severity = (
@@ -111,12 +117,17 @@ class OperationsCenterService:
             target_screen=screen,
             focus_text=focus,
             correlation_id=operation.correlation_id,
+            operation_kind=operation.operation_kind,
+            operation_state=operation.state,
+            operation_subject=subject or operation.operation_id,
+            operation_error=operation.error_message or "",
+            focus_key=focus_key,
         )
 
     def _event_item(self, event: EventRecord) -> OperationsCenterItem:
         payload = _payload(event.payload_json)
         severity = self._event_severity(event)
-        screen, focus = _event_target(event, payload)
+        screen, focus, focus_key = _event_target(event, payload)
         title = _event_title(event, payload)
         summary = _event_summary(event, payload)
         return OperationsCenterItem(
@@ -133,6 +144,7 @@ class OperationsCenterService:
                 or event.correlation_id
                 or ""
             ),
+            focus_key=focus_key,
         )
 
     @staticmethod
@@ -180,38 +192,50 @@ def _state_label(state: str) -> str:
     }.get(state, state or "без статуса")
 
 
-def _operation_target(kind: str) -> tuple[str, str]:
+def _operation_target(kind: str) -> tuple[str, str, str]:
     return {
-        "training": ("training", "Запустить"),
-        "personality_test": ("tests", "Собрать портрет"),
-        "analysis": ("analysis", ""),
-        "inference": ("training", "Проверить модель"),
-        "lineage_delete": ("agents", "Удалить ветку"),
-    }.get(kind, ("dashboard", ""))
+        "training": ("training", "Запустить", "focus.training.start"),
+        "personality_test": (
+            "tests",
+            "Собрать портрет",
+            "focus.tests.build_portrait",
+        ),
+        "analysis": ("analysis", "", ""),
+        "inference": (
+            "training",
+            "Проверить модель",
+            "focus.training.check_model",
+        ),
+        "lineage_delete": (
+            "agents",
+            "Удалить ветку",
+            "focus.agents.delete_branch",
+        ),
+    }.get(kind, ("dashboard", "", ""))
 
 
 def _event_target(
     event: EventRecord,
     payload: dict[str, object],
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     component = str(payload.get("component", "")).casefold()
     entity = f"{event.entity_kind} {event.entity_id}".casefold()
     haystack = f"{component} {entity}"
     if "train" in haystack:
-        return "training", ""
+        return "training", "", ""
     if "experiment" in haystack or "portrait" in haystack or "test" in haystack:
-        return "tests", "Собрать портрет"
+        return "tests", "Собрать портрет", "focus.tests.build_portrait"
     if "analysis" in haystack:
-        return "analysis", ""
+        return "analysis", "", ""
     if "dataset" in haystack:
-        return "datasets", ""
+        return "datasets", "", ""
     if "model_version" in haystack or "snapshot" in haystack:
-        return "snapshots", ""
+        return "snapshots", "", ""
     if "lineage" in haystack or "agent" in haystack:
-        return "agents", ""
+        return "agents", "", ""
     if "keybinding" in haystack:
-        return "keybindings", ""
-    return "dashboard", ""
+        return "keybindings", "", ""
+    return "dashboard", "", ""
 
 
 def _event_title(event: EventRecord, payload: dict[str, object]) -> str:
