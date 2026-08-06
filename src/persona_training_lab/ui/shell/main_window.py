@@ -1,40 +1,46 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent
-from PySide6.QtWidgets import (
-    QApplication,
-    QDockWidget,
-    QHBoxLayout,
-    QMainWindow,
-    QMenu,
-    QWidget,
-)
+from PySide6.QtGui import QCloseEvent, QIcon
+from PySide6.QtWidgets import QDockWidget, QMainWindow, QMenu, QWidget, QHBoxLayout
 
 from persona_training_lab.application.lineage.runtime_safety import (
-    LineageRuntimeSafety,
+    LineageRuntimeSafetyService,
 )
-from persona_training_lab.ui.agents.screen import AgentsScreen
+from persona_training_lab.application.runtime.operations import (
+    RuntimeOperationCoordinator,
+)
+from persona_training_lab.ui.agents import AgentsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
-from persona_training_lab.ui.density import screen_density, scaled
+from persona_training_lab.ui.density import UiDensity, density_for_screen
 from persona_training_lab.ui.docs.screen import DocsScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
-from persona_training_lab.ui.keybindings.manager import KeyBindingManager
-from persona_training_lab.ui.keybindings.screen import KeyBindingsScreen
+from persona_training_lab.ui.keybindings import (
+    KeyBindingManager,
+    KeyBindingsScreen,
+)
 from persona_training_lab.ui.panels.activity_panel import ActivityPanel
 from persona_training_lab.ui.panels.inspector_panel import InspectorPanel
 from persona_training_lab.ui.panels.issues_panel import IssuesPanel
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
 from persona_training_lab.ui.profiles.screen import ProfilesScreen
-from persona_training_lab.ui.shell.app_sidebar import NAVIGATION_KEYS, Sidebar
+from persona_training_lab.ui.shell.app_sidebar import Sidebar
+from persona_training_lab.ui.shell.main_window_context import (
+    MainWindowContextMixin,
+)
 from persona_training_lab.ui.shell.status_bar import AppStatusBar
+from persona_training_lab.ui.shell.window_state import WindowStateStore
 from persona_training_lab.ui.shell.workspace import WorkspaceStack
 from persona_training_lab.ui.snapshots.screen import SnapshotsScreen
 from persona_training_lab.ui.style.screen import StyleScreen
 from persona_training_lab.ui.tests.screen import TestsScreen
-from persona_training_lab.ui.themes.manager import apply_theme
+from persona_training_lab.ui.themes.manager import ThemeManager
 from persona_training_lab.ui.training.screen import TrainingScreen
 from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
@@ -42,7 +48,6 @@ from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 from persona_training_lab.ui.viewmodels.docs import DocsViewModel
 from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
-from persona_training_lab.ui.viewmodels.shell import ShellViewModel
 from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
@@ -50,7 +55,7 @@ from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
 
-DOCK_TITLE_KEYS: dict[str, str] = {
+DOCK_TITLE_KEYS = {
     "inspector": "dock.inspector",
     "activity": "dock.activity",
     "telemetry": "dock.telemetry",
@@ -58,42 +63,59 @@ DOCK_TITLE_KEYS: dict[str, str] = {
 }
 
 
-class MainWindow(QMainWindow):
+class MainWindow(MainWindowContextMixin, QMainWindow):
     def __init__(
         self,
-        shell_vm: ShellViewModel,
+        *,
         dashboard_vm: DashboardViewModel,
-        docs_vm: DocsViewModel,
-        style_vm: StyleViewModel,
         agents_vm: AgentsViewModel,
-        datasets_vm: DatasetsViewModel,
         profiles_vm: ProfilesViewModel,
+        datasets_vm: DatasetsViewModel,
         training_vm: TrainingViewModel,
         snapshots_vm: SnapshotsViewModel,
         tests_vm: TestsViewModel,
         analysis_vm: AnalysisViewModel,
+        style_vm: StyleViewModel,
+        docs_vm: DocsViewModel,
         telemetry_vm: TelemetryViewModel,
-        lineage_runtime_safety: LineageRuntimeSafety | None = None,
-        localization: LocalizationManager | None = None,
+        on_shutdown: Callable[[], None],
+        localization: LocalizationManager,
+        runtime_operations: RuntimeOperationCoordinator | None = None,
+        lineage_runtime_safety: LineageRuntimeSafetyService | None = None,
+        theme_manager: ThemeManager | None = None,
+        initial_density: UiDensity | None = None,
+        window_state_store: WindowStateStore | None = None,
     ) -> None:
         super().__init__()
-        self._shell_vm = shell_vm
-        self._style_vm = style_vm
-        self._lineage_runtime_safety = lineage_runtime_safety
+        self._on_shutdown = on_shutdown
         self._localization = localization
-        self._density = screen_density()
-        self._current_screen = "dashboard"
-        self._dock_actions: dict[str, QAction] = {}
-        self.setWindowTitle(self._text("app.name"))
-        if localization is not None:
-            localization.bind_window_title(self, "app.name")
+        self._runtime_operations = runtime_operations
+        self._telemetry_vm = telemetry_vm
+        self._theme_manager = theme_manager or ThemeManager()
+        self._window_state = window_state_store or WindowStateStore()
+        self._density = initial_density or density_for_screen(
+            self.screen().availableGeometry().height()
+            if self.screen() is not None
+            else 900
+        )
+        self._settings_menu: QMenu | None = None
+        self._dock_menu: QMenu | None = None
+        self._workspace_restore_attempted = False
+        self._workspace_restored = False
+        self._dock_restore_barrier_active = True
+
+        self.setWindowTitle(localization.text("app.title"))
+        self.setObjectName("PersonaTrainingLabMainWindow")
+        icon_path = Path(__file__).resolve().parents[1] / "assets" / "icons" / "brand" / "main.svg"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.resize(
             self._density.window_width,
             self._density.window_height,
         )
         self.setMinimumSize(
-            scaled(960, minimum=920),
-            scaled(620, minimum=580),
+            920,
+            580,
         )
 
         prefs = style_vm.load()
@@ -140,7 +162,7 @@ class MainWindow(QMainWindow):
         )
         self._workspace.register(
             "training",
-            TrainingScreen(training_vm),
+            TrainingScreen(training_vm, localization),
         )
         self._workspace.register(
             "snapshots",
@@ -184,35 +206,33 @@ class MainWindow(QMainWindow):
         inspector = self._register_dock(
             "inspector",
             self._inspector_panel,
-            Qt.RightDockWidgetArea,
+            Qt.DockWidgetArea.RightDockWidgetArea,
         )
         activity = self._register_dock(
             "activity",
-            ActivityPanel(localization=localization),
-            Qt.BottomDockWidgetArea,
+            ActivityPanel(localization),
+            Qt.DockWidgetArea.BottomDockWidgetArea,
         )
         telemetry = self._register_dock(
             "telemetry",
             TelemetryPanel(telemetry_vm, localization),
-            Qt.BottomDockWidgetArea,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
         )
         issues = self._register_dock(
             "issues",
-            IssuesPanel(localization=localization),
-            Qt.BottomDockWidgetArea,
+            IssuesPanel(localization),
+            Qt.DockWidgetArea.BottomDockWidgetArea,
         )
+        self._workspace_docks = (inspector, activity, telemetry, issues)
         self.tabifyDockWidget(activity, telemetry)
         self.tabifyDockWidget(telemetry, issues)
-        inspector.raise_()
-        telemetry.raise_()
+        activity.raise_()
 
-        windows_menu = self._build_windows_menu()
-        self._sidebar.set_window_menu(windows_menu)
-        self.menuBar().hide()
-        self._inspector_panel.set_context("dashboard")
-        self._schedule_rebalance()
-        if localization is not None:
-            localization.language_changed.connect(self._refresh_shell_language)
+        self._build_settings_menu()
+        self._refresh_shell_language()
+        localization.language_changed.connect(self._refresh_shell_language)
+        self._restore_window_state()
+        QTimer.singleShot(0, self._finish_dock_restore_barrier)
 
     def _register_dock(
         self,
@@ -220,124 +240,56 @@ class MainWindow(QMainWindow):
         widget: QWidget,
         area: Qt.DockWidgetArea,
     ) -> QDockWidget:
-        title_key = DOCK_TITLE_KEYS[dock_id]
-        dock = QDockWidget(self._text(title_key), self)
-        dock.setWidget(widget)
+        dock = QDockWidget(self)
         dock.setObjectName(f"ptl.dock.{dock_id}")
+        dock.setWidget(widget)
+        dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea
+            | Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.BottomDockWidgetArea
+        )
         dock.setFeatures(
-            QDockWidget.DockWidgetMovable
-            | QDockWidget.DockWidgetClosable
-            | QDockWidget.DockWidgetFloatable
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
-        if self._localization is not None:
-            self._localization.bind_window_title(dock, title_key)
         self.addDockWidget(area, dock)
-        dock.topLevelChanged.connect(
-            lambda _floating, _dock=dock: self._schedule_rebalance()
-        )
-        dock.visibilityChanged.connect(
-            lambda _visible, _dock=dock: self._schedule_rebalance()
-        )
         self._docks[dock_id] = dock
         return dock
 
-    def _schedule_rebalance(self) -> None:
-        QTimer.singleShot(0, self._rebalance_docks)
-
-    def _rebalance_docks(self) -> None:
-        right = [
-            dock
-            for dock in self._docks.values()
-            if dock.isVisible()
-            and not dock.isFloating()
-            and self.dockWidgetArea(dock) == Qt.RightDockWidgetArea
-        ]
-        bottom = [
-            dock
-            for dock in self._docks.values()
-            if dock.isVisible()
-            and not dock.isFloating()
-            and self.dockWidgetArea(dock) == Qt.BottomDockWidgetArea
-        ]
-        if right:
-            self.resizeDocks(
-                right,
-                [self._density.right_dock_width for _ in right],
-                Qt.Horizontal,
-            )
-        if bottom:
-            self.resizeDocks(
-                bottom,
-                [self._density.bottom_dock_height for _ in bottom],
-                Qt.Vertical,
-            )
-        if self.centralWidget() is not None:
-            self.centralWidget().updateGeometry()
-
-    def _build_windows_menu(self) -> QMenu:
-        menu = QMenu(self._text("shell.panels"), self)
-        if self._localization is not None:
-            self._localization.bind_title(menu, "shell.panels")
-        for dock_id in DOCK_TITLE_KEYS:
-            action = self._docks[dock_id].toggleViewAction()
-            action.setText(self._text(DOCK_TITLE_KEYS[dock_id]))
-            menu.addAction(action)
-            self._dock_actions[dock_id] = action
-        return menu
-
-    def _go_to_screen(self, screen: str) -> None:
-        self._sidebar.set_current(screen)
-        self._on_screen_selected(screen)
-
-    def _on_screen_selected(self, screen: str) -> None:
-        previous = self._workspace.current_workspace_key()
-        if not self._workspace.show_workspace(screen):
-            if previous:
-                self._sidebar.set_current(previous)
-            return
-        self._current_screen = screen
-        self._shell_vm.navigate(screen)
-        self._inspector_panel.set_context(screen)
-        self._refresh_workspace_status()
-
-    def _apply_style(
-        self,
-        theme_name: str,
-        accent_name: str,
-    ) -> None:
-        app = QApplication.instance()
-        if app is None:
-            return
-        self._current_theme = theme_name
-        self._current_accent = accent_name
-        apply_theme(app, theme_name, accent_name)
-        self._status.set_style_message(
-            f"{theme_name.title()} · {accent_name.title()} · "
-            f"{self._density.name}"
-        )
+    def _build_settings_menu(self) -> None:
+        self._settings_menu = self.menuBar().addMenu("")
+        self._dock_menu = self._settings_menu.addMenu("")
+        for dock_id, dock in self._docks.items():
+            action = dock.toggleViewAction()
+            action.setData(dock_id)
+            self._dock_menu.addAction(action)
 
     def _refresh_shell_language(self, _locale: str = "") -> None:
-        for dock_id, action in self._dock_actions.items():
-            action.setText(self._text(DOCK_TITLE_KEYS[dock_id]))
-        self._refresh_workspace_status()
+        self.setWindowTitle(self._localization.text("app.title"))
+        if self._settings_menu is not None:
+            self._settings_menu.setTitle(
+                self._localization.text("shell.settings")
+            )
+        if self._dock_menu is not None:
+            self._dock_menu.setTitle(
+                self._localization.text("shell.panels")
+            )
+        for dock_id, dock in self._docks.items():
+            title = self._localization.text(DOCK_TITLE_KEYS[dock_id])
+            dock.setWindowTitle(title)
+            dock.toggleViewAction().setText(title)
+        current_screen = self._workspace.current_key()
+        if current_screen:
+            self._status.set_message_key(
+                "status.current_workspace",
+                screen=self._screen_title(current_screen),
+            )
 
-    def _refresh_workspace_status(self) -> None:
-        self._status.set_message_key(
-            "status.current_workspace",
-            title=self._screen_title(self._current_screen),
-        )
-
-    def _screen_title(self, screen: str) -> str:
-        key = NAVIGATION_KEYS.get(screen)
-        return self._text(key) if key is not None else screen
-
-    def _text(self, key: str, **values: object) -> str:
-        if self._localization is None:
-            return key
+    def _text(self, key: str, **values: Any) -> str:
         return self._localization.text(key, **values)
 
-    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
-        if not self._workspace.request_current_leave():
-            event.ignore()
-            return
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._persist_window_state()
+        self._on_shutdown()
         super().closeEvent(event)
