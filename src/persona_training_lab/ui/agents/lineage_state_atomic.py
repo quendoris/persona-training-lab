@@ -77,9 +77,12 @@ class AtomicLineageStateStore(LineageStateStore):
             try:
                 os.fsync(descriptor)
             except OSError:
-                return
+                pass
         finally:
-            os.close(descriptor)
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
 
 __all__ = ("AtomicLineageStateStore",)
