@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from persona_training_lab.application.telemetry.service import TelemetrySnapshot
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.panels.localization import text as panel_text
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
