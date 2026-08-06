@@ -180,7 +180,7 @@ class MainWindow(QMainWindow):
         )
 
         self._docks: dict[str, QDockWidget] = {}
-        self._inspector_panel = InspectorPanel()
+        self._inspector_panel = InspectorPanel(localization)
         inspector = self._register_dock(
             "inspector",
             self._inspector_panel,
@@ -188,17 +188,17 @@ class MainWindow(QMainWindow):
         )
         activity = self._register_dock(
             "activity",
-            ActivityPanel(),
+            ActivityPanel(localization=localization),
             Qt.BottomDockWidgetArea,
         )
         telemetry = self._register_dock(
             "telemetry",
-            TelemetryPanel(telemetry_vm),
+            TelemetryPanel(telemetry_vm, localization),
             Qt.BottomDockWidgetArea,
         )
         issues = self._register_dock(
             "issues",
-            IssuesPanel(),
+            IssuesPanel(localization=localization),
             Qt.BottomDockWidgetArea,
         )
         self.tabifyDockWidget(activity, telemetry)
