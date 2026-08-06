@@ -10,6 +10,10 @@ from typing import Any
 from persona_training_lab.ui.agents.lineage_state import LineageStateStore
 
 
+class LineageStateLoadError(RuntimeError):
+    pass
+
+
 class AtomicLineageStateStore(LineageStateStore):
     """Durable lineage state with atomic replacement and memory rollback."""
 
@@ -30,6 +34,39 @@ class AtomicLineageStateStore(LineageStateStore):
             self._payload = previous_payload
             self._persisted_payload = previous_persisted
             raise
+
+    def _load(self) -> dict[str, Any]:
+        try:
+            raw_text = self._path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return self._default_payload()
+        except OSError as error:
+            raise LineageStateLoadError(
+                f"Cannot read lineage state {self._path}: {error}"
+            ) from error
+
+        try:
+            payload = json.loads(raw_text)
+        except json.JSONDecodeError as error:
+            raise LineageStateLoadError(
+                f"Lineage state is not valid JSON: {self._path}"
+            ) from error
+        if not isinstance(payload, dict):
+            raise LineageStateLoadError(
+                f"Lineage state root must be an object: {self._path}"
+            )
+
+        if "undo_stack" not in payload:
+            legacy_history = payload.pop("history", [])
+            payload["undo_stack"] = (
+                legacy_history if isinstance(legacy_history, list) else []
+            )
+        payload.setdefault("redo_stack", [])
+        payload.setdefault("quick_direction", "undo")
+        payload.setdefault("overrides", {})
+        payload.setdefault("custom_nodes", [])
+        payload["schema"] = 5
+        return payload
 
     def _save(self) -> None:
         payload = deepcopy(self._payload)
@@ -67,6 +104,17 @@ class AtomicLineageStateStore(LineageStateStore):
         self._fsync_directory(path.parent)
 
     @staticmethod
+    def _default_payload() -> dict[str, Any]:
+        return {
+            "schema": 5,
+            "overrides": {},
+            "custom_nodes": [],
+            "undo_stack": [],
+            "redo_stack": [],
+            "quick_direction": "undo",
+        }
+
+    @staticmethod
     def _fsync_directory(directory: Path) -> None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
         try:
@@ -85,4 +133,4 @@ class AtomicLineageStateStore(LineageStateStore):
                 pass
 
 
-__all__ = ("AtomicLineageStateStore",)
+__all__ = ("AtomicLineageStateStore", "LineageStateLoadError")
