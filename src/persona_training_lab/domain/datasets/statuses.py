@@ -7,3 +7,4 @@ class DatasetVersionStatus(StrEnum):
     VALIDATED = "validated"
     APPROVED = "approved_for_training"
     ARCHIVED = "archived"
+    UNKNOWN = "unknown"
