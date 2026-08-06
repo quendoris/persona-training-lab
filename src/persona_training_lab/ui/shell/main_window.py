@@ -146,14 +146,14 @@ class MainWindow(QMainWindow):
             "snapshots",
             SnapshotsScreen(snapshots_vm, localization),
         )
-        tests_screen = TestsScreen(tests_vm)
+        tests_screen = TestsScreen(tests_vm, localization)
         tests_screen.open_analysis_requested.connect(
             lambda: self._go_to_screen("analysis")
         )
         self._workspace.register("tests", tests_screen)
         self._workspace.register(
             "analysis",
-            AnalysisScreen(analysis_vm),
+            AnalysisScreen(analysis_vm, localization),
         )
         self._workspace.register(
             "style",
