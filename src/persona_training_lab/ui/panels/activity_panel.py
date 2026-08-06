@@ -43,11 +43,7 @@ class _ActivityRow(QPushButton):
         self.setObjectName("PanelCardSoft")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(64)
-        tooltip = panel_text(
-            localization,
-            "operations.open_related",
-            "Открыть связанную вкладку",
-        )
+        tooltip = panel_text(localization, "operations.open_related")
         self.setToolTip(
             tooltip
             + (f" · {item.correlation_id}" if item.correlation_id else "")
@@ -110,15 +106,10 @@ class ActivityPanel(QFrame):
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
-        self._title = QLabel(
-            self._text("panel.activity.title", "Активность")
-        )
+        self._title = QLabel(self._text("panel.activity.title"))
         self._title.setObjectName("SectionTitle")
         self._subtitle = make_muted_label(
-            self._text(
-                "panel.activity.description",
-                "Реальные операции и структурированные события приложения.",
-            )
+            self._text("panel.activity.description")
         )
         layout.addWidget(self._title)
         layout.addWidget(self._subtitle)
@@ -170,19 +161,9 @@ class ActivityPanel(QFrame):
                 return
             self._render_signature = signature
             self._clear_rows()
-            self._subtitle.setText(
-                self._text(
-                    "panel.activity.waiting",
-                    "Ожидание подключения журнала операций.",
-                )
-            )
+            self._subtitle.setText(self._text("panel.activity.waiting"))
             self._rows.addWidget(
-                make_muted_label(
-                    self._text(
-                        "panel.common.no_source",
-                        "Нет подключённого источника.",
-                    )
-                )
+                make_muted_label(self._text("panel.common.no_source"))
             )
             self._rows.addStretch(1)
             return
@@ -204,35 +185,22 @@ class ActivityPanel(QFrame):
         self._subtitle.setText(
             self._text(
                 "panel.activity.summary",
-                "Активно: {active} · в истории: {history}",
                 active=len(active),
                 history=len(history),
             )
         )
 
         if active:
-            self._add_section(
-                self._text("panel.activity.now", "Сейчас")
-            )
+            self._add_section(self._text("panel.activity.now"))
             for item in active:
                 self._add_item(item)
         if history:
-            self._add_section(
-                self._text(
-                    "panel.activity.recent",
-                    "Недавние события",
-                )
-            )
+            self._add_section(self._text("panel.activity.recent"))
             for item in history:
                 self._add_item(item)
         if not active and not history:
             self._rows.addWidget(
-                make_muted_label(
-                    self._text(
-                        "panel.activity.empty",
-                        "Журнал пока пуст. Новые операции появятся здесь автоматически.",
-                    )
-                )
+                make_muted_label(self._text("panel.activity.empty"))
             )
         self._rows.addStretch(1)
 
@@ -273,21 +241,13 @@ class ActivityPanel(QFrame):
                 widget.deleteLater()
 
     def _on_language_changed(self, _locale: str) -> None:
-        self._title.setText(
-            self._text("panel.activity.title", "Активность")
-        )
+        self._title.setText(self._text("panel.activity.title"))
         self._render_signature = None
         self.refresh(force=True)
 
-    def _text(
-        self,
-        key: str,
-        fallback: str,
-        **values: object,
-    ) -> str:
+    def _text(self, key: str, **values: object) -> str:
         return panel_text(
             self._localization,
             key,
-            fallback,
             **values,
         )
