@@ -16,6 +16,12 @@ from persona_training_lab.infrastructure.persistence.sqlite.db import SQLiteData
 from persona_training_lab.infrastructure.persistence.sqlite.schema import (
     create_minimal_schema,
 )
+from persona_training_lab.ui.agents.atomic_lineage_public import (
+    build_empty_lineage,
+)
+from persona_training_lab.ui.agents.screen_background_reconciled import (
+    AgentsScreen as ReconciledAgentsScreen,
+)
 
 
 def _repository(tmp_path) -> tuple[
@@ -93,6 +99,38 @@ def test_first_reconciliation_cleans_old_projection_but_keeps_local_branch(
         )
     finally:
         connection.close()
+
+
+def test_placeholder_projection_never_mutates_registry_before_last_good() -> None:
+    calls: list[object] = []
+
+    class _Safety:
+        def reconcile_projection(self, resources, previous):
+            calls.append((resources, previous))
+            return tuple(sorted(resources))
+
+    coordinator = SimpleNamespace(last_good=None)
+    screen = SimpleNamespace(
+        _lineage_runtime_safety=_Safety(),
+        _real_projection=build_empty_lineage(),
+        _lineage_refresh_coordinator=coordinator,
+        _bound_projection_node_ids=None,
+    )
+
+    ReconciledAgentsScreen._bind_projection_resources(screen)  # type: ignore[arg-type]
+    assert calls == []
+
+    coordinator.last_good = object()
+    ReconciledAgentsScreen._bind_projection_resources(screen)  # type: ignore[arg-type]
+    assert len(calls) == 1
+    assert screen._bound_projection_node_ids == (
+        "base",
+        "dataset",
+        "delta",
+        "portrait",
+        "snapshot",
+        "training",
+    )
 
 
 def test_reconciliation_rolls_back_every_node_when_one_claim_is_invalid(
