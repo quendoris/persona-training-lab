@@ -7,7 +7,6 @@
   "messages": {
     "profiles.action.create": "Создать",
     "profiles.action.edit": "Редактировать",
-    "profiles.badge.structure": "структура",
     "profiles.card.linked.description": "Профиль живёт вместе с данными, training и snapshot-ветками.",
     "profiles.card.linked.title": "Связанные артефакты",
     "profiles.card.next.description": "Система должна не просто показывать профиль, а вести дальше.",
