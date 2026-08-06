@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
         )
         self._workspace.register(
             "snapshots",
-            SnapshotsScreen(snapshots_vm),
+            SnapshotsScreen(snapshots_vm, localization),
         )
         tests_screen = TestsScreen(tests_vm)
         tests_screen.open_analysis_requested.connect(
@@ -212,7 +212,9 @@ class MainWindow(QMainWindow):
         self._inspector_panel.set_context("dashboard")
         self._schedule_rebalance()
         if localization is not None:
-            localization.language_changed.connect(self._refresh_shell_language)
+            localization.language_changed.connect(
+                self._refresh_shell_language
+            )
 
     def _register_dock(
         self,
