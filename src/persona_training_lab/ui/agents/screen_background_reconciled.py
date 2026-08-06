@@ -9,7 +9,7 @@ class AgentsScreen(_BackgroundAgentsScreen):
     """Keep persisted projection safety links equal to the visible projection."""
 
     def __init__(self, *args, **kwargs) -> None:
-        self._bound_projection_node_ids: tuple[str, ...] = ()
+        self._bound_projection_node_ids: tuple[str, ...] | None = None
         super().__init__(*args, **kwargs)
 
     def _bind_projection_resources(self) -> None:
