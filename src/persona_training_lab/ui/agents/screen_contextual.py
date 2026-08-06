@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPointF
 
-from persona_training_lab.application.runtime.operations import (
-    OperationConflictError,
+from persona_training_lab.ui.agents.branch_deletion import (
+    BranchDeletionCommittedError,
+    BranchDeletionController,
+    BranchDeletionResult,
+    BranchDeletionStatus,
 )
 from persona_training_lab.ui.agents.context_navigation import (
     LineageContextRouter,
@@ -23,6 +26,13 @@ _SCROLL_COMPENSATOR = WorkspaceScrollCompensator()
 
 class AgentsScreen(_BackgroundAgentsScreen):
     """Lineage workspace with contextual routing and atomic branch deletion."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._branch_deletion_controller = BranchDeletionController(
+            self._state,
+            self._branch_transactions,
+        )
 
     def _open_workspace(self, workspace_key: str) -> None:
         selected_id = getattr(self, "_selected_node_id", "")
@@ -89,59 +99,62 @@ class AgentsScreen(_BackgroundAgentsScreen):
         )
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
-        transactions = getattr(self, "_branch_transactions", None)
-        if (
-            getattr(self, "_lineage_runtime_safety", None) is None
-            or transactions is None
-        ):
+        if getattr(self, "_lineage_runtime_safety", None) is None:
             super()._delete_local_branch_subtree(node_id)
             return
 
         node = self._node_by_id(node_id)
-        removed_ids = self._state.custom_subtree_ids(node_id)
-        if node is None or not removed_ids:
+        if node is None:
             return
-        descendants = len(removed_ids) - 1
-        detail = (
-            "Ветку можно будет вернуть через защищённую историю действий."
+        plan = self._branch_deletion_controller.prepare(
+            node_id,
+            node_title=node.title,
+            parent_id=node.parent_id or "",
+            graph_current_id=self._graph.current_node_id(),
         )
-        if descendants:
+        if plan is None:
+            return
+
+        detail = "Ветку можно будет вернуть через защищённую историю действий."
+        if plan.descendant_count:
             detail = (
                 "Будет удалена эта ветка и дочерние точки: "
-                f"{descendants}. Удаление сохранится в защищённой истории."
+                f"{plan.descendant_count}. "
+                "Удаление сохранится в защищённой истории."
             )
-        if not self._confirm_branch_deletion(node.title, detail):
+        if not self._confirm_branch_deletion(plan.node_title, detail):
             return
 
         try:
-            lease = transactions.begin_deletion(
-                removed_ids,
-                subject_id=node_id,
+            result = self._branch_deletion_controller.execute(
+                plan,
+                layout_snapshot=self._layout_snapshot(),
             )
-        except OperationConflictError as conflict:
-            self._show_runtime_blockers(conflict.blockers)
-            return
-        if lease is None:
-            return
-
-        try:
-            fallback_id = node.parent_id or self._graph.current_node_id()
-            removed = self._state.delete_subtree(
-                node_id,
-                self._layout_snapshot(),
-            )
-            if not removed:
-                lease.cancel("Ветка не была удалена")
-                return
-            if hasattr(self._graph, "forget_layout_nodes"):
-                self._graph.forget_layout_nodes(removed)
-            transactions.forget(removed)
-            self._selected_node_id = fallback_id
-            lease.succeed()
-            self._refresh_lineage(center=True)
-        except Exception as error:
-            lease.fail(str(error))
+        except BranchDeletionCommittedError as error:
+            self._apply_branch_deletion_result(error.result)
             raise
+
+        if result.status is BranchDeletionStatus.BLOCKED:
+            self._show_runtime_blockers(result.blockers)
+            return
+        if result.status is BranchDeletionStatus.DELETED:
+            self._apply_branch_deletion_result(result)
+            return
+        if result.status is BranchDeletionStatus.STALE:
+            self._refresh_lineage(center=False)
+
+    def _apply_branch_deletion_result(
+        self,
+        result: BranchDeletionResult,
+    ) -> None:
+        try:
+            forgetter = getattr(self._graph, "forget_layout_nodes", None)
+            if callable(forgetter):
+                forgetter(result.removed_ids)
+        finally:
+            self._selected_node_id = result.fallback_id
+            self._refresh_lineage(center=True)
+            self._refresh_runtime_safety(force=True)
 
     def _context_for_node(self, node_id: str) -> dict[str, str]:
         node = self._node_by_id(node_id) if node_id else None
