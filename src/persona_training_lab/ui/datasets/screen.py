@@ -286,7 +286,7 @@ class DatasetsScreen(QWidget):
                 else item
                 for key, item in value.values.items()
             }
-            count_value = rendered_values.get("count")
+            count_value = rendered_values.pop("count", None)
             count = count_value if isinstance(count_value, int) else None
             return self._text(
                 value.key,
