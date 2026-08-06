@@ -18,9 +18,6 @@ from persona_training_lab.ui.agents.screen_history_keyguard import (
     AgentsScreen as _HistoryKeyGuardAgentsScreen,
 )
 from persona_training_lab.ui.agents.screen_stateful import AgentsScreen as _StatefulAgentsScreen
-from persona_training_lab.ui.agents.screen_stateful_fixed import (
-    AgentsScreen as _StatefulFixedAgentsScreen,
-)
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
