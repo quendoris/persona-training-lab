@@ -82,6 +82,7 @@ def _build_canvas_projection(
             else None
         )
         is_canonical = node_id in _CANONICAL_BY_KIND.values()
+        claims = _dependency_claims(node.node_id, projection)
         nodes.append(
             ProjectedVersionNode(
                 node_id=node_id,
@@ -99,8 +100,8 @@ def _build_canvas_projection(
             )
         )
         details[node_id] = _detail(node, projection)
-        resources[node_id] = node.claims
-        context[node_id] = _context(node)
+        resources[node_id] = claims
+        context[node_id] = _context(node, claims)
 
     _ensure_placeholders(nodes, details, resources, context)
     _append_delta(nodes, details, resources, context, atomic)
@@ -326,7 +327,38 @@ def _detail(
     )
 
 
-def _context(node: LineageNode) -> dict[str, str]:
+def _dependency_claims(
+    node_id: str,
+    projection: LineageProjection,
+) -> tuple[ResourceClaim, ...]:
+    by_id = {node.node_id: node for node in projection.nodes}
+    incoming: dict[str, tuple[str, ...]] = {}
+    for node in projection.nodes:
+        incoming[node.node_id] = tuple(
+            edge.source_node_id
+            for edge in projection.incoming(node.node_id)
+        )
+
+    claims: set[ResourceClaim] = set()
+    pending = [node_id]
+    visited: set[str] = set()
+    while pending:
+        current_id = pending.pop()
+        if current_id in visited:
+            continue
+        visited.add(current_id)
+        current = by_id.get(current_id)
+        if current is None:
+            continue
+        claims.update(current.claims)
+        pending.extend(incoming.get(current_id, ()))
+    return tuple(sorted(claims))
+
+
+def _context(
+    node: LineageNode,
+    claims: tuple[ResourceClaim, ...],
+) -> dict[str, str]:
     context = {
         "node_kind": node.kind.value,
         "entity_id": node.entity_id,
@@ -342,7 +374,7 @@ def _context(node: LineageNode) -> dict[str, str]:
         LineageEntityKind.PERSONA_PROFILE: "profile_title",
     }[node.kind]
     context[id_key] = node.entity_id
-    for claim in node.claims:
+    for claim in claims:
         context.setdefault(claim.resource_kind, claim.resource_id)
     return context
 
