@@ -136,7 +136,7 @@ class MainWindow(QMainWindow):
         )
         self._workspace.register(
             "datasets",
-            DatasetsScreen(datasets_vm),
+            DatasetsScreen(datasets_vm, localization),
         )
         self._workspace.register(
             "training",
