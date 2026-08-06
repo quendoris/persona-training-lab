@@ -115,6 +115,59 @@ def test_live_binding_switches_atomically_without_widget_rebuild(
     app.processEvents()
 
 
+def test_complete_third_locale_is_discovered_without_python_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for locale in ("ru-RU", "en-US"):
+        payload = json.loads(
+            (CATALOGS / f"{locale}.json").read_text(encoding="utf-8")
+        )
+        (tmp_path / f"{locale}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    spanish = json.loads(
+        (CATALOGS / "en-US.json").read_text(encoding="utf-8")
+    )
+    spanish["meta"] = {
+        "schema": 1,
+        "locale": "es-ES",
+        "name": "Spanish",
+        "native_name": "Español",
+        "direction": "ltr",
+    }
+    spanish["messages"]["nav.agents"] = "Agentes"
+    spanish["messages"]["operations.active_count"] = {
+        "one": "{count} operación activa",
+        "other": "{count} operaciones activas",
+    }
+    (tmp_path / "es-ES.json").write_text(
+        json.dumps(spanish, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    app = _app()
+    manager = LocalizationManager(
+        app,
+        initial_locale="en-US",
+        catalog_directory=tmp_path,
+    )
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+    label = QLabel()
+    manager.bind_text(label, "nav.agents")
+
+    assert manager.available_locales() == ("en-US", "es-ES", "ru-RU")
+    manager.set_locale("es-ES", persist=False)
+    assert label.text() == "Agentes"
+    assert manager.text("operations.active_count", count=1) == "1 operación activa"
+    assert manager.text("operations.active_count", count=3) == "3 operaciones activas"
+
+    label.deleteLater()
+    app.processEvents()
+
+
 def test_unknown_locale_or_key_never_falls_back_silently() -> None:
     catalogs = CatalogSet.load(CATALOGS, base_locale="ru-RU")
 
