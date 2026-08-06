@@ -7,3 +7,4 @@ class TrainingRunStatus(StrEnum):
     RUNNING = "running"
     FAILED = "failed"
     COMPLETED = "completed"
+    UNKNOWN = "unknown"
