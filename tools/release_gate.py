@@ -24,6 +24,8 @@ QUICK_TESTS = (
     "tests/test_i18n_audit.py",
     "tests/test_sidebar_i18n.py",
     "tests/test_operations_center_i18n.py",
+    "tests/test_dashboard_viewmodel.py",
+    "tests/test_dashboard_i18n.py",
     "tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py",
     "tests/test_navigation_shortcuts_and_zoom.py",
     "tests/test_workspace_leave_guard.py",
