@@ -5,7 +5,7 @@ from PySide6.QtCore import QPointF
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
 )
-from persona_training_lab.ui.agents.screen_background_fast import (
+from persona_training_lab.ui.agents.screen_background_reported import (
     AgentsScreen as _BackgroundAgentsScreen,
 )
 
