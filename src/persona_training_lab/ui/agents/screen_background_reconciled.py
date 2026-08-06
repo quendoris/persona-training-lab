@@ -17,6 +17,11 @@ class AgentsScreen(_BackgroundAgentsScreen):
         projection = self._real_projection
         if safety is None or projection is None:
             return
+        coordinator = self._lineage_refresh_coordinator
+        if coordinator is not None and coordinator.last_good is None:
+            # Initial placeholders are UI-only. Never clear the last persisted
+            # safety registry before the first successful atomic refresh.
+            return
         self._bound_projection_node_ids = safety.reconcile_projection(
             projection.resources,
             self._bound_projection_node_ids,
