@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from persona_training_lab.application.telemetry.service import SystemTelemetryService, TelemetrySnapshot
+from persona_training_lab.application.telemetry.service import (
+    SystemTelemetryService,
+    TelemetrySnapshot,
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -26,6 +29,10 @@ class TelemetryViewModel:
 
     def __post_init__(self) -> None:
         self.refresh()
+
+    @property
+    def snapshot(self) -> TelemetrySnapshot | None:
+        return self._snapshot
 
     def refresh(self) -> None:
         snapshot = self.telemetry_service.collect_snapshot()
