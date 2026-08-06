@@ -224,6 +224,8 @@ def build_container() -> AppContainer:
         model_versions_service=model_versions_service,
         datasets_service=datasets_service,
         experiments_service=experiments_service,
+        lineage_loader_factory=lineage_loader_factory,
+        lineage_error_reporter=error_reporter,
     )
     training_vm = TrainingViewModel(
         training_service=training_service,
