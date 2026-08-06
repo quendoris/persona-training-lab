@@ -7,6 +7,7 @@ from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.keybindings.definitions import AGENT_GRAPH_KEY_BINDINGS
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 from persona_training_lab.ui.shell.main_window_context import TAB_SHORTCUTS
+from persona_training_lab.ui.viewmodels.dashboard import DashboardRoute
 
 
 def test_every_registered_workspace_has_unique_editable_alt_shortcut() -> None:
@@ -69,33 +70,15 @@ def test_navigation_shortcut_conflicts_are_rejected(tmp_path: Path) -> None:
     assert manager.sequence("nav_agents") == "Alt+A"
 
 
-def test_dashboard_steps_route_to_their_real_workspaces() -> None:
-    assert DashboardScreen._target_for_step("Добавьте датасет") == (
+def test_dashboard_navigation_uses_semantic_routes_not_display_text() -> None:
+    route = DashboardRoute("datasets", "focus.datasets.add")
+
+    assert (route.screen, route.focus_key) == (
         "datasets",
-        "Добав",
+        "focus.datasets.add",
     )
-    assert DashboardScreen._target_for_step("Доведите training run до artifact") == (
-        "training",
-        "Запуст",
-    )
-    assert DashboardScreen._target_for_step(
-        "Зарегистрируйте artifact как снимок модели"
-    ) == (
-        "snapshots",
-        "",
-    )
-    assert DashboardScreen._target_for_step("Соберите портрет") == (
-        "tests",
-        "Собрать портрет",
-    )
-    assert DashboardScreen._target_for_step("Откройте Анализ и смотрите delta") == (
-        "analysis",
-        "",
-    )
-    assert DashboardScreen._lineage_target("Snapshot · mdl_001") == (
-        "snapshots",
-        "",
-    )
+    assert not hasattr(DashboardScreen, "_target_for_step")
+    assert not hasattr(DashboardScreen, "_lineage_target")
 
 
 def test_lineage_zoom_range_is_wide_but_bounded() -> None:
