@@ -195,7 +195,9 @@ class BranchDeletionController:
             fallback_id=plan.fallback_id,
         )
         try:
-            lease.succeed()
+            changed = lease.succeed()
+            if changed is not True:
+                raise RuntimeError("Deletion lease was not finalized")
         except Exception as error:
             raise BranchDeletionCommittedError(result, error) from error
         return result
@@ -214,10 +216,9 @@ class BranchDeletionController:
         except Exception as error:
             errors.append(error)
         try:
-            if cancel:
-                lease.cancel(message)
-            else:
-                lease.fail(message)
+            changed = lease.cancel(message) if cancel else lease.fail(message)
+            if changed is not True:
+                raise RuntimeError("Deletion lease was not finalized")
         except Exception as error:
             errors.append(error)
         return tuple(errors)
@@ -225,7 +226,9 @@ class BranchDeletionController:
     @staticmethod
     def _fail_lease_or_raise(lease, original_error: BaseException) -> None:
         try:
-            lease.fail(str(original_error))
+            changed = lease.fail(str(original_error))
+            if changed is not True:
+                raise RuntimeError("Deletion lease was not finalized")
         except Exception as finalization_error:
             raise BranchDeletionExecutionError(
                 original_error,
