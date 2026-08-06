@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from types import SimpleNamespace
 from typing import Callable, Iterable
 
@@ -95,9 +95,13 @@ def _with_status_codes(
 ) -> tuple[object, ...]:
     result: list[object] = []
     for record in records:
+        if not is_dataclass(record) or isinstance(record, type):
+            raise TypeError(
+                "Lineage snapshot records must be dataclass instances"
+            )
         values = {
-            field_name: getattr(record, field_name)
-            for field_name in record.__dataclass_fields__
+            item.name: getattr(record, item.name)
+            for item in fields(record)
         }
         values["status_code"] = normalizer(values.get("status", ""))
         result.append(SimpleNamespace(**values))
