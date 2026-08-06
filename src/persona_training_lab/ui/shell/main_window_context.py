@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from persona_training_lab.application.operations_center import OperationsCenterService
+from persona_training_lab.ui.panels.localization import item_status, item_title
 from persona_training_lab.ui.shell.main_window import MainWindow as _MainWindow
 from persona_training_lab.ui.shell.window_state import WindowStateStore
 
@@ -243,7 +244,8 @@ class MainWindow(_MainWindow):
         if callable(setter):
             setter(
                 tuple(
-                    f"{item.title} · {item.status}"
+                    f"{item_title(item, self._localization)} · "
+                    f"{item_status(item, self._localization)}"
                     for item in active[:6]
                 )
             )
@@ -255,7 +257,10 @@ class MainWindow(_MainWindow):
         )
         if callable(inspector_setter):
             inspector_setter(
-                tuple(item.title for item in active),
+                tuple(
+                    item_title(item, self._localization)
+                    for item in active
+                ),
                 len(issues),
             )
 
