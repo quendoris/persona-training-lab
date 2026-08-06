@@ -6,11 +6,9 @@ from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.ui.agents.atomic_lineage import build_real_lineage
 from persona_training_lab.ui.agents.lineage import build_version_lineage
-from persona_training_lab.ui.agents.real_lineage import (
-    RealLineageProjection,
-    build_real_lineage,
-)
+from persona_training_lab.ui.agents.real_lineage import RealLineageProjection
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as _FinalAgentsScreen,
 )
@@ -155,6 +153,7 @@ class AgentsScreen(_FinalAgentsScreen):
                     "training_run": "Реальный запуск обучения",
                     "model_version": "Снимок весов / model version",
                     "experiment": "Реальный тест / портрет",
+                    "evaluation_run": "Реальный тест / портрет",
                     "analysis_delta": "Сравнение реальных тестов",
                 }.get(kind, self._detail_type_value.text())
             )
