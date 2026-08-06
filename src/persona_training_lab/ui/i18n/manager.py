@@ -121,6 +121,24 @@ class LocalizationManager(QObject):
             count_provider=count_provider,
         )
 
+    def bind_title(
+        self,
+        target: QObject,
+        key: str,
+        *,
+        values_provider: ValuesProvider | None = None,
+        count_provider: CountProvider | None = None,
+    ) -> None:
+        """Bind objects such as QMenu that expose setTitle()."""
+
+        self._bind(
+            target,
+            "setTitle",
+            key,
+            values_provider=values_provider,
+            count_provider=count_provider,
+        )
+
     def bind_tooltip(
         self,
         target: QObject,
