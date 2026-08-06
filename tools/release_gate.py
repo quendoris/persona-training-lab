@@ -50,6 +50,7 @@ QUICK_TESTS = (
     "tests/test_analysis_connector.py",
     "tests/test_lineage_workflow_context.py",
     "tests/test_evaluation_i18n.py",
+    "tests/test_lineage_projection_service.py",
     "tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py",
     "tests/test_navigation_shortcuts_and_zoom.py",
     "tests/test_workspace_leave_guard.py",
