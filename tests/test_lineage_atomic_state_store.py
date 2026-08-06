@@ -8,6 +8,7 @@ from persona_training_lab.ui.agents import lineage_state_atomic
 from persona_training_lab.ui.agents.lineage import LineageVersionNode
 from persona_training_lab.ui.agents.lineage_state_atomic import (
     AtomicLineageStateStore,
+    LineageStateLoadError,
 )
 
 
@@ -74,6 +75,40 @@ def test_atomic_store_restores_memory_and_file_when_replace_fails(
     assert _node_ids(store) == {"base", "snapshot", stable_id}
     assert path.read_text(encoding="utf-8") == before
     assert tuple(tmp_path.glob(f".{path.name}.*.tmp")) == ()
+
+
+def test_directory_sync_failure_does_not_lie_about_committed_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    path = tmp_path / "lineage.json"
+    calls = 0
+
+    def fail_second_fsync(_descriptor) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("directory sync unavailable")
+
+    monkeypatch.setattr(lineage_state_atomic.os, "fsync", fail_second_fsync)
+    store = AtomicLineageStateStore(path)
+
+    branch_id = store.continue_from("snapshot")
+
+    assert calls == 2
+    assert branch_id in _node_ids(store)
+    assert branch_id in _node_ids(AtomicLineageStateStore(path))
+
+
+def test_corrupt_state_fails_closed_without_overwriting_source(tmp_path) -> None:
+    path = tmp_path / "lineage.json"
+    corrupt = "{ definitely not valid json"
+    path.write_text(corrupt, encoding="utf-8")
+
+    with pytest.raises(LineageStateLoadError, match="not valid JSON"):
+        AtomicLineageStateStore(path)
+
+    assert path.read_text(encoding="utf-8") == corrupt
 
 
 def test_transaction_snapshot_restores_lineage_without_history_pollution(
