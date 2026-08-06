@@ -44,12 +44,25 @@ def test_public_agents_screen_uses_composed_background_runtime_layout() -> None:
     assert FastBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReconciledBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReportedBackgroundAgentsScreen is BackgroundAgentsScreen
-    assert BackgroundAgentsScreen.__bases__ == (RuntimeSafeAgentsScreen,)
-    assert RuntimeSafeAgentsScreen.__bases__ == (FinalAgentsScreen,)
+    assert RuntimeSafeAgentsScreen is BackgroundAgentsScreen
+    assert BackgroundAgentsScreen.__bases__ == (FinalAgentsScreen,)
     assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
     assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
     assert FinalAgentsScreen._ROLES_MIN_WIDTH >= 280
     assert FinalAgentsScreen._DETAILS_MIN_WIDTH >= 360
+
+
+def test_background_screen_owns_only_runtime_ui_adapters() -> None:
+    for method_name in (
+        "_detail_for",
+        "_sync_detail_actions",
+        "_render_detail",
+        "_apply_projection",
+        "_show_runtime_blockers",
+    ):
+        assert method_name in BackgroundAgentsScreen.__dict__
+    assert "eventFilter" not in BackgroundAgentsScreen.__dict__
+    assert "_handle_history_key_release" not in BackgroundAgentsScreen.__dict__
 
 
 def test_final_screen_owns_layout_without_interaction_overrides() -> None:
