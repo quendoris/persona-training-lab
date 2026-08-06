@@ -23,7 +23,7 @@ class WindowStateStore:
     GEOMETRY_KEY = "shell/window_geometry"
     DOCK_STATE_KEY = "shell/dock_state"
     WORKSPACE_KEY = "shell/current_workspace"
-    STATE_VERSION = 1
+    STATE_VERSION = 2
 
     def __init__(self, settings: QSettings | None = None) -> None:
         self._settings = settings or QSettings()
