@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "evaluation"
+  },
+  "messages": {
+    "evaluation.status.created": "создан",
+    "evaluation.status.running": "выполняется",
+    "evaluation.status.partial": "завершён с ошибками",
+    "evaluation.status.failed": "сбой",
+    "evaluation.status.completed": "завершён",
+    "evaluation.status.unknown": "{status}"
+  }
+}
