@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "name": "Russian",
+    "native_name": "Русский",
+    "direction": "ltr"
+  },
+  "messages": {
+    "app.name": "Persona Training Lab",
+    "common.cancel": "Отмена",
+    "common.close": "Закрыть",
+    "common.continue": "Продолжить",
+    "common.delete": "Удалить",
+    "common.discard": "Отбросить",
+    "common.no": "Нет",
+    "common.ok": "ОК",
+    "common.retry": "Повторить",
+    "common.save": "Сохранить",
+    "common.yes": "Да",
+    "dialog.error.title": "Ошибка",
+    "dialog.information.title": "Информация",
+    "dialog.question.title": "Подтверждение",
+    "dialog.warning.title": "Предупреждение",
+    "language.current": "Язык интерфейса",
+    "language.english": "English",
+    "language.restart_not_required": "Язык меняется без перезапуска приложения.",
+    "language.russian": "Русский",
+    "language.unavailable_incomplete": "Язык {locale} недоступен: перевод не завершён.",
+    "nav.agents": "Агенты",
+    "nav.analysis": "Анализ",
+    "nav.dashboard": "Панель",
+    "nav.datasets": "Датасеты",
+    "nav.docs": "Документация",
+    "nav.keybindings": "Назначения клавиш",
+    "nav.profiles": "Профили",
+    "nav.snapshots": "Снимки",
+    "nav.style": "Оформление",
+    "nav.tests": "Тесты",
+    "nav.training": "Обучение",
+    "operations.active_count": {
+      "one": "{count} активная операция",
+      "few": "{count} активные операции",
+      "many": "{count} активных операций",
+      "other": "{count} активной операции"
+    },
+    "release.i18n.incomplete": "Перевод интерфейса не завершён.",
+    "release.i18n.ready": "Все пользовательские строки переведены."
+  }
+}
