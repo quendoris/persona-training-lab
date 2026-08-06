@@ -3,9 +3,16 @@ from __future__ import annotations
 import sqlite3
 
 from persona_training_lab.application.profiles.service import ProfilesService
-from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
-from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
+from persona_training_lab.infrastructure.persistence.repositories.profiles import (
+    SQLiteProfilesRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
+from persona_training_lab.ui.viewmodels.profiles import (
+    ProfileText,
+    ProfilesViewModel,
+)
 
 
 def _build_service(connection: sqlite3.Connection) -> ProfilesService:
@@ -23,9 +30,12 @@ def test_profiles_connector_empty_state() -> None:
     assert rows == []
 
     vm = ProfilesViewModel(profiles_service=service)
-    title, subtitle = vm.header_summary()
-    assert title == "Профили пока не созданы"
-    assert subtitle == "Профили пока не созданы"
+    title, subtitle = vm.header_summary_model()
+    assert isinstance(title, ProfileText)
+    assert isinstance(subtitle, ProfileText)
+    assert title.key == "profiles.empty.title"
+    assert subtitle.key == "profiles.empty.summary"
+    assert vm.current_profile().readiness_code == "empty"
 
 
 def test_profiles_connector_single_row() -> None:
@@ -59,3 +69,4 @@ def test_profiles_connector_single_row() -> None:
     assert profile.profile_id == "mia_core_v3"
     assert profile.title == "Mia core v3 (SQLite)"
     assert profile.subtitle == "Реальный профиль из БД"
+    assert profile.status_code == "active"
