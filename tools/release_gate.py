@@ -58,6 +58,7 @@ QUICK_TESTS = (
     "tests/test_agents_content_repaint.py",
     "tests/test_background_close_guard.py",
     "tests/test_lineage_projection_link_reconciliation.py",
+    "tests/test_lineage_runtime_policy.py",
     "tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py",
     "tests/test_navigation_shortcuts_and_zoom.py",
     "tests/test_workspace_leave_guard.py",
