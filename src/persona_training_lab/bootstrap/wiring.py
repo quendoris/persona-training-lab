@@ -84,7 +84,7 @@ from persona_training_lab.infrastructure.telemetry.collector import (
     NvidiaSmiTelemetryProvider,
     PsutilTelemetryProvider,
 )
-from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
+from persona_training_lab.ui.viewmodels.agents_lineage import AgentsViewModel
 from persona_training_lab.ui.viewmodels.analysis_lineage import AnalysisViewModel
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
