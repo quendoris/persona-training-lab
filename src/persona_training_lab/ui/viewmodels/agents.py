@@ -228,11 +228,9 @@ class AgentsViewModel:
     def node_detail(self, node_id: str) -> AgentDetailView:
         datasets = self._datasets()
         runs = self._training_runs()
-        versions = self._model_versions()
         portraits = self._portraits()
         latest_dataset = datasets[0] if datasets else None
         latest_run = runs[0] if runs else None
-        latest_version = versions[0] if versions else None
         latest_portrait = self._portrait_stats(portraits[0]) if portraits else None
 
         if node_id == "base":
