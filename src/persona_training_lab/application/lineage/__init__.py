@@ -4,6 +4,7 @@ from .atomic_projection import (
     AtomicLineageProjectionService,
     AtomicLineageSnapshot,
 )
+from .loader import AtomicLineageLoader, LineageLoaderFactory
 from .projection import (
     LineageEdge,
     LineageEntityKind,
@@ -16,6 +17,10 @@ from .projection import (
     LineageState,
     UnresolvedLineageDependency,
     lineage_node_id,
+)
+from .refresh_state import (
+    LineageRefreshSchedule,
+    RefreshDecision,
 )
 from .runtime_safety import (
     LineageResourceLinksRepositoryPort,
@@ -31,16 +36,19 @@ from .snapshot import (
 )
 
 __all__ = [
+    "AtomicLineageLoader",
     "AtomicLineageProjectionService",
     "AtomicLineageSnapshot",
     "LineageDatasetRecord",
     "LineageEdge",
     "LineageEntityKind",
     "LineageEvaluationRecord",
+    "LineageLoaderFactory",
     "LineageModelVersionRecord",
     "LineageNode",
     "LineageProjection",
     "LineageProjectionService",
+    "LineageRefreshSchedule",
     "LineageRelation",
     "LineageResourceLinksRepositoryPort",
     "LineageRuntimeSafety",
@@ -50,6 +58,7 @@ __all__ = [
     "LineageSourceSnapshot",
     "LineageState",
     "LineageTrainingRunRecord",
+    "RefreshDecision",
     "UnresolvedLineageDependency",
     "lineage_node_id",
 ]
