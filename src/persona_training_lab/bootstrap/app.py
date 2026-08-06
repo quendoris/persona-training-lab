@@ -28,10 +28,6 @@ def main() -> int:
     app.setApplicationVersion(__version__)
 
     container = build_container()
-    container.agents_vm.lineage_loader_factory = (
-        container.lineage_loader_factory
-    )
-    container.agents_vm.lineage_error_reporter = container.error_reporter
     app.set_error_reporter(container.error_reporter)
     _install_exception_boundaries(container.error_reporter)
     _install_qt_message_boundary(container.error_reporter)
