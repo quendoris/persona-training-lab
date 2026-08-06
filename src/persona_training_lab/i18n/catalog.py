@@ -16,6 +16,11 @@ _REQUIRED_META_FIELDS = {
     "native_name",
     "direction",
 }
+_REQUIRED_FRAGMENT_META_FIELDS = {
+    "schema",
+    "locale",
+    "fragment",
+}
 
 
 class CatalogValidationError(ValueError):
@@ -38,21 +43,7 @@ class LocaleCatalog:
 
     @classmethod
     def load(cls, path: Path) -> LocaleCatalog:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except OSError as error:
-            raise CatalogValidationError(
-                f"Cannot read locale catalog {path}: {error}"
-            ) from error
-        except json.JSONDecodeError as error:
-            raise CatalogValidationError(
-                f"Invalid JSON in locale catalog {path}: {error}"
-            ) from error
-
-        if not isinstance(payload, dict):
-            raise CatalogValidationError(
-                f"Locale catalog {path} must contain a JSON object"
-            )
+        payload = _read_payload(path)
         raw_meta = payload.get("meta")
         raw_messages = payload.get("messages")
         if not isinstance(raw_meta, dict):
@@ -91,24 +82,38 @@ class LocaleCatalog:
                 f"{metadata.locale!r}"
             )
 
-        messages: dict[str, MessageValue] = {}
-        for key, value in raw_messages.items():
-            normalized_key = str(key).strip()
-            if not normalized_key or normalized_key != key:
-                raise CatalogValidationError(
-                    f"Invalid message key {key!r} in {path}"
-                )
-            messages[normalized_key] = _normalize_message_value(
-                normalized_key,
-                value,
-                path,
+        messages = _normalize_messages(raw_messages, path)
+        return cls(metadata, MappingProxyType(messages))
+
+    def with_fragments(self, directory: Path) -> LocaleCatalog:
+        if not directory.exists():
+            return self
+        if not directory.is_dir():
+            raise CatalogValidationError(
+                f"Locale fragment path {directory} is not a directory"
             )
 
-        if not messages:
-            raise CatalogValidationError(
-                f"Locale catalog {path} must contain at least one message"
+        paths = sorted(directory.glob("*.json"))
+        if not paths:
+            return self
+
+        merged = dict(self.messages)
+        for path in paths:
+            fragment = CatalogFragment.load(
+                path,
+                expected_locale=self.metadata.locale,
             )
-        return cls(metadata, MappingProxyType(messages))
+            duplicates = sorted(set(merged) & set(fragment.messages))
+            if duplicates:
+                raise CatalogValidationError(
+                    f"Locale fragment {path} duplicates message keys: "
+                    + ", ".join(duplicates)
+                )
+            merged.update(fragment.messages)
+        return LocaleCatalog(
+            self.metadata,
+            MappingProxyType(merged),
+        )
 
     def text(
         self,
@@ -155,6 +160,69 @@ class LocaleCatalog:
 
 
 @dataclass(frozen=True, slots=True)
+class CatalogFragment:
+    locale: str
+    fragment: str
+    messages: Mapping[str, MessageValue]
+
+    @classmethod
+    def load(
+        cls,
+        path: Path,
+        *,
+        expected_locale: str,
+    ) -> CatalogFragment:
+        payload = _read_payload(path)
+        raw_meta = payload.get("meta")
+        raw_messages = payload.get("messages")
+        if not isinstance(raw_meta, dict):
+            raise CatalogValidationError(
+                f"Locale fragment {path} has no valid meta object"
+            )
+        missing_meta = sorted(
+            _REQUIRED_FRAGMENT_META_FIELDS - raw_meta.keys()
+        )
+        if missing_meta:
+            raise CatalogValidationError(
+                f"Locale fragment {path} is missing meta fields: "
+                + ", ".join(missing_meta)
+            )
+        if not isinstance(raw_messages, dict):
+            raise CatalogValidationError(
+                f"Locale fragment {path} has no valid messages object"
+            )
+
+        schema = int(raw_meta["schema"])
+        locale = str(raw_meta["locale"])
+        fragment = str(raw_meta["fragment"])
+        if schema != 1:
+            raise CatalogValidationError(
+                f"Unsupported fragment schema {schema} in {path}"
+            )
+        if locale != expected_locale:
+            raise CatalogValidationError(
+                f"Locale fragment {path} declares {locale!r}; "
+                f"expected {expected_locale!r}"
+            )
+        if path.parent.name != locale:
+            raise CatalogValidationError(
+                f"Locale fragment {path} must live under {locale}/"
+            )
+        if path.stem != fragment:
+            raise CatalogValidationError(
+                f"Fragment filename {path.stem!r} does not match "
+                f"fragment {fragment!r}"
+            )
+
+        messages = _normalize_messages(raw_messages, path)
+        return cls(
+            locale=locale,
+            fragment=fragment,
+            messages=MappingProxyType(messages),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class CatalogSet:
     base_locale: str
     catalogs: Mapping[str, LocaleCatalog]
@@ -174,7 +242,19 @@ class CatalogSet:
                 raise CatalogValidationError(
                     f"Duplicate locale catalog {locale!r}"
                 )
-            catalogs[locale] = catalog
+            catalogs[locale] = catalog.with_fragments(directory / locale)
+
+        fragment_locales = {
+            path.name
+            for path in directory.iterdir()
+            if path.is_dir() and any(path.glob("*.json"))
+        }
+        orphaned = sorted(fragment_locales - catalogs.keys())
+        if orphaned:
+            raise CatalogValidationError(
+                "Locale fragments have no root catalog: "
+                + ", ".join(orphaned)
+            )
         if base_locale not in catalogs:
             raise CatalogValidationError(
                 f"Base locale {base_locale!r} is not available"
@@ -223,6 +303,47 @@ class CatalogSet:
         return tuple(sorted(self.catalogs))
 
 
+def _read_payload(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise CatalogValidationError(
+            f"Cannot read locale catalog {path}: {error}"
+        ) from error
+    except json.JSONDecodeError as error:
+        raise CatalogValidationError(
+            f"Invalid JSON in locale catalog {path}: {error}"
+        ) from error
+    if not isinstance(payload, dict):
+        raise CatalogValidationError(
+            f"Locale catalog {path} must contain a JSON object"
+        )
+    return payload
+
+
+def _normalize_messages(
+    raw_messages: Mapping[object, object],
+    path: Path,
+) -> dict[str, MessageValue]:
+    messages: dict[str, MessageValue] = {}
+    for key, value in raw_messages.items():
+        normalized_key = str(key).strip()
+        if not normalized_key or normalized_key != key:
+            raise CatalogValidationError(
+                f"Invalid message key {key!r} in {path}"
+            )
+        messages[normalized_key] = _normalize_message_value(
+            normalized_key,
+            value,
+            path,
+        )
+    if not messages:
+        raise CatalogValidationError(
+            f"Locale catalog {path} must contain at least one message"
+        )
+    return messages
+
+
 def _normalize_message_value(
     key: str,
     value: object,
@@ -241,7 +362,14 @@ def _normalize_message_value(
         )
     normalized: dict[str, str] = {}
     for category, template in value.items():
-        if category not in {"zero", "one", "two", "few", "many", "other"}:
+        if category not in {
+            "zero",
+            "one",
+            "two",
+            "few",
+            "many",
+            "other",
+        }:
             raise CatalogValidationError(
                 f"Message {key!r} in {path} has invalid plural category "
                 f"{category!r}"
