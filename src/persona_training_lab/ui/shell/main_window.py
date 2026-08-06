@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
         self._workspace = WorkspaceStack()
         self._workspace.register(
             "dashboard",
-            DashboardScreen(dashboard_vm),
+            DashboardScreen(dashboard_vm, localization),
         )
         self._workspace.register(
             "profiles",
