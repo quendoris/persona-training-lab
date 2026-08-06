@@ -6,20 +6,29 @@ from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QPushButton
 
-from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
-from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
+from persona_training_lab.ui.agents.history_key_state import (
+    HISTORY_TOGGLE,
+    HISTORY_UNDO,
+    HistoryKeyState,
+)
+from persona_training_lab.ui.agents.history_shortcut_routing import (
+    HistoryShortcutRouting,
+)
+from persona_training_lab.ui.agents.screen_stateful_fixed import (
+    AgentsScreen as _StatefulFixedAgentsScreen,
+)
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
+
+
+_HISTORY_ROUTING = HistoryShortcutRouting()
 
 
 class AgentsScreen(_StatefulFixedAgentsScreen):
     """Own graph history key gestures before Qt can route them elsewhere."""
 
-    _HISTORY_BINDING_IDS = ("history_toggle", "undo_only")
-    _DEFAULT_GUARDED_SEQUENCES = {
-        "history_toggle": "Ctrl+Z",
-        "undo_only": "Ctrl+Shift+Z",
-    }
-    _HISTORY_SEQUENCES = frozenset({"ctrl+z", "ctrl+shift+z"})
+    _HISTORY_BINDING_IDS = _HISTORY_ROUTING.binding_ids
+    _DEFAULT_GUARDED_SEQUENCES = _HISTORY_ROUTING.default_sequences
+    _HISTORY_SEQUENCES = _HISTORY_ROUTING.history_sequences
     # Linux evdev codes and their X11/XKB (+8) equivalents.
     _PHYSICAL_SHIFT_SCAN_CODES = frozenset({42, 50, 54, 62})
     _PHYSICAL_Z_SCAN_CODES = frozenset({44, 52})
@@ -29,7 +38,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     _FLIP_GUARD_SECONDS = 0.35
     _KEYBOARD_LAYOUT_CHANGE = getattr(QEvent.Type, "KeyboardLayoutChange", None)
 
-    def __init__(self, view_model, key_binding_manager: KeyBindingManager | None = None) -> None:
+    def __init__(
+        self,
+        view_model,
+        key_binding_manager: KeyBindingManager | None = None,
+    ) -> None:
         self._key_binding_manager = key_binding_manager or KeyBindingManager()
         self._guarded_history_bindings: set[str] = set()
         super().__init__(view_model)
@@ -53,7 +66,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._modifier_poll.timeout.connect(self._poll_physical_modifiers)
         self._modifier_poll.start()
 
-        self._key_binding_manager.bindings_changed.connect(self._apply_key_binding_sequences)
+        self._key_binding_manager.bindings_changed.connect(
+            self._apply_key_binding_sequences
+        )
         self._apply_key_binding_sequences()
         QTimer.singleShot(0, self._sync_history_shortcut_routing)
 
@@ -79,11 +94,17 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             self._reset_history_gesture()
             return super().eventFilter(watched, event)
 
-        if self._KEYBOARD_LAYOUT_CHANGE is not None and event_type == self._KEYBOARD_LAYOUT_CHANGE:
+        if (
+            self._KEYBOARD_LAYOUT_CHANGE is not None
+            and event_type == self._KEYBOARD_LAYOUT_CHANGE
+        ):
             self._handle_keyboard_layout_change()
             return super().eventFilter(watched, event)
 
-        if not isinstance(event, QKeyEvent) or not self._history_keys_are_active():
+        if (
+            not isinstance(event, QKeyEvent)
+            or not self._history_keys_are_active()
+        ):
             return super().eventFilter(watched, event)
 
         key_name = self._history_key_name(event)
@@ -95,7 +116,10 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
                 return True
             return super().eventFilter(watched, event)
 
-        if event_type not in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease) or key_name is None:
+        if (
+            event_type not in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease)
+            or key_name is None
+        ):
             return super().eventFilter(watched, event)
 
         if event_type == QEvent.Type.KeyPress:
@@ -109,7 +133,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             return True
         return super().eventFilter(watched, event)
 
-    def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
+    def _handle_history_key_press(
+        self,
+        event: QKeyEvent,
+        key_name: str,
+    ) -> bool:
         if key_name == "z" and self._has_extra_history_modifiers(event):
             return False
 
@@ -148,7 +176,10 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         claimed = self._history_keys.release(key_name)
         if not claimed:
             return False
-        if key_name in {"control", "z"} or not self._history_keys.undo_repeat_active:
+        if (
+            key_name in {"control", "z"}
+            or not self._history_keys.undo_repeat_active
+        ):
             self._stop_undo_repeat()
         self._block_graph_flip()
         return True
@@ -160,12 +191,17 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         if not (control or self._history_keys.control_down):
             return
         self._history_keys.control_down = True
-        actions = self._guarded_actions(self._history_keys.latch_layout_shift())
+        actions = self._guarded_actions(
+            self._history_keys.latch_layout_shift()
+        )
         self._block_graph_flip()
         self._dispatch_history_actions(actions)
 
     def _poll_physical_modifiers(self) -> None:
-        if not self._history_keys_are_active() or not self._guarded_history_bindings:
+        if (
+            not self._history_keys_are_active()
+            or not self._guarded_history_bindings
+        ):
             return
 
         control, shift = self._queried_modifiers()
@@ -198,20 +234,16 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
                 self._arm_undo_repeat()
 
     def _guarded_actions(self, actions) -> tuple[str, ...]:
-        allowed: list[str] = []
-        for action in actions:
-            if action == HISTORY_TOGGLE and "history_toggle" in self._guarded_history_bindings:
-                allowed.append(action)
-            elif action == HISTORY_UNDO and "undo_only" in self._guarded_history_bindings:
-                allowed.append(action)
-        return tuple(allowed)
+        return _HISTORY_ROUTING.allowed_actions(
+            actions,
+            self._guarded_history_bindings,
+        )
 
     def _guarded_history_gesture_active(self) -> bool:
-        if not self._history_keys.history_gesture_active:
-            return False
-        if self._history_keys.strict_undo_requested:
-            return "undo_only" in self._guarded_history_bindings
-        return "history_toggle" in self._guarded_history_bindings
+        return _HISTORY_ROUTING.gesture_is_guarded(
+            self._history_keys,
+            self._guarded_history_bindings,
+        )
 
     def _effective_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
         queried_control, queried_shift = self._queried_modifiers()
@@ -231,7 +263,10 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     @staticmethod
     def _has_extra_history_modifiers(event: QKeyEvent) -> bool:
         modifiers = event.modifiers()
-        extras = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier
+        extras = (
+            Qt.KeyboardModifier.AltModifier
+            | Qt.KeyboardModifier.MetaModifier
+        )
         return bool(modifiers & extras)
 
     @staticmethod
@@ -271,27 +306,33 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._history_keys.reset()
         self._block_graph_flip()
 
-    def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
-        if key_name is None or not self._guarded_history_bindings:
-            return False
-        if key_name == "z" and self._has_extra_history_modifiers(event):
-            return False
+    def _claims_history_override(
+        self,
+        event: QKeyEvent,
+        key_name: str | None,
+    ) -> bool:
         control, shift = self._effective_modifiers(event)
-        if key_name == "z" and control:
-            binding_id = "undo_only" if shift else "history_toggle"
-            return binding_id in self._guarded_history_bindings
-        if key_name == "shift" and self._history_keys.control_down and self._history_keys.z_down:
-            return "undo_only" in self._guarded_history_bindings
-        if key_name == "control" and self._history_keys.z_down:
-            return self._guarded_history_gesture_active()
-        return self._history_keys.mode is not None and key_name in {"control", "shift", "z"}
+        return _HISTORY_ROUTING.claims_override(
+            key_name=key_name,
+            control=control,
+            shift=shift,
+            has_extra_modifiers=self._has_extra_history_modifiers(event),
+            state=self._history_keys,
+            guarded_bindings=self._guarded_history_bindings,
+        )
 
     def _apply_key_binding_sequences(self) -> None:
         self._reset_history_gesture_if_ready()
-        definitions = {item.binding_id: item for item in self._key_binding_manager.definitions()}
+        definitions = {
+            item.binding_id: item
+            for item in self._key_binding_manager.definitions()
+        }
         for binding_id, shortcut in getattr(self, "_shortcuts", {}).items():
             sequence_text = self._key_binding_manager.sequence(binding_id)
-            sequence = QKeySequence.fromString(sequence_text, QKeySequence.SequenceFormat.PortableText)
+            sequence = QKeySequence.fromString(
+                sequence_text,
+                QKeySequence.SequenceFormat.PortableText,
+            )
             shortcut.setKey(sequence)
             definition = definitions.get(binding_id)
             if definition is not None:
@@ -303,11 +344,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             self._reset_history_gesture()
 
     def _sync_history_shortcut_routing(self) -> None:
-        guarded: set[str] = set()
-        for binding_id, default_sequence in self._DEFAULT_GUARDED_SEQUENCES.items():
-            current = self._key_binding_manager.sequence(binding_id)
-            if self._normalized_sequence(current) == self._normalized_sequence(default_sequence):
-                guarded.add(binding_id)
+        sequences = {
+            binding_id: self._key_binding_manager.sequence(binding_id)
+            for binding_id in self._HISTORY_BINDING_IDS
+        }
+        guarded = set(_HISTORY_ROUTING.guarded_bindings(sequences))
         self._guarded_history_bindings = guarded
 
         for binding_id in self._HISTORY_BINDING_IDS:
@@ -321,13 +362,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     @staticmethod
     def _normalized_sequence(sequence: str) -> str:
-        parsed = QKeySequence.fromString(sequence, QKeySequence.SequenceFormat.PortableText)
-        return parsed.toString(QKeySequence.SequenceFormat.PortableText).replace(" ", "").casefold()
+        return _HISTORY_ROUTING.normalized_sequence(sequence)
 
-    @classmethod
-    def _sequence_is_history(cls, sequence: QKeySequence) -> bool:
-        text = sequence.toString(QKeySequence.SequenceFormat.PortableText)
-        return text.replace(" ", "").casefold() in cls._HISTORY_SEQUENCES
+    @staticmethod
+    def _sequence_is_history(sequence: QKeySequence) -> bool:
+        return _HISTORY_ROUTING.sequence_is_history(sequence)
 
     def _toggle_graph_flip(self) -> None:
         if self._graph_flip_is_blocked():
@@ -335,13 +374,20 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         super()._toggle_graph_flip()
 
     def _block_graph_flip(self) -> None:
-        self._flip_blocked_until = max(self._flip_blocked_until, monotonic() + self._FLIP_GUARD_SECONDS)
+        self._flip_blocked_until = max(
+            self._flip_blocked_until,
+            monotonic() + self._FLIP_GUARD_SECONDS,
+        )
 
     def _graph_flip_is_blocked(self) -> bool:
         control, shift = self._queried_modifiers()
         modifiers = QGuiApplication.queryKeyboardModifiers()
         guarded = control or shift or bool(
-            modifiers & (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier)
+            modifiers
+            & (
+                Qt.KeyboardModifier.AltModifier
+                | Qt.KeyboardModifier.MetaModifier
+            )
         )
         return (
             self._history_keys.mode is not None
@@ -356,7 +402,10 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         scan_code = int(event.nativeScanCode())
         if key == Qt.Key.Key_Control:
             return "control"
-        if key == Qt.Key.Key_Shift or scan_code in cls._PHYSICAL_SHIFT_SCAN_CODES:
+        if (
+            key == Qt.Key.Key_Shift
+            or scan_code in cls._PHYSICAL_SHIFT_SCAN_CODES
+        ):
             return "shift"
         if key == Qt.Key.Key_Z:
             return "z"
@@ -371,7 +420,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def _history_keys_are_active(self) -> bool:
         app = QApplication.instance()
-        if app is None or not self.isVisible() or not self.window().isActiveWindow():
+        if (
+            app is None
+            or not self.isVisible()
+            or not self.window().isActiveWindow()
+        ):
             return False
         if app.activeModalWidget() is not None:
             return False
