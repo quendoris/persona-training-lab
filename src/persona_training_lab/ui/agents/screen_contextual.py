@@ -5,12 +5,12 @@ from PySide6.QtCore import QPointF
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
 )
-from persona_training_lab.ui.agents.screen_runtime_safe import (
-    AgentsScreen as _RuntimeSafeAgentsScreen,
+from persona_training_lab.ui.agents.screen_background import (
+    AgentsScreen as _BackgroundAgentsScreen,
 )
 
 
-class AgentsScreen(_RuntimeSafeAgentsScreen):
+class AgentsScreen(_BackgroundAgentsScreen):
     """Runtime-safe lineage with exact context navigation to tests/analysis."""
 
     def _open_workspace(self, workspace_key: str) -> None:
