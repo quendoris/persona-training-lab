@@ -32,11 +32,17 @@ def test_window_state_round_trip_preserves_shell_and_workspace(tmp_path) -> None
     store = WindowStateStore(settings)
 
     original = _window()
-    original.setGeometry(40, 60, 980, 680)
+    # The offscreen Qt platform exposes a small virtual screen and clamps
+    # oversized restored windows. Keep the fixture inside that screen so this
+    # test verifies our persistence contract rather than platform geometry
+    # policy.
+    original.setGeometry(40, 60, 640, 480)
+    app.processEvents()
     assert store.save(original, "agents")
 
     restored_window = _window()
     result = store.restore(restored_window)
+    app.processEvents()
 
     assert result.geometry_restored
     assert result.docks_restored
