@@ -12,6 +12,10 @@ from persona_training_lab.ui.agents.atomic_lineage_public import (
     build_empty_lineage,
 )
 from persona_training_lab.ui.agents.lineage import build_version_lineage
+from persona_training_lab.ui.agents.projection_runtime import (
+    LineageRefreshIncidentReporter,
+    ProjectionSafetyBinding,
+)
 from persona_training_lab.ui.agents.refresh_coordinator import (
     LineageRefreshCoordinator,
 )
@@ -53,6 +57,12 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
                 owns_coordinator = True
         self._lineage_refresh_coordinator = coordinator
         self._owns_lineage_refresh_coordinator = owns_coordinator
+        self._projection_safety_binding = ProjectionSafetyBinding(
+            lineage_runtime_safety
+        )
+        self._refresh_incident_reporter = LineageRefreshIncidentReporter(
+            getattr(view_model, "lineage_error_reporter", None)
+        )
         try:
             super().__init__(
                 view_model,
@@ -86,6 +96,19 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         self._real_projection = projection
         self._real_projection_signature = projection.signature
         return self._state.apply(build_version_lineage(projection.nodes))
+
+    def _bind_projection_resources(self) -> None:
+        projection = self._real_projection
+        if projection is None:
+            return
+        coordinator = self._lineage_refresh_coordinator
+        snapshot_proven = (
+            coordinator is None or coordinator.last_good is not None
+        )
+        self._projection_safety_binding.reconcile(
+            projection.resources,
+            snapshot_proven=snapshot_proven,
+        )
 
     def _roles(self) -> QWidget:
         if self._lineage_refresh_coordinator is None:
@@ -293,11 +316,26 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         self._refresh_runtime_blockers(force=True)
 
     def _on_projection_failed(self, failure: LineageRefreshFailure) -> None:
+        coordinator = self._lineage_refresh_coordinator
+        last_good_available = (
+            coordinator is not None and coordinator.last_good is not None
+        )
+        correlation = self._refresh_incident_reporter.report(
+            failure,
+            last_good_available=last_good_available,
+        )
         window = self.window()
         status = getattr(window, "_status", None)
         setter = getattr(status, "set_message", None)
-        if callable(setter):
+        if not callable(setter):
+            return
+        if correlation:
             setter(
                 "Lineage refresh не обновлён; сохранён последний "
-                f"согласованный снимок ({failure.error_type})."
+                f"согласованный снимок. Код события: {correlation}."
             )
+            return
+        setter(
+            "Lineage refresh не обновлён; сохранён последний "
+            f"согласованный снимок ({failure.error_type})."
+        )
