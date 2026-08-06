@@ -12,6 +12,32 @@ class VersionGraphCanvas(_DynamicWorkspaceCanvas):
     MAX_ZOOM = 8.0
     ZOOM_FACTOR = 1.12
 
+    def update_node_content(self, nodes) -> bool:
+        """Repaint immutable node content without rebuilding workspace geometry."""
+
+        next_nodes = tuple(nodes)
+        if self._visual_structure(self._nodes) != self._visual_structure(
+            next_nodes
+        ):
+            return False
+        self._nodes = next_nodes
+        self._hit_rects.clear()
+        self.update()
+        return True
+
+    @staticmethod
+    def _visual_structure(nodes) -> tuple[tuple[object, ...], ...]:
+        return tuple(
+            (
+                node.node_id,
+                node.parent_id,
+                node.level,
+                node.branch_note,
+                node.is_current,
+            )
+            for node in nodes
+        )
+
     def wheelEvent(self, event) -> None:  # noqa: N802
         if not self._wheel_matches("zoom_canvas", event):
             event.ignore()
