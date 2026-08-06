@@ -53,7 +53,6 @@
     "datasets.error.load_failed": "Не удалось загрузить датасеты",
     "datasets.error.only_jsonl": "Поддерживается только формат .jsonl",
     "datasets.error.validate_failed": "Не удалось проверить датасет",
-    "datasets.header.subtitle": "JSONL, структурная проверка и готовность для обучения личности.",
     "datasets.header.summary": "{subtitle} · {version} · {records}",
     "datasets.header.title": "Датасеты · {title}",
     "datasets.message.added": "Добавлен датасет: {title}",
@@ -100,7 +99,6 @@
     "datasets.table.schema": "Схема",
     "datasets.table.status": "Статус",
     "datasets.title": "Датасеты",
-    "datasets.version.item": "{label} · {status} · {records}",
-    "datasets.worker.unknown_action": "Неизвестное действие с датасетом"
+    "datasets.version.item": "{label} · {status} · {records}"
   }
 }
