@@ -5,7 +5,7 @@ from persona_training_lab.ui.agents.refresh_worker import (
     LineageRefreshResult,
     LineageRevisionSet,
 )
-from persona_training_lab.ui.agents.screen_background_reconciled import (
+from persona_training_lab.ui.agents.screen_background import (
     AgentsScreen as _BackgroundAgentsScreen,
 )
 
