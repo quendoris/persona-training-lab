@@ -64,12 +64,15 @@ class LineageRuntimePolicy:
                 for blocker in blockers
             )
         )
-        text = "" if safety is None else safety.blocker_text(blockers)
         return RuntimeBlockerState(
             blockers=blockers,
             signature=signature,
-            text=text,
+            text=self.text_for_blockers(blockers),
         )
+
+    def text_for_blockers(self, blockers: Iterable[OperationBlocker]) -> str:
+        safety = self._safety
+        return "" if safety is None else safety.blocker_text(blockers)
 
     def linked_resources(self, node_id: str) -> tuple[ResourceClaim, ...]:
         safety = self._safety
