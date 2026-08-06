@@ -13,7 +13,7 @@ from persona_training_lab.ui.density import (
 )
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.safe_application import SafeApplication
-from persona_training_lab.ui.shell.main_window_context import MainWindow
+from persona_training_lab.ui.shell.main_window_background import MainWindow
 from persona_training_lab.ui.themes.manager import apply_theme
 
 
@@ -28,6 +28,9 @@ def main() -> int:
     app.setApplicationVersion(__version__)
 
     container = build_container()
+    container.agents_vm.lineage_loader_factory = (
+        container.lineage_loader_factory
+    )
     app.set_error_reporter(container.error_reporter)
     _install_exception_boundaries(container.error_reporter)
     _install_qt_message_boundary(container.error_reporter)
@@ -63,6 +66,7 @@ def main() -> int:
         operations_center=container.operations_center,
         localization=localization,
     )
+    app.aboutToQuit.connect(window.shutdown_background_work)
     window.setProperty("ptl_density_name", density.name)
     window.show()
     return app.exec()
