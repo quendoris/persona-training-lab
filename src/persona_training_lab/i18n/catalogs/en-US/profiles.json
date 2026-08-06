@@ -7,7 +7,6 @@
   "messages": {
     "profiles.action.create": "Create",
     "profiles.action.edit": "Edit",
-    "profiles.badge.structure": "structure",
     "profiles.card.linked.description": "The profile lives together with data, training, and snapshot branches.",
     "profiles.card.linked.title": "Linked artifacts",
     "profiles.card.next.description": "The system should guide the workflow instead of merely displaying a profile.",
