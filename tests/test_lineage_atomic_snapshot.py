@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -28,7 +29,9 @@ from persona_training_lab.infrastructure.persistence.sqlite.schema import (
 )
 
 
-def _connections(tmp_path):
+def _connections(
+    tmp_path: Path,
+) -> tuple[sqlite3.Connection, sqlite3.Connection]:
     database = SQLiteDatabase(tmp_path / "lineage.sqlite3")
     writer = database.connect()
     create_minimal_schema(writer)
@@ -86,7 +89,7 @@ def _insert_training_run(
     )
 
 
-def test_read_only_connection_rejects_writes(tmp_path) -> None:
+def test_read_only_connection_rejects_writes(tmp_path: Path) -> None:
     writer, reader = _connections(tmp_path)
     try:
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
@@ -99,7 +102,7 @@ def test_read_only_connection_rejects_writes(tmp_path) -> None:
 
 
 def test_repository_reads_one_consistent_wal_snapshot(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     writer, reader = _connections(tmp_path)
@@ -109,7 +112,10 @@ def test_repository_reads_one_consistent_wal_snapshot(
     repository = SQLiteLineageSnapshotRepository(reader)
     original = repository._read_datasets
 
-    def read_datasets_then_commit_new_state():
+    def read_datasets_then_commit_new_state() -> tuple[
+        LineageDatasetRecord,
+        ...,
+    ]:
         rows = original()
         writer.execute(
             """
@@ -148,7 +154,7 @@ def test_repository_reads_one_consistent_wal_snapshot(
     writer.close()
 
 
-def test_repository_maps_all_lineage_tables(tmp_path) -> None:
+def test_repository_maps_all_lineage_tables(tmp_path: Path) -> None:
     writer, reader = _connections(tmp_path)
     _insert_dataset(writer)
     _insert_training_run(writer)
@@ -158,24 +164,36 @@ def test_repository_maps_all_lineage_tables(tmp_path) -> None:
             id, title, status, base_model, profile_title, dataset_title,
             training_run_id, artifact_path, quality_summary,
             created_at, updated_at
-        ) VALUES (
-            'mdl_1', 'Weights', 'Готова', 'Qwen', 'Mia', 'Dataset old',
-            'trn_1', '/artifacts/trn_1', 'ok',
-            '2026-08-06T10:02:00+00:00',
-            '2026-08-06T10:02:00+00:00'
-        )
-        """
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "mdl_1",
+            "Weights",
+            "Готова",
+            "Qwen",
+            "Mia",
+            "Dataset old",
+            "trn_1",
+            "/artifacts/trn_1",
+            "ok",
+            "2026-08-06T10:02:00+00:00",
+            "2026-08-06T10:02:00+00:00",
+        ),
     )
     writer.execute(
         """
-        INSERT INTO experiments (id, title, subtitle, status, updated_at)
-        VALUES (
-            'evr_1', 'Portrait',
-            'PORTRAIT: 1/1 · model_version=mdl_1 · '
-            'artifact=/artifacts/trn_1',
-            'Портрет собран', '2026-08-06T10:03:00+00:00'
-        )
-        """
+        INSERT INTO experiments (
+            id, title, subtitle, status, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "evr_1",
+            "Portrait",
+            "PORTRAIT: 1/1 · model_version=mdl_1 · "
+            "artifact=/artifacts/trn_1",
+            "Портрет собран",
+            "2026-08-06T10:03:00+00:00",
+        ),
     )
     writer.commit()
 
