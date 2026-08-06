@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "artifacts" / "release-audit"
 QUICK_TESTS = (
     "tests/test_window_state_store.py",
+    "tests/test_i18n_catalogs.py",
+    "tests/test_i18n_audit.py",
+    "tests/test_sidebar_i18n.py",
     "tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py",
     "tests/test_navigation_shortcuts_and_zoom.py",
     "tests/test_workspace_leave_guard.py",
@@ -156,13 +159,21 @@ class ReleaseGate:
     def _final_steps(self) -> tuple[GateStep, ...]:
         steps = [
             GateStep(
+                "i18n-audit",
+                (
+                    sys.executable,
+                    "tools/i18n_audit.py",
+                    "--json",
+                ),
+            ),
+            GateStep(
                 "codebase-stats",
                 (
                     sys.executable,
                     "tools/codebase_stats.py",
                     "--json",
                 ),
-            )
+            ),
         ]
         if not self._skip_build and not self._quick:
             steps.append(GateStep("build", ("uv", "build")))
@@ -240,7 +251,10 @@ class ReleaseGate:
             "quick": self._quick,
             "blocking_failures": [result.name for result in blocking_failures],
             "warnings": [result.name for result in warnings],
-            "results": [asdict(result) | {"passed": result.passed} for result in result_list],
+            "results": [
+                asdict(result) | {"passed": result.passed}
+                for result in result_list
+            ],
         }
         (self.output_dir / "summary.json").write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
@@ -250,7 +264,10 @@ class ReleaseGate:
 
         if blocking_failures:
             print("RELEASE GATE: FAIL")
-            print("Blocking failures: " + ", ".join(payload["blocking_failures"]))
+            print(
+                "Blocking failures: "
+                + ", ".join(payload["blocking_failures"])
+            )
             print(f"Logs: {self.output_dir}")
             return 1
         if warnings:
@@ -288,7 +305,9 @@ class ReleaseGate:
         warnings = payload["warnings"]
         if warnings:
             lines.extend(("", "## Informational failures", ""))
-            lines.extend(f"- `{name}`" for name in warnings)  # type: ignore[arg-type]
+            lines.extend(
+                f"- `{name}`" for name in warnings  # type: ignore[arg-type]
+            )
         lines.append("")
         (self.output_dir / "summary.md").write_text(
             "\n".join(lines),
