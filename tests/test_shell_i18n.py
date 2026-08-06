@@ -43,14 +43,14 @@ def test_shell_titles_and_ready_status_switch_without_rebuild(
 
     assert menu.title() == "Panels"
     assert dock.windowTitle() == "Inspector"
-    assert status.currentMessage() == "Ready"
+    assert status._left.text() == "Ready"
 
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     manager.set_locale("ru-RU", persist=False)
 
     assert menu.title() == "Панели"
     assert dock.windowTitle() == "Инспектор"
-    assert status.currentMessage() == "Готово"
+    assert status._left.text() == "Готово"
 
     menu.deleteLater()
     dock.deleteLater()
