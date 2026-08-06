@@ -43,11 +43,13 @@ class MainWindow(_MainWindow):
         self._guidance_generation = 0
         self._guidance_target: QWidget | None = None
         self._window_state_store = WindowStateStore()
-        self._skip_next_dock_rebalance = False
+        self._suspend_dock_rebalance = True
+        self._restored_dock_state = False
         super().__init__(*args, **kwargs)
 
         restored = self._window_state_store.restore(self)
-        self._skip_next_dock_rebalance = restored.docks_restored
+        self._restored_dock_state = restored.docks_restored
+        QTimer.singleShot(0, self._finish_initial_dock_layout)
 
         self._connect_operations_center()
         self._connect_dashboard_navigation()
@@ -256,8 +258,13 @@ class MainWindow(_MainWindow):
             )
 
     def _rebalance_docks(self) -> None:
-        if self._skip_next_dock_rebalance:
-            self._skip_next_dock_rebalance = False
+        if self._suspend_dock_rebalance:
+            return
+        super()._rebalance_docks()
+
+    def _finish_initial_dock_layout(self) -> None:
+        self._suspend_dock_rebalance = False
+        if self._restored_dock_state:
             central = self.centralWidget()
             if central is not None:
                 central.updateGeometry()
