@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tools.i18n_audit import SourceAudit
+from persona_training_lab.i18n.audit import SourceAudit
 
 
 def test_source_audit_finds_bound_dynamic_and_missing_translation_keys(
