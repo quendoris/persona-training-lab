@@ -69,7 +69,10 @@ class AgentsScreen(_BackgroundAgentsScreen):
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
         transactions = getattr(self, "_branch_transactions", None)
-        if transactions is None:
+        if (
+            getattr(self, "_lineage_runtime_safety", None) is None
+            or transactions is None
+        ):
             super()._delete_local_branch_subtree(node_id)
             return
 
@@ -98,7 +101,6 @@ class AgentsScreen(_BackgroundAgentsScreen):
             self._show_runtime_blockers(conflict.blockers)
             return
         if lease is None:
-            super()._delete_local_branch_subtree(node_id)
             return
 
         try:
