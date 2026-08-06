@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import traceback
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
@@ -58,7 +59,7 @@ class LineageRefreshWorker(QObject):
                 loader = self._loader_factory()
                 self._loader = loader
             atomic = loader.build_snapshot()
-            projection = build_atomic_lineage(atomic)
+            projection = _freeze_projection(build_atomic_lineage(atomic))
             self.completed.emit(
                 LineageRefreshResult(
                     generation=generation,
@@ -100,6 +101,22 @@ class LineageRefreshWorker(QObject):
             # Recovery and shutdown must continue even if a provider-specific
             # close hook fails. The original refresh error remains primary.
             pass
+
+
+def _freeze_projection(
+    projection: RealLineageProjection,
+) -> RealLineageProjection:
+    contexts = {
+        node_id: MappingProxyType(dict(values))
+        for node_id, values in projection.entity_context.items()
+    }
+    return RealLineageProjection(
+        nodes=tuple(projection.nodes),
+        details=MappingProxyType(dict(projection.details)),
+        resources=MappingProxyType(dict(projection.resources)),
+        entity_context=MappingProxyType(contexts),
+        signature=tuple(projection.signature),
+    )
 
 
 def _presentation_revision(projection: RealLineageProjection) -> str:
