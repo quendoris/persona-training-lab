@@ -31,7 +31,7 @@ class MainWindow(_ContextMainWindow):
                 return
             self._close_guard_passed = True
 
-        if not self.shutdown_background_work(1_500):
+        if not self.shutdown_background_work(0):
             event.ignore()
             self._set_background_shutdown_status()
             self._schedule_close_retry()
