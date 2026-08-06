@@ -18,7 +18,13 @@ from persona_training_lab.ui.components.panels import (
     make_muted_label,
     make_status_label,
 )
-from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
+from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.i18n.text import text as localized_text
+from persona_training_lab.ui.viewmodels.dashboard import (
+    DashboardRoute,
+    DashboardText,
+    DashboardViewModel,
+)
 
 
 class _NavigationCard(QFrame):
@@ -66,9 +72,14 @@ class _NavigationCard(QFrame):
 class DashboardScreen(QWidget):
     navigate_requested = Signal(str, str)
 
-    def __init__(self, view_model: DashboardViewModel) -> None:
+    def __init__(
+        self,
+        view_model: DashboardViewModel,
+        localization: LocalizationManager | None = None,
+    ) -> None:
         super().__init__()
         self._vm = view_model
+        self._localization = localization
 
         root = QHBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
@@ -86,11 +97,11 @@ class DashboardScreen(QWidget):
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(22, 18, 22, 18)
         header_layout.setSpacing(8)
-        title = QLabel("Панель управления")
-        title.setObjectName("ScreenTitle")
-        subtitle = make_muted_label(
-            "Живая сводка: обучение, датасеты, снимки, портрет и delta модели"
+        title = self._bound_label(
+            "dashboard.title",
+            object_name="ScreenTitle",
         )
+        subtitle = self._bound_label("dashboard.subtitle", muted=True)
         header_layout.addWidget(title)
         header_layout.addWidget(subtitle)
         main_column.addWidget(header)
@@ -99,9 +110,9 @@ class DashboardScreen(QWidget):
         self._stats_grid.setSpacing(12)
         main_column.addLayout(self._stats_grid)
 
-        self._actions_card = PanelCard(
-            "Быстрые действия",
-            "Короткий маршрут к следующему рабочему шагу. Карточки можно нажимать.",
+        self._actions_card = self._localized_card(
+            "dashboard.actions.title",
+            "dashboard.actions.description",
         )
         self._actions_grid = QGridLayout()
         self._actions_grid.setSpacing(12)
@@ -112,36 +123,69 @@ class DashboardScreen(QWidget):
         bottom_grid.setSpacing(16)
         main_column.addLayout(bottom_grid, 1)
 
-        self._activity_card = PanelCard(
-            "Последняя активность",
-            "Где система остановилась и что уже есть в базе.",
+        self._activity_card = self._localized_card(
+            "dashboard.activity.title",
+            "dashboard.activity.description",
         )
         bottom_grid.addWidget(self._activity_card, 0, 0)
 
-        self._system_card = PanelCard(
-            "Готовность пайплайна",
-            "Проверка ключевых условий перед следующим шагом.",
+        self._system_card = self._localized_card(
+            "dashboard.system.title",
+            "dashboard.system.description",
         )
         bottom_grid.addWidget(self._system_card, 0, 1)
 
-        self._attention_card = PanelCard(
-            "Панель внимания",
-            "То, что лучше не потерять из виду.",
+        self._attention_card = self._localized_card(
+            "dashboard.attention.title",
+            "dashboard.attention.description",
         )
         side_column.addWidget(self._attention_card)
 
-        self._lineage_card = PanelCard(
-            "Lineage-цепочка",
-            "Нажмите этап, чтобы сразу перейти к его рабочей вкладке.",
+        self._lineage_card = self._localized_card(
+            "dashboard.lineage.title",
+            "dashboard.lineage.description",
         )
         side_column.addWidget(self._lineage_card)
         side_column.addStretch(1)
 
         self._refresh_all()
+        if localization is not None:
+            localization.language_changed.connect(self._on_language_changed)
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         self._refresh_all()
         super().showEvent(event)
+
+    def _bound_label(
+        self,
+        key: str,
+        *,
+        object_name: str = "",
+        muted: bool = False,
+    ) -> QLabel:
+        label = make_muted_label("") if muted else QLabel()
+        if object_name:
+            label.setObjectName(object_name)
+        if self._localization is not None:
+            self._localization.bind_text(label, key)
+        else:
+            label.setText(self._text(key))
+        return label
+
+    def _localized_card(
+        self,
+        title_key: str,
+        description_key: str,
+    ) -> PanelCard:
+        card = PanelCard()
+        title = self._bound_label(title_key, object_name="SectionTitle")
+        description = self._bound_label(description_key, muted=True)
+        card.add_widget(title)
+        card.add_widget(description)
+        return card
+
+    def _on_language_changed(self, _locale: str = "") -> None:
+        self._refresh_all()
 
     def _clear_layout(self, layout: QLayout) -> None:
         while layout.count():
@@ -173,9 +217,13 @@ class DashboardScreen(QWidget):
 
     def _refresh_stats(self) -> None:
         self._clear_layout(self._stats_grid)
-        for index, (label, value, note) in enumerate(self._vm.stats()):
-            card = PanelCard(label, note, accented=(index == 0))
-            value_label = QLabel(value)
+        for index, item in enumerate(self._vm.stats()):
+            card = PanelCard(
+                self._text(item.label_key),
+                self._render(item.note),
+                accented=(index == 0),
+            )
+            value_label = QLabel(self._render(item.value))
             value_label.setObjectName("MetricValue")
             value_label.setWordWrap(True)
             card.add_widget(value_label)
@@ -183,24 +231,24 @@ class DashboardScreen(QWidget):
 
     def _refresh_actions(self) -> None:
         self._clear_layout(self._actions_grid)
-        for index, (icon_text, title_text, desc_text) in enumerate(
-            self._vm.quick_actions()
-        ):
+        for index, item in enumerate(self._vm.quick_actions()):
             action = _NavigationCard("ActionCard")
-            target, focus = self._quick_action_target(index, desc_text)
-            action.setToolTip(f"Открыть вкладку «{target}»")
-            action.clicked.connect(
-                lambda target=target, focus=focus: self.navigate_requested.emit(
-                    target,
-                    focus,
+            workspace_title = self._text(f"nav.{item.route.screen}")
+            action.setToolTip(
+                self._text(
+                    "dashboard.tooltip.open_workspace",
+                    title=workspace_title,
                 )
+            )
+            action.clicked.connect(
+                lambda route=item.route: self._emit_route(route)
             )
             action_layout = QVBoxLayout(action)
             action_layout.setContentsMargins(16, 16, 16, 16)
             action_layout.setSpacing(10)
 
             top = QHBoxLayout()
-            icon = QLabel(icon_text)
+            icon = QLabel(item.icon)
             icon.setObjectName("ActionIcon")
             icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
             icon.setFixedSize(34, 34)
@@ -212,14 +260,14 @@ class DashboardScreen(QWidget):
             top.addStretch(1)
             action_layout.addLayout(top)
 
-            title_label = QLabel(title_text)
+            title_label = QLabel(self._render(item.title))
             title_label.setObjectName("CardTitle")
             title_label.setWordWrap(True)
             title_label.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
                 True,
             )
-            description = make_muted_label(desc_text)
+            description = make_muted_label(self._render(item.description))
             description.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
                 True,
@@ -230,27 +278,32 @@ class DashboardScreen(QWidget):
 
     def _refresh_activity(self) -> None:
         self._clear_card_body(self._activity_card)
-        for title_text, note_text in self._vm.recent_activity():
-            target, focus = self._activity_target(title_text)
+        for item in self._vm.recent_activity():
             row = _NavigationCard("PanelCardSoft")
-            row.setToolTip("Открыть связанную рабочую вкладку")
+            row.setToolTip(self._text("dashboard.tooltip.open_related"))
             row.clicked.connect(
-                lambda target=target, focus=focus: self.navigate_requested.emit(
-                    target,
-                    focus,
-                )
+                lambda route=item.route: self._emit_route(route)
             )
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(14, 12, 14, 12)
             row_layout.setSpacing(12)
             texts = QVBoxLayout()
+
+            if item.empty_title is not None:
+                title_text = self._render(item.empty_title)
+            else:
+                title_text = self._text(
+                    "dashboard.activity.item.title",
+                    kind=self._text(item.kind_key),
+                    title=item.title,
+                )
             title = QLabel(title_text)
             title.setWordWrap(True)
             title.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
                 True,
             )
-            note = make_muted_label(note_text)
+            note = make_muted_label(self._render(item.detail))
             note.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
                 True,
@@ -258,7 +311,15 @@ class DashboardScreen(QWidget):
             texts.addWidget(title)
             texts.addWidget(note)
             row_layout.addLayout(texts, 1)
-            state = self._state_label(note_text)
+
+            warning = item.state_key in {
+                "dashboard.state.attention",
+                "dashboard.state.waiting",
+            }
+            state = make_status_label(
+                self._text(item.state_key),
+                warning=warning,
+            )
             state.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
                 True,
@@ -268,15 +329,15 @@ class DashboardScreen(QWidget):
 
     def _refresh_system(self) -> None:
         self._clear_card_body(self._system_card)
-        for label_text, value, note in self._vm.system_metrics():
+        for item in self._vm.system_metrics():
             line = QWidget()
             line.setProperty("transparentBg", True)
             line_layout = QVBoxLayout(line)
             line_layout.setContentsMargins(0, 0, 0, 0)
             line_layout.setSpacing(6)
             top = QHBoxLayout()
-            top.addWidget(QLabel(label_text))
-            note_label = QLabel(note)
+            top.addWidget(QLabel(self._text(item.label_key)))
+            note_label = QLabel(self._render(item.note))
             note_label.setObjectName("MutedText")
             note_label.setWordWrap(True)
             top.addStretch(1)
@@ -284,30 +345,27 @@ class DashboardScreen(QWidget):
             bar = QProgressBar()
             bar.setObjectName("MetricProgress")
             bar.setRange(0, 100)
-            bar.setValue(value)
+            bar.setValue(item.value)
             bar.setTextVisible(False)
             line_layout.addLayout(top)
             line_layout.addWidget(bar)
             self._system_card.add_widget(line)
 
         step = self._vm.next_best_step()
-        target, focus = self._target_for_step(step)
         warning = _NavigationCard("WarningBlock")
-        warning.setToolTip("Перейти к следующему этапу")
+        warning.setToolTip(self._text("dashboard.tooltip.next_step"))
         warning.clicked.connect(
-            lambda: self.navigate_requested.emit(target, focus)
+            lambda route=step.route: self._emit_route(route)
         )
         warning_layout = QVBoxLayout(warning)
         warning_layout.setContentsMargins(14, 12, 14, 12)
         warning_layout.setSpacing(8)
-        warning_title = QLabel(
-            "Следующий шаг · нажмите, чтобы продолжить"
-        )
+        warning_title = QLabel(self._text("dashboard.next_step.title"))
         warning_title.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents,
             True,
         )
-        warning_text = make_muted_label(step)
+        warning_text = make_muted_label(self._render(step.message))
         warning_text.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents,
             True,
@@ -318,29 +376,27 @@ class DashboardScreen(QWidget):
 
     def _refresh_attention(self) -> None:
         self._clear_card_body(self._attention_card)
-        for title_text, body in self._vm.attention_items():
+        for item in self._vm.attention_items():
             block = QFrame()
             block.setObjectName("PanelCardSoft")
             block_layout = QVBoxLayout(block)
             block_layout.setContentsMargins(14, 12, 14, 12)
             block_layout.setSpacing(8)
-            title = QLabel(title_text)
+            title = QLabel(self._text(item.title_key))
             title.setWordWrap(True)
             block_layout.addWidget(title)
-            block_layout.addWidget(make_muted_label(body))
+            block_layout.addWidget(
+                make_muted_label(self._render(item.body))
+            )
             self._attention_card.add_widget(block)
 
     def _refresh_lineage(self) -> None:
         self._clear_card_body(self._lineage_card)
         for item in self._vm.quick_lineage():
-            target, focus = self._lineage_target(item)
             pill = _NavigationCard("LineageRow")
-            pill.setToolTip("Открыть этот этап")
+            pill.setToolTip(self._text("dashboard.tooltip.open_stage"))
             pill.clicked.connect(
-                lambda target=target, focus=focus: self.navigate_requested.emit(
-                    target,
-                    focus,
-                )
+                lambda route=item.route: self._emit_route(route)
             )
             pill_layout = QHBoxLayout(pill)
             pill_layout.setContentsMargins(12, 10, 12, 10)
@@ -354,7 +410,13 @@ class DashboardScreen(QWidget):
                 True,
             )
             pill_layout.addWidget(chevron)
-            label = QLabel(item)
+            label = QLabel(
+                self._text(
+                    "dashboard.lineage.item",
+                    label=self._text(item.label_key),
+                    value=item.value,
+                )
+            )
             label.setWordWrap(True)
             label.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
@@ -363,81 +425,16 @@ class DashboardScreen(QWidget):
             pill_layout.addWidget(label, 1)
             self._lineage_card.add_widget(pill)
 
-    def _quick_action_target(
-        self,
-        index: int,
-        description: str,
-    ) -> tuple[str, str]:
-        if index == 0:
-            return self._target_for_step(description)
-        if index == 1:
-            return "tests", "Собрать портрет"
-        return "analysis", ""
+    def _emit_route(self, route: DashboardRoute) -> None:
+        focus = self._text(route.focus_key) if route.focus_key else ""
+        self.navigate_requested.emit(route.screen, focus)
 
-    @staticmethod
-    def _target_for_step(step: str) -> tuple[str, str]:
-        lowered = step.casefold()
-        if "датасет" in lowered:
-            return "datasets", "Добав"
-        if "сним" in lowered or "верс" in lowered:
-            return "snapshots", ""
-        if "training" in lowered or "обучен" in lowered or "artifact" in lowered:
-            return "training", "Запуст"
-        if "портрет" in lowered or "score" in lowered:
-            return "tests", "Собрать портрет"
-        if "анализ" in lowered or "delta" in lowered:
-            return "analysis", ""
-        if "документ" in lowered:
-            return "docs", ""
-        return "dashboard", ""
+    def _render(self, message: DashboardText) -> str:
+        values = {
+            key: self._render(value) if isinstance(value, DashboardText) else value
+            for key, value in message.values.items()
+        }
+        return self._text(message.key, **values)
 
-    @staticmethod
-    def _activity_target(title: str) -> tuple[str, str]:
-        lowered = title.casefold()
-        if "training" in lowered:
-            return "training", ""
-        if "snapshot" in lowered:
-            return "snapshots", ""
-        if "portrait" in lowered:
-            return "tests", ""
-        if "dataset" in lowered:
-            return "datasets", ""
-        return "dashboard", ""
-
-    @staticmethod
-    def _lineage_target(item: str) -> tuple[str, str]:
-        lowered = item.casefold()
-        if lowered.startswith("base"):
-            return "agents", ""
-        if lowered.startswith("dataset"):
-            return "datasets", ""
-        if lowered.startswith("training"):
-            return "training", ""
-        if lowered.startswith("snapshot"):
-            return "snapshots", ""
-        if lowered.startswith("portrait"):
-            return "tests", ""
-        return "agents", ""
-
-    def _state_label(self, note_text: str) -> QLabel:
-        text = "есть"
-        warning = False
-        lowered = note_text.lower()
-        if (
-            "ошиб" in lowered
-            or "invalid" in lowered
-            or "внимание" in lowered
-        ):
-            text = "внимание"
-            warning = True
-        elif "нет" in lowered or "—" in note_text:
-            text = "ожидание"
-            warning = True
-        elif (
-            "готов" in lowered
-            or "собран" in lowered
-            or "заверш" in lowered
-            or "valid" in lowered
-        ):
-            text = "готово"
-        return make_status_label(text, warning=warning)
+    def _text(self, key: str, **values: object) -> str:
+        return localized_text(self._localization, key, **values)
