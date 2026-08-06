@@ -8,31 +8,55 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.shell.sidebar import NavButton, Sidebar as _BaseSidebar
 
 
 APPLICATION_NAV_ITEMS: tuple[tuple[str, str, str], ...] = (
-    ("keybindings", "КЛ", "Назначения клавиш"),
+    ("keybindings", "КЛ", "nav.keybindings"),
 )
+
+NAVIGATION_KEYS: dict[str, str] = {
+    "dashboard": "nav.dashboard",
+    "profiles": "nav.profiles",
+    "agents": "nav.agents",
+    "datasets": "nav.datasets",
+    "training": "nav.training",
+    "snapshots": "nav.snapshots",
+    "tests": "nav.tests",
+    "analysis": "nav.analysis",
+    "style": "nav.style",
+    "docs": "nav.docs",
+    "keybindings": "nav.keybindings",
+}
 
 
 class Sidebar(_BaseSidebar):
     """Application navigation additions layered on the stable base sidebar."""
 
     def __init__(self, *args, **kwargs) -> None:
+        self._localization: LocalizationManager | None = kwargs.pop(
+            "localization",
+            None,
+        )
         super().__init__(*args, **kwargs)
         self._compact_brand_panel()
-        for screen_id, icon_text, title in APPLICATION_NAV_ITEMS:
-            self.add_navigation_item(screen_id, icon_text, title)
+        for screen_id, icon_text, title_key in APPLICATION_NAV_ITEMS:
+            self.add_navigation_item(screen_id, icon_text, title_key)
         self._workflow_layout = self._find_workflow_layout()
+        self._bind_localized_shell()
         self.set_active_workflows(())
         self._sync_accent_from_app()
+        if self._localization is not None:
+            self._localization.language_changed.connect(
+                self._refresh_localized_shortcuts
+            )
 
     def add_navigation_item(
         self,
         screen_id: str,
         icon_text: str,
-        title: str,
+        title_key: str,
     ) -> NavButton:
         existing = self._buttons.get(screen_id)
         if existing is not None:
@@ -45,13 +69,20 @@ class Sidebar(_BaseSidebar):
                 "Не найден контейнер основной навигации SidebarNav."
             )
 
-        button = NavButton(screen_id, icon_text, title)
+        button = NavButton(
+            screen_id,
+            icon_text,
+            self._text(title_key, screen_id),
+        )
+        button.setProperty("navigation_key", title_key)
         button.clicked.connect(
             lambda _checked=False, sid=screen_id: self._select_screen(sid)
         )
         insert_at = max(0, layout.count() - 1)
         layout.insertWidget(insert_at, button)
         self._buttons[screen_id] = button
+        if self._localization is not None:
+            self._localization.bind_text(button, title_key)
         return button
 
     def set_navigation_shortcut_hint(
@@ -64,14 +95,8 @@ class Sidebar(_BaseSidebar):
         button = self._buttons.get(screen_id)
         if button is None:
             return
-        title = str(
-            button.property("navigation_base_title")
-            or button.text().split("  ·  ", 1)[0]
-        )
-        button.setProperty("navigation_base_title", title)
         button.setProperty("navigation_shortcut", shortcut)
-        button.setText(title)
-        button.setToolTip(f"Открыть вкладку «{title}» · {shortcut}")
+        self._refresh_navigation_button(button)
 
     def set_active_workflows(self, items) -> None:
         layout = self._workflow_layout
@@ -84,8 +109,15 @@ class Sidebar(_BaseSidebar):
                 widget.deleteLater()
         values = tuple(str(item).strip() for item in items if str(item).strip())
         if not values:
-            pill = QLabel("Нет активных операций")
+            pill = QLabel(
+                self._text(
+                    "operations.none_active",
+                    "Нет активных операций",
+                )
+            )
             pill.setObjectName("WorkflowPill")
+            if self._localization is not None:
+                self._localization.bind_text(pill, "operations.none_active")
             layout.addWidget(pill)
             return
         for text in values:
@@ -123,7 +155,12 @@ class Sidebar(_BaseSidebar):
         identity_layout.setSpacing(5)
         identity_layout.addWidget(title)
 
-        toggle.setText("──── панели ────")
+        toggle.setText(
+            self._text(
+                "shell.panels.decorated",
+                "──── панели ────",
+            )
+        )
         toggle.setMinimumHeight(28)
         toggle.setMaximumHeight(28)
         toggle.setMinimumWidth(148)
@@ -151,3 +188,68 @@ class Sidebar(_BaseSidebar):
             if isinstance(layout, QVBoxLayout):
                 return layout
         return None
+
+    def _bind_localized_shell(self) -> None:
+        localization = self._localization
+        if localization is None:
+            return
+
+        title = self.findChild(QLabel, "SidebarTitle")
+        if title is not None:
+            localization.bind_text(title, "app.name")
+            localization.bind_tooltip(title, "app.name")
+        localization.bind_text(
+            self._window_toggle,
+            "shell.panels.decorated",
+        )
+
+        if self._workflow_layout is not None:
+            item = self._workflow_layout.itemAt(0)
+            heading = item.widget() if item is not None else None
+            if isinstance(heading, QLabel):
+                localization.bind_text(
+                    heading,
+                    "shell.active_processes",
+                )
+
+        for screen_id, button in self._buttons.items():
+            key = NAVIGATION_KEYS.get(screen_id)
+            if key is None:
+                continue
+            button.setProperty("navigation_key", key)
+            localization.bind_text(button, key)
+            self._refresh_navigation_button(button)
+
+    def _refresh_localized_shortcuts(self, _locale: str) -> None:
+        for button in self._buttons.values():
+            self._refresh_navigation_button(button)
+
+    def _refresh_navigation_button(self, button: NavButton) -> None:
+        key = str(button.property("navigation_key") or "")
+        if key:
+            title = self._text(key, button.text())
+            button.setText(title)
+        else:
+            title = button.text()
+        shortcut = str(button.property("navigation_shortcut") or "")
+        if shortcut:
+            button.setToolTip(
+                self._text(
+                    "nav.open_tooltip",
+                    f"Открыть вкладку «{title}» · {shortcut}",
+                    title=title,
+                    shortcut=shortcut,
+                )
+            )
+        else:
+            button.setToolTip(title)
+
+    def _text(
+        self,
+        key: str,
+        fallback: str,
+        **values: object,
+    ) -> str:
+        if self._localization is None:
+            return fallback
+        return self._localization.text(key, **values)
