@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
@@ -136,7 +138,7 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         real_contexts = tuple(
             context
             for context in contexts.values()
-            if not context.get("node_kind", "").endswith("_placeholder")
+            if not self._is_placeholder_context(context)
         )
         dataset_count = sum(
             context.get("node_kind") == "dataset"
@@ -149,9 +151,9 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         bad_count = sum(node.tone == "bad" for node in projection.nodes)
         pending_count = sum(
             node.tone == "pending"
-            and not contexts.get(node.node_id, {})
-            .get("node_kind", "")
-            .endswith("_placeholder")
+            and not self._is_placeholder_context(
+                contexts.get(node.node_id, {})
+            )
             for node in projection.nodes
         )
         unresolved_count = sum(
@@ -202,8 +204,13 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         )
 
     @staticmethod
+    def _is_placeholder_context(context: Mapping[str, str]) -> bool:
+        return context.get("node_kind", "").endswith("_placeholder")
+
+    @classmethod
     def _projection_next_action(
-        contexts: dict[str, dict[str, str]],
+        cls,
+        contexts: Mapping[str, Mapping[str, str]],
         delta_ready: bool,
     ) -> str:
         for node_id, action in (
@@ -212,9 +219,7 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
             ("snapshot", "Зарегистрируйте model version из artifact."),
             ("portrait", "Соберите портрет текущей model version."),
         ):
-            if contexts.get(node_id, {}).get("node_kind", "").endswith(
-                "_placeholder"
-            ):
+            if cls._is_placeholder_context(contexts.get(node_id, {})):
                 return action
         if not delta_ready:
             return "Соберите второй сопоставимый portrait для delta."
