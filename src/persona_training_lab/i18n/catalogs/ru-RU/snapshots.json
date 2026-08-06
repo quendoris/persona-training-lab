@@ -6,7 +6,6 @@
   },
   "messages": {
     "snapshots.screen.title": "Снимки",
-    "snapshots.screen.subtitle": "Зарегистрированные версии модели после успешного обучения.",
     "snapshots.action.refresh": "Обновить снимки",
     "snapshots.card.registry.title": "Реестр снимков",
     "snapshots.card.registry.subtitle": "Версии модели, зарегистрированные после full fine-tune.",
