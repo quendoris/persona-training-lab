@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
+from PySide6.QtGui import QColor, QCloseEvent, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.application.operations_center import OperationsCenterService
 from persona_training_lab.ui.shell.main_window import MainWindow as _MainWindow
+from persona_training_lab.ui.shell.window_state import WindowStateStore
 
 
 TAB_SHORTCUTS: tuple[tuple[str, str], ...] = (
@@ -29,7 +30,7 @@ TAB_SHORTCUTS: tuple[tuple[str, str], ...] = (
 
 
 class MainWindow(_MainWindow):
-    """Context navigation, live operations center and global tab shortcuts."""
+    """Context navigation, live operations center and durable shell state."""
 
     def __init__(
         self,
@@ -41,7 +42,13 @@ class MainWindow(_MainWindow):
         self._tab_shortcuts: list[QShortcut] = []
         self._guidance_generation = 0
         self._guidance_target: QWidget | None = None
+        self._window_state_store = WindowStateStore()
+        self._skip_next_dock_rebalance = False
         super().__init__(*args, **kwargs)
+
+        restored = self._window_state_store.restore(self)
+        self._skip_next_dock_rebalance = restored.docks_restored
+
         self._connect_operations_center()
         self._connect_dashboard_navigation()
         self._key_binding_manager.bindings_changed.connect(
@@ -53,7 +60,14 @@ class MainWindow(_MainWindow):
         self._operations_timer.setInterval(900)
         self._operations_timer.timeout.connect(self._refresh_operations_chrome)
         self._operations_timer.start()
-        self._refresh_operations_chrome()
+
+        if (
+            restored.workspace_key
+            and self._workspace.workspace(restored.workspace_key) is not None
+        ):
+            self._go_to_screen(restored.workspace_key)
+        else:
+            self._refresh_operations_chrome()
 
     def _go_to_screen_with_context(
         self,
@@ -241,7 +255,28 @@ class MainWindow(_MainWindow):
                 len(issues),
             )
 
+    def _rebalance_docks(self) -> None:
+        if self._skip_next_dock_rebalance:
+            self._skip_next_dock_rebalance = False
+            central = self.centralWidget()
+            if central is not None:
+                central.updateGeometry()
+            return
+        super()._rebalance_docks()
+
     def _on_screen_selected(self, screen: str) -> None:
         super()._on_screen_selected(screen)
         self._sync_inspector_shortcut(screen)
         self._refresh_operations_chrome()
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+        super().closeEvent(event)
+        if not event.isAccepted():
+            return
+
+        self._operations_timer.stop()
+        self._clear_guidance_effect()
+        self._window_state_store.save(
+            self,
+            self._workspace.current_workspace_key(),
+        )
