@@ -48,6 +48,7 @@ _WIDGET_TEXT_METHODS = {
     "setWhatsThis": (0,),
     "setWindowTitle": (0,),
 }
+_DYNAMIC_PREFIX_NAMES = {"I18N_KEY_PREFIXES"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +104,7 @@ class SourceAudit(ast.NodeVisitor):
         self._known_keys = known_keys
         self._display_root = display_root
         self.translation_keys: set[str] = set()
+        self.translation_prefixes: set[str] = set()
         self.literals: list[LiteralFinding] = []
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -135,6 +137,26 @@ class SourceAudit(ast.NodeVisitor):
                 node,
                 call_name,
                 _WIDGET_TEXT_METHODS[call_name],
+            )
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        if any(
+            _target_name(target) in _DYNAMIC_PREFIX_NAMES
+            for target in node.targets
+        ):
+            self.translation_prefixes.update(
+                _constant_string_sequence(node.value)
+            )
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if (
+            _target_name(node.target) in _DYNAMIC_PREFIX_NAMES
+            and node.value is not None
+        ):
+            self.translation_prefixes.update(
+                _constant_string_sequence(node.value)
             )
         self.generic_visit(node)
 
@@ -190,6 +212,10 @@ def audit_sources(
         )
         visitor.visit(tree)
         keys.update(visitor.translation_keys)
+        for prefix in visitor.translation_prefixes:
+            keys.update(
+                key for key in known_keys if key.startswith(prefix)
+            )
         literals.extend(visitor.literals)
     return keys, literals
 
@@ -267,6 +293,22 @@ def _call_name(node: ast.expr) -> str:
     if isinstance(node, ast.Attribute):
         return node.attr
     return ""
+
+
+def _target_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    return ""
+
+
+def _constant_string_sequence(node: ast.expr) -> tuple[str, ...]:
+    if not isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return ()
+    values: list[str] = []
+    for item in node.elts:
+        if isinstance(item, ast.Constant) and isinstance(item.value, str):
+            values.append(item.value)
+    return tuple(values)
 
 
 def _constant_argument(
