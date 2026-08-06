@@ -49,6 +49,17 @@ class SQLiteLineageResourceLinksRepository:
                     stale,
                 )
 
+    def list_node_ids(self) -> tuple[str, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT DISTINCT node_id
+                FROM lineage_resource_links
+                ORDER BY node_id
+                """
+            ).fetchall()
+        return tuple(str(row["node_id"]) for row in rows)
+
     def list_links(self, node_id: str) -> tuple[ResourceClaim, ...]:
         with self._lock:
             rows = self._connection.execute(
