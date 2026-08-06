@@ -39,8 +39,8 @@ _PREFIX_BY_KIND = {
     LineageEntityKind.EVALUATION_RUN: "Portrait",
 }
 _PRIMARY_RELATION_PRIORITY = {
-    LineageRelation.BACKS_VERSION: 0,
-    LineageRelation.PRODUCES_VERSION: 1,
+    LineageRelation.PRODUCES_VERSION: 0,
+    LineageRelation.BACKS_VERSION: 1,
     LineageRelation.EVALUATES_VERSION: 2,
     LineageRelation.PRODUCES_ARTIFACT: 3,
     LineageRelation.USES_DATASET: 4,
