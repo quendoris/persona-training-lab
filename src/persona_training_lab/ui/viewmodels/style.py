@@ -12,7 +12,12 @@ class StyleViewModel:
     def load(self) -> dict[str, str | None]:
         return self.style_service.load_preferences()
 
-    def save(self, theme: str, accent_palette: str, button_style_preset: str) -> None:
+    def save(
+        self,
+        theme: str,
+        accent_palette: str,
+        button_style_preset: str,
+    ) -> None:
         current = self.load()
         self.style_service.save_preferences(
             {
@@ -20,6 +25,7 @@ class StyleViewModel:
                 "accent_palette": accent_palette,
                 "button_style_preset": button_style_preset,
                 "ui_scale": current.get("ui_scale") or "auto",
+                "language": current.get("language") or "ru-RU",
             }
         )
 
@@ -29,7 +35,24 @@ class StyleViewModel:
             {
                 "theme": current.get("theme") or "velvet",
                 "accent_palette": current.get("accent_palette") or "cyan",
-                "button_style_preset": current.get("button_style_preset") or "soft_glow",
+                "button_style_preset": (
+                    current.get("button_style_preset") or "soft_glow"
+                ),
                 "ui_scale": ui_scale,
+                "language": current.get("language") or "ru-RU",
+            }
+        )
+
+    def save_language(self, language: str) -> None:
+        current = self.load()
+        self.style_service.save_preferences(
+            {
+                "theme": current.get("theme") or "velvet",
+                "accent_palette": current.get("accent_palette") or "cyan",
+                "button_style_preset": (
+                    current.get("button_style_preset") or "soft_glow"
+                ),
+                "ui_scale": current.get("ui_scale") or "auto",
+                "language": language,
             }
         )
