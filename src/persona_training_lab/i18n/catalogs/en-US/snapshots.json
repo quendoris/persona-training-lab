@@ -6,7 +6,6 @@
   },
   "messages": {
     "snapshots.screen.title": "Snapshots",
-    "snapshots.screen.subtitle": "Registered model versions created after successful training.",
     "snapshots.action.refresh": "Refresh snapshots",
     "snapshots.card.registry.title": "Snapshot registry",
     "snapshots.card.registry.subtitle": "Model versions registered after full fine-tune.",
