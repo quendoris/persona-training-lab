@@ -15,7 +15,7 @@ def _app() -> QApplication:
 
 def _node(
     *,
-    title: str = "Version · old",
+    title: str = "Version · stable",
     subtitle: str = "loss=0.5",
     status: str = "running",
     tone: str = "pending",
@@ -44,11 +44,11 @@ def test_content_repaint_preserves_offsets_and_workspace_geometry() -> None:
     offset = QPointF(37.0, -19.0)
     canvas._node_offsets["snapshot"] = offset
     geometry = canvas._workspace_geometry
+    assert geometry is not None
 
     changed = canvas.update_node_content(
         (
             _node(
-                title="Version · live",
                 subtitle="loss=0.1",
                 status="ready",
                 tone="good",
@@ -57,10 +57,26 @@ def test_content_repaint_preserves_offsets_and_workspace_geometry() -> None:
     )
 
     assert changed is True
-    assert canvas._nodes[0].title == "Version · live"
+    assert canvas._nodes[0].title == "Version · stable"
+    assert canvas._nodes[0].subtitle == "loss=0.1"
     assert canvas._nodes[0].status == "ready"
     assert canvas._node_offsets["snapshot"] == offset
     assert canvas._workspace_geometry is geometry
+    canvas.deleteLater()
+
+
+def test_content_repaint_rejects_title_footprint_changes() -> None:
+    app = _app()
+    assert app is not None
+    original = _node()
+    canvas = VersionGraphCanvas((original,))
+
+    changed = canvas.update_node_content(
+        (_node(title="Version · a much longer renamed model version"),)
+    )
+
+    assert changed is False
+    assert canvas._nodes == (original,)
     canvas.deleteLater()
 
 
