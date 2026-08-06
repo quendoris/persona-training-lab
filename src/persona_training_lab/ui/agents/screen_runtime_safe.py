@@ -9,6 +9,10 @@ from persona_training_lab.application.runtime.operations import ResourceClaim
 from persona_training_lab.ui.agents.atomic_lineage import build_real_lineage
 from persona_training_lab.ui.agents.lineage import build_version_lineage
 from persona_training_lab.ui.agents.real_lineage import RealLineageProjection
+from persona_training_lab.ui.agents.runtime_policy import (
+    LineageBranchTransactions,
+    LineageRuntimePolicy,
+)
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as _FinalAgentsScreen,
 )
@@ -28,6 +32,10 @@ class AgentsScreen(_FinalAgentsScreen):
         lineage_runtime_safety: LineageRuntimeSafety | None = None,
     ) -> None:
         self._lineage_runtime_safety = lineage_runtime_safety
+        self._runtime_policy = LineageRuntimePolicy(lineage_runtime_safety)
+        self._branch_transactions = LineageBranchTransactions(
+            lineage_runtime_safety
+        )
         self._runtime_blocker_signature: tuple[tuple[str, str, str], ...] = ()
         self._real_projection: RealLineageProjection | None = None
         self._real_projection_signature: tuple[
@@ -62,37 +70,33 @@ class AgentsScreen(_FinalAgentsScreen):
     def _continue_from_selected(self) -> None:
         parent_id = getattr(self, "_selected_node_id", "")
         fallback_claims = self._runtime_claims_for_node(parent_id)
+        parent_is_custom = self._state.is_custom_node(parent_id)
         super()._continue_from_selected()
         child_id = getattr(self, "_selected_node_id", "")
-        safety = self._lineage_runtime_safety
-        if safety is None or not child_id:
+        if not child_id:
             return
-        if self._state.is_custom_node(parent_id):
-            safety.inherit_node(
-                child_id,
-                parent_id,
-                fallback_claims=fallback_claims,
-            )
-        else:
-            safety.bind_node(child_id, fallback_claims)
+        self._branch_transactions.bind_child(
+            child_id,
+            parent_id,
+            parent_is_custom=parent_is_custom,
+            fallback_claims=fallback_claims,
+        )
         self._refresh_runtime_safety(force=True)
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
         removed_ids = self._state.custom_subtree_ids(node_id)
         if not removed_ids:
             return
-        blockers = self._deletion_blockers(removed_ids)
-        if blockers:
-            self._show_runtime_blockers(blockers)
+        blocker_state = self._runtime_policy.blockers_for(removed_ids)
+        if blocker_state.blockers:
+            self._show_runtime_blockers(blocker_state.blockers)
             return
 
         super()._delete_local_branch_subtree(node_id)
         if self._state.is_custom_node(node_id):
             # Confirmation was cancelled; dependency links stay untouched.
             return
-        safety = self._lineage_runtime_safety
-        if safety is not None:
-            safety.forget_nodes(removed_ids)
+        self._branch_transactions.forget(removed_ids)
         self._refresh_runtime_safety(force=True)
 
     def _sync_detail_actions(
@@ -110,30 +114,38 @@ class AgentsScreen(_FinalAgentsScreen):
             is_archived=is_archived,
         )
         context = self._node_context(node_id)
-        if context.get("node_kind") == "model_version" and not is_custom:
-            self._make_current_action.setEnabled(
-                not is_current and not is_archived
-            )
-            self._compare_action.setEnabled(not is_current)
-            self._portrait_action.setEnabled(True)
-            self._branch_action.setEnabled(not is_archived)
-            self._delete_action.setEnabled(False)
+        subtree_ids = (
+            self._state.custom_subtree_ids(node_id)
+            if is_custom
+            else ()
+        )
+        overrides = self._runtime_policy.action_overrides(
+            node_kind=context.get("node_kind", ""),
+            is_custom=is_custom,
+            is_current=is_current,
+            is_archived=is_archived,
+            subtree_ids=subtree_ids,
+        )
+        for button, enabled in (
+            (self._make_current_action, overrides.make_current),
+            (self._compare_action, overrides.compare),
+            (self._portrait_action, overrides.portrait),
+            (self._branch_action, overrides.branch),
+            (self._delete_action, overrides.delete),
+        ):
+            if enabled is not None:
+                button.setEnabled(enabled)
+
+        if overrides.delete_reason_code == "registered_model_version":
             self._delete_action.setToolTip(
                 "Зарегистрированные model versions удаляются только через "
                 "отдельную транзакцию хранения, не из локального lineage."
             )
-
-        if not is_custom:
-            return
-        subtree_ids = self._state.custom_subtree_ids(node_id)
-        blockers = self._deletion_blockers(subtree_ids)
-        if not blockers:
-            return
-        self._delete_action.setEnabled(False)
-        self._delete_action.setToolTip(
-            "Удаление временно заблокировано активной операцией: "
-            + self._lineage_runtime_safety.blocker_text(blockers)
-        )
+        elif overrides.delete_reason_code == "active_operation":
+            self._delete_action.setToolTip(
+                "Удаление временно заблокировано активной операцией: "
+                + overrides.blocker_text
+            )
 
     def _render_detail(self, detail: AgentDetailView) -> None:
         super()._render_detail(detail)
@@ -171,20 +183,13 @@ class AgentsScreen(_FinalAgentsScreen):
             if self._state.is_custom_node(node_id)
             else (node_id,)
         )
-        blockers = self._deletion_blockers(node_ids)
-        signature = tuple(
-            sorted(
-                (
-                    blocker.operation.operation_id,
-                    blocker.claim.resource_kind,
-                    blocker.claim.resource_id,
-                )
-                for blocker in blockers
-            )
-        )
-        if not force and signature == self._runtime_blocker_signature:
+        blocker_state = self._runtime_policy.blockers_for(node_ids)
+        if (
+            not force
+            and blocker_state.signature == self._runtime_blocker_signature
+        ):
             return
-        self._runtime_blocker_signature = signature
+        self._runtime_blocker_signature = blocker_state.signature
         self._select_node(node_id)
 
     def _apply_projection(self, projection: RealLineageProjection) -> None:
@@ -206,21 +211,20 @@ class AgentsScreen(_FinalAgentsScreen):
             self._select_node(selected)
 
     def _apply_runtime_dependency_text(self) -> None:
-        safety = self._lineage_runtime_safety
         node_id = getattr(self, "_selected_node_id", "")
-        if safety is None or not node_id:
+        if not node_id:
             return
         node_ids = (
             self._state.custom_subtree_ids(node_id)
             if self._state.is_custom_node(node_id)
             else (node_id,)
         )
-        blockers = self._deletion_blockers(node_ids)
-        if blockers:
+        blocker_state = self._runtime_policy.blockers_for(node_ids)
+        if blocker_state.blockers:
             base = self._detail_dependency.text().strip()
             runtime_text = (
                 "Активная операция удерживает эту точку или её зависимость: "
-                + safety.blocker_text(blockers)
+                + blocker_state.text
                 + ". Интерфейс остаётся доступен, но разрушительные действия "
                 "временно отключены."
             )
@@ -229,7 +233,7 @@ class AgentsScreen(_FinalAgentsScreen):
             )
             return
 
-        links = safety.links_for_node(node_id)
+        links = self._runtime_policy.linked_resources(node_id)
         if links:
             base = self._detail_dependency.text().strip()
             linked = ", ".join(
@@ -241,12 +245,9 @@ class AgentsScreen(_FinalAgentsScreen):
             )
 
     def _show_runtime_blockers(self, blockers) -> None:
-        safety = self._lineage_runtime_safety
-        if safety is None:
-            return
         message = (
             "Удаление не выполнено: точка используется активной операцией. "
-            + safety.blocker_text(blockers)
+            + self._runtime_policy.text_for_blockers(blockers)
         )
         self._detail_dependency.setText(message)
         self._delete_action.setEnabled(False)
@@ -258,10 +259,7 @@ class AgentsScreen(_FinalAgentsScreen):
             setter(message)
 
     def _deletion_blockers(self, node_ids):
-        safety = self._lineage_runtime_safety
-        if safety is None:
-            return ()
-        return safety.deletion_blockers(node_ids)
+        return self._runtime_policy.blockers_for(node_ids).blockers
 
     def _bind_projection_resources(self) -> None:
         safety = self._lineage_runtime_safety
@@ -275,20 +273,16 @@ class AgentsScreen(_FinalAgentsScreen):
         self,
         node_id: str,
     ) -> tuple[ResourceClaim, ...]:
-        safety = self._lineage_runtime_safety
-        if safety is not None and self._state.is_custom_node(node_id):
-            inherited = safety.links_for_node(node_id)
-            if inherited:
-                return inherited
         projection = self._real_projection
-        if projection is not None:
-            projected = projection.resources.get(node_id, ())
-            if projected:
-                return projected
-        return ()
+        resources = {} if projection is None else projection.resources
+        return self._runtime_policy.claims_for_node(
+            node_id,
+            is_custom=self._state.is_custom_node(node_id),
+            projection_resources=resources,
+        )
 
     def _node_context(self, node_id: str) -> dict[str, str]:
         projection = self._real_projection
         if projection is None:
             return {}
-        return projection.entity_context.get(node_id, {})
+        return dict(projection.entity_context.get(node_id, {}))
