@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from persona_training_lab.application.experiments.service import ExperimentsService
+from persona_training_lab.application.experiments.service import (
+    ExperimentsService,
+)
+from persona_training_lab.domain.evaluation.statuses import (
+    EvaluationRunStatus,
+)
 
 
 class _Repo:
@@ -27,7 +32,12 @@ class _LocalModel:
         self.probed.append(path)
         return SimpleNamespace(status="Модель найдена", details="ok")
 
-    def generate_at(self, path: str, prompt: str, instruction_prompt=None):
+    def generate_at(
+        self,
+        path: str,
+        prompt: str,
+        instruction_prompt=None,
+    ):
         self.generated.append(path)
         return SimpleNamespace(
             status="Модель отвечает",
@@ -64,11 +74,15 @@ def test_portrait_runs_against_requested_weight_artifact() -> None:
     result = service.run_personality_portrait_test_pack("mdl_old")
 
     assert result.ok is True
+    assert result.message_code == "portrait_completed"
     assert model.probed == ["/models/old"]
     assert model.generated
     assert set(model.generated) == {"/models/old"}
     assert "model_version=mdl_old" in repo.created[0]["subtitle"]
     assert "artifact=/models/old" in repo.created[0]["subtitle"]
+    assert repo.created[0]["status"] == EvaluationRunStatus.COMPLETED.value
+    summary = service.list_experiments()[0]
+    assert summary.status_code is EvaluationRunStatus.COMPLETED
 
 
 def test_unknown_requested_version_fails_without_using_latest() -> None:
@@ -83,6 +97,8 @@ def test_unknown_requested_version_fails_without_using_latest() -> None:
     result = service.run_personality_portrait_test_pack("mdl_missing")
 
     assert result.ok is False
+    assert result.message_code == "model_version_not_found"
+    assert result.message_values["model_version_id"] == "mdl_missing"
     assert "mdl_missing" in result.message
     assert model.probed == []
     assert model.generated == []
