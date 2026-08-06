@@ -5,12 +5,9 @@ from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
-    QFrame,
     QHBoxLayout,
-    QLabel,
     QMainWindow,
     QMenu,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -19,10 +16,6 @@ from persona_training_lab.application.lineage.runtime_safety import (
 )
 from persona_training_lab.ui.agents.screen import AgentsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
-from persona_training_lab.ui.components.panels import (
-    make_muted_label,
-    make_status_label,
-)
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.density import screen_density, scaled
@@ -54,48 +47,6 @@ from persona_training_lab.ui.viewmodels.style import StyleViewModel
 from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
 from persona_training_lab.ui.viewmodels.tests import TestsViewModel
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
-
-
-class _PlaceholderScreen(QWidget):
-    def __init__(
-        self,
-        title_text: str,
-        subtitle_text: str,
-        helper_text: str,
-    ) -> None:
-        super().__init__()
-        layout = QVBoxLayout(self)
-        header = QFrame()
-        header.setObjectName("ShellHeader")
-        header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(
-            scaled(22),
-            scaled(18),
-            scaled(22),
-            scaled(18),
-        )
-        header_layout.setSpacing(scaled(8))
-        title = QLabel(title_text)
-        title.setObjectName("ScreenTitle")
-        subtitle = make_muted_label(subtitle_text)
-        header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
-        layout.addWidget(header)
-
-        card = QFrame()
-        card.setObjectName("AccentCard")
-        card_layout = QVBoxLayout(card)
-        card_layout.addWidget(QLabel("Модуль в работе"))
-        card_layout.addWidget(make_muted_label(helper_text))
-        badges = QHBoxLayout()
-        badges.addWidget(make_status_label("Phase 2.1"))
-        badges.addWidget(
-            make_status_label("скоро оживим", warning=True)
-        )
-        badges.addStretch(1)
-        card_layout.addLayout(badges)
-        layout.addWidget(card)
-        layout.addStretch(1)
 
 
 class MainWindow(QMainWindow):
@@ -147,10 +98,7 @@ class MainWindow(QMainWindow):
         self._sidebar = Sidebar(
             style_vm=style_vm,
             on_apply_theme=self._apply_style,
-            active_workflows=[
-                "Training · trn_014",
-                "Evaluation · evr_004",
-            ],
+            active_workflows=[],
         )
         self._key_binding_manager = KeyBindingManager(parent=self)
         self._workspace = WorkspaceStack()
