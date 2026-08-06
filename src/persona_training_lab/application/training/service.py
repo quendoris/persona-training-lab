@@ -7,8 +7,19 @@ from typing import Any
 from uuid import uuid4
 
 from persona_training_lab.application.datasets.service import DatasetsService
-from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
-from persona_training_lab.application.local_model.service import LocalModelService
+from persona_training_lab.application.datasets.status_mapping import (
+    normalize_dataset_status,
+)
+from persona_training_lab.application.errors.reporter import (
+    ApplicationErrorReporter,
+)
+from persona_training_lab.application.local_model.service import (
+    LocalModelService,
+)
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+    normalize_local_model_status,
+)
 from persona_training_lab.application.ports.repositories import (
     TrainingReadRepositoryPort,
     TrainingWriteRepositoryPort,
@@ -23,6 +34,13 @@ from persona_training_lab.application.runtime.operations import (
 from persona_training_lab.application.training.full_backend import (
     LocalFullFineTuneBackend,
 )
+from persona_training_lab.application.training.status_mapping import (
+    normalize_training_status,
+)
+from persona_training_lab.domain.datasets.statuses import (
+    DatasetVersionStatus,
+)
+from persona_training_lab.domain.training.statuses import TrainingRunStatus
 
 
 @dataclass(slots=True, frozen=True)
@@ -42,6 +60,7 @@ class TrainingRunSummary:
     progress: str = "0"
     artifact_path: str = ""
     error_message: str = ""
+    status_code: TrainingRunStatus = TrainingRunStatus.UNKNOWN
 
 
 @dataclass(slots=True, frozen=True)
@@ -55,14 +74,29 @@ class TrainingDatasetOption:
     dataset_id: str
     title: str
     status: str
+    status_code: DatasetVersionStatus = DatasetVersionStatus.UNKNOWN
 
 
 class TrainingConfigurationError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "configuration_error",
+    ) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class TrainingValidationError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "validation_error",
+    ) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(slots=True)
@@ -95,6 +129,9 @@ class TrainingService:
                 progress=row.get("progress", "0"),
                 artifact_path=row.get("artifact_path", ""),
                 error_message=row.get("error_message", ""),
+                status_code=normalize_training_status(
+                    row.get("status", "")
+                ),
             )
             for row in rows
         ]
@@ -128,6 +165,7 @@ class TrainingService:
                 dataset_id=item.dataset_id,
                 title=item.title,
                 status=item.status,
+                status_code=normalize_dataset_status(item.status),
             )
             for item in self.datasets_service.list_datasets()
         ]
@@ -145,8 +183,9 @@ class TrainingService:
     ) -> TrainingRunSummary:
         if epochs <= 0 or batch_size <= 0 or learning_rate <= 0:
             raise TrainingValidationError(
-                "Проверьте гиперпараметры: epochs, batch size и learning rate "
-                "должны быть больше 0"
+                "Проверьте гиперпараметры: epochs, batch size и learning "
+                "rate должны быть больше 0",
+                code="invalid_hyperparameters",
             )
 
         profiles = self.list_profile_options()
@@ -156,7 +195,8 @@ class TrainingService:
         )
         if selected_profile is None:
             raise TrainingConfigurationError(
-                "Сначала создайте профиль личности"
+                "Сначала создайте профиль личности",
+                code="profile_required",
             )
 
         datasets = self.list_dataset_options()
@@ -166,20 +206,27 @@ class TrainingService:
         )
         if (
             selected_dataset is None
-            or selected_dataset.status != "Одобрен для обучения"
+            or selected_dataset.status_code
+            is not DatasetVersionStatus.APPROVED
         ):
             raise TrainingConfigurationError(
-                "Сначала добавьте, проверьте и одобрите датасет"
+                "Сначала добавьте, проверьте и одобрите датасет",
+                code="dataset_required",
             )
 
         if self.local_model_service is None:
             raise TrainingConfigurationError(
-                "Сначала проверьте локальную модель"
+                "Сначала проверьте локальную модель",
+                code="model_required",
             )
         model_probe = self.local_model_service.probe_model_files()
-        if model_probe.status != "Модель найдена":
+        if (
+            normalize_local_model_status(model_probe.status)
+            is not LocalModelStatus.FOUND
+        ):
             raise TrainingConfigurationError(
-                "Сначала проверьте локальную модель"
+                "Сначала проверьте локальную модель",
+                code="model_required",
             )
 
         run_id = f"trn_{uuid4().hex[:8]}"
@@ -231,6 +278,7 @@ class TrainingService:
             progress="0",
             artifact_path="",
             error_message="",
+            status_code=TrainingRunStatus.READY,
         )
 
     def _parse_hparams(self, subtitle: str) -> tuple[int, int, float]:
@@ -313,18 +361,25 @@ class TrainingService:
         get_run = getattr(self.training_repo, "get_training_run", None)
         if get_run is None:
             raise TrainingValidationError(
-                "Не удалось запустить обучение"
+                "Не удалось запустить обучение",
+                code="start_failed",
             )
         run = get_run(run_id)
         if run is None:
-            raise TrainingValidationError("Запуск обучения не найден")
-        if run.get("status", "") == "Выполняется":
             raise TrainingValidationError(
-                "Запуск обучения уже выполняется"
+                "Запуск обучения не найден",
+                code="run_not_found",
             )
-        if run.get("status", "") != "Готов к запуску":
+        status_code = normalize_training_status(run.get("status", ""))
+        if status_code is TrainingRunStatus.RUNNING:
             raise TrainingValidationError(
-                "Запуск обучения не готов к старту"
+                "Запуск обучения уже выполняется",
+                code="already_running",
+            )
+        if status_code is not TrainingRunStatus.READY:
+            raise TrainingValidationError(
+                "Запуск обучения не готов к старту",
+                code="not_ready",
             )
         if self.full_backend is None:
             self._set_terminal_error(
@@ -342,8 +397,8 @@ class TrainingService:
         except OperationConflictError as conflict:
             blocker = conflict.blockers[0] if conflict.blockers else None
             message = (
-                "Запуск временно недоступен: нужная модель или вычислительный "
-                "ресурс уже используется"
+                "Запуск временно недоступен: нужная модель или "
+                "вычислительный ресурс уже используется"
             )
             if blocker is not None:
                 message += f" ({blocker.operation.operation_kind})"
@@ -431,7 +486,10 @@ class TrainingService:
                         )
                     )
 
-            is_success = result.status == "Завершено"
+            is_success = (
+                normalize_training_status(result.status)
+                is TrainingRunStatus.COMPLETED
+            )
             self._set_runtime(
                 run_id,
                 {
@@ -472,8 +530,8 @@ class TrainingService:
                     error,
                     component="training.full_finetune",
                     user_message=(
-                        "Обучение остановлено безопасно. Интерфейс продолжает "
-                        "работать; подробности записаны в журнал."
+                        "Обучение остановлено безопасно. Интерфейс "
+                        "продолжает работать; подробности записаны в журнал."
                     ),
                     entity_kind="training_run",
                     entity_id=run_id,
@@ -552,7 +610,11 @@ class TrainingService:
             "get_training_run",
             lambda _id: None,
         )(run_id)
-        return bool(run and run.get("status") != "Выполняется")
+        return bool(
+            run
+            and normalize_training_status(run.get("status"))
+            is not TrainingRunStatus.RUNNING
+        )
 
     def run_marker_finetune_smoke(
         self,
