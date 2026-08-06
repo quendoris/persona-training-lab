@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from functools import lru_cache
+from importlib.resources import files
+from pathlib import Path
+
 from persona_training_lab.application.operations_center import OperationsCenterItem
+from persona_training_lab.i18n.catalog import LocaleCatalog
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 
 
@@ -32,17 +37,29 @@ _SEVERITY_KEYS: dict[str, str] = {
 }
 
 
+@lru_cache(maxsize=1)
+def _base_catalog() -> LocaleCatalog:
+    path = Path(
+        str(
+            files("persona_training_lab.i18n").joinpath(
+                "catalogs",
+                "ru-RU.json",
+            )
+        )
+    )
+    return LocaleCatalog.load(path)
+
+
 def text(
     localization: LocalizationManager | None,
     key: str,
-    fallback: str,
     *,
     count: int | None = None,
     **values: object,
 ) -> str:
-    if localization is None:
-        return fallback.format_map(values) if values else fallback
-    return localization.text(key, count=count, **values)
+    if localization is not None:
+        return localization.text(key, count=count, **values)
+    return _base_catalog().text(key, count=count, values=values)
 
 
 def item_title(
@@ -51,18 +68,18 @@ def item_title(
 ) -> str:
     if not item.operation_kind:
         return item.title
+    key = _OPERATION_KIND_KEYS.get(
+        item.operation_kind,
+        "operations.kind.generic",
+    )
     operation = text(
         localization,
-        _OPERATION_KIND_KEYS.get(
-            item.operation_kind,
-            "operations.kind.generic",
-        ),
-        item.operation_kind.replace("_", " ").title() or "Операция",
+        key,
+        kind=item.operation_kind.replace("_", " ").title(),
     )
     return text(
         localization,
         "operations.item.title",
-        "{operation} · {subject}",
         operation=operation,
         subject=item.operation_subject,
     )
@@ -78,7 +95,6 @@ def item_summary(
     summary = text(
         localization,
         "operations.item.summary",
-        "{subject} · {state}",
         subject=item.operation_subject,
         state=state,
     )
@@ -86,7 +102,6 @@ def item_summary(
         return text(
             localization,
             "operations.item.summary_with_error",
-            "{summary} · {error}",
             summary=summary,
             error=item.operation_error,
         )
@@ -98,18 +113,18 @@ def item_status(
     localization: LocalizationManager | None,
 ) -> str:
     if item.operation_state:
+        key = _OPERATION_STATE_KEYS.get(
+            item.operation_state,
+            "operations.state.unknown",
+        )
         return text(
             localization,
-            _OPERATION_STATE_KEYS.get(
-                item.operation_state,
-                "operations.state.unknown",
-            ),
-            item.status or item.operation_state,
+            key,
+            state=item.operation_state,
         )
     return text(
         localization,
         _SEVERITY_KEYS.get(item.severity, "operations.severity.info"),
-        item.status,
     )
 
 
@@ -119,4 +134,4 @@ def item_focus(
 ) -> str:
     if not item.focus_key:
         return item.focus_text
-    return text(localization, item.focus_key, item.focus_text)
+    return text(localization, item.focus_key)
