@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+    normalize_local_model_status,
+)
 from persona_training_lab.application.ports.local_model_probe import (
     InferenceProbeResult,
     LocalInferenceResult,
@@ -49,7 +53,10 @@ class LocalModelService:
         instruction_prompt: str | None = None,
     ) -> LocalInferenceResult:
         model_probe = self.probe_model_files_at(model_path)
-        if model_probe.status != "Модель найдена":
+        if (
+            normalize_local_model_status(model_probe.status)
+            is not LocalModelStatus.FOUND
+        ):
             return LocalInferenceResult(
                 status="Модель не загружена",
                 message=model_probe.details,
