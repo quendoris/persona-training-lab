@@ -68,7 +68,8 @@ class SQLiteLineageResourceLinksRepository:
                 FROM lineage_resource_links
                 WHERE node_id = ?
                 ORDER BY resource_kind, resource_id
-                """
+                """,
+                (node_id,),
             ).fetchall()
         return tuple(
             ResourceClaim(
