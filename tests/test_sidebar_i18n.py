@@ -90,8 +90,22 @@ def test_sidebar_shell_switches_language_without_widget_rebuild(
     assert agents_button.text() == "Agents"
     assert agents_button.toolTip() == "Open the “Agents” tab · Alt+A"
     assert sidebar._window_toggle.text() == "──── panels ────"
+    assert sidebar._theme_title.text() == "Themes"
+    assert sidebar._scale_title.text() == "Scale"
+    assert sidebar._theme_toggle.text() == "Show"
+    assert sidebar._scale_toggle.text() == "Show"
+    assert sidebar._reset_scale.text() == "Auto"
+    assert sidebar._scale_value.text().startswith("Auto ")
+    assert sidebar._scale_hint.text() == "Automatic based on screen height"
     assert "Active processes" in _labels(sidebar)
     assert "No active operations" in _labels(sidebar)
+
+    sidebar._theme_toggle.setChecked(True)
+    sidebar._toggle_theme_panel(True)
+    sidebar._scale_toggle.setChecked(True)
+    sidebar._toggle_scale_panel(True)
+    assert sidebar._theme_toggle.text() == "Hide"
+    assert sidebar._scale_toggle.text() == "Hide"
 
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     manager.set_locale("ru-RU")
@@ -101,9 +115,20 @@ def test_sidebar_shell_switches_language_without_widget_rebuild(
     assert agents_button.text() == "Агенты"
     assert agents_button.toolTip() == "Открыть вкладку «Агенты» · Alt+A"
     assert sidebar._window_toggle.text() == "──── панели ────"
+    assert sidebar._theme_title.text() == "Темы"
+    assert sidebar._scale_title.text() == "Масштаб"
+    assert sidebar._theme_toggle.text() == "скрыть"
+    assert sidebar._scale_toggle.text() == "скрыть"
+    assert sidebar._reset_scale.text() == "авто"
+    assert sidebar._scale_value.text().startswith("авто ")
+    assert sidebar._scale_hint.text() == "Авто по высоте экрана"
     assert "Активные процессы" in _labels(sidebar)
     assert "Нет активных операций" in _labels(sidebar)
     assert persisted == ["ru-RU"]
+
+    sidebar._apply_scale_live(111)
+    assert sidebar._scale_value.text() == "111%"
+    assert sidebar._scale_hint.text() == "Применяется сразу"
 
     sidebar.deleteLater()
     app.processEvents()
