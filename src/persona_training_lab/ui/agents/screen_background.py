@@ -88,6 +88,8 @@ class AgentsScreen(_RuntimeSafeAgentsScreen):
         return self._state.apply(build_version_lineage(projection.nodes))
 
     def _roles(self) -> QWidget:
+        if self._lineage_refresh_coordinator is None:
+            return super()._roles()
         content = QWidget()
         content.setProperty("transparentBg", True)
         layout = QVBoxLayout(content)
