@@ -27,7 +27,7 @@ class SQLiteDatabase:
             f"file:{encoded_path}?mode=ro",
             uri=True,
             timeout=30.0,
-            check_same_thread=False,
+            check_same_thread=True,
         )
         self._configure(connection, writable=False)
         return connection
