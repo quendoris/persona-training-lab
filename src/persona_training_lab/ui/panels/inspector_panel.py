@@ -7,6 +7,8 @@ from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.panels.localization import text as panel_text
 
 
+I18N_KEY_PREFIXES = ("inspector.context.",)
+
 _CONTEXT_CHECK_COUNTS: dict[str, int] = {
     "dashboard": 3,
     "datasets": 3,
@@ -21,6 +23,7 @@ _CONTEXT_CHECK_COUNTS: dict[str, int] = {
     "docs": 3,
     "default": 3,
 }
+INSPECTOR_CONTEXT_IDS = tuple(_CONTEXT_CHECK_COUNTS)
 
 
 class InspectorPanel(QFrame):
