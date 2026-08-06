@@ -136,7 +136,9 @@ def _source() -> LineageSourceSnapshot:
     )
 
 
-def _view_model(source: LineageSourceSnapshot) -> tuple[AgentsViewModel, _Reader]:
+def _view_model(
+    source: LineageSourceSnapshot,
+) -> tuple[AgentsViewModel, _Reader]:
     reader = _Reader(source)
     vm = AgentsViewModel(
         training_service=_BombService(),
@@ -155,18 +157,35 @@ def test_latest_aliases_are_selected_by_timestamp_not_input_order() -> None:
     by_id = {node.node_id: node for node in projection.nodes}
 
     assert reader.calls == 1
-    assert projection.entity_context["training"]["training_run_id"] == "trn_new"
-    assert projection.entity_context["snapshot"]["model_version_id"] == "mdl_new"
-    assert projection.entity_context["portrait"]["experiment_id"] == "evr_new"
+    assert (
+        projection.entity_context["training"]["training_run_id"]
+        == "trn_new"
+    )
+    assert (
+        projection.entity_context["snapshot"]["model_version_id"]
+        == "mdl_new"
+    )
+    assert (
+        projection.entity_context["portrait"]["experiment_id"]
+        == "evr_new"
+    )
     assert projection.entity_context["dataset"]["dataset_id"] == "ds_new"
     assert "training_run:trn_old" in by_id
     assert "model_version:mdl_old" in by_id
     assert "evaluation_run:evr_old" in by_id
     assert by_id["portrait"].parent_id == "snapshot"
-    assert {
+    claims = {
         (claim.resource_kind, claim.resource_id)
         for claim in projection.resources["snapshot"]
-    } == {("model_version", "mdl_new")}
+    }
+    assert {
+        ("artifact_path", "/artifacts/new"),
+        ("dataset", "ds_new"),
+        ("model_definition", "Qwen"),
+        ("model_version", "mdl_new"),
+        ("profile", "Mia"),
+        ("training_run", "trn_new"),
+    } <= claims
 
 
 def test_alias_changes_have_their_own_presentation_revision() -> None:
@@ -190,8 +209,14 @@ def test_alias_changes_have_their_own_presentation_revision() -> None:
         == second_vm.build_lineage_snapshot().projection.content_revision
     )
     assert first_projection.signature != second_projection.signature
-    assert first_projection.entity_context["snapshot"]["model_version_id"] == "mdl_new"
-    assert second_projection.entity_context["snapshot"]["model_version_id"] == "mdl_old"
+    assert (
+        first_projection.entity_context["snapshot"]["model_version_id"]
+        == "mdl_new"
+    )
+    assert (
+        second_projection.entity_context["snapshot"]["model_version_id"]
+        == "mdl_old"
+    )
 
 
 def test_unresolved_evaluation_is_never_attached_to_latest_snapshot() -> None:
@@ -212,7 +237,10 @@ def test_unresolved_evaluation_is_never_attached_to_latest_snapshot() -> None:
     )
 
     assert portrait.parent_id is None
-    assert projection.entity_context["portrait"]["model_version_id"] == "mdl_missing"
+    assert (
+        projection.entity_context["portrait"]["model_version_id"]
+        == "mdl_missing"
+    )
     assert "unknown_reference" in projection.details["portrait"].body
 
 
@@ -223,6 +251,13 @@ def test_empty_atomic_projection_keeps_explicit_presentation_placeholders() -> N
     by_id = {node.node_id: node for node in projection.nodes}
 
     assert reader.calls == 1
-    assert set(("base", "dataset", "training", "snapshot", "portrait", "delta")) <= set(by_id)
+    assert {
+        "base",
+        "dataset",
+        "training",
+        "snapshot",
+        "portrait",
+        "delta",
+    } <= set(by_id)
     assert by_id["snapshot"].subtitle == "presentation placeholder"
     assert projection.resources["snapshot"] == ()
