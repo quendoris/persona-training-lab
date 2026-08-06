@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+from copy import deepcopy
+import json
+import os
+from pathlib import Path
+import tempfile
+from typing import Any
+
+from persona_training_lab.ui.agents.lineage_state import LineageStateStore
+
+
+class AtomicLineageStateStore(LineageStateStore):
+    """Durable lineage state with atomic replacement and memory rollback."""
+
+    def __init__(self, path: Path | None = None) -> None:
+        super().__init__(path)
+        self._persisted_payload = deepcopy(self._payload)
+
+    def capture_transaction_state(self) -> dict[str, Any]:
+        return deepcopy(self._payload)
+
+    def restore_transaction_state(self, snapshot: dict[str, Any]) -> None:
+        previous_payload = deepcopy(self._payload)
+        previous_persisted = deepcopy(self._persisted_payload)
+        self._payload = deepcopy(snapshot)
+        try:
+            self._save()
+        except Exception:
+            self._payload = previous_payload
+            self._persisted_payload = previous_persisted
+            raise
+
+    def _save(self) -> None:
+        payload = deepcopy(self._payload)
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2)
+        path = self._path
+        temporary_path: Path | None = None
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+                temporary.write(serialized)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+
+            os.replace(temporary_path, path)
+            temporary_path = None
+            self._fsync_directory(path.parent)
+        except Exception:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            self._payload = deepcopy(self._persisted_payload)
+            raise
+
+        self._persisted_payload = payload
+
+    @staticmethod
+    def _fsync_directory(directory: Path) -> None:
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        try:
+            descriptor = os.open(directory, flags)
+        except OSError:
+            return
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+__all__ = ("AtomicLineageStateStore",)
