@@ -20,6 +20,7 @@ DEFAULT_OUTPUT = ROOT / "artifacts" / "release-audit"
 QUICK_TESTS = (
     "tests/test_window_state_store.py",
     "tests/test_i18n_catalogs.py",
+    "tests/test_i18n_catalog_fragments.py",
     "tests/test_i18n_audit.py",
     "tests/test_sidebar_i18n.py",
     "tests/test_operations_center_i18n.py",
