@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from persona_training_lab.application.errors.reporter import (
+    ApplicationErrorReporter,
+)
 from persona_training_lab.application.lineage.atomic_projection import (
     AtomicLineageProjectionService,
     AtomicLineageSnapshot,
@@ -18,6 +21,7 @@ class AgentsViewModel(_LegacyAgentsViewModel):
 
     lineage_projection_service: AtomicLineageProjectionService | None = None
     lineage_loader_factory: LineageLoaderFactory | None = None
+    lineage_error_reporter: ApplicationErrorReporter | None = None
 
     def build_lineage_snapshot(self) -> AtomicLineageSnapshot:
         service = self.lineage_projection_service
