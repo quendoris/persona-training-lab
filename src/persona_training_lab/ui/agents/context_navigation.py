@@ -41,12 +41,12 @@ class LineageContextRouter:
         self,
         node_id: str,
         *,
-        base_context: Mapping[str, str] = MappingProxyType({}),
+        base_context: Mapping[str, str] | None = None,
         node_title: str = "",
         node_status: str = "",
         claims: Iterable[ResourceClaim] = (),
     ) -> Mapping[str, str]:
-        context = dict(base_context)
+        context = dict(base_context or {})
         context["node_id"] = node_id
         if node_title:
             context.setdefault("node_title", node_title)
