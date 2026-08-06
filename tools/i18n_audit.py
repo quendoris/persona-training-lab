@@ -15,13 +15,16 @@ from persona_training_lab.i18n.catalog import (
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "persona_training_lab"
 CATALOGS = SRC / "i18n" / "catalogs"
-_TRANSLATION_CALLS = {
-    "text",
-    "_text",
-    "bind_text",
-    "bind_tooltip",
-    "bind_window_title",
-    "bind_placeholder",
+_TRANSLATION_KEY_POSITIONS = {
+    "text": 0,
+    "_text": 0,
+    "bind_text": 1,
+    "bind_tooltip": 1,
+    "bind_window_title": 1,
+    "bind_placeholder": 1,
+}
+_TRANSLATION_FALLBACK_POSITIONS = {
+    "_text": (1,),
 }
 _WIDGET_TEXT_CALLS = {
     "QAction": (0,),
@@ -58,17 +61,35 @@ class LiteralFinding:
 
 
 class SourceAudit(ast.NodeVisitor):
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        known_keys: frozenset[str] = frozenset(),
+    ) -> None:
         self._path = path
+        self._known_keys = known_keys
         self.translation_keys: set[str] = set()
         self.literals: list[LiteralFinding] = []
 
     def visit_Call(self, node: ast.Call) -> None:
         call_name = _call_name(node.func)
-        if call_name in _TRANSLATION_CALLS:
-            key = _constant_string(node.args, 0)
+        key_position = _TRANSLATION_KEY_POSITIONS.get(call_name)
+        if key_position is not None:
+            key = _constant_argument(
+                node,
+                key_position,
+                keyword="key",
+            )
             if key is not None:
                 self.translation_keys.add(key)
+        fallback_positions = _TRANSLATION_FALLBACK_POSITIONS.get(call_name)
+        if fallback_positions is not None:
+            self._collect_literals(
+                node,
+                f"{call_name} fallback",
+                fallback_positions,
+            )
         if call_name in _WIDGET_TEXT_CALLS:
             self._collect_literals(
                 node,
@@ -83,6 +104,11 @@ class SourceAudit(ast.NodeVisitor):
             )
         self.generic_visit(node)
 
+    def visit_Constant(self, node: ast.Constant) -> None:
+        value = node.value
+        if isinstance(value, str) and value in self._known_keys:
+            self.translation_keys.add(value)
+
     def _collect_literals(
         self,
         node: ast.Call,
@@ -95,7 +121,7 @@ class SourceAudit(ast.NodeVisitor):
                 continue
             self.literals.append(
                 LiteralFinding(
-                    path=str(self._path.relative_to(ROOT)),
+                    path=_display_path(self._path),
                     line=node.lineno,
                     call=call_name,
                     text=" ".join(text.split()),
@@ -103,9 +129,13 @@ class SourceAudit(ast.NodeVisitor):
             )
 
 
-def audit_sources() -> tuple[set[str], list[LiteralFinding]]:
+def audit_sources(
+    *,
+    catalog_keys: set[str] | frozenset[str] = frozenset(),
+) -> tuple[set[str], list[LiteralFinding]]:
     keys: set[str] = set()
     literals: list[LiteralFinding] = []
+    known_keys = frozenset(catalog_keys)
     for path in sorted(SRC.rglob("*.py")):
         if "i18n/catalogs" in path.as_posix():
             continue
@@ -115,7 +145,7 @@ def audit_sources() -> tuple[set[str], list[LiteralFinding]]:
             raise CatalogValidationError(
                 f"Cannot parse {path}: {error}"
             ) from error
-        visitor = SourceAudit(path)
+        visitor = SourceAudit(path, known_keys=known_keys)
         visitor.visit(tree)
         keys.update(visitor.translation_keys)
         literals.extend(visitor.literals)
@@ -125,7 +155,8 @@ def audit_sources() -> tuple[set[str], list[LiteralFinding]]:
 def run(*, strict_ui_literals: bool, as_json: bool) -> int:
     try:
         catalogs = CatalogSet.load(CATALOGS, base_locale="ru-RU")
-        referenced_keys, literals = audit_sources()
+        base_keys = set(catalogs.catalog(catalogs.base_locale).messages)
+        referenced_keys, literals = audit_sources(catalog_keys=base_keys)
     except CatalogValidationError as error:
         if as_json:
             print(json.dumps({"passed": False, "error": str(error)}))
@@ -133,7 +164,6 @@ def run(*, strict_ui_literals: bool, as_json: bool) -> int:
             print(f"i18n audit failed: {error}")
         return 1
 
-    base_keys = set(catalogs.catalog(catalogs.base_locale).messages)
     missing_references = sorted(referenced_keys - base_keys)
     orphaned_keys = sorted(base_keys - referenced_keys)
     passed = not missing_references and not (
@@ -190,6 +220,23 @@ def _call_name(node: ast.expr) -> str:
     return ""
 
 
+def _constant_argument(
+    node: ast.Call,
+    position: int,
+    *,
+    keyword: str,
+) -> str | None:
+    positional = _constant_string(node.args, position)
+    if positional is not None:
+        return positional
+    for item in node.keywords:
+        if item.arg != keyword:
+            continue
+        if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
+            return item.value.value
+    return None
+
+
 def _constant_string(args: list[ast.expr], index: int) -> str | None:
     if index >= len(args):
         return None
@@ -197,6 +244,13 @@ def _constant_string(args: list[ast.expr], index: int) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     return None
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
 
 def _looks_user_visible(text: str) -> bool:
