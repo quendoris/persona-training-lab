@@ -95,8 +95,8 @@ class MainWindow(_MainWindow):
         service = self._operations_center
         if service is None:
             return
-        for dock_name in ("Активность", "Проблемы"):
-            dock = self._docks.get(dock_name)
+        for dock_id in ("activity", "issues"):
+            dock = self._docks.get(dock_id)
             panel = dock.widget() if dock is not None else None
             setter = getattr(panel, "set_service", None)
             if callable(setter):
@@ -147,8 +147,10 @@ class MainWindow(_MainWindow):
             return
         target = self._find_guidance_target(workspace, focus_text)
         if target is None:
-            self._status.set_message(
-                f"Открыта вкладка {screen}: {focus_text}"
+            self._status.set_message_key(
+                "status.opened_with_focus",
+                title=self._screen_title(screen),
+                focus=focus_text,
             )
             return
 
