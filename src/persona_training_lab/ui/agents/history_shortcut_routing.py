@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from typing import ClassVar
 
 from PySide6.QtGui import QKeySequence
 
@@ -16,12 +17,17 @@ from persona_training_lab.ui.agents.history_key_state import (
 class HistoryShortcutRouting:
     """Choose which history gestures bypass ordinary Qt shortcut routing."""
 
-    binding_ids = ("history_toggle", "undo_only")
-    default_sequences = {
+    binding_ids: ClassVar[tuple[str, str]] = (
+        "history_toggle",
+        "undo_only",
+    )
+    default_sequences: ClassVar[Mapping[str, str]] = {
         "history_toggle": "Ctrl+Z",
         "undo_only": "Ctrl+Shift+Z",
     }
-    history_sequences = frozenset({"ctrl+z", "ctrl+shift+z"})
+    history_sequences: ClassVar[frozenset[str]] = frozenset(
+        {"ctrl+z", "ctrl+shift+z"}
+    )
 
     def guarded_bindings(
         self,
