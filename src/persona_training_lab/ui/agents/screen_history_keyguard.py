@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from persona_training_lab.ui.agents.history_gesture_lifecycle import HistoryGestureLifecycle
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
+from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
 from persona_training_lab.ui.agents.history_shortcut_routing import HistoryShortcutRouting
 from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
@@ -38,15 +39,13 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._history_lifecycle = HistoryGestureLifecycle(
             flip_guard_seconds=self._FLIP_GUARD_SECONDS,
         )
-
-        self._undo_repeat_delay = QTimer(self)
-        self._undo_repeat_delay.setSingleShot(True)
-        self._undo_repeat_delay.setInterval(self._REPEAT_DELAY_MS)
-        self._undo_repeat_delay.timeout.connect(self._start_undo_repeat)
-
-        self._undo_repeat = QTimer(self)
-        self._undo_repeat.setInterval(self._REPEAT_INTERVAL_MS)
-        self._undo_repeat.timeout.connect(self._repeat_undo_history)
+        self._history_repeat = HistoryRepeatTimers(
+            repeat_allowed=self._repeat_is_allowed,
+            on_repeat=self._perform_repeated_undo,
+            delay_ms=self._REPEAT_DELAY_MS,
+            interval_ms=self._REPEAT_INTERVAL_MS,
+            parent=self,
+        )
 
         # Polling is a positive-only fallback for modifier events consumed by the
         # desktop. Real KeyRelease events remain the authoritative release signal.
@@ -245,24 +244,20 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         )
 
     def _arm_undo_repeat(self) -> None:
-        self._undo_repeat.stop()
-        if self._repeat_is_allowed():
-            self._undo_repeat_delay.start()
+        self._history_repeat.arm()
 
     def _start_undo_repeat(self) -> None:
-        if self._repeat_is_allowed():
-            self._undo_repeat.start()
+        self._history_repeat.start_repeat()
 
     def _repeat_undo_history(self) -> None:
-        if not self._repeat_is_allowed():
-            self._stop_undo_repeat()
-            return
+        self._history_repeat.tick()
+
+    def _perform_repeated_undo(self) -> None:
         self._block_graph_flip()
         self._undo_history_only()
 
     def _stop_undo_repeat(self) -> None:
-        self._undo_repeat_delay.stop()
-        self._undo_repeat.stop()
+        self._history_repeat.stop()
 
     def _reset_history_gesture(self) -> None:
         self._stop_undo_repeat()
@@ -293,7 +288,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._sync_history_shortcut_routing()
 
     def _reset_history_gesture_if_ready(self) -> None:
-        if hasattr(self, "_history_keys") and hasattr(self, "_undo_repeat"):
+        if hasattr(self, "_history_keys") and hasattr(self, "_history_repeat"):
             self._reset_history_gesture()
 
     def _sync_history_shortcut_routing(self) -> None:
