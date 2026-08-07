@@ -56,22 +56,6 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             parent=self,
         )
         self._history_events = HistoryEventOrchestrator(
-            stop_modifier_poll=lambda: self._modifier_poll.stop(),
-            reset_history_gesture=lambda: self._reset_history_gesture(),
-            sync_modifier_polling=lambda: self._sync_modifier_polling(),
-            handle_keyboard_layout_change=lambda: self._handle_keyboard_layout_change(),
-            history_keys_are_active=lambda: self._history_keys_are_active(),
-            history_key_name=lambda event: self._history_key_name(event),
-            claims_history_override=lambda event, key_name: self._claims_history_override(
-                event,
-                key_name,
-            ),
-            block_graph_flip=lambda: self._block_graph_flip(),
-            handle_history_key_press=lambda event, key_name: self._handle_history_key_press(
-                event,
-                key_name,
-            ),
-            handle_history_key_release=lambda key_name: self._handle_history_key_release(key_name),
             keyboard_layout_change=self._KEYBOARD_LAYOUT_CHANGE,
         )
 
@@ -92,6 +76,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
         decision = self._history_events.route(
+            self,
             watched_is_owner=watched is self,
             event=event,
         )
@@ -294,6 +279,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._modifier_poll.set_active(
             bool(self._guarded_history_bindings) and self._history_keys_are_active()
         )
+
+    def _stop_modifier_polling(self) -> None:
+        self._modifier_poll.stop()
 
     def _disable_conflicting_history_bindings(self) -> None:
         # Compatibility for older callers and tests.
