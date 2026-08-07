@@ -50,7 +50,6 @@ class HistoryGestureCore:
     _guarded_bindings: frozenset[str] = field(default_factory=frozenset, init=False)
     control_down: bool = field(default=False, init=False)
     shift_down: bool = field(default=False, init=False)
-    shift_latched: bool = field(default=False, init=False)
     layout_shift_latched: bool = field(default=False, init=False)
     z_down: bool = field(default=False, init=False)
     _mode: _HistoryMode | None = field(default=None, init=False, repr=False)
@@ -77,8 +76,13 @@ class HistoryGestureCore:
         return self._flip_blocked_until
 
     @property
+    def shift_latched(self) -> bool:
+        """Compatibility view derived from the two authoritative Shift sources."""
+        return self.shift_down or self.layout_shift_latched
+
+    @property
     def strict_undo_requested(self) -> bool:
-        return self.shift_down or self.shift_latched or self.layout_shift_latched
+        return self.shift_down or self.layout_shift_latched
 
     @property
     def history_gesture_active(self) -> bool:
@@ -267,7 +271,6 @@ class HistoryGestureCore:
     def _clear_gesture_state(self) -> None:
         self.control_down = False
         self.shift_down = False
-        self.shift_latched = False
         self.layout_shift_latched = False
         self.z_down = False
         self._mode = None
@@ -282,13 +285,11 @@ class HistoryGestureCore:
         if down:
             already_down = self.shift_down
             self.shift_down = True
-            self.shift_latched = True
             if already_down:
                 return ()
             return self._activate_chord()
 
         self.shift_down = False
-        self.shift_latched = False
         self.layout_shift_latched = False
         if self._mode is _HistoryMode.UNDO_ONLY and self.z_down:
             self._mode = _HistoryMode.SPENT
@@ -298,7 +299,6 @@ class HistoryGestureCore:
         if not self.control_down:
             return ()
         self.layout_shift_latched = True
-        self.shift_latched = True
         return self._activate_chord()
 
     def _press_key(self, key_name: str) -> tuple[str, ...]:
@@ -321,7 +321,6 @@ class HistoryGestureCore:
         if key_name == "control":
             self.control_down = False
             self.layout_shift_latched = False
-            self.shift_latched = self.shift_down
             self._mode = None
         elif key_name == "shift":
             self._set_physical_shift(False)
