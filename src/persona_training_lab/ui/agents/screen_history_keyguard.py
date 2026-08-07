@@ -16,8 +16,8 @@ from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifi
 from persona_training_lab.ui.agents.history_modifier_snapshot import HistoryModifierSnapshot
 from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
 from persona_training_lab.ui.agents.history_shortcut_routing import HistoryShortcutRouting
-from persona_training_lab.ui.agents.screen_stateful_fixed import (
-    AgentsScreen as _StatefulFixedAgentsScreen,
+from persona_training_lab.ui.agents.screen_lineage_interactions import (
+    AgentsScreen as _LineageInteractionAgentsScreen,
 )
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
@@ -25,7 +25,7 @@ from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 _HISTORY_ROUTING = HistoryShortcutRouting()
 
 
-class AgentsScreen(_StatefulFixedAgentsScreen):
+class AgentsScreen(_LineageInteractionAgentsScreen):
     """Own Qt transport for the graph history gesture core."""
 
     _HISTORY_BINDING_IDS = _HISTORY_ROUTING.binding_ids
