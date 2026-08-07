@@ -45,20 +45,20 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         super().__init__(view_model)
 
         self._history_repeat = HistoryRepeatTimers(
-            repeat_allowed=self._repeat_is_allowed,
-            on_repeat=self._perform_repeated_undo,
             delay_ms=self._REPEAT_DELAY_MS,
             interval_ms=self._REPEAT_INTERVAL_MS,
             parent=self,
         )
+        self._history_repeat.delay_elapsed.connect(self._start_undo_repeat)
+        self._history_repeat.repeat_elapsed.connect(self._repeat_undo_history)
 
         # Polling is a positive-only fallback for modifier events consumed by the
         # desktop. Real KeyRelease events remain the authoritative release signal.
         self._modifier_poll = HistoryModifierPoller(
-            self._poll_physical_modifiers,
             interval_ms=self._MODIFIER_POLL_MS,
             parent=self,
         )
+        self._modifier_poll.poll_requested.connect(self._poll_physical_modifiers)
         self._history_events = HistoryEventOrchestrator(
             keyboard_layout_change=self._KEYBOARD_LAYOUT_CHANGE,
         )
@@ -172,13 +172,22 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return self._history_gesture.repeat_is_allowed(can_undo=self._state.can_undo())
 
     def _arm_undo_repeat(self) -> None:
+        if not self._repeat_is_allowed():
+            self._history_repeat.stop()
+            return
         self._history_repeat.arm()
 
     def _start_undo_repeat(self) -> None:
+        if not self._repeat_is_allowed():
+            self._history_repeat.stop()
+            return
         self._history_repeat.start_repeat()
 
     def _repeat_undo_history(self) -> None:
-        self._history_repeat.tick()
+        if not self._repeat_is_allowed():
+            self._history_repeat.stop()
+            return
+        self._perform_repeated_undo()
 
     def _perform_repeated_undo(self) -> None:
         self._block_graph_flip()
