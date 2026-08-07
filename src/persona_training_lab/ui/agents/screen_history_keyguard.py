@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QTimer, Qt
-from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence
+from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from persona_training_lab.ui.agents.history_gesture_lifecycle import HistoryGestureLifecycle
 from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
+from persona_training_lab.ui.agents.history_modifier_snapshot import HistoryModifierSnapshot
 from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
 from persona_training_lab.ui.agents.history_shortcut_routing import HistoryShortcutRouting
 from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
@@ -219,32 +220,23 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def _effective_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
         queried_control, queried_shift = self._queried_modifiers()
-        modifiers = event.modifiers()
-        control = (
-            self._history_keys.control_down
-            or queried_control
-            or bool(modifiers & Qt.KeyboardModifier.ControlModifier)
-        )
-        shift = (
-            self._history_keys.strict_undo_requested
-            or queried_shift
-            or bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
-        )
+        event_modifiers = HistoryModifierSnapshot.from_qt(event.modifiers())
+        control = self._history_keys.control_down or queried_control or event_modifiers.control
+        shift = self._history_keys.strict_undo_requested or queried_shift or event_modifiers.shift
         return control, shift
 
     @staticmethod
     def _has_extra_history_modifiers(event: QKeyEvent) -> bool:
-        modifiers = event.modifiers()
-        extras = Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier
-        return bool(modifiers & extras)
+        return HistoryModifierSnapshot.from_qt(event.modifiers()).has_extra_history_modifiers
 
     @staticmethod
     def _queried_modifiers() -> tuple[bool, bool]:
-        modifiers = QGuiApplication.queryKeyboardModifiers()
-        return (
-            bool(modifiers & Qt.KeyboardModifier.ControlModifier),
-            bool(modifiers & Qt.KeyboardModifier.ShiftModifier),
-        )
+        modifiers = HistoryModifierSnapshot.current()
+        return modifiers.control, modifiers.shift
+
+    @staticmethod
+    def _queried_extra_history_modifiers() -> bool:
+        return HistoryModifierSnapshot.current().has_extra_history_modifiers
 
     def _repeat_is_allowed(self) -> bool:
         return self._history_lifecycle.repeat_is_allowed(
@@ -347,10 +339,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def _graph_flip_is_blocked(self) -> bool:
         control, shift = self._queried_modifiers()
-        modifiers = QGuiApplication.queryKeyboardModifiers()
-        guarded = control or shift or bool(
-            modifiers & (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier)
-        )
+        guarded = control or shift or self._queried_extra_history_modifiers()
         return self._history_lifecycle.flip_is_blocked(
             self._history_keys,
             modifier_guarded=guarded,
