@@ -52,6 +52,7 @@ _RETIRED_HISTORY_ATTRIBUTES = frozenset(
         "_history_keys",
         "_history_lifecycle",
         "_guarded_history_bindings",
+        "_effective_modifiers",
     }
 )
 
