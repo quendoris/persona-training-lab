@@ -89,7 +89,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return super().eventFilter(watched, event)
 
     def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
-        control, shift = self._effective_modifiers(event)
+        control, shift = self._observed_modifiers(event)
         transition = self._history_gesture.press(
             key_name,
             observed_control=control,
@@ -147,12 +147,13 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     def _guarded_history_gesture_active(self) -> bool:
         return self._history_gesture.gesture_is_guarded()
 
-    def _effective_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
+    def _observed_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
+        """Return only transport observations, never core-derived latch state."""
         queried_control, queried_shift = self._queried_modifiers()
         event_modifiers = HistoryModifierSnapshot.from_qt(event.modifiers())
-        return self._history_gesture.effective_modifiers(
-            observed_control=queried_control or event_modifiers.control,
-            observed_shift=queried_shift or event_modifiers.shift,
+        return (
+            queried_control or event_modifiers.control,
+            queried_shift or event_modifiers.shift,
         )
 
     @staticmethod
@@ -201,7 +202,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._history_gesture.reset()
 
     def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
-        control, shift = self._effective_modifiers(event)
+        control, shift = self._observed_modifiers(event)
         return self._history_gesture.claims_override(
             key_name=key_name,
             observed_control=control,
