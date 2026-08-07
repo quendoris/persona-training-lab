@@ -5,6 +5,7 @@ from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from persona_training_lab.ui.agents.history_gesture_lifecycle import HistoryGestureLifecycle
+from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
 from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
@@ -22,9 +23,6 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     _HISTORY_BINDING_IDS = _HISTORY_ROUTING.binding_ids
     _DEFAULT_GUARDED_SEQUENCES = _HISTORY_ROUTING.default_sequences
     _HISTORY_SEQUENCES = _HISTORY_ROUTING.history_sequences
-    # Linux evdev codes and their X11/XKB (+8) equivalents.
-    _PHYSICAL_SHIFT_SCAN_CODES = frozenset({42, 50, 54, 62})
-    _PHYSICAL_Z_SCAN_CODES = frozenset({44, 52})
     _REPEAT_DELAY_MS = 330
     _REPEAT_INTERVAL_MS = 85
     _MODIFIER_POLL_MS = 16
@@ -356,24 +354,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             modifier_guarded=guarded,
         )
 
-    @classmethod
-    def _history_key_name(cls, event: QKeyEvent) -> str | None:
-        key = event.key()
-        scan_code = int(event.nativeScanCode())
-        if key == Qt.Key.Key_Control:
-            return "control"
-        if key == Qt.Key.Key_Shift or scan_code in cls._PHYSICAL_SHIFT_SCAN_CODES:
-            return "shift"
-        if key == Qt.Key.Key_Z:
-            return "z"
-        text = event.text().casefold()
-        if text in {"z", "я", "\x1a"}:
-            return "z"
-        if key in {ord("Я"), ord("я")}:
-            return "z"
-        if scan_code in cls._PHYSICAL_Z_SCAN_CODES:
-            return "z"
-        return None
+    @staticmethod
+    def _history_key_name(event: QKeyEvent) -> str | None:
+        return HistoryKeyResolver.key_name(event)
 
     def _history_keys_are_active(self) -> bool:
         app = QApplication.instance()
