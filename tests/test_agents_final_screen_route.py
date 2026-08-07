@@ -85,6 +85,10 @@ def _retired_history_seams(path: Path) -> list[tuple[int, str]]:
 
         if isinstance(node, ast.Attribute) and node.attr in _RETIRED_HISTORY_ATTRIBUTES:
             violations.append((node.lineno, node.attr))
+            continue
+
+        if isinstance(node, ast.keyword) and node.arg in _RETIRED_HISTORY_ATTRIBUTES:
+            violations.append((node.lineno, node.arg))
 
     return violations
 
