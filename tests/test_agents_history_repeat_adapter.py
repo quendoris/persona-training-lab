@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from persona_training_lab.ui.agents.history_gesture_core import HistoryTransition
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
 
 
@@ -59,3 +60,32 @@ def test_binding_reset_waits_until_repeat_transport_exists() -> None:
     AgentsScreen._reset_history_gesture_if_ready(screen)  # type: ignore[arg-type]
 
     assert calls == ["reset"]
+
+
+def test_transition_stops_repeat_before_dispatching_actions() -> None:
+    calls: list[object] = []
+    screen = SimpleNamespace(
+        _stop_undo_repeat=lambda: calls.append("stop"),
+        _dispatch_history_actions=lambda actions: calls.append(("dispatch", actions)),
+    )
+    transition = HistoryTransition(
+        actions=("undo",),
+        stop_repeat=True,
+    )
+
+    AgentsScreen._apply_history_transition(screen, transition)  # type: ignore[arg-type]
+
+    assert calls == ["stop", ("dispatch", ("undo",))]
+
+
+def test_gesture_reset_stops_repeat_before_resetting_core() -> None:
+    calls: list[str] = []
+    gesture = SimpleNamespace(reset=lambda: calls.append("reset"))
+    screen = SimpleNamespace(
+        _history_gesture=gesture,
+        _stop_undo_repeat=lambda: calls.append("stop"),
+    )
+
+    AgentsScreen._reset_history_gesture(screen)  # type: ignore[arg-type]
+
+    assert calls == ["stop", "reset"]
