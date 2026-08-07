@@ -339,7 +339,8 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def _graph_flip_is_blocked(self) -> bool:
         control, shift = self._queried_modifiers()
-        guarded = control or shift or self._queried_extra_history_modifiers()
+        has_extra_modifiers = self._queried_extra_history_modifiers()
+        guarded = control or shift or has_extra_modifiers
         return self._history_lifecycle.flip_is_blocked(
             self._history_keys,
             modifier_guarded=guarded,
