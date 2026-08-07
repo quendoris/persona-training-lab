@@ -35,8 +35,14 @@ from persona_training_lab.ui.agents.screen_history_keyguard import (
 from persona_training_lab.ui.agents.screen_history_keyguard_sticky import (
     AgentsScreen as StickyHistoryAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_lineage_base import (
+    AgentsScreen as LineageBaseAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_runtime_safe import (
     AgentsScreen as RuntimeSafeAgentsScreen,
+)
+from persona_training_lab.ui.agents.screen_stateful_fixed import (
+    AgentsScreen as StatefulFixedAgentsScreen,
 )
 
 
@@ -55,6 +61,23 @@ _RETIRED_HISTORY_ATTRIBUTES = frozenset(
         "_effective_modifiers",
     }
 )
+_RETIRED_SCREEN_IMPLEMENTATIONS = frozenset(
+    {
+        "persona_training_lab.ui.agents.screen",
+        "persona_training_lab.ui.agents.screen_canvas",
+        "persona_training_lab.ui.agents.screen_tree_canvas",
+        "persona_training_lab.ui.agents.screen_layout",
+        "persona_training_lab.ui.agents.screen_locked_layout",
+    }
+)
+_PUBLIC_SCREEN_COMPATIBILITY_MODULES = (
+    "screen",
+    "screen_canvas",
+    "screen_tree_canvas",
+    "screen_layout",
+    "screen_locked_layout",
+    "screen_history_diagnostics",
+)
 
 
 def _press(core: HistoryGestureCore, key_name: str):
@@ -67,7 +90,7 @@ def _press(core: HistoryGestureCore, key_name: str):
     )
 
 
-def _retired_history_seams(path: Path) -> list[tuple[int, str]]:
+def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     violations: list[tuple[int, str]] = []
 
@@ -76,11 +99,15 @@ def _retired_history_seams(path: Path) -> list[tuple[int, str]]:
             module = node.module or ""
             if module.rsplit(".", 1)[-1] in _RETIRED_HISTORY_MODULES:
                 violations.append((node.lineno, module))
+            if module in _RETIRED_SCREEN_IMPLEMENTATIONS:
+                violations.append((node.lineno, module))
             continue
 
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name.rsplit(".", 1)[-1] in _RETIRED_HISTORY_MODULES:
+                    violations.append((node.lineno, alias.name))
+                if alias.name in _RETIRED_SCREEN_IMPLEMENTATIONS:
                     violations.append((node.lineno, alias.name))
             continue
 
@@ -103,6 +130,8 @@ def test_public_agents_screen_uses_single_composed_background_layout() -> None:
     assert RuntimeSafeAgentsScreen is BackgroundAgentsScreen
     assert BackgroundAgentsScreen.__bases__ == (FinalAgentsScreen,)
     assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
+    assert HistoryKeyGuardAgentsScreen.__bases__ == (StatefulFixedAgentsScreen,)
+    assert StatefulFixedAgentsScreen.__bases__ == (LineageBaseAgentsScreen,)
     assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
     assert FinalAgentsScreen._ROLES_MIN_WIDTH >= 280
     assert FinalAgentsScreen._DETAILS_MIN_WIDTH >= 360
@@ -134,30 +163,40 @@ def test_final_screen_owns_layout_without_interaction_overrides() -> None:
     assert "_reset_history_gesture" not in FinalAgentsScreen.__dict__
 
 
-def test_historical_screen_imports_are_clean_background_aliases() -> None:
-    for module_name in (
-        "screen",
-        "screen_locked_layout",
-        "screen_stateful",
-        "screen_history_diagnostics",
-    ):
+def test_historical_public_screen_imports_are_clean_background_aliases() -> None:
+    for module_name in _PUBLIC_SCREEN_COMPATIBILITY_MODULES:
         module = importlib.import_module(
             f"persona_training_lab.ui.agents.{module_name}"
         )
         assert module.AgentsScreen is BackgroundAgentsScreen
 
 
-def test_retired_history_seams_have_no_callers() -> None:
+def test_stateful_compatibility_path_has_one_stable_base_identity() -> None:
+    module = importlib.import_module("persona_training_lab.ui.agents.screen_stateful")
+
+    assert module.AgentsScreen is LineageBaseAgentsScreen
+    assert module.AgentsScreen is not BackgroundAgentsScreen
+
+
+def test_retired_screen_implementations_are_physically_absent() -> None:
+    agents_root = _ROOT / "src" / "persona_training_lab" / "ui" / "agents"
+
+    for module in _RETIRED_SCREEN_IMPLEMENTATIONS:
+        filename = f"{module.rsplit('.', 1)[-1]}.py"
+        assert not (agents_root / filename).exists()
+
+
+def test_retired_architecture_seams_have_no_callers() -> None:
     violations: list[str] = []
 
     for root_name in ("src", "tests"):
         for path in sorted((_ROOT / root_name).rglob("*.py")):
-            for line_number, seam in _retired_history_seams(path):
+            for line_number, seam in _retired_architecture_seams(path):
                 relative_path = path.relative_to(_ROOT)
                 violations.append(f"{relative_path}:{line_number}: {seam}")
 
     assert violations == [], (
-        "Retired history architecture is still referenced:\n"
+        "Retired Agents/history architecture is still referenced:\n"
         + "\n".join(violations)
     )
 
