@@ -4,6 +4,7 @@ from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QPushButton
 
+from persona_training_lab.ui.agents.history_event_orchestrator import HistoryEventOrchestrator
 from persona_training_lab.ui.agents.history_gesture_lifecycle import HistoryGestureLifecycle
 from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
@@ -54,6 +55,25 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             interval_ms=self._MODIFIER_POLL_MS,
             parent=self,
         )
+        self._history_events = HistoryEventOrchestrator(
+            stop_modifier_poll=lambda: self._modifier_poll.stop(),
+            reset_history_gesture=lambda: self._reset_history_gesture(),
+            sync_modifier_polling=lambda: self._sync_modifier_polling(),
+            handle_keyboard_layout_change=lambda: self._handle_keyboard_layout_change(),
+            history_keys_are_active=lambda: self._history_keys_are_active(),
+            history_key_name=lambda event: self._history_key_name(event),
+            claims_history_override=lambda event, key_name: self._claims_history_override(
+                event,
+                key_name,
+            ),
+            block_graph_flip=lambda: self._block_graph_flip(),
+            handle_history_key_press=lambda event, key_name: self._handle_history_key_press(
+                event,
+                key_name,
+            ),
+            handle_history_key_release=lambda key_name: self._handle_history_key_release(key_name),
+            keyboard_layout_change=self._KEYBOARD_LAYOUT_CHANGE,
+        )
 
         self._key_binding_manager.bindings_changed.connect(self._apply_key_binding_sequences)
         self._apply_key_binding_sequences()
@@ -71,54 +91,12 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             app.installEventFilter(self)
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
-        event_type = event.type()
-
-        # Internal dialogs deactivate child windows without deactivating the whole
-        # application. Only a real application deactivation ends a key gesture,
-        # while modifier polling follows the actual active-window lifecycle.
-        if event_type == QEvent.Type.WindowDeactivate:
-            self._modifier_poll.stop()
-            return False
-        if event_type == QEvent.Type.ApplicationDeactivate:
-            self._modifier_poll.stop()
-            self._reset_history_gesture()
-            return super().eventFilter(watched, event)
-
-        if event_type in (QEvent.Type.ApplicationActivate, QEvent.Type.WindowActivate):
-            self._sync_modifier_polling()
-        elif watched is self and event_type == QEvent.Type.Hide:
-            self._modifier_poll.stop()
-        elif watched is self and event_type == QEvent.Type.Show:
-            self._sync_modifier_polling()
-
-        if self._KEYBOARD_LAYOUT_CHANGE is not None and event_type == self._KEYBOARD_LAYOUT_CHANGE:
-            self._handle_keyboard_layout_change()
-            return super().eventFilter(watched, event)
-
-        if not isinstance(event, QKeyEvent) or not self._history_keys_are_active():
-            return super().eventFilter(watched, event)
-
-        key_name = self._history_key_name(event)
-
-        if event_type == QEvent.Type.ShortcutOverride:
-            if self._claims_history_override(event, key_name):
-                self._block_graph_flip()
-                event.accept()
-                return True
-            return super().eventFilter(watched, event)
-
-        if event_type not in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease) or key_name is None:
-            return super().eventFilter(watched, event)
-
-        if event_type == QEvent.Type.KeyPress:
-            if self._handle_history_key_press(event, key_name):
-                event.accept()
-                return True
-            return super().eventFilter(watched, event)
-
-        if self._handle_history_key_release(key_name):
-            event.accept()
-            return True
+        decision = self._history_events.route(
+            watched_is_owner=watched is self,
+            event=event,
+        )
+        if decision is not None:
+            return decision
         return super().eventFilter(watched, event)
 
     def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
