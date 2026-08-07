@@ -16,23 +16,56 @@ class _RepeatTransport:
     def start_repeat(self) -> None:
         self.calls.append("start")
 
-    def tick(self) -> None:
-        self.calls.append("tick")
-
     def stop(self) -> None:
         self.calls.append("stop")
 
 
-def test_history_repeat_hooks_delegate_to_composed_transport() -> None:
+def test_arm_repeat_checks_live_permission_before_transport() -> None:
     transport = _RepeatTransport()
-    screen = SimpleNamespace(_history_repeat=transport)
+    allowed = [True]
+    screen = SimpleNamespace(
+        _history_repeat=transport,
+        _repeat_is_allowed=lambda: allowed[0],
+    )
 
     AgentsScreen._arm_undo_repeat(screen)  # type: ignore[arg-type]
-    AgentsScreen._start_undo_repeat(screen)  # type: ignore[arg-type]
-    AgentsScreen._repeat_undo_history(screen)  # type: ignore[arg-type]
-    AgentsScreen._stop_undo_repeat(screen)  # type: ignore[arg-type]
+    allowed[0] = False
+    AgentsScreen._arm_undo_repeat(screen)  # type: ignore[arg-type]
 
-    assert transport.calls == ["arm", "start", "tick", "stop"]
+    assert transport.calls == ["arm", "stop"]
+
+
+def test_delay_expiry_rechecks_permission_before_repeat_phase() -> None:
+    transport = _RepeatTransport()
+    allowed = [True]
+    screen = SimpleNamespace(
+        _history_repeat=transport,
+        _repeat_is_allowed=lambda: allowed[0],
+    )
+
+    AgentsScreen._start_undo_repeat(screen)  # type: ignore[arg-type]
+    allowed[0] = False
+    AgentsScreen._start_undo_repeat(screen)  # type: ignore[arg-type]
+
+    assert transport.calls == ["start", "stop"]
+
+
+def test_repeat_tick_rechecks_permission_before_undo_effect() -> None:
+    transport = _RepeatTransport()
+    allowed = [True]
+    calls: list[str] = []
+    screen = SimpleNamespace(
+        _history_repeat=transport,
+        _repeat_is_allowed=lambda: allowed[0],
+        _perform_repeated_undo=lambda: calls.append("undo"),
+    )
+
+    AgentsScreen._repeat_undo_history(screen)  # type: ignore[arg-type]
+    allowed[0] = False
+    AgentsScreen._repeat_undo_history(screen)  # type: ignore[arg-type]
+
+    assert calls == ["undo"]
+    assert transport.calls == ["stop"]
 
 
 def test_repeated_undo_effect_blocks_flip_before_mutating_history() -> None:
