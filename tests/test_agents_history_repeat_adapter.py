@@ -49,7 +49,6 @@ def test_repeated_undo_effect_blocks_flip_before_mutating_history() -> None:
 def test_binding_reset_waits_until_repeat_transport_exists() -> None:
     calls: list[str] = []
     screen = SimpleNamespace(
-        _history_keys=object(),
         _reset_history_gesture=lambda: calls.append("reset"),
     )
 
