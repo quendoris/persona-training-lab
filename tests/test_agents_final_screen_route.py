@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import importlib
+from pathlib import Path
 from types import SimpleNamespace
 
 from persona_training_lab.ui.agents import AgentsScreen as PublicAgentsScreen
@@ -38,6 +40,15 @@ from persona_training_lab.ui.agents.screen_runtime_safe import (
 )
 
 
+_ROOT = Path(__file__).resolve().parents[1]
+_RETIRED_HISTORY_MODULES = frozenset(
+    {
+        "history_key_state",
+        "history_gesture_lifecycle",
+    }
+)
+
+
 def _press(core: HistoryGestureCore, key_name: str):
     return core.press(
         key_name,
@@ -46,6 +57,25 @@ def _press(core: HistoryGestureCore, key_name: str):
         has_extra_modifiers=False,
         auto_repeat=False,
     )
+
+
+def _retired_history_imports(path: Path) -> list[tuple[int, str]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    violations: list[tuple[int, str]] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module.rsplit(".", 1)[-1] in _RETIRED_HISTORY_MODULES:
+                violations.append((node.lineno, module))
+            continue
+
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.rsplit(".", 1)[-1] in _RETIRED_HISTORY_MODULES:
+                    violations.append((node.lineno, alias.name))
+
+    return violations
 
 
 def test_public_agents_screen_uses_single_composed_background_layout() -> None:
@@ -99,6 +129,21 @@ def test_historical_screen_imports_are_clean_background_aliases() -> None:
             f"persona_training_lab.ui.agents.{module_name}"
         )
         assert module.AgentsScreen is BackgroundAgentsScreen
+
+
+def test_retired_history_state_modules_have_no_importers() -> None:
+    violations: list[str] = []
+
+    for root_name in ("src", "tests"):
+        for path in sorted((_ROOT / root_name).rglob("*.py")):
+            for line_number, module in _retired_history_imports(path):
+                relative_path = path.relative_to(_ROOT)
+                violations.append(f"{relative_path}:{line_number}: {module}")
+
+    assert violations == [], (
+        "Retired history state modules are still imported:\n"
+        + "\n".join(violations)
+    )
 
 
 def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() -> None:
