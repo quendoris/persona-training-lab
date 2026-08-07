@@ -126,7 +126,9 @@ def test_layout_change_latch_survives_until_control_release() -> None:
 
     assert changed.actions == ()
     assert core.layout_shift_latched is True
+    assert core.shift_down is False
     assert _press(core, "z").actions == (HISTORY_UNDO,)
+    assert core.shift_down is False
 
     core.release("z")
     core.release("control")
