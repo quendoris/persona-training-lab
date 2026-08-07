@@ -68,4 +68,4 @@ def test_dispatch_executes_transition_actions_without_rechecking_policy() -> Non
         (HISTORY_TOGGLE, HISTORY_UNDO, HISTORY_TOGGLE),
     )  # type: ignore[arg-type]
 
-    assert calls == ["stop", "toggle", "undo", "arm"]
+    assert calls == ["stop", "toggle", "undo", "arm", "stop", "toggle"]
