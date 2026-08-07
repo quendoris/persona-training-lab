@@ -179,6 +179,40 @@ def test_extra_modifier_z_is_neither_claimed_nor_mutated() -> None:
     assert core.control_down is False
 
 
+def test_unowned_core_ignores_keyboard_events_without_mutating_state() -> None:
+    core = _core()
+
+    control = _press(core, "control")
+    z = _press(core, "z", control=True, shift=True)
+    release = core.release("z")
+
+    assert control.claimed is False
+    assert z.claimed is False
+    assert release.claimed is False
+    assert core.control_down is False
+    assert core.shift_down is False
+    assert core.z_down is False
+    assert core.mode is None
+    assert core.strict_undo_requested is False
+    assert core.flip_is_blocked(modifier_guarded=False) is False
+
+
+def test_removing_last_owned_binding_clears_live_gesture_state() -> None:
+    clock = _Clock(1.0)
+    core = _core("history_toggle", clock=clock)
+    _press(core, "control")
+    _press(core, "z")
+    assert core.mode == "toggle"
+
+    core.set_guarded_bindings(())
+
+    assert core.control_down is False
+    assert core.shift_down is False
+    assert core.z_down is False
+    assert core.mode is None
+    assert core.strict_undo_requested is False
+
+
 def test_guarded_ownership_filters_actions_without_reordering() -> None:
     core = _core("undo_only")
 
