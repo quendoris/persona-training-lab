@@ -137,7 +137,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
     def _dispatch_history_actions(self, actions) -> None:
         seen: set[str] = set()
-        for action in self._history_gesture.allowed_actions(actions):
+        for action in actions:
             if action in seen:
                 continue
             seen.add(action)
