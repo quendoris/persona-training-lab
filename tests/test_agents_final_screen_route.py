@@ -47,6 +47,13 @@ _RETIRED_HISTORY_MODULES = frozenset(
         "history_gesture_lifecycle",
     }
 )
+_RETIRED_HISTORY_ATTRIBUTES = frozenset(
+    {
+        "_history_keys",
+        "_history_lifecycle",
+        "_guarded_history_bindings",
+    }
+)
 
 
 def _press(core: HistoryGestureCore, key_name: str):
@@ -59,7 +66,7 @@ def _press(core: HistoryGestureCore, key_name: str):
     )
 
 
-def _retired_history_imports(path: Path) -> list[tuple[int, str]]:
+def _retired_history_seams(path: Path) -> list[tuple[int, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     violations: list[tuple[int, str]] = []
 
@@ -74,6 +81,10 @@ def _retired_history_imports(path: Path) -> list[tuple[int, str]]:
             for alias in node.names:
                 if alias.name.rsplit(".", 1)[-1] in _RETIRED_HISTORY_MODULES:
                     violations.append((node.lineno, alias.name))
+            continue
+
+        if isinstance(node, ast.Attribute) and node.attr in _RETIRED_HISTORY_ATTRIBUTES:
+            violations.append((node.lineno, node.attr))
 
     return violations
 
@@ -131,17 +142,17 @@ def test_historical_screen_imports_are_clean_background_aliases() -> None:
         assert module.AgentsScreen is BackgroundAgentsScreen
 
 
-def test_retired_history_state_modules_have_no_importers() -> None:
+def test_retired_history_seams_have_no_callers() -> None:
     violations: list[str] = []
 
     for root_name in ("src", "tests"):
         for path in sorted((_ROOT / root_name).rglob("*.py")):
-            for line_number, module in _retired_history_imports(path):
+            for line_number, seam in _retired_history_seams(path):
                 relative_path = path.relative_to(_ROOT)
-                violations.append(f"{relative_path}:{line_number}: {module}")
+                violations.append(f"{relative_path}:{line_number}: {seam}")
 
     assert violations == [], (
-        "Retired history state modules are still imported:\n"
+        "Retired history architecture is still referenced:\n"
         + "\n".join(violations)
     )
 
