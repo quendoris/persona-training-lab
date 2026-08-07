@@ -136,11 +136,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._dispatch_history_actions(transition.actions)
 
     def _dispatch_history_actions(self, actions) -> None:
-        seen: set[str] = set()
         for action in actions:
-            if action in seen:
-                continue
-            seen.add(action)
             if action == HISTORY_TOGGLE:
                 self._stop_undo_repeat()
                 self._toggle_last_history_action()
