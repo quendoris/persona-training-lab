@@ -96,6 +96,8 @@ class HistoryGestureCore:
         self._guarded_bindings = frozenset(
             binding_id for binding_id in binding_ids if binding_id in HISTORY_BINDING_IDS
         )
+        if not self._guarded_bindings:
+            self._clear_gesture_state()
         return self._guarded_bindings
 
     def allowed_actions(self, actions: Iterable[str]) -> tuple[str, ...]:
@@ -135,6 +137,8 @@ class HistoryGestureCore:
         has_extra_modifiers: bool,
         auto_repeat: bool,
     ) -> HistoryTransition:
+        if not self.has_guarded_bindings:
+            return HistoryTransition()
         if key_name == "z" and has_extra_modifiers:
             return HistoryTransition()
 
@@ -161,6 +165,9 @@ class HistoryGestureCore:
         )
 
     def release(self, key_name: str) -> HistoryTransition:
+        if not self.has_guarded_bindings:
+            return HistoryTransition()
+
         if key_name == "shift":
             was_control_down = self.control_down
             was_strict = self.strict_undo_requested
@@ -254,13 +261,16 @@ class HistoryGestureCore:
         )
 
     def reset(self) -> None:
+        self._clear_gesture_state()
+        self.block_flip()
+
+    def _clear_gesture_state(self) -> None:
         self.control_down = False
         self.shift_down = False
         self.shift_latched = False
         self.layout_shift_latched = False
         self.z_down = False
         self._mode = None
-        self.block_flip()
 
     def _prime_modifiers(self, *, control: bool, shift: bool) -> tuple[str, ...]:
         self.control_down = self.control_down or control
