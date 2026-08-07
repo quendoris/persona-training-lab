@@ -5,8 +5,14 @@ from types import SimpleNamespace
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent
 
-from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
-from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen as HistoryKeyGuardAgentsScreen
+from persona_training_lab.ui.agents.history_gesture_core import (
+    HISTORY_TOGGLE,
+    HISTORY_UNDO,
+    HistoryGestureCore,
+)
+from persona_training_lab.ui.agents.screen_history_keyguard import (
+    AgentsScreen as HistoryKeyGuardAgentsScreen,
+)
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
 
@@ -29,7 +35,8 @@ def _routing_screen(manager: KeyBindingManager):
         _HISTORY_BINDING_IDS=HistoryKeyGuardAgentsScreen._HISTORY_BINDING_IDS,
         _DEFAULT_GUARDED_SEQUENCES=HistoryKeyGuardAgentsScreen._DEFAULT_GUARDED_SEQUENCES,
         _normalized_sequence=HistoryKeyGuardAgentsScreen._normalized_sequence,
-        _guarded_history_bindings=set(),
+        _history_gesture=HistoryGestureCore(),
+        _sync_modifier_polling=lambda: None,
     )
     return screen, shortcuts
 
@@ -40,7 +47,7 @@ def test_default_history_bindings_use_physical_guard(tmp_path) -> None:
 
     HistoryKeyGuardAgentsScreen._sync_history_shortcut_routing(screen)
 
-    assert screen._guarded_history_bindings == {"history_toggle", "undo_only"}
+    assert screen._history_gesture.guarded_bindings == {"history_toggle", "undo_only"}
     assert shortcuts["history_toggle"].enabled is False
     assert shortcuts["undo_only"].enabled is False
 
@@ -52,7 +59,7 @@ def test_custom_history_binding_switches_to_qshortcut_live(tmp_path) -> None:
 
     HistoryKeyGuardAgentsScreen._sync_history_shortcut_routing(screen)
 
-    assert screen._guarded_history_bindings == {"undo_only"}
+    assert screen._history_gesture.guarded_bindings == {"undo_only"}
     assert shortcuts["history_toggle"].enabled is True
     assert shortcuts["undo_only"].enabled is False
     assert HistoryKeyGuardAgentsScreen._guarded_actions(screen, (HISTORY_TOGGLE, HISTORY_UNDO)) == (
@@ -63,18 +70,18 @@ def test_custom_history_binding_switches_to_qshortcut_live(tmp_path) -> None:
 def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
     modifiers = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Z, modifiers, "\x1a")
-    state = HistoryKeyState(control_down=True)
+    core = HistoryGestureCore()
+    core.set_guarded_bindings(("history_toggle",))
     screen = SimpleNamespace(
-        _guarded_history_bindings={"history_toggle"},
-        _history_keys=state,
+        _history_gesture=core,
         _has_extra_history_modifiers=HistoryKeyGuardAgentsScreen._has_extra_history_modifiers,
         _effective_modifiers=lambda _event: (True, False),
-        _guarded_history_gesture_active=lambda: False,
+        _apply_history_transition=lambda _transition: None,
     )
 
     assert HistoryKeyGuardAgentsScreen._claims_history_override(screen, event, "z") is False
     assert HistoryKeyGuardAgentsScreen._handle_history_key_press(screen, event, "z") is False
-    assert state.z_down is False
+    assert core.z_down is False
 
 
 def test_reset_to_default_restores_physical_guard(tmp_path) -> None:
@@ -87,5 +94,5 @@ def test_reset_to_default_restores_physical_guard(tmp_path) -> None:
     assert manager.reset_binding("undo_only").accepted
     HistoryKeyGuardAgentsScreen._sync_history_shortcut_routing(screen)
 
-    assert "undo_only" in screen._guarded_history_bindings
+    assert "undo_only" in screen._history_gesture.guarded_bindings
     assert shortcuts["undo_only"].enabled is False
