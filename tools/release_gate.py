@@ -68,7 +68,7 @@ QUICK_TESTS = (
     "tests/test_history_shortcut_routing.py",
     "tests/test_agents_editable_key_binding_routing.py",
     "tests/test_agents_history_key_layouts.py",
-    "tests/test_agents_history_key_state.py",
+    "tests/test_history_gesture_core.py",
     "tests/test_history_key_resolver.py",
     "tests/test_history_repeat_timers.py",
     "tests/test_agents_history_repeat_adapter.py",
