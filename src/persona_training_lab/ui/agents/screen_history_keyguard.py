@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from time import monotonic
-
 from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QPushButton
 
+from persona_training_lab.ui.agents.history_gesture_lifecycle import HistoryGestureLifecycle
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
 from persona_training_lab.ui.agents.history_shortcut_routing import HistoryShortcutRouting
 from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
@@ -27,7 +26,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
     _REPEAT_DELAY_MS = 330
     _REPEAT_INTERVAL_MS = 85
     _MODIFIER_POLL_MS = 16
-    _FLIP_GUARD_SECONDS = 0.35
+    _FLIP_GUARD_SECONDS = HistoryGestureLifecycle.DEFAULT_FLIP_GUARD_SECONDS
     _KEYBOARD_LAYOUT_CHANGE = getattr(QEvent.Type, "KeyboardLayoutChange", None)
 
     def __init__(self, view_model, key_binding_manager: KeyBindingManager | None = None) -> None:
@@ -36,7 +35,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         super().__init__(view_model)
 
         self._history_keys = HistoryKeyState()
-        self._flip_blocked_until = 0.0
+        self._history_lifecycle = HistoryGestureLifecycle(
+            flip_guard_seconds=self._FLIP_GUARD_SECONDS,
+        )
 
         self._undo_repeat_delay = QTimer(self)
         self._undo_repeat_delay.setSingleShot(True)
@@ -236,21 +237,24 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             bool(modifiers & Qt.KeyboardModifier.ShiftModifier),
         )
 
+    def _repeat_is_allowed(self) -> bool:
+        return self._history_lifecycle.repeat_is_allowed(
+            self._history_keys,
+            can_undo=self._state.can_undo(),
+            undo_binding_owned="undo_only" in self._guarded_history_bindings,
+        )
+
     def _arm_undo_repeat(self) -> None:
         self._undo_repeat.stop()
-        if self._history_keys.undo_repeat_active and self._state.can_undo():
+        if self._repeat_is_allowed():
             self._undo_repeat_delay.start()
 
     def _start_undo_repeat(self) -> None:
-        if self._history_keys.undo_repeat_active and self._state.can_undo():
+        if self._repeat_is_allowed():
             self._undo_repeat.start()
 
     def _repeat_undo_history(self) -> None:
-        if (
-            "undo_only" not in self._guarded_history_bindings
-            or not self._history_keys.undo_repeat_active
-            or not self._state.can_undo()
-        ):
+        if not self._repeat_is_allowed():
             self._stop_undo_repeat()
             return
         self._block_graph_flip()
@@ -323,7 +327,7 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         super()._toggle_graph_flip()
 
     def _block_graph_flip(self) -> None:
-        self._flip_blocked_until = max(self._flip_blocked_until, monotonic() + self._FLIP_GUARD_SECONDS)
+        self._history_lifecycle.block_flip()
 
     def _graph_flip_is_blocked(self) -> bool:
         control, shift = self._queried_modifiers()
@@ -331,11 +335,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         guarded = control or shift or bool(
             modifiers & (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier)
         )
-        return (
-            self._history_keys.mode is not None
-            or self._history_keys.strict_undo_requested
-            or guarded
-            or monotonic() < self._flip_blocked_until
+        return self._history_lifecycle.flip_is_blocked(
+            self._history_keys,
+            modifier_guarded=guarded,
         )
 
     @classmethod
