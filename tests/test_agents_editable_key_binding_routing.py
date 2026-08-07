@@ -89,6 +89,32 @@ def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
     assert core.control_down is False
 
 
+def test_unowned_history_transport_never_observes_or_mutates_key_state() -> None:
+    event = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_Z,
+        Qt.KeyboardModifier.ControlModifier,
+        "\x1a",
+    )
+    core = HistoryGestureCore()
+
+    def unexpected_observation(_event: QKeyEvent) -> tuple[bool, bool]:
+        raise AssertionError("unowned history transport must stay completely inert")
+
+    screen = SimpleNamespace(
+        _history_gesture=core,
+        _has_extra_history_modifiers=HistoryKeyGuardAgentsScreen._has_extra_history_modifiers,
+        _observed_modifiers=unexpected_observation,
+        _apply_history_transition=lambda _transition: None,
+    )
+
+    assert HistoryKeyGuardAgentsScreen._claims_history_override(screen, event, "z") is False
+    assert HistoryKeyGuardAgentsScreen._handle_history_key_press(screen, event, "z") is False
+    assert core.control_down is False
+    assert core.z_down is False
+    assert core.mode is None
+
+
 def test_reset_to_default_restores_physical_guard(tmp_path) -> None:
     manager = KeyBindingManager(storage_path=tmp_path / "key_bindings.json")
     screen, shortcuts = _routing_screen(manager)
