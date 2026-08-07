@@ -12,7 +12,7 @@ from persona_training_lab.ui.agents.history_gesture_core import (
     HistoryGestureCore,
 )
 from persona_training_lab.ui.agents.screen_agents_final import (
-    AgentsScreen as FinalAgentsScreen,
+    AgentsScreen as FinalCompatibilityAgentsScreen,
 )
 from persona_training_lab.ui.agents.screen_background import (
     AgentsScreen as BackgroundAgentsScreen,
@@ -38,11 +38,17 @@ from persona_training_lab.ui.agents.screen_history_keyguard_sticky import (
 from persona_training_lab.ui.agents.screen_lineage_base import (
     AgentsScreen as LineageBaseAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_lineage_interactions import (
+    AgentsScreen as LineageInteractionAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_runtime_safe import (
     AgentsScreen as RuntimeSafeAgentsScreen,
 )
 from persona_training_lab.ui.agents.screen_stateful_fixed import (
-    AgentsScreen as StatefulFixedAgentsScreen,
+    AgentsScreen as StatefulFixedCompatibilityAgentsScreen,
+)
+from persona_training_lab.ui.agents.screen_workspace_presentation import (
+    AgentsScreen as WorkspacePresentationAgentsScreen,
 )
 
 
@@ -121,20 +127,31 @@ def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
     return violations
 
 
-def test_public_agents_screen_uses_single_composed_background_layout() -> None:
+def test_public_agents_screen_uses_semantic_composition_layers() -> None:
     assert PublicAgentsScreen is BackgroundAgentsScreen
     assert ContextualAgentsScreen is BackgroundAgentsScreen
     assert FastBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReconciledBackgroundAgentsScreen is BackgroundAgentsScreen
     assert ReportedBackgroundAgentsScreen is BackgroundAgentsScreen
     assert RuntimeSafeAgentsScreen is BackgroundAgentsScreen
-    assert BackgroundAgentsScreen.__bases__ == (FinalAgentsScreen,)
-    assert FinalAgentsScreen.__bases__ == (HistoryKeyGuardAgentsScreen,)
-    assert HistoryKeyGuardAgentsScreen.__bases__ == (StatefulFixedAgentsScreen,)
-    assert StatefulFixedAgentsScreen.__bases__ == (LineageBaseAgentsScreen,)
+
+    assert BackgroundAgentsScreen.__bases__ == (WorkspacePresentationAgentsScreen,)
+    assert WorkspacePresentationAgentsScreen.__bases__ == (
+        HistoryKeyGuardAgentsScreen,
+    )
+    assert HistoryKeyGuardAgentsScreen.__bases__ == (
+        LineageInteractionAgentsScreen,
+    )
+    assert LineageInteractionAgentsScreen.__bases__ == (LineageBaseAgentsScreen,)
+
     assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
-    assert FinalAgentsScreen._ROLES_MIN_WIDTH >= 280
-    assert FinalAgentsScreen._DETAILS_MIN_WIDTH >= 360
+    assert FinalCompatibilityAgentsScreen is WorkspacePresentationAgentsScreen
+    assert (
+        StatefulFixedCompatibilityAgentsScreen
+        is LineageInteractionAgentsScreen
+    )
+    assert WorkspacePresentationAgentsScreen._ROLES_MIN_WIDTH >= 280
+    assert WorkspacePresentationAgentsScreen._DETAILS_MIN_WIDTH >= 360
 
 
 def test_background_screen_owns_runtime_and_contextual_ui_adapters() -> None:
@@ -156,11 +173,28 @@ def test_background_screen_owns_runtime_and_contextual_ui_adapters() -> None:
     assert "_handle_history_key_release" not in BackgroundAgentsScreen.__dict__
 
 
-def test_final_screen_owns_layout_without_interaction_overrides() -> None:
-    assert "eventFilter" not in FinalAgentsScreen.__dict__
-    assert "_handle_history_key_release" not in FinalAgentsScreen.__dict__
-    assert "_poll_physical_modifiers" not in FinalAgentsScreen.__dict__
-    assert "_reset_history_gesture" not in FinalAgentsScreen.__dict__
+def test_workspace_presentation_owns_layout_without_interaction_overrides() -> None:
+    assert "eventFilter" not in WorkspacePresentationAgentsScreen.__dict__
+    assert "_handle_history_key_release" not in WorkspacePresentationAgentsScreen.__dict__
+    assert "_poll_physical_modifiers" not in WorkspacePresentationAgentsScreen.__dict__
+    assert "_reset_history_gesture" not in WorkspacePresentationAgentsScreen.__dict__
+
+
+def test_lineage_interaction_layer_owns_command_and_history_effects() -> None:
+    for method_name in (
+        "_handle_canvas_menu_action",
+        "_make_current",
+        "_mark_tone",
+        "_continue_from_selected",
+        "_toggle_last_history_action",
+        "_undo_history_only",
+        "_apply_history_transition",
+        "_rename_local_branch",
+        "_toggle_local_branch_archive",
+        "_delete_local_branch_subtree",
+    ):
+        assert method_name in LineageInteractionAgentsScreen.__dict__
+    assert "eventFilter" not in LineageInteractionAgentsScreen.__dict__
 
 
 def test_historical_public_screen_imports_are_clean_background_aliases() -> None:
@@ -169,6 +203,18 @@ def test_historical_public_screen_imports_are_clean_background_aliases() -> None
             f"persona_training_lab.ui.agents.{module_name}"
         )
         assert module.AgentsScreen is BackgroundAgentsScreen
+
+
+def test_internal_legacy_screen_paths_are_clean_semantic_aliases() -> None:
+    stateful_fixed = importlib.import_module(
+        "persona_training_lab.ui.agents.screen_stateful_fixed"
+    )
+    agents_final = importlib.import_module(
+        "persona_training_lab.ui.agents.screen_agents_final"
+    )
+
+    assert stateful_fixed.AgentsScreen is LineageInteractionAgentsScreen
+    assert agents_final.AgentsScreen is WorkspacePresentationAgentsScreen
 
 
 def test_stateful_compatibility_path_has_one_stable_base_identity() -> None:
@@ -256,6 +302,6 @@ def test_visible_agent_detail_refreshes_after_binding_change() -> None:
         _select_node=selected.append,
     )
 
-    FinalAgentsScreen._refresh_key_binding_help(screen)
+    WorkspacePresentationAgentsScreen._refresh_key_binding_help(screen)
 
     assert selected == ["branch_1"]
