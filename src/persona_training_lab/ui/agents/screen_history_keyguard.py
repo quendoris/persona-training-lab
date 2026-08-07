@@ -89,12 +89,16 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         return super().eventFilter(watched, event)
 
     def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
+        has_extra_modifiers = self._has_extra_history_modifiers(event)
+        if key_name == "z" and has_extra_modifiers:
+            return False
+
         control, shift = self._observed_modifiers(event)
         transition = self._history_gesture.press(
             key_name,
             observed_control=control,
             observed_shift=shift,
-            has_extra_modifiers=self._has_extra_history_modifiers(event),
+            has_extra_modifiers=has_extra_modifiers,
             auto_repeat=event.isAutoRepeat(),
         )
         self._apply_history_transition(transition)
@@ -202,12 +206,16 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         self._history_gesture.reset()
 
     def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
+        has_extra_modifiers = self._has_extra_history_modifiers(event)
+        if key_name == "z" and has_extra_modifiers:
+            return False
+
         control, shift = self._observed_modifiers(event)
         return self._history_gesture.claims_override(
             key_name=key_name,
             observed_control=control,
             observed_shift=shift,
-            has_extra_modifiers=self._has_extra_history_modifiers(event),
+            has_extra_modifiers=has_extra_modifiers,
         )
 
     def _apply_key_binding_sequences(self) -> None:
