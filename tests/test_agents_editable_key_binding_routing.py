@@ -72,16 +72,21 @@ def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Z, modifiers, "\x1a")
     core = HistoryGestureCore()
     core.set_guarded_bindings(("history_toggle",))
+
+    def unexpected_observation(_event: QKeyEvent) -> tuple[bool, bool]:
+        raise AssertionError("extra-modifier Z must bypass modifier observation")
+
     screen = SimpleNamespace(
         _history_gesture=core,
         _has_extra_history_modifiers=HistoryKeyGuardAgentsScreen._has_extra_history_modifiers,
-        _effective_modifiers=lambda _event: (True, False),
+        _observed_modifiers=unexpected_observation,
         _apply_history_transition=lambda _transition: None,
     )
 
     assert HistoryKeyGuardAgentsScreen._claims_history_override(screen, event, "z") is False
     assert HistoryKeyGuardAgentsScreen._handle_history_key_press(screen, event, "z") is False
     assert core.z_down is False
+    assert core.control_down is False
 
 
 def test_reset_to_default_restores_physical_guard(tmp_path) -> None:
