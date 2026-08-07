@@ -314,7 +314,9 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             if shortcut is not None:
                 shortcut.setEnabled(binding_id not in guarded)
 
-        self._sync_modifier_polling()
+        sync_modifier_polling = getattr(self, "_sync_modifier_polling", None)
+        if sync_modifier_polling is not None:
+            sync_modifier_polling()
 
     def _sync_modifier_polling(self) -> None:
         if not hasattr(self, "_modifier_poll"):
