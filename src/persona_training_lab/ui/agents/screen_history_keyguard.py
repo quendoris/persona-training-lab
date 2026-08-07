@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from persona_training_lab.ui.agents.history_gesture_lifecycle import HistoryGestureLifecycle
 from persona_training_lab.ui.agents.history_key_state import HISTORY_TOGGLE, HISTORY_UNDO, HistoryKeyState
+from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
 from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
 from persona_training_lab.ui.agents.history_shortcut_routing import HistoryShortcutRouting
 from persona_training_lab.ui.agents.screen_stateful_fixed import AgentsScreen as _StatefulFixedAgentsScreen
@@ -49,10 +50,11 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
 
         # Polling is a positive-only fallback for modifier events consumed by the
         # desktop. Real KeyRelease events remain the authoritative release signal.
-        self._modifier_poll = QTimer(self)
-        self._modifier_poll.setInterval(self._MODIFIER_POLL_MS)
-        self._modifier_poll.timeout.connect(self._poll_physical_modifiers)
-        self._modifier_poll.start()
+        self._modifier_poll = HistoryModifierPoller(
+            self._poll_physical_modifiers,
+            interval_ms=self._MODIFIER_POLL_MS,
+            parent=self,
+        )
 
         self._key_binding_manager.bindings_changed.connect(self._apply_key_binding_sequences)
         self._apply_key_binding_sequences()
@@ -73,12 +75,22 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
         event_type = event.type()
 
         # Internal dialogs deactivate child windows without deactivating the whole
-        # application. Only a real application deactivation ends a key gesture.
+        # application. Only a real application deactivation ends a key gesture,
+        # while modifier polling follows the actual active-window lifecycle.
         if event_type == QEvent.Type.WindowDeactivate:
+            self._modifier_poll.stop()
             return False
         if event_type == QEvent.Type.ApplicationDeactivate:
+            self._modifier_poll.stop()
             self._reset_history_gesture()
             return super().eventFilter(watched, event)
+
+        if event_type in (QEvent.Type.ApplicationActivate, QEvent.Type.WindowActivate):
+            self._sync_modifier_polling()
+        elif watched is self and event_type == QEvent.Type.Hide:
+            self._modifier_poll.stop()
+        elif watched is self and event_type == QEvent.Type.Show:
+            self._sync_modifier_polling()
 
         if self._KEYBOARD_LAYOUT_CHANGE is not None and event_type == self._KEYBOARD_LAYOUT_CHANGE:
             self._handle_keyboard_layout_change()
@@ -303,6 +315,15 @@ class AgentsScreen(_StatefulFixedAgentsScreen):
             shortcut = getattr(self, "_shortcuts", {}).get(binding_id)
             if shortcut is not None:
                 shortcut.setEnabled(binding_id not in guarded)
+
+        self._sync_modifier_polling()
+
+    def _sync_modifier_polling(self) -> None:
+        if not hasattr(self, "_modifier_poll"):
+            return
+        self._modifier_poll.set_active(
+            bool(self._guarded_history_bindings) and self._history_keys_are_active()
+        )
 
     def _disable_conflicting_history_bindings(self) -> None:
         # Compatibility for older callers and tests.

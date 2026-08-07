@@ -72,6 +72,7 @@ QUICK_TESTS = (
     "tests/test_history_repeat_timers.py",
     "tests/test_agents_history_repeat_adapter.py",
     "tests/test_history_modifier_poller.py",
+    "tests/test_agents_history_modifier_poller_adapter.py",
     "tests/test_lineage_context_navigation.py",
     "tests/test_agents_scroll_compensation.py",
     "tests/test_agents_context_adapter.py",
