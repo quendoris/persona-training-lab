@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, Signal
 
 
 class HistoryModifierPoller(QObject):
-    """Own the positive-only modifier polling timer for history gestures."""
+    """Own the positive-only modifier polling timer without owning its consumer."""
 
     DEFAULT_INTERVAL_MS = 16
 
+    poll_requested = Signal()
+
     def __init__(
         self,
-        on_poll: Callable[[], None],
         *,
         interval_ms: int = DEFAULT_INTERVAL_MS,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self._on_poll = on_poll
         self._active = False
         self._timer = QTimer(self)
         self._timer.setInterval(max(1, int(interval_ms)))
@@ -44,7 +42,7 @@ class HistoryModifierPoller(QObject):
     def poll_once(self) -> bool:
         if not self._active:
             return False
-        self._on_poll()
+        self.poll_requested.emit()
         return True
 
     def stop(self) -> None:
