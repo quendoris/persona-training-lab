@@ -120,6 +120,7 @@ class HistoryGestureCore:
         observed_control: bool,
         observed_shift: bool,
     ) -> tuple[bool, bool]:
+        """Combine external observations with state without mutating either source."""
         return (
             self.control_down or observed_control,
             self.strict_undo_requested or observed_shift,
@@ -137,14 +138,13 @@ class HistoryGestureCore:
         if key_name == "z" and has_extra_modifiers:
             return HistoryTransition()
 
-        control, shift = self.effective_modifiers(
-            observed_control=observed_control,
-            observed_shift=observed_shift,
-        )
+        # Only externally observed modifiers may prime physical state. Internal
+        # latches (notably KeyboardLayoutChange) affect chord semantics but must
+        # never be fed back as fresh physical Shift observations.
         actions = list(
             self._prime_modifiers(
-                control=key_name != "control" and control,
-                shift=key_name != "shift" and shift,
+                control=key_name != "control" and observed_control,
+                shift=key_name != "shift" and observed_shift,
             )
         )
         actions.extend(self._press_key(key_name))
