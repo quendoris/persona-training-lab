@@ -4,10 +4,10 @@ import importlib
 from types import SimpleNamespace
 
 from persona_training_lab.ui.agents import AgentsScreen as PublicAgentsScreen
-from persona_training_lab.ui.agents.history_key_state import (
+from persona_training_lab.ui.agents.history_gesture_core import (
     HISTORY_TOGGLE,
     HISTORY_UNDO,
-    HistoryKeyState,
+    HistoryGestureCore,
 )
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as FinalAgentsScreen,
@@ -36,6 +36,16 @@ from persona_training_lab.ui.agents.screen_history_keyguard_sticky import (
 from persona_training_lab.ui.agents.screen_runtime_safe import (
     AgentsScreen as RuntimeSafeAgentsScreen,
 )
+
+
+def _press(core: HistoryGestureCore, key_name: str):
+    return core.press(
+        key_name,
+        observed_control=False,
+        observed_shift=False,
+        has_extra_modifiers=False,
+        auto_repeat=False,
+    )
 
 
 def test_public_agents_screen_uses_single_composed_background_layout() -> None:
@@ -92,61 +102,51 @@ def test_historical_screen_imports_are_clean_background_aliases() -> None:
 
 
 def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() -> None:
-    state = HistoryKeyState()
-    state.press("control")
-    state.press("shift")
-    assert state.press("z") == (HISTORY_UNDO,)
-    state.release("z")
+    core = HistoryGestureCore()
+    core.set_guarded_bindings({"history_toggle", "undo_only"})
+    _press(core, "control")
+    _press(core, "shift")
+    assert _press(core, "z").actions == (HISTORY_UNDO,)
+    core.release("z")
 
-    calls = {"stop": 0, "block": 0}
+    transitions = []
     screen = SimpleNamespace(
-        _history_keys=state,
-        _stop_undo_repeat=lambda: calls.__setitem__(
-            "stop",
-            calls["stop"] + 1,
-        ),
-        _block_graph_flip=lambda: calls.__setitem__(
-            "block",
-            calls["block"] + 1,
-        ),
+        _history_gesture=core,
+        _apply_history_transition=transitions.append,
     )
 
     assert HistoryKeyGuardAgentsScreen._handle_history_key_release(
         screen,
         "shift",
     ) is True
-    assert state.strict_undo_requested is False
-    assert calls == {"stop": 1, "block": 1}
-    assert state.press("z") == (HISTORY_TOGGLE,)
+    assert core.strict_undo_requested is False
+    assert len(transitions) == 1
+    assert transitions[0].stop_repeat is True
+    assert _press(core, "z").actions == (HISTORY_TOGGLE,)
 
 
 def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
-    state = HistoryKeyState()
-    state.press("control")
-    state.press("shift")
+    core = HistoryGestureCore()
+    core.set_guarded_bindings({"history_toggle", "undo_only"})
+    _press(core, "control")
+    _press(core, "shift")
 
-    calls = {"block": 0, "dispatch": []}
+    transitions = []
     screen = SimpleNamespace(
-        _history_keys=state,
-        _guarded_history_bindings={"history_toggle", "undo_only"},
+        _history_gesture=core,
         _history_keys_are_active=lambda: True,
         _queried_modifiers=lambda: (False, False),
-        _guarded_actions=lambda actions: tuple(actions),
-        _block_graph_flip=lambda: calls.__setitem__(
-            "block",
-            calls["block"] + 1,
-        ),
-        _dispatch_history_actions=lambda actions: calls[
-            "dispatch"
-        ].append(tuple(actions)),
+        _apply_history_transition=transitions.append,
     )
 
     HistoryKeyGuardAgentsScreen._poll_physical_modifiers(screen)
 
-    assert state.control_down is True
-    assert state.shift_down is True
-    assert state.strict_undo_requested is True
-    assert calls == {"block": 0, "dispatch": []}
+    assert core.control_down is True
+    assert core.shift_down is True
+    assert core.strict_undo_requested is True
+    assert len(transitions) == 1
+    assert transitions[0].actions == ()
+    assert transitions[0].claimed is False
 
 
 def test_visible_agent_detail_refreshes_after_binding_change() -> None:
