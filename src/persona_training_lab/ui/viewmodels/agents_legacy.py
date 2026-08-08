@@ -12,6 +12,8 @@ from persona_training_lab.ui.viewmodels.agents_guidance import (
 class AgentsViewModel(AgentsGuidanceViewModel):
     """Compatibility VM retaining the pre-atomic canonical graph projection."""
 
+    __slots__ = ()
+
     def version_nodes(self) -> tuple[VersionNodeView, ...]:
         training_runs = self._training_runs()
         versions = self._model_versions()
