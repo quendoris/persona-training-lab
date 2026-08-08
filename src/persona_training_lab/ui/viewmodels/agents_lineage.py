@@ -10,14 +10,14 @@ from persona_training_lab.application.lineage.atomic_projection import (
     AtomicLineageSnapshot,
 )
 from persona_training_lab.application.lineage.loader import LineageLoaderFactory
-from persona_training_lab.ui.viewmodels.agents import (
-    AgentsViewModel as _LegacyAgentsViewModel,
+from persona_training_lab.ui.viewmodels.agents_guidance import (
+    AgentsGuidanceViewModel,
 )
 
 
 @dataclass(slots=True)
-class AgentsViewModel(_LegacyAgentsViewModel):
-    """Agents read model with explicit legacy and worker-owned lineage ports."""
+class AgentsViewModel(AgentsGuidanceViewModel):
+    """Agents guidance read model with worker-owned atomic lineage ports."""
 
     lineage_projection_service: AtomicLineageProjectionService | None = None
     lineage_loader_factory: LineageLoaderFactory | None = None
@@ -26,5 +26,7 @@ class AgentsViewModel(_LegacyAgentsViewModel):
     def build_lineage_snapshot(self) -> AtomicLineageSnapshot:
         service = self.lineage_projection_service
         if service is None:
-            raise RuntimeError("Atomic lineage projection service is not configured")
+            raise RuntimeError(
+                "Atomic lineage projection service is not configured"
+            )
         return service.build_snapshot()
