@@ -3,17 +3,23 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from persona_training_lab.ui.agents.version_graph_canvas_base import (
+    VersionGraphCanvas as BaseVersionGraphCanvas,
+)
 from persona_training_lab.ui.agents.version_graph_clean_layout import (
     VersionGraphCanvas as CleanLayoutVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_curved import (
-    VersionGraphCanvas as CurvedVersionGraphCanvas,
+    VersionGraphCanvas as CurvedCompatibilityCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_dynamic_workspace import (
     VersionGraphCanvas as DynamicWorkspaceCompatibilityCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_free_zoom import (
     VersionGraphCanvas as FreeZoomVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_interactions import (
+    VersionGraphCanvas as InteractionVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_locked import (
     VersionGraphCanvas as LockedVersionGraphCanvas,
@@ -25,7 +31,7 @@ from persona_training_lab.ui.agents.version_graph_persistent import (
     VersionGraphCanvas as PersistentVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_stateful import (
-    VersionGraphCanvas as StatefulVersionGraphCanvas,
+    VersionGraphCanvas as StatefulCompatibilityCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_workspace_geometry import (
     VersionGraphCanvas as WorkspaceGeometryVersionGraphCanvas,
@@ -48,6 +54,8 @@ _RETIRED_GRAPH_IMPLEMENTATIONS = frozenset(
 )
 _HISTORICAL_GRAPH_COMPATIBILITY = frozenset(
     {
+        "persona_training_lab.ui.agents.version_graph_curved",
+        "persona_training_lab.ui.agents.version_graph_stateful",
         "persona_training_lab.ui.agents.version_graph_dynamic_workspace",
     }
 )
@@ -88,11 +96,14 @@ def test_version_graph_live_mro_uses_single_responsibility_canvas_layers() -> No
         CleanLayoutVersionGraphCanvas,
     )
     assert CleanLayoutVersionGraphCanvas.__bases__ == (
-        StatefulVersionGraphCanvas,
+        InteractionVersionGraphCanvas,
     )
-    assert StatefulVersionGraphCanvas.__bases__ == (LockedVersionGraphCanvas,)
+    assert InteractionVersionGraphCanvas.__bases__ == (LockedVersionGraphCanvas,)
     assert LockedVersionGraphCanvas.__bases__ == (PersistentVersionGraphCanvas,)
-    assert PersistentVersionGraphCanvas.__bases__ == (CurvedVersionGraphCanvas,)
+    assert PersistentVersionGraphCanvas.__bases__ == (BaseVersionGraphCanvas,)
+
+    assert CurvedCompatibilityCanvas is BaseVersionGraphCanvas
+    assert StatefulCompatibilityCanvas is InteractionVersionGraphCanvas
     assert DynamicWorkspaceCompatibilityCanvas is WorkspaceGeometryVersionGraphCanvas
 
 
@@ -130,7 +141,7 @@ def test_version_graph_layout_authority_has_no_shadow_algorithms() -> None:
         "_side_lane",
         "_lane_offsets",
     }
-    retired_stateful_methods = {
+    retired_interaction_methods = {
         "_lanes",
         "_branch_groups",
         "_collect_branch_ids",
@@ -141,8 +152,8 @@ def test_version_graph_layout_authority_has_no_shadow_algorithms() -> None:
     }
 
     assert retired_locked_methods.isdisjoint(LockedVersionGraphCanvas.__dict__)
-    assert retired_stateful_methods.isdisjoint(StatefulVersionGraphCanvas.__dict__)
-    assert StatefulVersionGraphCanvas._lanes is CurvedVersionGraphCanvas._lanes
+    assert retired_interaction_methods.isdisjoint(InteractionVersionGraphCanvas.__dict__)
+    assert InteractionVersionGraphCanvas._lanes is BaseVersionGraphCanvas._lanes
     assert FreeZoomVersionGraphCanvas._positions is WorkspaceGeometryVersionGraphCanvas._positions
     assert FreeZoomVersionGraphCanvas._display_levels is CleanLayoutVersionGraphCanvas._display_levels
     assert FreeZoomVersionGraphCanvas._lanes is CleanLayoutVersionGraphCanvas._lanes
@@ -175,7 +186,7 @@ def test_retired_version_graph_implementations_are_absent_and_unreferenced() -> 
     )
 
 
-def test_production_does_not_depend_on_historical_dynamic_workspace_alias() -> None:
+def test_production_does_not_depend_on_historical_graph_aliases() -> None:
     violations: list[str] = []
 
     for path in sorted((_ROOT / "src").rglob("*.py")):
