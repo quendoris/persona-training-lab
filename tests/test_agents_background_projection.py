@@ -15,6 +15,14 @@ from persona_training_lab.application.lineage.snapshot import (
     LineageSourceSnapshot,
 )
 from persona_training_lab.ui.agents import AgentsScreen
+from persona_training_lab.ui.viewmodels.agents import (
+    AgentDetailView as CompatibilityAgentDetailView,
+    AgentsViewModel as LegacyAgentsViewModel,
+)
+from persona_training_lab.ui.viewmodels.agents_contracts import AgentDetailView
+from persona_training_lab.ui.viewmodels.agents_guidance import (
+    AgentsGuidanceViewModel,
+)
 from persona_training_lab.ui.viewmodels.agents_lineage import AgentsViewModel
 
 
@@ -84,6 +92,15 @@ class _Reporter:
     def report_message(self, message: str, **kwargs) -> str:
         self.calls.append((message, kwargs))
         return "corr_lineage_test"
+
+
+def test_atomic_agents_vm_excludes_legacy_version_nodes() -> None:
+    assert CompatibilityAgentDetailView is AgentDetailView
+    assert issubclass(LegacyAgentsViewModel, AgentsGuidanceViewModel)
+    assert hasattr(LegacyAgentsViewModel, "version_nodes")
+    assert not hasattr(AgentsGuidanceViewModel, "version_nodes")
+    assert issubclass(AgentsViewModel, AgentsGuidanceViewModel)
+    assert not hasattr(AgentsViewModel, "version_nodes")
 
 
 def test_agents_constructor_and_refresh_never_read_legacy_lineage_services() -> None:
