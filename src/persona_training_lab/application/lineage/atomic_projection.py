@@ -10,9 +10,11 @@ from persona_training_lab.application.datasets.status_mapping import (
 from persona_training_lab.application.experiments.status_mapping import (
     normalize_evaluation_status,
 )
-from persona_training_lab.application.lineage.projection import (
+from persona_training_lab.application.lineage.projection_builder import (
+    build_lineage_projection,
+)
+from persona_training_lab.application.lineage.projection_model import (
     LineageProjection,
-    LineageProjectionService,
 )
 from persona_training_lab.application.lineage.snapshot import (
     LineageSnapshotReaderPort,
@@ -38,55 +40,28 @@ class AtomicLineageProjectionService:
 
     def build_snapshot(self) -> AtomicLineageSnapshot:
         source = self.snapshot_reader.read_lineage_snapshot()
-        projection = LineageProjectionService(
-            datasets_service=_StaticSource(
-                "list_datasets",
-                _with_status_codes(
-                    source.datasets,
-                    normalize_dataset_status,
-                ),
+        projection = build_lineage_projection(
+            datasets=_with_status_codes(
+                source.datasets,
+                normalize_dataset_status,
             ),
-            training_service=_StaticSource(
-                "list_training_runs",
-                _with_status_codes(
-                    source.training_runs,
-                    normalize_training_status,
-                ),
+            training_runs=_with_status_codes(
+                source.training_runs,
+                normalize_training_status,
             ),
-            model_versions_service=_StaticSource(
-                "list_model_versions",
-                _with_status_codes(
-                    source.model_versions,
-                    normalize_model_version_status,
-                ),
+            model_versions=_with_status_codes(
+                source.model_versions,
+                normalize_model_version_status,
             ),
-            experiments_service=_StaticSource(
-                "list_experiments",
-                _with_status_codes(
-                    source.evaluations,
-                    normalize_evaluation_status,
-                ),
+            evaluations=_with_status_codes(
+                source.evaluations,
+                normalize_evaluation_status,
             ),
-        ).build_projection()
+        )
         return AtomicLineageSnapshot(source=source, projection=projection)
 
     def build_projection(self) -> LineageProjection:
         return self.build_snapshot().projection
-
-
-class _StaticSource:
-    def __init__(
-        self,
-        method_name: str,
-        values: tuple[object, ...],
-    ) -> None:
-        self._method_name = method_name
-        self._values = values
-
-    def __getattr__(self, name: str):
-        if name != self._method_name:
-            raise AttributeError(name)
-        return lambda: self._values
 
 
 def _with_status_codes(
