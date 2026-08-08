@@ -7,11 +7,11 @@ from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 
 from persona_training_lab.ui.agents.drag_scope import drag_history_label, drag_target_ids
+from persona_training_lab.ui.agents.version_graph_interactions import VersionGraphCanvas as InteractionVersionGraphCanvas
 from persona_training_lab.ui.agents.version_graph_layout_engine import LayoutInputNode, build_version_graph_layout
-from persona_training_lab.ui.agents.version_graph_stateful import VersionGraphCanvas as StatefulVersionGraphCanvas
 
 
-class VersionGraphCanvas(StatefulVersionGraphCanvas):
+class VersionGraphCanvas(InteractionVersionGraphCanvas):
     layout_action_committed = Signal(str, object, bool)
 
     def __init__(self, nodes) -> None:
