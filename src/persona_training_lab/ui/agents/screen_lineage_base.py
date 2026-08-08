@@ -21,13 +21,12 @@ from persona_training_lab.ui.agents.version_graph_free_zoom import VersionGraphC
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.viewmodels.agents_contracts import AgentDetailView
-from persona_training_lab.ui.viewmodels.agents_guidance import AgentsGuidanceViewModel
 
 
 class AgentsScreen(QWidget):
     """Stable lineage workspace base used by the composed Agents screen."""
 
-    def __init__(self, view_model: AgentsGuidanceViewModel) -> None:
+    def __init__(self, view_model) -> None:
         super().__init__()
         self._vm = view_model
         self._state = AtomicLineageStateStore()
