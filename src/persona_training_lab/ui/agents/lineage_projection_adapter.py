@@ -5,12 +5,14 @@ from collections.abc import Iterable
 from persona_training_lab.application.lineage.atomic_projection import (
     AtomicLineageSnapshot,
 )
-from persona_training_lab.application.lineage.projection import (
+from persona_training_lab.application.lineage.projection_builder import (
+    build_lineage_projection,
+)
+from persona_training_lab.application.lineage.projection_model import (
     LineageEdge,
     LineageEntityKind,
     LineageNode,
     LineageProjection,
-    LineageProjectionService,
     LineageRelation,
     LineageState,
 )
@@ -125,7 +127,7 @@ def build_empty_lineage() -> LineagePresentationProjection:
     return build_atomic_lineage(
         AtomicLineageSnapshot(
             source=LineageSourceSnapshot(),
-            projection=LineageProjectionService().build_projection(),
+            projection=build_lineage_projection(),
         )
     )
 
