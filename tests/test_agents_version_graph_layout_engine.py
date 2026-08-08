@@ -1,10 +1,107 @@
 from __future__ import annotations
 
-from persona_training_lab.ui.agents.version_graph_layout_engine import LayoutInputNode, build_version_graph_layout
+import ast
+from pathlib import Path
+
+from persona_training_lab.ui.agents.version_graph_clean_layout import (
+    VersionGraphCanvas as CleanLayoutVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_curved import (
+    VersionGraphCanvas as CurvedVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_dynamic_workspace import (
+    VersionGraphCanvas as DynamicWorkspaceVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_free_zoom import (
+    VersionGraphCanvas as FreeZoomVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_layout_engine import (
+    LayoutInputNode,
+    build_version_graph_layout,
+)
+from persona_training_lab.ui.agents.version_graph_locked import (
+    VersionGraphCanvas as LockedVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_persistent import (
+    VersionGraphCanvas as PersistentVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_stateful import (
+    VersionGraphCanvas as StatefulVersionGraphCanvas,
+)
+
+
+_ROOT = Path(__file__).resolve().parents[1]
+_RETIRED_GRAPH_IMPLEMENTATIONS = frozenset(
+    {
+        "persona_training_lab.ui.agents.version_graph",
+        "persona_training_lab.ui.agents.version_graph_tree",
+        "persona_training_lab.ui.agents.version_graph_canvas",
+        "persona_training_lab.ui.agents.version_graph_anchor",
+    }
+)
 
 
 def _widths(nodes: tuple[LayoutInputNode, ...]) -> dict[str, float]:
     return {node.node_id: max(42.0, len(node.title) * 7.0) for node in nodes}
+
+
+def _retired_graph_imports(path: Path) -> list[tuple[int, str]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    violations: list[tuple[int, str]] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in _RETIRED_GRAPH_IMPLEMENTATIONS:
+                    violations.append((node.lineno, alias.name))
+            continue
+
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        module = node.module or ""
+        if module in _RETIRED_GRAPH_IMPLEMENTATIONS:
+            violations.append((node.lineno, module))
+        for alias in node.names:
+            qualified = f"{module}.{alias.name}" if module else alias.name
+            if qualified in _RETIRED_GRAPH_IMPLEMENTATIONS:
+                violations.append((node.lineno, qualified))
+
+    return violations
+
+
+def test_version_graph_live_mro_uses_only_current_canvas_layers() -> None:
+    assert FreeZoomVersionGraphCanvas.__bases__ == (
+        DynamicWorkspaceVersionGraphCanvas,
+    )
+    assert DynamicWorkspaceVersionGraphCanvas.__bases__ == (
+        CleanLayoutVersionGraphCanvas,
+    )
+    assert CleanLayoutVersionGraphCanvas.__bases__ == (
+        StatefulVersionGraphCanvas,
+    )
+    assert StatefulVersionGraphCanvas.__bases__ == (LockedVersionGraphCanvas,)
+    assert LockedVersionGraphCanvas.__bases__ == (PersistentVersionGraphCanvas,)
+    assert PersistentVersionGraphCanvas.__bases__ == (CurvedVersionGraphCanvas,)
+
+
+def test_retired_version_graph_implementations_are_absent_and_unreferenced() -> None:
+    agents_root = _ROOT / "src" / "persona_training_lab" / "ui" / "agents"
+    violations: list[str] = []
+
+    for module in _RETIRED_GRAPH_IMPLEMENTATIONS:
+        filename = f"{module.rsplit('.', 1)[-1]}.py"
+        assert not (agents_root / filename).exists()
+
+    for root_name in ("src", "tests"):
+        for path in sorted((_ROOT / root_name).rglob("*.py")):
+            for line_number, module in _retired_graph_imports(path):
+                relative_path = path.relative_to(_ROOT)
+                violations.append(f"{relative_path}:{line_number}: {module}")
+
+    assert violations == [], (
+        "Retired version graph implementations are still referenced:\n"
+        + "\n".join(violations)
+    )
 
 
 def test_mainline_stays_in_vertical_lane_with_side_branch_space() -> None:
@@ -39,7 +136,11 @@ def test_side_branch_continuation_keeps_lane_and_does_not_jump_across_graph() ->
 
     layout = build_version_graph_layout(nodes, _widths(nodes))
 
-    branch_lanes = {layout.lanes[node.node_id] for node in nodes if node.node_id.startswith("branch_")}
+    branch_lanes = {
+        layout.lanes[node.node_id]
+        for node in nodes
+        if node.node_id.startswith("branch_")
+    }
     assert len(branch_lanes) == 1
     assert 0 not in branch_lanes
 
