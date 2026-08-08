@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QPointF, Qt
 
-from persona_training_lab.ui.agents.version_graph_dynamic_workspace import (
+from persona_training_lab.ui.agents.version_graph_mouse_routing import (
     VersionGraphCanvas,
 )
 from persona_training_lab.ui.keybindings.manager import MouseBindingValue
