@@ -10,10 +10,12 @@ from persona_training_lab.application.lineage.atomic_projection import (
     AtomicLineageSnapshot,
 )
 from persona_training_lab.application.lineage.loader import LineageLoaderFactory
-from persona_training_lab.ui.agents.atomic_lineage_public import (
+from persona_training_lab.ui.agents.lineage_presentation import (
+    LineagePresentationProjection,
+)
+from persona_training_lab.ui.agents.lineage_projection_adapter import (
     build_atomic_lineage,
 )
-from persona_training_lab.ui.agents.real_lineage import RealLineageProjection
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +29,7 @@ class LineageRevisionSet:
 class LineageRefreshResult:
     generation: int
     atomic: AtomicLineageSnapshot
-    projection: RealLineageProjection
+    projection: LineagePresentationProjection
     revisions: LineageRevisionSet
 
 
@@ -104,13 +106,13 @@ class LineageRefreshWorker(QObject):
 
 
 def _freeze_projection(
-    projection: RealLineageProjection,
-) -> RealLineageProjection:
+    projection: LineagePresentationProjection,
+) -> LineagePresentationProjection:
     contexts = {
         node_id: MappingProxyType(dict(values))
         for node_id, values in projection.entity_context.items()
     }
-    return RealLineageProjection(
+    return LineagePresentationProjection(
         nodes=tuple(projection.nodes),
         details=MappingProxyType(dict(projection.details)),
         resources=MappingProxyType(dict(projection.resources)),
@@ -119,7 +121,7 @@ def _freeze_projection(
     )
 
 
-def _presentation_revision(projection: RealLineageProjection) -> str:
+def _presentation_revision(projection: LineagePresentationProjection) -> str:
     if not projection.signature:
         return ""
     head = projection.signature[0]
