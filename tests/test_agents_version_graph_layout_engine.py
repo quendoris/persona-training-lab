@@ -84,6 +84,23 @@ def test_version_graph_live_mro_uses_only_current_canvas_layers() -> None:
     assert PersistentVersionGraphCanvas.__bases__ == (CurvedVersionGraphCanvas,)
 
 
+def test_version_graph_layout_authority_has_no_shadow_copy_in_locked_layer() -> None:
+    retired_locked_methods = {
+        "_positions",
+        "_max_level",
+        "_display_levels",
+        "_lanes",
+        "_side_lane",
+        "_lane_offsets",
+    }
+
+    assert retired_locked_methods.isdisjoint(LockedVersionGraphCanvas.__dict__)
+    assert FreeZoomVersionGraphCanvas._positions is DynamicWorkspaceVersionGraphCanvas._positions
+    assert FreeZoomVersionGraphCanvas._display_levels is CleanLayoutVersionGraphCanvas._display_levels
+    assert FreeZoomVersionGraphCanvas._lanes is CleanLayoutVersionGraphCanvas._lanes
+    assert FreeZoomVersionGraphCanvas._lane_offsets is CleanLayoutVersionGraphCanvas._lane_offsets
+
+
 def test_retired_version_graph_implementations_are_absent_and_unreferenced() -> None:
     agents_root = _ROOT / "src" / "persona_training_lab" / "ui" / "agents"
     violations: list[str] = []
