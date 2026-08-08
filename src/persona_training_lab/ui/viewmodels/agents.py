@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from persona_training_lab.ui.viewmodels.agents_contracts import (
     AgentDetailView,
     AgentRoleView,
@@ -13,6 +15,9 @@ from persona_training_lab.ui.viewmodels.agents_guidance import (
     TRAIT_LABELS,
     TRAIT_ORDER,
 )
+
+if TYPE_CHECKING:
+    from persona_training_lab.ui.viewmodels.agents_legacy import AgentsViewModel
 
 
 def __getattr__(name: str):
