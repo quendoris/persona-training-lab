@@ -13,7 +13,16 @@ from persona_training_lab.ui.viewmodels.agents_guidance import (
     TRAIT_LABELS,
     TRAIT_ORDER,
 )
-from persona_training_lab.ui.viewmodels.agents_legacy import AgentsViewModel
+
+
+def __getattr__(name: str):
+    if name != "AgentsViewModel":
+        raise AttributeError(name)
+    from persona_training_lab.ui.viewmodels.agents_legacy import (
+        AgentsViewModel,
+    )
+
+    return AgentsViewModel
 
 
 __all__ = (
