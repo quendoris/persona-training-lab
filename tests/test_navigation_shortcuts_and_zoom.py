@@ -10,7 +10,7 @@ from persona_training_lab.ui.agents.version_graph_curved import (
     VersionGraphCanvas as CurvedVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_dynamic_workspace import (
-    VersionGraphCanvas as DynamicWorkspaceVersionGraphCanvas,
+    VersionGraphCanvas as DynamicWorkspaceCompatibilityCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_free_zoom import (
     VersionGraphCanvas as FreeZoomVersionGraphCanvas,
@@ -18,11 +18,17 @@ from persona_training_lab.ui.agents.version_graph_free_zoom import (
 from persona_training_lab.ui.agents.version_graph_locked import (
     VersionGraphCanvas as LockedVersionGraphCanvas,
 )
+from persona_training_lab.ui.agents.version_graph_mouse_routing import (
+    VersionGraphCanvas as MouseRoutingVersionGraphCanvas,
+)
 from persona_training_lab.ui.agents.version_graph_persistent import (
     VersionGraphCanvas as PersistentVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_stateful import (
     VersionGraphCanvas as StatefulVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_workspace_geometry import (
+    VersionGraphCanvas as WorkspaceGeometryVersionGraphCanvas,
 )
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.keybindings.definitions import AGENT_GRAPH_KEY_BINDINGS
@@ -40,37 +46,45 @@ _RETIRED_GRAPH_IMPLEMENTATIONS = frozenset(
         "persona_training_lab.ui.agents.version_graph_anchor",
     }
 )
+_HISTORICAL_GRAPH_COMPATIBILITY = frozenset(
+    {
+        "persona_training_lab.ui.agents.version_graph_dynamic_workspace",
+    }
+)
 
 
-def _retired_graph_imports(path: Path) -> list[tuple[int, str]]:
+def _matching_imports(path: Path, modules: frozenset[str]) -> list[tuple[int, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     violations: list[tuple[int, str]] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name in _RETIRED_GRAPH_IMPLEMENTATIONS:
+                if alias.name in modules:
                     violations.append((node.lineno, alias.name))
             continue
 
         if not isinstance(node, ast.ImportFrom):
             continue
         module = node.module or ""
-        if module in _RETIRED_GRAPH_IMPLEMENTATIONS:
+        if module in modules:
             violations.append((node.lineno, module))
         for alias in node.names:
             qualified = f"{module}.{alias.name}" if module else alias.name
-            if qualified in _RETIRED_GRAPH_IMPLEMENTATIONS:
+            if qualified in modules:
                 violations.append((node.lineno, qualified))
 
     return violations
 
 
-def test_version_graph_live_mro_uses_only_current_canvas_layers() -> None:
+def test_version_graph_live_mro_uses_single_responsibility_canvas_layers() -> None:
     assert FreeZoomVersionGraphCanvas.__bases__ == (
-        DynamicWorkspaceVersionGraphCanvas,
+        WorkspaceGeometryVersionGraphCanvas,
     )
-    assert DynamicWorkspaceVersionGraphCanvas.__bases__ == (
+    assert WorkspaceGeometryVersionGraphCanvas.__bases__ == (
+        MouseRoutingVersionGraphCanvas,
+    )
+    assert MouseRoutingVersionGraphCanvas.__bases__ == (
         CleanLayoutVersionGraphCanvas,
     )
     assert CleanLayoutVersionGraphCanvas.__bases__ == (
@@ -79,6 +93,32 @@ def test_version_graph_live_mro_uses_only_current_canvas_layers() -> None:
     assert StatefulVersionGraphCanvas.__bases__ == (LockedVersionGraphCanvas,)
     assert LockedVersionGraphCanvas.__bases__ == (PersistentVersionGraphCanvas,)
     assert PersistentVersionGraphCanvas.__bases__ == (CurvedVersionGraphCanvas,)
+    assert DynamicWorkspaceCompatibilityCanvas is WorkspaceGeometryVersionGraphCanvas
+
+
+def test_version_graph_workspace_and_mouse_routing_are_separate_layers() -> None:
+    workspace_members = {
+        "_workspace_geometry",
+        "_content_bounds",
+        "_ensure_workspace_geometry",
+        "_rebuild_workspace_geometry",
+        "_grow_workspace_to_current_content",
+        "_apply_workspace_size",
+    }
+    routing_members = {
+        "_MOUSE_BUTTONS",
+        "_MOUSE_MODIFIERS",
+        "_press_action",
+        "_mouse_binding",
+        "_mouse_press_matches",
+        "_mouse_move_matches",
+        "_wheel_matches",
+        "_event_modifier_name",
+        "_cancel_input_drag",
+    }
+
+    assert workspace_members.isdisjoint(MouseRoutingVersionGraphCanvas.__dict__)
+    assert routing_members.isdisjoint(WorkspaceGeometryVersionGraphCanvas.__dict__)
 
 
 def test_version_graph_layout_authority_has_no_shadow_algorithms() -> None:
@@ -103,7 +143,7 @@ def test_version_graph_layout_authority_has_no_shadow_algorithms() -> None:
     assert retired_locked_methods.isdisjoint(LockedVersionGraphCanvas.__dict__)
     assert retired_stateful_methods.isdisjoint(StatefulVersionGraphCanvas.__dict__)
     assert StatefulVersionGraphCanvas._lanes is CurvedVersionGraphCanvas._lanes
-    assert FreeZoomVersionGraphCanvas._positions is DynamicWorkspaceVersionGraphCanvas._positions
+    assert FreeZoomVersionGraphCanvas._positions is WorkspaceGeometryVersionGraphCanvas._positions
     assert FreeZoomVersionGraphCanvas._display_levels is CleanLayoutVersionGraphCanvas._display_levels
     assert FreeZoomVersionGraphCanvas._lanes is CleanLayoutVersionGraphCanvas._lanes
     assert (
@@ -122,12 +162,32 @@ def test_retired_version_graph_implementations_are_absent_and_unreferenced() -> 
 
     for root_name in ("src", "tests"):
         for path in sorted((_ROOT / root_name).rglob("*.py")):
-            for line_number, module in _retired_graph_imports(path):
+            for line_number, module in _matching_imports(
+                path,
+                _RETIRED_GRAPH_IMPLEMENTATIONS,
+            ):
                 relative_path = path.relative_to(_ROOT)
                 violations.append(f"{relative_path}:{line_number}: {module}")
 
     assert violations == [], (
         "Retired version graph implementations are still referenced:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_production_does_not_depend_on_historical_dynamic_workspace_alias() -> None:
+    violations: list[str] = []
+
+    for path in sorted((_ROOT / "src").rglob("*.py")):
+        for line_number, module in _matching_imports(
+            path,
+            _HISTORICAL_GRAPH_COMPATIBILITY,
+        ):
+            relative_path = path.relative_to(_ROOT)
+            violations.append(f"{relative_path}:{line_number}: {module}")
+
+    assert violations == [], (
+        "Production still depends on historical graph compatibility aliases:\n"
         + "\n".join(violations)
     )
 
