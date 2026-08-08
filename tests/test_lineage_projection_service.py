@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from persona_training_lab.application.lineage import (
+    atomic_projection as atomic_projection_module,
+)
 from persona_training_lab.application.lineage.projection import (
     LineageEntityKind,
     LineageProjectionService,
@@ -9,6 +12,9 @@ from persona_training_lab.application.lineage.projection import (
     LineageSource,
     LineageState,
     lineage_node_id,
+)
+from persona_training_lab.application.lineage.projection_builder import (
+    build_lineage_projection,
 )
 from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
 from persona_training_lab.domain.models.statuses import ModelVersionStatus
@@ -159,6 +165,33 @@ def _edge_set(projection):
         (edge.source_node_id, edge.target_node_id, edge.relation)
         for edge in projection.edges
     }
+
+
+def test_service_adapter_matches_pure_projection_builder() -> None:
+    datasets = [_dataset("ds_001", "Dataset A")]
+    runs = [_run("trn_001")]
+    versions = [_version("mdl_001", "trn_001")]
+    experiments = [_experiment("evr_001", "mdl_001")]
+
+    direct = build_lineage_projection(
+        datasets=datasets,
+        training_runs=runs,
+        model_versions=versions,
+        evaluations=experiments,
+    )
+    through_services = LineageProjectionService(
+        datasets_service=_Datasets(datasets),
+        training_service=_Training(runs),
+        model_versions_service=_Versions(versions),
+        experiments_service=_Experiments(experiments),
+    ).build_projection()
+
+    assert through_services == direct
+
+
+def test_atomic_projection_uses_pure_builder_without_fake_sources() -> None:
+    assert atomic_projection_module.build_lineage_projection is build_lineage_projection
+    assert not hasattr(atomic_projection_module, "_StaticSource")
 
 
 def test_projection_builds_exact_dag_and_reads_each_source_once() -> None:
