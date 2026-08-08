@@ -10,10 +10,6 @@ from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
 from persona_training_lab.application.runtime.operations import ResourceClaim
-from persona_training_lab.ui.agents.atomic_lineage import build_real_lineage
-from persona_training_lab.ui.agents.atomic_lineage_public import (
-    build_empty_lineage,
-)
 from persona_training_lab.ui.agents.branch_deletion import (
     BranchDeletionCommittedError,
     BranchDeletionController,
@@ -24,6 +20,15 @@ from persona_training_lab.ui.agents.context_navigation import (
     LineageContextRouter,
 )
 from persona_training_lab.ui.agents.lineage import build_version_lineage
+from persona_training_lab.ui.agents.lineage_presentation import (
+    LineagePresentationProjection,
+)
+from persona_training_lab.ui.agents.lineage_projection_adapter import (
+    build_empty_lineage,
+)
+from persona_training_lab.ui.agents.lineage_projection_resolver import (
+    build_lineage_projection,
+)
 from persona_training_lab.ui.agents.projection_runtime import (
     LineageRefreshIncidentReporter,
     ProjectionSafetyBinding,
@@ -32,7 +37,6 @@ from persona_training_lab.ui.agents.projection_updates import (
     ProjectionUpdateKind,
     ProjectionUpdatePlanner,
 )
-from persona_training_lab.ui.agents.real_lineage import RealLineageProjection
 from persona_training_lab.ui.agents.refresh_coordinator import (
     LineageRefreshCoordinator,
 )
@@ -96,7 +100,7 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             lineage_runtime_safety
         )
         self._runtime_blocker_signature: tuple[tuple[str, str, str], ...] = ()
-        self._real_projection: RealLineageProjection | None = None
+        self._real_projection: LineagePresentationProjection | None = None
         self._real_projection_signature: tuple[
             tuple[str, str, str, str], ...
         ] = ()
@@ -142,7 +146,7 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
     def _build_nodes(self):
         coordinator = self._lineage_refresh_coordinator
         if coordinator is None:
-            projection = build_real_lineage(self._vm)
+            projection = build_lineage_projection(self._vm)
         else:
             result = coordinator.last_good
             projection = (
@@ -373,7 +377,7 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         if coordinator is None:
             if not self.isVisible() and not force:
                 return
-            projection = build_real_lineage(self._vm)
+            projection = build_lineage_projection(self._vm)
             if force or projection.signature != self._real_projection_signature:
                 self._apply_projection(projection)
         self._refresh_runtime_blockers(force=force)
@@ -397,7 +401,10 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self._runtime_blocker_signature = blocker_state.signature
         self._select_node(node_id)
 
-    def _apply_projection(self, projection: RealLineageProjection) -> None:
+    def _apply_projection(
+        self,
+        projection: LineagePresentationProjection,
+    ) -> None:
         selected = getattr(self, "_selected_node_id", "")
         self._real_projection = projection
         self._real_projection_signature = projection.signature
