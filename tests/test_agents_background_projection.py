@@ -15,6 +15,9 @@ from persona_training_lab.application.lineage.snapshot import (
     LineageSourceSnapshot,
 )
 from persona_training_lab.ui.agents import AgentsScreen
+from persona_training_lab.ui.agents.lineage_state_atomic import (
+    AtomicLineageStateStore,
+)
 from persona_training_lab.ui.viewmodels.agents import (
     AgentDetailView as CompatibilityAgentDetailView,
     AgentsViewModel as LegacyAgentsViewModel,
@@ -101,6 +104,30 @@ def test_atomic_agents_vm_excludes_legacy_version_nodes() -> None:
     assert not hasattr(AgentsGuidanceViewModel, "version_nodes")
     assert issubclass(AgentsViewModel, AgentsGuidanceViewModel)
     assert not hasattr(AgentsViewModel, "version_nodes")
+
+
+def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
+    app = _app()
+    assert app is not None
+    loader = _Loader()
+    vm = AgentsViewModel(lineage_loader_factory=lambda: loader)
+    screen = AgentsScreen(vm)
+    try:
+        screen._state = AtomicLineageStateStore(tmp_path / "lineage-state.json")
+        branch_id = screen._state.continue_from("snapshot")
+        screen._lineage_nodes = screen._state.apply(screen._lineage_nodes)
+
+        detail = screen._detail_for(branch_id)
+
+        assert detail.title == "Version · branch 001"
+        assert "Новая локальная ветка" in detail.body
+        assert f"Локальный id: {branch_id}" in detail.body
+        assert "зарегистрированной model version" in detail.checks[0]
+        assert detail.title != "Model version"
+    finally:
+        assert screen.shutdown_background_work(2_000) is True
+        assert loader.closed is True
+        screen.deleteLater()
 
 
 def test_agents_constructor_and_refresh_never_read_legacy_lineage_services() -> None:
