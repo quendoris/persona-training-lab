@@ -3,6 +3,33 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from persona_training_lab.ui.agents.atomic_lineage import (
+    build_real_lineage as AtomicCompatibilityBuilder,
+)
+from persona_training_lab.ui.agents.atomic_lineage_public import (
+    build_atomic_lineage as AtomicPublicCompatibilityBuilder,
+    build_empty_lineage as EmptyPublicCompatibilityBuilder,
+)
+from persona_training_lab.ui.agents.lineage_presentation import (
+    LineagePresentationProjection,
+    ProjectedVersionNode,
+    RealLineageProjection,
+)
+from persona_training_lab.ui.agents.lineage_projection_adapter import (
+    build_atomic_lineage,
+    build_empty_lineage,
+)
+from persona_training_lab.ui.agents.lineage_projection_legacy import (
+    build_legacy_lineage,
+)
+from persona_training_lab.ui.agents.lineage_projection_resolver import (
+    build_lineage_projection,
+)
+from persona_training_lab.ui.agents.real_lineage import (
+    ProjectedVersionNode as RealCompatibilityNode,
+    RealLineageProjection as RealCompatibilityProjection,
+    build_real_lineage as LegacyCompatibilityBuilder,
+)
 from persona_training_lab.ui.agents.version_graph_action_menu_policy import (
     VersionGraphCanvas as ActionMenuPolicyVersionGraphCanvas,
 )
@@ -69,6 +96,13 @@ _HISTORICAL_GRAPH_COMPATIBILITY = frozenset(
         "persona_training_lab.ui.agents.version_graph_dynamic_workspace",
     }
 )
+_HISTORICAL_PROJECTION_COMPATIBILITY = frozenset(
+    {
+        "persona_training_lab.ui.agents.atomic_lineage",
+        "persona_training_lab.ui.agents.atomic_lineage_public",
+        "persona_training_lab.ui.agents.real_lineage",
+    }
+)
 
 
 def _matching_imports(path: Path, modules: frozenset[str]) -> list[tuple[int, str]]:
@@ -93,6 +127,33 @@ def _matching_imports(path: Path, modules: frozenset[str]) -> list[tuple[int, st
                 violations.append((node.lineno, qualified))
 
     return violations
+
+
+def test_lineage_projection_compatibility_names_resolve_semantic_boundaries() -> None:
+    assert RealLineageProjection is LineagePresentationProjection
+    assert RealCompatibilityProjection is LineagePresentationProjection
+    assert RealCompatibilityNode is ProjectedVersionNode
+    assert AtomicCompatibilityBuilder is build_lineage_projection
+    assert AtomicPublicCompatibilityBuilder is build_atomic_lineage
+    assert EmptyPublicCompatibilityBuilder is build_empty_lineage
+    assert LegacyCompatibilityBuilder is build_legacy_lineage
+
+
+def test_production_does_not_depend_on_historical_projection_aliases() -> None:
+    violations: list[str] = []
+
+    for path in sorted((_ROOT / "src").rglob("*.py")):
+        for line_number, module in _matching_imports(
+            path,
+            _HISTORICAL_PROJECTION_COMPATIBILITY,
+        ):
+            relative_path = path.relative_to(_ROOT)
+            violations.append(f"{relative_path}:{line_number}: {module}")
+
+    assert violations == [], (
+        "Production still depends on historical lineage projection aliases:\n"
+        + "\n".join(violations)
+    )
 
 
 def test_version_graph_live_mro_uses_single_responsibility_canvas_layers() -> None:
