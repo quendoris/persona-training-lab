@@ -3,11 +3,14 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from persona_training_lab.ui.agents.version_graph_action_menu_policy import (
+    VersionGraphCanvas as ActionMenuPolicyVersionGraphCanvas,
+)
 from persona_training_lab.ui.agents.version_graph_canvas_base import (
     VersionGraphCanvas as BaseVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_clean_layout import (
-    VersionGraphCanvas as CleanLayoutVersionGraphCanvas,
+    VersionGraphCanvas as CleanLayoutCompatibilityCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_curved import (
     VersionGraphCanvas as CurvedCompatibilityCanvas,
@@ -20,6 +23,12 @@ from persona_training_lab.ui.agents.version_graph_free_zoom import (
 )
 from persona_training_lab.ui.agents.version_graph_interactions import (
     VersionGraphCanvas as InteractionVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_layout_authority import (
+    VersionGraphCanvas as LayoutAuthorityVersionGraphCanvas,
+)
+from persona_training_lab.ui.agents.version_graph_layout_history import (
+    VersionGraphCanvas as LayoutHistoryVersionGraphCanvas,
 )
 from persona_training_lab.ui.agents.version_graph_locked import (
     VersionGraphCanvas as LockedVersionGraphCanvas,
@@ -56,6 +65,7 @@ _HISTORICAL_GRAPH_COMPATIBILITY = frozenset(
     {
         "persona_training_lab.ui.agents.version_graph_curved",
         "persona_training_lab.ui.agents.version_graph_stateful",
+        "persona_training_lab.ui.agents.version_graph_clean_layout",
         "persona_training_lab.ui.agents.version_graph_dynamic_workspace",
     }
 )
@@ -93,9 +103,15 @@ def test_version_graph_live_mro_uses_single_responsibility_canvas_layers() -> No
         MouseRoutingVersionGraphCanvas,
     )
     assert MouseRoutingVersionGraphCanvas.__bases__ == (
-        CleanLayoutVersionGraphCanvas,
+        ActionMenuPolicyVersionGraphCanvas,
     )
-    assert CleanLayoutVersionGraphCanvas.__bases__ == (
+    assert ActionMenuPolicyVersionGraphCanvas.__bases__ == (
+        LayoutHistoryVersionGraphCanvas,
+    )
+    assert LayoutHistoryVersionGraphCanvas.__bases__ == (
+        LayoutAuthorityVersionGraphCanvas,
+    )
+    assert LayoutAuthorityVersionGraphCanvas.__bases__ == (
         InteractionVersionGraphCanvas,
     )
     assert InteractionVersionGraphCanvas.__bases__ == (LockedVersionGraphCanvas,)
@@ -104,6 +120,7 @@ def test_version_graph_live_mro_uses_single_responsibility_canvas_layers() -> No
 
     assert CurvedCompatibilityCanvas is BaseVersionGraphCanvas
     assert StatefulCompatibilityCanvas is InteractionVersionGraphCanvas
+    assert CleanLayoutCompatibilityCanvas is ActionMenuPolicyVersionGraphCanvas
     assert DynamicWorkspaceCompatibilityCanvas is WorkspaceGeometryVersionGraphCanvas
 
 
@@ -127,9 +144,37 @@ def test_version_graph_workspace_and_mouse_routing_are_separate_layers() -> None
         "_event_modifier_name",
         "_cancel_input_drag",
     }
+    authority_members = {
+        "_layout_cache_key",
+        "_layout_cache",
+        "_invalidate_tree_layout",
+        "_layout_inputs",
+        "_tree_layout",
+        "_display_levels",
+        "_lanes",
+        "_lane_offsets",
+    }
+    history_members = {
+        "layout_action_committed",
+        "layout_snapshot",
+        "restore_layout_snapshot",
+        "_drag_history_before",
+        "_drag_history_moved_node",
+        "_drag_history_moved_subtree",
+    }
+    menu_policy_members = {
+        "_history_action_text",
+        "set_history_action_text",
+        "set_undo_action_label",
+        "close_node_menu",
+        "_menu_actions",
+    }
 
     assert workspace_members.isdisjoint(MouseRoutingVersionGraphCanvas.__dict__)
     assert routing_members.isdisjoint(WorkspaceGeometryVersionGraphCanvas.__dict__)
+    assert history_members.isdisjoint(LayoutAuthorityVersionGraphCanvas.__dict__)
+    assert menu_policy_members.isdisjoint(LayoutHistoryVersionGraphCanvas.__dict__)
+    assert authority_members.isdisjoint(ActionMenuPolicyVersionGraphCanvas.__dict__)
 
 
 def test_version_graph_layout_authority_has_no_shadow_algorithms() -> None:
@@ -154,12 +199,21 @@ def test_version_graph_layout_authority_has_no_shadow_algorithms() -> None:
     assert retired_locked_methods.isdisjoint(LockedVersionGraphCanvas.__dict__)
     assert retired_interaction_methods.isdisjoint(InteractionVersionGraphCanvas.__dict__)
     assert InteractionVersionGraphCanvas._lanes is BaseVersionGraphCanvas._lanes
-    assert FreeZoomVersionGraphCanvas._positions is WorkspaceGeometryVersionGraphCanvas._positions
-    assert FreeZoomVersionGraphCanvas._display_levels is CleanLayoutVersionGraphCanvas._display_levels
-    assert FreeZoomVersionGraphCanvas._lanes is CleanLayoutVersionGraphCanvas._lanes
+    assert (
+        FreeZoomVersionGraphCanvas._positions
+        is WorkspaceGeometryVersionGraphCanvas._positions
+    )
+    assert (
+        FreeZoomVersionGraphCanvas._display_levels
+        is LayoutAuthorityVersionGraphCanvas._display_levels
+    )
+    assert (
+        FreeZoomVersionGraphCanvas._lanes
+        is LayoutAuthorityVersionGraphCanvas._lanes
+    )
     assert (
         FreeZoomVersionGraphCanvas._lane_offsets
-        is CleanLayoutVersionGraphCanvas._lane_offsets
+        is LayoutAuthorityVersionGraphCanvas._lane_offsets
     )
 
 
