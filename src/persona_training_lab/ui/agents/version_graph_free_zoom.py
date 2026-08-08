@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from persona_training_lab.ui.agents.version_graph_dynamic_workspace import (
-    VersionGraphCanvas as _DynamicWorkspaceCanvas,
+from persona_training_lab.ui.agents.version_graph_workspace_geometry import (
+    VersionGraphCanvas as _WorkspaceGeometryCanvas,
 )
 
 
-class VersionGraphCanvas(_DynamicWorkspaceCanvas):
+class VersionGraphCanvas(_WorkspaceGeometryCanvas):
     """Graph canvas with wide, multiplicative, pointer-anchored zoom."""
 
     MIN_ZOOM = 0.25
