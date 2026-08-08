@@ -1,34 +1,8 @@
 from __future__ import annotations
 
-from persona_training_lab.application.lineage.atomic_projection import (
-    AtomicLineageSnapshot,
+from persona_training_lab.ui.agents.lineage_projection_adapter import (
+    build_atomic_lineage,
+    build_empty_lineage,
 )
-from persona_training_lab.application.lineage.projection import (
-    LineageProjectionService,
-)
-from persona_training_lab.application.lineage.snapshot import (
-    LineageSourceSnapshot,
-)
-from persona_training_lab.ui.agents.atomic_lineage import (
-    _build_canvas_projection,
-)
-from persona_training_lab.ui.agents.real_lineage import RealLineageProjection
 
-
-def build_atomic_lineage(
-    snapshot: AtomicLineageSnapshot,
-) -> RealLineageProjection:
-    """Build the immutable canvas projection from one atomic source snapshot."""
-
-    return _build_canvas_projection(snapshot)
-
-
-def build_empty_lineage() -> RealLineageProjection:
-    """Create explicit presentation placeholders without touching persistence."""
-
-    return build_atomic_lineage(
-        AtomicLineageSnapshot(
-            source=LineageSourceSnapshot(),
-            projection=LineageProjectionService().build_projection(),
-        )
-    )
+__all__ = ("build_atomic_lineage", "build_empty_lineage")
