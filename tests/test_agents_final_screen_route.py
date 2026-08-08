@@ -15,7 +15,7 @@ from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as FinalCompatibilityAgentsScreen,
 )
 from persona_training_lab.ui.agents.screen_background import (
-    AgentsScreen as BackgroundAgentsScreen,
+    AgentsScreen as BackgroundCompatibilityAgentsScreen,
 )
 from persona_training_lab.ui.agents.screen_background_fast import (
     AgentsScreen as FastBackgroundAgentsScreen,
@@ -47,6 +47,9 @@ from persona_training_lab.ui.agents.screen_runtime_safe import (
 from persona_training_lab.ui.agents.screen_stateful_fixed import (
     AgentsScreen as StatefulFixedCompatibilityAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_workspace_composition import (
+    AgentsScreen as WorkspaceCompositionAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_workspace_presentation import (
     AgentsScreen as WorkspacePresentationAgentsScreen,
 )
@@ -76,6 +79,13 @@ _RETIRED_SCREEN_IMPLEMENTATIONS = frozenset(
         "persona_training_lab.ui.agents.screen_locked_layout",
     }
 )
+_RETIRED_INTERNAL_SCREEN_MODULES = frozenset(
+    {
+        "persona_training_lab.ui.agents.screen_stateful_fixed",
+        "persona_training_lab.ui.agents.screen_agents_final",
+        "persona_training_lab.ui.agents.screen_background",
+    }
+)
 _PUBLIC_SCREEN_COMPATIBILITY_MODULES = (
     "screen",
     "screen_canvas",
@@ -99,6 +109,7 @@ def _press(core: HistoryGestureCore, key_name: str):
 def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     violations: list[tuple[int, str]] = []
+    is_production = path.is_relative_to(_ROOT / "src")
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -107,6 +118,8 @@ def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
                 violations.append((node.lineno, module))
             if module in _RETIRED_SCREEN_IMPLEMENTATIONS:
                 violations.append((node.lineno, module))
+            if is_production and module in _RETIRED_INTERNAL_SCREEN_MODULES:
+                violations.append((node.lineno, module))
             continue
 
         if isinstance(node, ast.Import):
@@ -114,6 +127,8 @@ def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
                 if alias.name.rsplit(".", 1)[-1] in _RETIRED_HISTORY_MODULES:
                     violations.append((node.lineno, alias.name))
                 if alias.name in _RETIRED_SCREEN_IMPLEMENTATIONS:
+                    violations.append((node.lineno, alias.name))
+                if is_production and alias.name in _RETIRED_INTERNAL_SCREEN_MODULES:
                     violations.append((node.lineno, alias.name))
             continue
 
@@ -128,14 +143,17 @@ def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
 
 
 def test_public_agents_screen_uses_semantic_composition_layers() -> None:
-    assert PublicAgentsScreen is BackgroundAgentsScreen
-    assert ContextualAgentsScreen is BackgroundAgentsScreen
-    assert FastBackgroundAgentsScreen is BackgroundAgentsScreen
-    assert ReconciledBackgroundAgentsScreen is BackgroundAgentsScreen
-    assert ReportedBackgroundAgentsScreen is BackgroundAgentsScreen
-    assert RuntimeSafeAgentsScreen is BackgroundAgentsScreen
+    assert PublicAgentsScreen is WorkspaceCompositionAgentsScreen
+    assert BackgroundCompatibilityAgentsScreen is WorkspaceCompositionAgentsScreen
+    assert ContextualAgentsScreen is WorkspaceCompositionAgentsScreen
+    assert FastBackgroundAgentsScreen is WorkspaceCompositionAgentsScreen
+    assert ReconciledBackgroundAgentsScreen is WorkspaceCompositionAgentsScreen
+    assert ReportedBackgroundAgentsScreen is WorkspaceCompositionAgentsScreen
+    assert RuntimeSafeAgentsScreen is WorkspaceCompositionAgentsScreen
 
-    assert BackgroundAgentsScreen.__bases__ == (WorkspacePresentationAgentsScreen,)
+    assert WorkspaceCompositionAgentsScreen.__bases__ == (
+        WorkspacePresentationAgentsScreen,
+    )
     assert WorkspacePresentationAgentsScreen.__bases__ == (
         HistoryKeyGuardAgentsScreen,
     )
@@ -154,7 +172,7 @@ def test_public_agents_screen_uses_semantic_composition_layers() -> None:
     assert WorkspacePresentationAgentsScreen._DETAILS_MIN_WIDTH >= 360
 
 
-def test_background_screen_owns_runtime_and_contextual_ui_adapters() -> None:
+def test_workspace_composition_owns_runtime_and_contextual_ui_adapters() -> None:
     for method_name in (
         "_detail_for",
         "_sync_detail_actions",
@@ -168,9 +186,9 @@ def test_background_screen_owns_runtime_and_contextual_ui_adapters() -> None:
         "_apply_branch_deletion_result",
         "_context_for_node",
     ):
-        assert method_name in BackgroundAgentsScreen.__dict__
-    assert "eventFilter" not in BackgroundAgentsScreen.__dict__
-    assert "_handle_history_key_release" not in BackgroundAgentsScreen.__dict__
+        assert method_name in WorkspaceCompositionAgentsScreen.__dict__
+    assert "eventFilter" not in WorkspaceCompositionAgentsScreen.__dict__
+    assert "_handle_history_key_release" not in WorkspaceCompositionAgentsScreen.__dict__
 
 
 def test_workspace_presentation_owns_layout_without_interaction_overrides() -> None:
@@ -197,12 +215,12 @@ def test_lineage_interaction_layer_owns_command_and_history_effects() -> None:
     assert "eventFilter" not in LineageInteractionAgentsScreen.__dict__
 
 
-def test_historical_public_screen_imports_are_clean_background_aliases() -> None:
+def test_historical_public_screen_imports_are_clean_composition_aliases() -> None:
     for module_name in _PUBLIC_SCREEN_COMPATIBILITY_MODULES:
         module = importlib.import_module(
             f"persona_training_lab.ui.agents.{module_name}"
         )
-        assert module.AgentsScreen is BackgroundAgentsScreen
+        assert module.AgentsScreen is WorkspaceCompositionAgentsScreen
 
 
 def test_internal_legacy_screen_paths_are_clean_semantic_aliases() -> None:
@@ -212,16 +230,20 @@ def test_internal_legacy_screen_paths_are_clean_semantic_aliases() -> None:
     agents_final = importlib.import_module(
         "persona_training_lab.ui.agents.screen_agents_final"
     )
+    background = importlib.import_module(
+        "persona_training_lab.ui.agents.screen_background"
+    )
 
     assert stateful_fixed.AgentsScreen is LineageInteractionAgentsScreen
     assert agents_final.AgentsScreen is WorkspacePresentationAgentsScreen
+    assert background.AgentsScreen is WorkspaceCompositionAgentsScreen
 
 
 def test_stateful_compatibility_path_has_one_stable_base_identity() -> None:
     module = importlib.import_module("persona_training_lab.ui.agents.screen_stateful")
 
     assert module.AgentsScreen is LineageBaseAgentsScreen
-    assert module.AgentsScreen is not BackgroundAgentsScreen
+    assert module.AgentsScreen is not WorkspaceCompositionAgentsScreen
 
 
 def test_retired_screen_implementations_are_physically_absent() -> None:
