@@ -113,6 +113,11 @@ def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
     vm = AgentsViewModel(lineage_loader_factory=lambda: loader)
     screen = AgentsScreen(vm)
     try:
+        screen.request_projection_refresh(force=True)
+        coordinator = screen._lineage_refresh_coordinator
+        assert coordinator is not None
+        assert _wait_until(lambda: coordinator.last_good is not None)
+
         screen._state = AtomicLineageStateStore(tmp_path / "lineage-state.json")
         branch_id = screen._state.continue_from("snapshot")
         screen._lineage_nodes = screen._state.apply(screen._lineage_nodes)
