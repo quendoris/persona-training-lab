@@ -7,11 +7,11 @@ from typing import Any
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QMouseEvent
 
-from persona_training_lab.ui.agents.version_graph_curved import VersionGraphCanvas as CurvedVersionGraphCanvas
+from persona_training_lab.ui.agents.version_graph_canvas_base import VersionGraphCanvas as BaseVersionGraphCanvas
 from persona_training_lab.ui.viewmodels.agents import VersionNodeView
 
 
-class VersionGraphCanvas(CurvedVersionGraphCanvas):
+class VersionGraphCanvas(BaseVersionGraphCanvas):
     def __init__(self, nodes: tuple[VersionNodeView, ...]) -> None:
         super().__init__(nodes)
         self._layout_dirty = False
