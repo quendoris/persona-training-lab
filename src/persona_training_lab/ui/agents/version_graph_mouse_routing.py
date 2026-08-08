@@ -3,8 +3,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QMouseEvent
 
-from persona_training_lab.ui.agents.version_graph_clean_layout import (
-    VersionGraphCanvas as CleanLayoutVersionGraphCanvas,
+from persona_training_lab.ui.agents.version_graph_action_menu_policy import (
+    VersionGraphCanvas as ActionMenuPolicyVersionGraphCanvas,
 )
 from persona_training_lab.ui.keybindings.definitions import (
     agent_graph_mouse_bindings_by_id,
@@ -45,7 +45,7 @@ class _MappedMouseEvent:
         return getattr(self._source, name)
 
 
-class VersionGraphCanvas(CleanLayoutVersionGraphCanvas):
+class VersionGraphCanvas(ActionMenuPolicyVersionGraphCanvas):
     """Route configurable mouse gestures onto stable graph interactions."""
 
     _MOUSE_BUTTONS = {
