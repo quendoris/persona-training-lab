@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from threading import Barrier, Event, Lock, Thread
 
 import pytest
 
@@ -94,3 +95,121 @@ def test_atomic_repository_allows_cross_connection_readers(tmp_path) -> None:
     assert second_lease.closed is False
     first_lease.succeed()
     second_lease.succeed()
+
+
+def test_atomic_write_race_has_exactly_one_winner_across_connections(
+    tmp_path,
+) -> None:
+    path = tmp_path / "runtime.sqlite3"
+    bootstrap = _connect(path)
+    create_minimal_schema(bootstrap)
+    bootstrap.close()
+
+    start = Barrier(2)
+    release_winner = Event()
+    both_attempted = Event()
+    result_lock = Lock()
+    outcomes: list[tuple[str, str, str]] = []
+    errors: list[BaseException] = []
+
+    def mark_attempted() -> None:
+        if len(outcomes) + len(errors) == 2:
+            both_attempted.set()
+
+    def worker(subject_id: str) -> None:
+        connection = sqlite3.connect(path, timeout=5.0)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
+        coordinator = RuntimeOperationCoordinator(
+            SQLiteRuntimeOperationsRepository(connection)
+        )
+        try:
+            start.wait(timeout=5.0)
+            try:
+                lease = coordinator.begin(
+                    operation_kind="training",
+                    subject_kind="training_run",
+                    subject_id=subject_id,
+                    claims=(
+                        ResourceClaim(
+                            "artifact_path",
+                            "/models/race-target",
+                            "write",
+                        ),
+                    ),
+                )
+            except OperationConflictError as conflict:
+                blocker_id = conflict.blockers[0].operation.operation_id
+                with result_lock:
+                    outcomes.append(("blocked", subject_id, blocker_id))
+                    mark_attempted()
+                return
+
+            with result_lock:
+                outcomes.append(("won", subject_id, lease.operation_id))
+                mark_attempted()
+            if not release_winner.wait(timeout=5.0):
+                raise TimeoutError("winner release timed out")
+            assert lease.succeed() is True
+        except BaseException as error:
+            with result_lock:
+                errors.append(error)
+                mark_attempted()
+        finally:
+            connection.close()
+
+    threads = (
+        Thread(target=worker, args=("trn_race_a",), daemon=True),
+        Thread(target=worker, args=("trn_race_b",), daemon=True),
+    )
+    for thread in threads:
+        thread.start()
+
+    observer = None
+    try:
+        assert both_attempted.wait(timeout=7.0), "race participants timed out"
+        assert errors == []
+        assert sorted(outcome[0] for outcome in outcomes) == ["blocked", "won"]
+
+        winner = next(outcome for outcome in outcomes if outcome[0] == "won")
+        blocked = next(outcome for outcome in outcomes if outcome[0] == "blocked")
+        assert blocked[2] == winner[2]
+
+        observer = _connect(path)
+        active = RuntimeOperationCoordinator(
+            SQLiteRuntimeOperationsRepository(observer)
+        ).active_operations()
+        assert len(active) == 1
+        assert active[0].operation_id == winner[2]
+    finally:
+        release_winner.set()
+        for thread in threads:
+            thread.join(timeout=7.0)
+        if observer is not None:
+            observer.close()
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+
+    final_connection = _connect(path)
+    try:
+        final = RuntimeOperationCoordinator(
+            SQLiteRuntimeOperationsRepository(final_connection)
+        )
+        assert final.active_operations() == ()
+        retry = final.begin(
+            operation_kind="training",
+            subject_kind="training_run",
+            subject_id="trn_after_race",
+            claims=(
+                ResourceClaim(
+                    "artifact_path",
+                    "/models/race-target",
+                    "write",
+                ),
+            ),
+        )
+        assert retry.succeed() is True
+    finally:
+        final_connection.close()
