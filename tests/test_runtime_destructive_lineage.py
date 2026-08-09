@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+from queue import Queue
+from threading import Barrier, Event, Thread
 
 from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
@@ -8,7 +10,10 @@ from persona_training_lab.application.lineage.runtime_safety import (
 from persona_training_lab.application.runtime.atomic import (
     RuntimeOperationCoordinator,
 )
-from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.application.runtime.operations import (
+    OperationConflictError,
+    ResourceClaim,
+)
 from persona_training_lab.infrastructure.persistence.repositories.lineage_resource_links import (
     SQLiteLineageResourceLinksRepository,
 )
@@ -159,3 +164,181 @@ def test_active_training_blocks_durable_branch_deletion_without_partial_state(
         ("training", "succeeded"),
         ("lineage_delete", "succeeded"),
     )
+
+
+def test_training_and_branch_deletion_race_has_exactly_one_winner(tmp_path) -> None:
+    database_path = tmp_path / "runtime-race.sqlite3"
+    setup_connection = _connect(database_path)
+    create_minimal_schema(setup_connection)
+    setup_operations = RuntimeOperationCoordinator(
+        SQLiteRuntimeOperationsRepository(setup_connection)
+    )
+    setup_safety = LineageRuntimeSafety(
+        SQLiteLineageResourceLinksRepository(setup_connection),
+        setup_operations,
+    )
+
+    state_path = tmp_path / "lineage-race.json"
+    setup_state = AtomicLineageStateStore(state_path)
+    branch_id = setup_state.continue_from("snapshot")
+    child_id = setup_state.continue_from(branch_id)
+    linked_resources = (
+        ResourceClaim("model_version", "mdl_race", "read"),
+        ResourceClaim("artifact_path", "/models/race", "read"),
+    )
+    setup_safety.bind_node(branch_id, linked_resources)
+    setup_safety.inherit_node(child_id, branch_id)
+    plan = BranchDeletionController(
+        setup_state,
+        LineageBranchTransactions(setup_safety),
+    ).prepare(
+        branch_id,
+        node_title="Race branch",
+        parent_id="snapshot",
+        graph_current_id="snapshot",
+    )
+    assert plan is not None
+    assert plan.removed_ids == (branch_id, child_id)
+
+    bytes_before = state_path.read_bytes()
+    payload_before = setup_state.capture_transaction_state()
+    links_before = {
+        branch_id: setup_safety.links_for_node(branch_id),
+        child_id: setup_safety.links_for_node(child_id),
+    }
+    setup_connection.close()
+
+    start = Barrier(3)
+    training_attempted = Event()
+    deletion_finished = Event()
+    outcomes: Queue[tuple[str, object]] = Queue()
+
+    class _PausingState(AtomicLineageStateStore):
+        def capture_transaction_state(self):
+            training_attempted.wait(timeout=5)
+            return super().capture_transaction_state()
+
+    def run_training() -> None:
+        connection = _connect(database_path)
+        operations = RuntimeOperationCoordinator(
+            SQLiteRuntimeOperationsRepository(connection)
+        )
+        start.wait(timeout=5)
+        try:
+            lease = operations.begin(
+                operation_kind="training",
+                subject_kind="training_run",
+                subject_id="trn_race",
+                claims=(
+                    ResourceClaim("model_version", "mdl_race", "read"),
+                    ResourceClaim("artifact_path", "/models/race", "write"),
+                ),
+            )
+        except OperationConflictError as error:
+            outcomes.put(("training_blocked", error))
+            training_attempted.set()
+        except BaseException as error:
+            outcomes.put(("training_error", error))
+            training_attempted.set()
+        else:
+            outcomes.put(("training_won", lease.operation_id))
+            training_attempted.set()
+            if not deletion_finished.wait(timeout=5):
+                outcomes.put(
+                    ("training_error", RuntimeError("deletion thread timed out"))
+                )
+            lease.succeed()
+        finally:
+            connection.close()
+
+    def run_deletion() -> None:
+        connection = _connect(database_path)
+        operations = RuntimeOperationCoordinator(
+            SQLiteRuntimeOperationsRepository(connection)
+        )
+        safety = LineageRuntimeSafety(
+            SQLiteLineageResourceLinksRepository(connection),
+            operations,
+        )
+        state = _PausingState(state_path)
+        controller = BranchDeletionController(
+            state,
+            LineageBranchTransactions(safety),
+        )
+        start.wait(timeout=5)
+        try:
+            result = controller.execute(
+                plan,
+                layout_snapshot={"schema": 1, "race": True},
+            )
+            outcomes.put(("deletion_result", result))
+        except BaseException as error:
+            outcomes.put(("deletion_error", error))
+        finally:
+            deletion_finished.set()
+            connection.close()
+
+    training_thread = Thread(target=run_training, daemon=True)
+    deletion_thread = Thread(target=run_deletion, daemon=True)
+    training_thread.start()
+    deletion_thread.start()
+    start.wait(timeout=5)
+    training_thread.join(timeout=10)
+    deletion_thread.join(timeout=10)
+
+    assert training_thread.is_alive() is False
+    assert deletion_thread.is_alive() is False
+
+    observed: dict[str, object] = {}
+    while not outcomes.empty():
+        key, value = outcomes.get_nowait()
+        assert key not in observed
+        observed[key] = value
+    assert "training_error" not in observed
+    assert "deletion_error" not in observed
+    assert "deletion_result" in observed
+
+    deletion_result = observed["deletion_result"]
+    verification_connection = _connect(database_path)
+    verification_operations = RuntimeOperationCoordinator(
+        SQLiteRuntimeOperationsRepository(verification_connection)
+    )
+    verification_safety = LineageRuntimeSafety(
+        SQLiteLineageResourceLinksRepository(verification_connection),
+        verification_operations,
+    )
+    reloaded = AtomicLineageStateStore(state_path)
+
+    if "training_won" in observed:
+        assert "training_blocked" not in observed
+        assert deletion_result.status is BranchDeletionStatus.BLOCKED
+        assert reloaded.capture_transaction_state() == payload_before
+        assert state_path.read_bytes() == bytes_before
+        assert reloaded.custom_subtree_ids(branch_id) == (branch_id, child_id)
+        assert verification_safety.links_for_node(branch_id) == links_before[branch_id]
+        assert verification_safety.links_for_node(child_id) == links_before[child_id]
+        operation_rows = tuple(
+            (row["operation_kind"], row["state"])
+            for row in verification_connection.execute(
+                "SELECT operation_kind, state FROM runtime_operations ORDER BY id"
+            ).fetchall()
+        )
+        assert operation_rows == (("training", "succeeded"),)
+    else:
+        assert "training_blocked" in observed
+        assert isinstance(observed["training_blocked"], OperationConflictError)
+        assert deletion_result.status is BranchDeletionStatus.DELETED
+        assert deletion_result.removed_ids == (branch_id, child_id)
+        assert reloaded.custom_subtree_ids(branch_id) == ()
+        assert verification_safety.links_for_node(branch_id) == ()
+        assert verification_safety.links_for_node(child_id) == ()
+        operation_rows = tuple(
+            (row["operation_kind"], row["state"])
+            for row in verification_connection.execute(
+                "SELECT operation_kind, state FROM runtime_operations ORDER BY id"
+            ).fetchall()
+        )
+        assert operation_rows == (("lineage_delete", "succeeded"),)
+
+    assert verification_operations.active_operations() == ()
+    verification_connection.close()
