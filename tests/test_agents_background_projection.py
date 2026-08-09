@@ -119,15 +119,18 @@ def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
         assert _wait_until(lambda: coordinator.last_good is not None)
 
         screen._state = AtomicLineageStateStore(tmp_path / "lineage-state.json")
+        screen._lineage_nodes = screen._build_nodes()
         branch_id = screen._state.continue_from("snapshot")
-        screen._lineage_nodes = screen._state.apply(screen._lineage_nodes)
+        screen._lineage_nodes = screen._build_nodes()
 
         detail = screen._detail_for(branch_id)
 
         assert detail.title == "Version · branch 001"
+        assert "Parent: snapshot" in detail.body
+        assert "Статус: черновик" in detail.body
+        assert "В архиве: Нет" in detail.body
         assert "Новая локальная ветка" in detail.body
-        assert f"Локальный id: {branch_id}" in detail.body
-        assert "зарегистрированной model version" in detail.checks[0]
+        assert "Локальная ветка lineage" in detail.checks
         assert detail.title != "Model version"
     finally:
         assert screen.shutdown_background_work(2_000) is True
