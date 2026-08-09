@@ -38,7 +38,7 @@ class AgentsViewModel(AgentsOverviewViewModel):
             datasets_service,
             experiments_service,
         )
-        super().__post_init__()
+        AgentsOverviewViewModel.__post_init__(self)
 
     def build_lineage_snapshot(self) -> AtomicLineageSnapshot:
         service = self.lineage_projection_service
