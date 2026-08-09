@@ -4,9 +4,16 @@ import sqlite3
 
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.projects.service import ProjectsService
-from persona_training_lab.infrastructure.persistence.repositories.projects import SQLiteProjectsRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
-from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
+from persona_training_lab.infrastructure.persistence.repositories.projects import (
+    SQLiteProjectsRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
+from persona_training_lab.ui.viewmodels.dashboard import (
+    DashboardText,
+    DashboardViewModel,
+)
 
 
 def _build_service(connection: sqlite3.Connection) -> ProjectsService:
@@ -24,10 +31,12 @@ def test_projects_connector_empty_state() -> None:
     assert rows == []
 
     vm = DashboardViewModel(docs_service=DocsService(), projects_service=service)
-    label, value, note = vm.stats()[0]
-    assert label == "Проекты"
-    assert value == "00"
-    assert note == "Проекты пока не созданы"
+    stat = vm.stats()[0]
+
+    assert stat.label_key == "dashboard.stat.projects"
+    assert stat.value.key == "dashboard.raw"
+    assert stat.value.values["value"] == "00"
+    assert stat.note.key == "dashboard.note.no_projects"
 
 
 def test_projects_connector_reads_latest_project() -> None:
@@ -52,7 +61,15 @@ def test_projects_connector_reads_latest_project() -> None:
     assert rows[0].status == "активен"
 
     vm = DashboardViewModel(docs_service=DocsService(), projects_service=service)
-    label, value, note = vm.stats()[0]
-    assert label == "Проекты"
-    assert value == "01"
-    assert note == "Alpha Persona · активен"
+    stat = vm.stats()[0]
+
+    assert stat.label_key == "dashboard.stat.projects"
+    assert stat.value.key == "dashboard.raw"
+    assert stat.value.values["value"] == "01"
+    assert stat.note.key == "dashboard.note.project_summary"
+    assert stat.note.values["title"] == "Alpha Persona"
+
+    status = stat.note.values["status"]
+    assert isinstance(status, DashboardText)
+    assert status.key == "dashboard.raw"
+    assert status.values["value"] == "активен"
