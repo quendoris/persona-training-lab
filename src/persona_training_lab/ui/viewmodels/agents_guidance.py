@@ -9,7 +9,6 @@ from persona_training_lab.application.experiments.service import ExperimentsServ
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.training.service import TrainingService
 from persona_training_lab.ui.viewmodels.agents_contracts import (
-    AgentDetailView,
     AgentRoleView,
     AgentView,
     PortraitStats,
@@ -36,7 +35,7 @@ TRAIT_LABELS = {
 
 @dataclass(slots=True)
 class AgentsGuidanceViewModel:
-    """Live Agents guidance and local-detail fallback over service read models."""
+    """Live Agents guidance over service read models."""
 
     agents_service: AgentsService | None = None
     training_service: TrainingService | None = None
@@ -164,158 +163,6 @@ class AgentsGuidanceViewModel:
             ),
         )
 
-    def selected_detail(self) -> AgentDetailView:
-        return self.node_detail("snapshot")
-
-    def node_detail(self, node_id: str) -> AgentDetailView:
-        datasets = self._datasets()
-        runs = self._training_runs()
-        portraits = self._portraits()
-        latest_dataset = datasets[0] if datasets else None
-        latest_run = runs[0] if runs else None
-        latest_portrait = self._portrait_stats(portraits[0]) if portraits else None
-
-        if node_id == "base":
-            return AgentDetailView(
-                "Base model",
-                "\n".join(
-                    (
-                        "Модель: "
-                        f"{getattr(latest_run, 'base_model', '—') if latest_run else '—'}",
-                        "Роль: исходная точка lineage.",
-                        "Следующий узел: dataset.",
-                    )
-                ),
-                (
-                    "Проверить локальные файлы модели",
-                    "Не смешивать разные base model в одном сравнении",
-                    "Фиксировать модель в протоколе",
-                ),
-                (
-                    "Проверить локальную модель",
-                    "Перейти к датасету",
-                ),
-            )
-        if node_id == "dataset":
-            return AgentDetailView(
-                "Dataset",
-                "\n".join(
-                    (
-                        f"Название: {getattr(latest_dataset, 'title', '—')}",
-                        f"Статус: {getattr(latest_dataset, 'status', 'ожидание')}",
-                        f"Записей: {getattr(latest_dataset, 'record_count', '—')}",
-                        f"Валидных: {getattr(latest_dataset, 'valid_count', '—')}",
-                        f"Ошибок: {getattr(latest_dataset, 'invalid_count', '—')}",
-                    )
-                ),
-                (
-                    "Структура JSONL валидна",
-                    "Датасет одобрен автором",
-                    "Смысл данных проверен вручную",
-                ),
-                (
-                    "Проверить датасет",
-                    "Одобрить для обучения",
-                    "Создать training run",
-                ),
-            )
-        if node_id == "training":
-            return AgentDetailView(
-                "Training run",
-                "\n".join(
-                    (
-                        f"Run: {getattr(latest_run, 'run_id', '—')}",
-                        f"Название: {getattr(latest_run, 'title', '—')}",
-                        f"Статус: {getattr(latest_run, 'status', 'ожидание')}",
-                        f"Epoch: {getattr(latest_run, 'epoch_progress', '—')}",
-                        f"Loss: {getattr(latest_run, 'loss', '—')}",
-                        "Artifact: "
-                        f"{getattr(latest_run, 'artifact_path', '—') or '—'}",
-                    )
-                ),
-                (
-                    "Запуск завершён",
-                    "Artifact path не пустой",
-                    "Логи доступны",
-                    "UI не зависал во время обучения",
-                ),
-                (
-                    "Открыть логи",
-                    "Создать snapshot из artifact",
-                    "Повторить запуск при ошибке",
-                ),
-            )
-        if node_id == "snapshot":
-            return AgentDetailView(
-                "Model version",
-                self._current_version_body(latest_portrait),
-                (
-                    "Snapshot зарегистрирован",
-                    "Artifact path существует",
-                    "Понятно, от какого training run он создан",
-                    "Перед откатом есть текущий портрет",
-                ),
-                (
-                    "Сделать актуальной",
-                    "Сравнить с текущей",
-                    "Запустить портрет",
-                    "Пометить неудачной",
-                    "Откатиться к этой точке",
-                ),
-            )
-        if node_id == "portrait":
-            return AgentDetailView(
-                "Personality portrait",
-                "\n".join(
-                    (
-                        "Портрет: "
-                        f"{latest_portrait.title if latest_portrait else '—'}",
-                        "VALID: "
-                        f"{latest_portrait.passed if latest_portrait else 0}/"
-                        f"{latest_portrait.total if latest_portrait else 0}",
-                        "Ошибок: "
-                        f"{latest_portrait.failures if latest_portrait else '—'}",
-                        "Big Five KPI: "
-                        f"{self._score_line(latest_portrait.scores) if latest_portrait else '—'}",
-                    )
-                ),
-                (
-                    "Все пункты имеют VALID_SCORE",
-                    "KPI построен",
-                    "Батарея и scoring зафиксированы",
-                ),
-                (
-                    "Повторить портрет",
-                    "Открыть анализ",
-                    "Экспортировать raw responses",
-                ),
-            )
-        if node_id == "delta":
-            return AgentDetailView(
-                "Analysis delta",
-                "\n".join(
-                    (
-                        f"Delta: {self.delta_line() or 'нужен второй портрет'}",
-                        "Latest: "
-                        f"{getattr(portraits[0], 'title', '—') if portraits else '—'}",
-                        "Previous: "
-                        f"{getattr(portraits[1], 'title', '—') if len(portraits) > 1 else '—'}",
-                    )
-                ),
-                (
-                    "Есть два портрета",
-                    "Одинаковая батарея",
-                    "Одинаковые scoring rules",
-                    "Сравнение latest - previous",
-                ),
-                (
-                    "Открыть анализ",
-                    "Собрать следующий портрет",
-                    "Сделать заметку в протокол",
-                ),
-            )
-        return self.node_detail("snapshot")
-
     def next_best_step(self) -> str:
         datasets = self._datasets()
         runs = self._training_runs()
@@ -363,27 +210,6 @@ class AgentsGuidanceViewModel:
                     f"{latest.scores[key] - previous.scores[key]:+.2f}"
                 )
         return " · ".join(parts)
-
-    def _current_version_body(self, latest: PortraitStats | None) -> str:
-        versions = self._model_versions()
-        version = versions[0] if versions else None
-        if version is None:
-            return (
-                "Snapshot пока не создан. Сначала доведите обучение до artifact "
-                "и зарегистрируйте версию."
-            )
-        score_line = (
-            self._score_line(latest.scores) if latest else "портрет не собран"
-        )
-        return "\n".join(
-            (
-                f"Версия: {version.title}",
-                f"Статус: {version.status}",
-                f"Artifact: {version.artifact_path or '—'}",
-                f"Big Five KPI: {score_line}",
-                f"Delta: {self.delta_line() or 'нужен второй портрет'}",
-            )
-        )
 
     def _training_runs(self) -> list[object]:
         if self.training_service is None:
