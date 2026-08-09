@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -62,11 +63,6 @@ def _wait_until(
     return predicate()
 
 
-class _BombService:
-    def __getattr__(self, name: str):
-        raise AssertionError(f"legacy UI-thread service read attempted: {name}")
-
-
 class _Loader:
     def __init__(self) -> None:
         self.calls = 0
@@ -125,6 +121,20 @@ def test_atomic_agents_vm_excludes_legacy_graph_and_detail_api() -> None:
         assert hasattr(LegacyAgentsViewModel, method_name)
         assert not hasattr(AgentsGuidanceViewModel, method_name)
         assert not hasattr(AgentsViewModel, method_name)
+
+    constructor_parameters = inspect.signature(AgentsViewModel).parameters
+    assert {
+        "agents_service",
+        "lineage_projection_service",
+        "lineage_loader_factory",
+        "lineage_error_reporter",
+    } <= set(constructor_parameters)
+    assert not {
+        "training_service",
+        "model_versions_service",
+        "datasets_service",
+        "experiments_service",
+    } & set(constructor_parameters)
 
     wiring_path = (
         Path(__file__).parents[1]
@@ -221,17 +231,11 @@ def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
         screen.deleteLater()
 
 
-def test_agents_constructor_and_refresh_never_read_legacy_lineage_services() -> None:
+def test_agents_constructor_and_refresh_use_atomic_lineage_only() -> None:
     app = _app()
     assert app is not None
     loader = _Loader()
-    vm = AgentsViewModel(
-        training_service=_BombService(),
-        model_versions_service=_BombService(),
-        datasets_service=_BombService(),
-        experiments_service=_BombService(),
-        lineage_loader_factory=lambda: loader,
-    )
+    vm = AgentsViewModel(lineage_loader_factory=lambda: loader)
 
     screen = AgentsScreen(vm)
     try:
