@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import re
 
 from persona_training_lab.application.agents.service import AgentSummary, AgentsService
 from persona_training_lab.application.datasets.service import DatasetsService
+from persona_training_lab.application.experiments.portrait import parse_portrait_payload
 from persona_training_lab.application.experiments.service import ExperimentsService
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.training.service import TrainingService
@@ -15,8 +15,6 @@ from persona_training_lab.ui.viewmodels.agents_contracts import (
 )
 
 
-SCORE_RE = re.compile(r"\bSCORE\s*:\s*([1-5])\b", re.IGNORECASE)
-CASE_HEADER_RE = re.compile(r"(?m)^CASE\s+\d+")
 TRAIT_ORDER = (
     "Extraversion",
     "Agreeableness",
@@ -248,94 +246,24 @@ class AgentsGuidanceViewModel:
         return self._portrait_stats(portraits[0]) if portraits else None
 
     def _portrait_stats(self, experiment: object) -> PortraitStats:
-        subtitle = getattr(experiment, "subtitle", "")
-        title = getattr(experiment, "title", "")
-        passed, total = self._parse_passed_total(subtitle)
-        values, invalid = self._parse_scores(subtitle)
-        failures = max(invalid, max(0, total - passed)) if total else invalid
+        portrait = parse_portrait_payload(getattr(experiment, "subtitle", ""))
+        invalid = sum(
+            1
+            for case in portrait.cases
+            if case.score is None or not case.valid_score
+        )
+        failures = (
+            max(invalid, max(0, portrait.total - portrait.passed))
+            if portrait.total
+            else invalid
+        )
         return PortraitStats(
-            title=title,
-            passed=passed,
-            total=total,
+            title=getattr(experiment, "title", ""),
+            passed=portrait.passed,
+            total=portrait.total,
             failures=failures,
-            scores={
-                trait: round(sum(items) / len(items), 2)
-                for trait, items in values.items()
-                if items
-            },
+            scores=portrait.trait_scores(),
         )
-
-    def _parse_scores(
-        self,
-        subtitle: str,
-    ) -> tuple[dict[str, list[float]], int]:
-        values: dict[str, list[float]] = {}
-        invalid = 0
-        for block in self._split_case_records(subtitle):
-            lines = [
-                line.strip()
-                for line in block.splitlines()
-                if line.strip()
-            ]
-            trait = self._field(lines, "TRAIT")
-            reverse = self._field(lines, "REVERSE") == "1"
-            valid_score = self._field(lines, "VALID_SCORE")
-            response = self._field(lines, "RESPONSE")
-            score = self._score_from_response(response)
-            if score is None or valid_score == "0":
-                invalid += 1
-                continue
-            final_score = 6 - score if reverse else score
-            if trait:
-                values.setdefault(trait, []).append(float(final_score))
-        return values, invalid
-
-    def _split_case_records(self, subtitle: str) -> list[str]:
-        match = CASE_HEADER_RE.search(subtitle)
-        if match is None:
-            return []
-        tail = subtitle[match.start() :]
-        records = [
-            record.strip()
-            for record in CASE_HEADER_RE.split(tail)
-            if record.strip()
-        ]
-        headers = CASE_HEADER_RE.findall(tail)
-        return [
-            f"{header}\n{record}"
-            for header, record in zip(headers, records, strict=False)
-        ]
-
-    def _field(self, lines: list[str], name: str) -> str:
-        prefix = f"{name}: "
-        return next(
-            (
-                line.removeprefix(prefix).strip()
-                for line in lines
-                if line.startswith(prefix)
-            ),
-            "",
-        )
-
-    def _score_from_response(self, response: str) -> int | None:
-        match = SCORE_RE.search(response)
-        return int(match.group(1)) if match else None
-
-    def _parse_passed_total(self, subtitle: str) -> tuple[int, int]:
-        summary = subtitle.split("CASE ", 1)[0]
-        marker = (
-            summary.replace("PORTRAIT:", "")
-            .replace("SUMMARY:", "")
-            .strip()
-            .split(" ")[0]
-        )
-        if "/" not in marker:
-            return 0, 0
-        left, right = marker.split("/", 1)
-        try:
-            return int(left), int(right)
-        except ValueError:
-            return 0, 0
 
     def _score_line(self, scores: dict[str, float]) -> str:
         return " · ".join(
