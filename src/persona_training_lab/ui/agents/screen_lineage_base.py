@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 )
 
 from persona_training_lab.ui.agents.lineage import LineageVersionNode, build_version_lineage
-from persona_training_lab.ui.agents.lineage_local_detail import build_local_lineage_detail
 from persona_training_lab.ui.agents.lineage_state_atomic import AtomicLineageStateStore
 from persona_training_lab.ui.agents.version_graph_free_zoom import VersionGraphCanvas
 from persona_training_lab.ui.components.cards import PanelCard
@@ -157,10 +156,6 @@ class AgentsScreen(QWidget):
         return column
 
     def _detail_for(self, node_id: str) -> AgentDetailView:
-        if self._state.is_custom_node(node_id):
-            node = self._node_by_id(node_id)
-            if node is not None:
-                return build_local_lineage_detail(node)
         return self._vm.node_detail(node_id)
 
     def _select_node(self, node_id: str) -> None:
