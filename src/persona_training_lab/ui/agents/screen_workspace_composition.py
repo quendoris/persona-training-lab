@@ -164,7 +164,21 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             and not self._state.is_custom_node(node_id)
         ):
             return projection.details[node_id]
-        return super()._detail_for(node_id)
+        node = self._node_by_id(node_id)
+        if node is not None and self._state.is_custom_node(node_id):
+            return super()._detail_for(node_id)
+        return AgentDetailView(
+            "Неизвестная точка",
+            (
+                "Точка отсутствует в текущем согласованном lineage snapshot; "
+                "действия заблокированы до следующего обновления."
+            ),
+            (
+                "Проверить актуальность lineage snapshot",
+                "Дождаться согласованного обновления",
+            ),
+            (),
+        )
 
     def _continue_from_selected(self) -> None:
         parent_id = getattr(self, "_selected_node_id", "")
