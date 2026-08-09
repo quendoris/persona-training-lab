@@ -3,6 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from persona_training_lab.application.experiments.portrait import (
+    CASE_HEADER_RE as PORTRAIT_CASE_HEADER_RE,
+    SCORE_RE as PORTRAIT_SCORE_RE,
     parse_portrait_payload,
 )
 from persona_training_lab.application.experiments.service import (
@@ -13,6 +15,10 @@ from persona_training_lab.application.experiments.status_mapping import (
 )
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
+)
+from persona_training_lab.ui.viewmodels.agents import (
+    CASE_HEADER_RE as COMPAT_CASE_HEADER_RE,
+    SCORE_RE as COMPAT_SCORE_RE,
 )
 
 
@@ -33,6 +39,9 @@ PORTRAIT = (
 
 
 def test_portrait_payload_is_parsed_once_into_semantic_records() -> None:
+    assert COMPAT_CASE_HEADER_RE is PORTRAIT_CASE_HEADER_RE
+    assert COMPAT_SCORE_RE is PORTRAIT_SCORE_RE
+
     portrait = parse_portrait_payload(PORTRAIT)
 
     assert (portrait.passed, portrait.total) == (2, 3)
