@@ -97,13 +97,18 @@ class _Reporter:
         return "corr_lineage_test"
 
 
-def test_atomic_agents_vm_excludes_legacy_version_nodes() -> None:
+def test_atomic_agents_vm_excludes_legacy_graph_and_detail_api() -> None:
     assert CompatibilityAgentDetailView is AgentDetailView
     assert issubclass(LegacyAgentsViewModel, AgentsGuidanceViewModel)
-    assert hasattr(LegacyAgentsViewModel, "version_nodes")
-    assert not hasattr(AgentsGuidanceViewModel, "version_nodes")
+    for method_name in ("version_nodes", "node_detail", "selected_detail"):
+        assert hasattr(LegacyAgentsViewModel, method_name)
+        assert not hasattr(AgentsGuidanceViewModel, method_name)
+        assert not hasattr(AgentsViewModel, method_name)
     assert issubclass(AgentsViewModel, AgentsGuidanceViewModel)
-    assert not hasattr(AgentsViewModel, "version_nodes")
+
+    legacy_vm = LegacyAgentsViewModel()
+    assert legacy_vm.selected_detail().title == "Model version"
+    assert legacy_vm.node_detail("dataset").title == "Dataset"
 
 
 def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
