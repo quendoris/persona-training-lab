@@ -28,6 +28,9 @@ from persona_training_lab.ui.viewmodels.agents_guidance import (
     AgentsGuidanceViewModel,
 )
 from persona_training_lab.ui.viewmodels.agents_lineage import AgentsViewModel
+from persona_training_lab.ui.viewmodels.agents_overview import (
+    AgentsOverviewViewModel,
+)
 
 
 def _app() -> QApplication:
@@ -100,12 +103,26 @@ class _Reporter:
 
 def test_atomic_agents_vm_excludes_legacy_graph_and_detail_api() -> None:
     assert CompatibilityAgentDetailView is AgentDetailView
+    assert issubclass(AgentsGuidanceViewModel, AgentsOverviewViewModel)
     assert issubclass(LegacyAgentsViewModel, AgentsGuidanceViewModel)
+    assert issubclass(AgentsViewModel, AgentsOverviewViewModel)
+    assert not issubclass(AgentsViewModel, AgentsGuidanceViewModel)
+
+    for method_name in ("agents", "current_agent", "header_summary"):
+        assert hasattr(AgentsOverviewViewModel, method_name)
+        assert hasattr(AgentsGuidanceViewModel, method_name)
+        assert hasattr(LegacyAgentsViewModel, method_name)
+        assert hasattr(AgentsViewModel, method_name)
+
+    for method_name in ("roles", "next_best_step", "delta_line"):
+        assert hasattr(AgentsGuidanceViewModel, method_name)
+        assert hasattr(LegacyAgentsViewModel, method_name)
+        assert not hasattr(AgentsViewModel, method_name)
+
     for method_name in ("version_nodes", "node_detail", "selected_detail"):
         assert hasattr(LegacyAgentsViewModel, method_name)
         assert not hasattr(AgentsGuidanceViewModel, method_name)
         assert not hasattr(AgentsViewModel, method_name)
-    assert issubclass(AgentsViewModel, AgentsGuidanceViewModel)
 
     legacy_vm = LegacyAgentsViewModel()
     assert legacy_vm.selected_detail().title == "Model version"
