@@ -26,11 +26,6 @@ class _Reader:
         return self.snapshot
 
 
-class _BombService:
-    def __getattr__(self, name: str):
-        raise AssertionError(f"legacy service read attempted: {name}")
-
-
 def _source() -> LineageSourceSnapshot:
     return LineageSourceSnapshot(
         datasets=(
@@ -141,10 +136,6 @@ def _view_model(
 ) -> tuple[AgentsViewModel, _Reader]:
     reader = _Reader(source)
     vm = AgentsViewModel(
-        training_service=_BombService(),
-        model_versions_service=_BombService(),
-        datasets_service=_BombService(),
-        experiments_service=_BombService(),
         lineage_projection_service=AtomicLineageProjectionService(reader),
     )
     return vm, reader
