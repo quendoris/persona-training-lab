@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
+from pathlib import Path
 from types import SimpleNamespace
 
 from PySide6.QtCore import QEventLoop, QTimer
@@ -123,6 +125,35 @@ def test_atomic_agents_vm_excludes_legacy_graph_and_detail_api() -> None:
         assert hasattr(LegacyAgentsViewModel, method_name)
         assert not hasattr(AgentsGuidanceViewModel, method_name)
         assert not hasattr(AgentsViewModel, method_name)
+
+    wiring_path = (
+        Path(__file__).parents[1]
+        / "src"
+        / "persona_training_lab"
+        / "bootstrap"
+        / "wiring.py"
+    )
+    wiring_tree = ast.parse(wiring_path.read_text(encoding="utf-8"))
+    agents_vm_calls = [
+        node
+        for node in ast.walk(wiring_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "AgentsViewModel"
+    ]
+    assert len(agents_vm_calls) == 1
+    wired_keywords = {keyword.arg for keyword in agents_vm_calls[0].keywords}
+    assert {
+        "agents_service",
+        "lineage_loader_factory",
+        "lineage_error_reporter",
+    } <= wired_keywords
+    assert not {
+        "training_service",
+        "model_versions_service",
+        "datasets_service",
+        "experiments_service",
+    } & wired_keywords
 
     legacy_vm = LegacyAgentsViewModel()
     assert legacy_vm.selected_detail().title == "Model version"
