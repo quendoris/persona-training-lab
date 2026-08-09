@@ -90,6 +90,7 @@ QUICK_TESTS = (
     "tests/test_workspace_leave_guard.py",
     "tests/test_runtime_operation_coordinator.py",
     "tests/test_atomic_runtime_operation_coordinator.py",
+    "tests/test_runtime_destructive_lineage.py",
     "tests/test_application_error_reporter.py",
     "tests/test_qt_message_boundary.py",
 )
