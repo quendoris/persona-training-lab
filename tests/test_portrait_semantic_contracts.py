@@ -3,7 +3,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from persona_training_lab.application.experiments.portrait import (
-    CASE_HEADER_RE as PORTRAIT_CASE_HEADER_RE,
     SCORE_RE as PORTRAIT_SCORE_RE,
     parse_portrait_payload,
 )
@@ -39,8 +38,12 @@ PORTRAIT = (
 
 
 def test_portrait_payload_is_parsed_once_into_semantic_records() -> None:
-    assert COMPAT_CASE_HEADER_RE is PORTRAIT_CASE_HEADER_RE
     assert COMPAT_SCORE_RE is PORTRAIT_SCORE_RE
+    assert COMPAT_CASE_HEADER_RE.split("CASE 1\nA\nCASE 2\nB") == [
+        "",
+        "\nA\n",
+        "\nB",
+    ]
 
     portrait = parse_portrait_payload(PORTRAIT)
 
