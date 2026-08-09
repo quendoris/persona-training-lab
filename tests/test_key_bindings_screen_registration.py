@@ -7,9 +7,13 @@ from persona_training_lab.ui.shell.app_sidebar import APPLICATION_NAV_ITEMS
 
 
 def test_key_bindings_screen_is_exposed_in_application_navigation() -> None:
-    items = {screen_id: (icon, title) for screen_id, icon, title in APPLICATION_NAV_ITEMS}
+    items = {
+        screen_id: (icon, title_key)
+        for screen_id, icon, title_key in APPLICATION_NAV_ITEMS
+    }
 
-    assert items["keybindings"] == ("КЛ", "Назначения клавиш")
+    assert items["keybindings"] == ("КЛ", "nav.keybindings")
+    assert text(None, items["keybindings"][1]) == "Назначения клавиш"
     assert KeyBindingsScreen.__name__ == "KeyBindingsScreen"
 
 
@@ -20,6 +24,9 @@ def test_key_bindings_screen_has_dedicated_inspector_context() -> None:
     assert text(None, f"{prefix}.title") == "Назначения клавиш"
     assert "без перезапуска" in text(None, f"{prefix}.next")
 
-    checks = tuple(text(None, f"{prefix}.check.{index}") for index in range(1, 5))
+    checks = tuple(
+        text(None, f"{prefix}.check.{index}")
+        for index in range(1, 5)
+    )
     assert len(checks) == 4
     assert all(check for check in checks)
