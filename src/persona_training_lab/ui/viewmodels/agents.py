@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from persona_training_lab.application.experiments.portrait import (
-    CASE_HEADER_RE,
     SCORE_RE,
 )
 from persona_training_lab.ui.viewmodels.agents_contracts import (
@@ -17,6 +17,10 @@ from persona_training_lab.ui.viewmodels.agents_guidance import (
     TRAIT_LABELS,
     TRAIT_ORDER,
 )
+
+# Historical public regex retained only for callers of this compatibility facade.
+# Current portrait parsing lives exclusively in application.experiments.portrait.
+CASE_HEADER_RE = re.compile(r"(?m)^CASE\s+\d+")
 
 if TYPE_CHECKING:
     from persona_training_lab.ui.viewmodels.agents_legacy import AgentsViewModel
