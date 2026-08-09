@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from persona_training_lab.application.experiments.portrait import (
+    CASE_HEADER_RE,
+    SCORE_RE,
+)
 from persona_training_lab.ui.viewmodels.agents_contracts import (
     AgentDetailView,
     AgentRoleView,
@@ -10,8 +14,6 @@ from persona_training_lab.ui.viewmodels.agents_contracts import (
     VersionNodeView,
 )
 from persona_training_lab.ui.viewmodels.agents_guidance import (
-    CASE_HEADER_RE,
-    SCORE_RE,
     TRAIT_LABELS,
     TRAIT_ORDER,
 )
