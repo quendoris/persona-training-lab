@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import SimpleNamespace
 
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication, QLabel
@@ -109,6 +110,35 @@ def test_atomic_agents_vm_excludes_legacy_graph_and_detail_api() -> None:
     legacy_vm = LegacyAgentsViewModel()
     assert legacy_vm.selected_detail().title == "Model version"
     assert legacy_vm.node_detail("dataset").title == "Dataset"
+
+
+def test_agents_guidance_uses_canonical_portrait_parser() -> None:
+    latest = SimpleNamespace(
+        title="latest",
+        subtitle=(
+            "PORTRAIT: 2/2 Big Five items\n\n"
+            "CASE 1\nDIMENSION: Extraversion\nREVERSE: 0\n"
+            "VALID_SCORE: 1\nRAW_RESPONSE: SCORE: 5\n\n"
+            "CASE 2\nDIMENSION: Agreeableness\nREVERSE: 0\n"
+            "VALID_SCORE: 1\nRAW_RESPONSE: SCORE: 4"
+        ),
+    )
+    previous = SimpleNamespace(
+        title="previous",
+        subtitle=(
+            "PORTRAIT: 2/2 Big Five items\n\n"
+            "CASE 1\nDIMENSION: Extraversion\nREVERSE: 0\n"
+            "VALID_SCORE: 1\nRAW_RESPONSE: SCORE: 3\n\n"
+            "CASE 2\nDIMENSION: Agreeableness\nREVERSE: 0\n"
+            "VALID_SCORE: 1\nRAW_RESPONSE: SCORE: 2"
+        ),
+    )
+    experiments = SimpleNamespace(
+        list_experiments=lambda: [latest, previous],
+    )
+    vm = AgentsGuidanceViewModel(experiments_service=experiments)
+
+    assert vm.delta_line() == "E=+2.00 · A=+2.00"
 
 
 def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
