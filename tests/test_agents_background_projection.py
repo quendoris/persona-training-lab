@@ -167,6 +167,11 @@ def test_agents_constructor_and_refresh_never_read_legacy_lineage_services() -> 
         assert coordinator is not None
         assert _wait_until(lambda: coordinator.last_good is not None)
         assert loader.calls == 1
+
+        stale_detail = screen._detail_for("stale_missing")
+        assert stale_detail.title == "Неизвестная точка"
+        assert "действия заблокированы" in stale_detail.body
+        assert stale_detail.actions == ()
     finally:
         assert screen.shutdown_background_work(2_000) is True
         assert loader.closed is True
