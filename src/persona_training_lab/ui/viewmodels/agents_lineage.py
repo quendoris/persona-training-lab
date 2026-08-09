@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass
 
 from persona_training_lab.application.errors.reporter import (
     ApplicationErrorReporter,
@@ -17,28 +17,9 @@ from persona_training_lab.ui.viewmodels.agents_overview import AgentsOverviewVie
 class AgentsViewModel(AgentsOverviewViewModel):
     """Agents overview with worker-owned atomic lineage ports."""
 
-    training_service: InitVar[object | None] = None
-    model_versions_service: InitVar[object | None] = None
-    datasets_service: InitVar[object | None] = None
-    experiments_service: InitVar[object | None] = None
     lineage_projection_service: AtomicLineageProjectionService | None = None
     lineage_loader_factory: LineageLoaderFactory | None = None
     lineage_error_reporter: ApplicationErrorReporter | None = None
-
-    def __post_init__(
-        self,
-        training_service: object | None,
-        model_versions_service: object | None,
-        datasets_service: object | None,
-        experiments_service: object | None,
-    ) -> None:
-        del (
-            training_service,
-            model_versions_service,
-            datasets_service,
-            experiments_service,
-        )
-        AgentsOverviewViewModel.__post_init__(self)
 
     def build_lineage_snapshot(self) -> AtomicLineageSnapshot:
         service = self.lineage_projection_service
