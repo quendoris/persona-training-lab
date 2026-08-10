@@ -51,6 +51,7 @@
     "datasets.error.compare_failed": "Не удалось сравнить версии",
     "datasets.error.file_not_found": "Файл датасета не найден",
     "datasets.error.load_failed": "Не удалось загрузить датасеты",
+    "datasets.error.not_found": "Датасет не найден",
     "datasets.error.only_jsonl": "Поддерживается только формат .jsonl",
     "datasets.error.validate_failed": "Не удалось проверить датасет",
     "datasets.header.summary": "{subtitle} · {version} · {records}",
