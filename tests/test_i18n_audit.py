@@ -117,6 +117,7 @@ def test_deep_audit_finds_hidden_text_but_ignores_validated_semantics(
 class Defaults:
     title: str = "Default title"
     status: str = "Default status"
+    status_message: str = "Ready for work"
     logs: tuple[str, ...] = ("Default log",)
     metric = TrainingMetric(
         "Epoch title",
@@ -167,6 +168,7 @@ def start_training():
     findings = {(item.call, item.text) for item in visitor.literals}
     assert ("class.title", "Default title") in findings
     assert ("class.status", "Default status") in findings
+    assert ("class.status_message", "Ready for work") in findings
     assert ("class.logs", "Default log") in findings
     assert ("TrainingMetric title", "Epoch title") in findings
     assert ("TrainingMetric note", "Epoch note") in findings
