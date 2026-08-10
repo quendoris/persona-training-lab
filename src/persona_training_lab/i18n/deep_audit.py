@@ -170,7 +170,7 @@ class DeepSurfaceAudit(ast.NodeVisitor):
             self.literals.append(
                 LiteralFinding(
                     path=_display_path(self._path, self._display_root),
-                    line=node.lineno,
+                    line=getattr(node, "lineno", 0),
                     call=call,
                     text=" ".join(fragment.split()),
                 )
@@ -267,34 +267,34 @@ def _string_fragments(node: ast.expr) -> tuple[str, ...]:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return (node.value,)
     if isinstance(node, ast.JoinedStr):
-        fragments: list[str] = []
+        joined_fragments: list[str] = []
         for value in node.values:
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                fragments.append(value.value)
-        return tuple(fragments)
+                joined_fragments.append(value.value)
+        return tuple(joined_fragments)
     if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
-        fragments: list[str] = []
+        sequence_fragments: list[str] = []
         for item in node.elts:
-            fragments.extend(_string_fragments(item))
-        return tuple(fragments)
+            sequence_fragments.extend(_string_fragments(item))
+        return tuple(sequence_fragments)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         return _string_fragments(node.left) + _string_fragments(node.right)
     if isinstance(node, ast.IfExp):
         return _string_fragments(node.body) + _string_fragments(node.orelse)
     if isinstance(node, ast.BoolOp):
-        fragments: list[str] = []
+        bool_fragments: list[str] = []
         for value in node.values:
-            fragments.extend(_string_fragments(value))
-        return tuple(fragments)
+            bool_fragments.extend(_string_fragments(value))
+        return tuple(bool_fragments)
     if isinstance(node, ast.Call):
         if _call_name(node.func) in _OPAQUE_VALIDATED_CALLS:
             return ()
-        fragments: list[str] = []
+        call_fragments: list[str] = []
         for argument in node.args:
-            fragments.extend(_string_fragments(argument))
+            call_fragments.extend(_string_fragments(argument))
         for keyword in node.keywords:
-            fragments.extend(_string_fragments(keyword.value))
-        return tuple(fragments)
+            call_fragments.extend(_string_fragments(keyword.value))
+        return tuple(call_fragments)
     return ()
 
 
