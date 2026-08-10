@@ -36,6 +36,17 @@ def test_profiles_connector_empty_state() -> None:
     assert title.key == "profiles.empty.title"
     assert subtitle.key == "profiles.empty.summary"
     assert vm.current_profile().readiness_code == "empty"
+    assert vm.profiles() == [
+        (
+            "profiles_empty",
+            "Профили пока не созданы",
+            "Профили личности пока не созданы.",
+        )
+    ]
+    assert vm.header_summary() == (
+        "Профили пока не созданы",
+        "Профили личности пока не созданы.",
+    )
 
 
 def test_profiles_connector_single_row() -> None:
@@ -70,3 +81,14 @@ def test_profiles_connector_single_row() -> None:
     assert profile.title == "Mia core v3 (SQLite)"
     assert profile.subtitle == "Реальный профиль из БД"
     assert profile.status_code == "active"
+    assert vm.profiles() == [
+        (
+            "mia_core_v3",
+            "Mia core v3 (SQLite)",
+            "Реальный профиль из БД",
+        )
+    ]
+    assert vm.header_summary() == (
+        "Mia core v3 (SQLite)",
+        "Реальный профиль из БД",
+    )
