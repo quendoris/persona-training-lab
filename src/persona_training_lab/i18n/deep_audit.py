@@ -64,6 +64,11 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (2, "right_note"),
     ),
     "DatasetPreviewRecord": ((1, "input_summary"),),
+    "OperationsCenterItem": (
+        (1, "title"),
+        (2, "summary"),
+        (7, "focus_text"),
+    ),
     "TraitView": ((0, "name"), (2, "note")),
     "ProfileView": ((9, "linked_artifacts"), (11, "readiness")),
     "TrainingConfigurationError": ((0, "message"),),
@@ -75,6 +80,13 @@ _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "DatasetPreviewRecord": ((3, "quality"),),
     "DatasetServiceError": ((0, "code"),),
     "DatasetValidationResult": ((0, "status"),),
+    "OperationsCenterItem": (
+        (3, "status"),
+        (4, "severity"),
+        (6, "target_screen"),
+        (9, "operation_kind"),
+        (10, "operation_state"),
+    ),
 }
 _MACHINE_CODE_CLASSES = frozenset(
     {
@@ -90,6 +102,12 @@ _TYPED_DATASET_ERROR_FUNCTIONS = frozenset(
     }
 )
 _FORBIDDEN_UI_PRESENTATION_CATALOGS = frozenset({"_LEGACY_TEMPLATES"})
+_FORBIDDEN_OPERATIONS_PRESENTATION_FUNCTIONS = frozenset(
+    {"_operation_label", "_state_label"}
+)
+_OPERATIONS_MACHINE_OR_KEY_RESULT_FUNCTIONS = frozenset(
+    {"_operation_target", "_event_target"}
+)
 _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
     {
         "title",
@@ -219,6 +237,7 @@ class DeepSurfaceAudit(ast.NodeVisitor):
         self._class_stack: list[str] = []
         self._assignments: list[dict[str, tuple[str, ...]]] = []
         self._is_ui_viewmodel = _is_ui_viewmodel_path(path)
+        self._is_operations_center_service = _is_operations_center_service_path(path)
         self.literals: list[LiteralFinding] = []
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
@@ -227,6 +246,18 @@ class DeepSurfaceAudit(ast.NodeVisitor):
         self._class_stack.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if (
+            self._is_operations_center_service
+            and node.name in _FORBIDDEN_OPERATIONS_PRESENTATION_FUNCTIONS
+        ):
+            self.literals.append(
+                LiteralFinding(
+                    path=_display_path(self._path, self._display_root),
+                    line=getattr(node, "lineno", 0),
+                    call="forbidden operations presentation helper",
+                    text=node.name,
+                )
+            )
         self._function_stack.append(node.name)
         self._assignments.append({})
         self.generic_visit(node)
@@ -376,6 +407,22 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                     f"{function_name} persisted {key.value}",
                     fragments,
                 )
+        if (
+            self._is_operations_center_service
+            and function_name in _OPERATIONS_MACHINE_OR_KEY_RESULT_FUNCTIONS
+        ):
+            for value in node.values:
+                fragments = tuple(
+                    fragment
+                    for fragment in self._resolved_fragments(value)
+                    if not _looks_machine_code(fragment)
+                    and not _looks_translation_key(fragment)
+                )
+                self._append_fragments(
+                    node,
+                    f"{function_name} mapping",
+                    fragments,
+                )
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -463,7 +510,23 @@ class DeepSurfaceAudit(ast.NodeVisitor):
 
     def visit_Return(self, node: ast.Return) -> None:
         function_name = self._function_stack[-1] if self._function_stack else ""
-        if node.value is not None and function_name in _MACHINE_RESULT_FUNCTIONS:
+        if (
+            node.value is not None
+            and self._is_operations_center_service
+            and function_name in _OPERATIONS_MACHINE_OR_KEY_RESULT_FUNCTIONS
+        ):
+            fragments = tuple(
+                fragment
+                for fragment in self._resolved_fragments(node.value)
+                if not _looks_machine_code(fragment)
+                and not _looks_translation_key(fragment)
+            )
+            self._append_fragments(
+                node,
+                f"{function_name} return",
+                fragments,
+            )
+        elif node.value is not None and function_name in _MACHINE_RESULT_FUNCTIONS:
             fragments = tuple(
                 fragment
                 for fragment in self._resolved_fragments(node.value)
@@ -566,6 +629,18 @@ def _is_ui_viewmodel_path(path: Path) -> bool:
     return False
 
 
+def _is_operations_center_service_path(path: Path) -> bool:
+    parts = path.parts
+    return (
+        len(parts) >= 3
+        and parts[-3:] == ("operations_center", "service.py")
+        if False
+        else path.name == "service.py"
+        and "operations_center" in parts
+        and "application" in parts
+    )
+
+
 def _self_attribute_name(node: ast.expr) -> str:
     if (
         isinstance(node, ast.Attribute)
@@ -652,6 +727,20 @@ def _looks_machine_code(text: str) -> bool:
             character.islower()
             or character.isdigit()
             or character == "_"
+            for character in stripped
+        )
+    )
+
+
+def _looks_translation_key(text: str) -> bool:
+    stripped = text.strip()
+    return bool(
+        "." in stripped
+        and stripped.isascii()
+        and all(
+            character.islower()
+            or character.isdigit()
+            or character in {"_", "."}
             for character in stripped
         )
     )
