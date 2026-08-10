@@ -66,6 +66,9 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "TrainingConfigurationError": ((0, "message"),),
     "TrainingValidationError": ((0, "message"),),
 }
+_STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
+    "DatasetValidationResult": ((0, "status"),),
+}
 _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
     {
         "title",
@@ -102,11 +105,18 @@ _UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset(
     }
 )
 _PERSISTED_SEMANTIC_FIELDS = {
+    "add_dataset_from_path": frozenset(
+        {"subtitle", "status", "quality_summary", "readiness"}
+    ),
+    "add_dataset": frozenset({"status", "quality_summary", "readiness"}),
+    "update_dataset_validation": frozenset({"status", "quality_summary"}),
+    "_save_result": frozenset({"status", "quality_summary"}),
     "create_training_run": frozenset({"status"}),
     "start_full_finetune_run": frozenset({"status"}),
     "_set_terminal_error": frozenset({"status"}),
     "create_from_training_run": frozenset({"status", "quality_summary"}),
 }
+_MACHINE_RESULT_FUNCTIONS = frozenset({"_readiness_from_status"})
 _USER_RESULT_FUNCTIONS = frozenset(
     {
         "approve_dataset",
@@ -276,11 +286,42 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                     f"{call_name} {keyword}",
                     fragments,
                 )
+        machine_structured = _STRUCTURED_MACHINE_TEXT.get(call_name)
+        if machine_structured is not None:
+            for position, keyword in machine_structured:
+                expression = _argument_expression(
+                    node,
+                    position,
+                    keyword=keyword,
+                )
+                if expression is None:
+                    continue
+                fragments = tuple(
+                    fragment
+                    for fragment in self._resolved_fragments(expression)
+                    if not _looks_machine_code(fragment)
+                )
+                self._append_fragments(
+                    node,
+                    f"{call_name} {keyword}",
+                    fragments,
+                )
         self.generic_visit(node)
 
     def visit_Return(self, node: ast.Return) -> None:
         function_name = self._function_stack[-1] if self._function_stack else ""
-        if node.value is not None and (
+        if node.value is not None and function_name in _MACHINE_RESULT_FUNCTIONS:
+            fragments = tuple(
+                fragment
+                for fragment in self._resolved_fragments(node.value)
+                if not _looks_machine_code(fragment)
+            )
+            self._append_fragments(
+                node,
+                f"{function_name} return",
+                fragments,
+            )
+        elif node.value is not None and (
             function_name in _USER_RESULT_FUNCTIONS
             or (
                 self._is_ui_viewmodel
