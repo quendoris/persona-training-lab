@@ -4,6 +4,7 @@ import sqlite3
 
 from persona_training_lab.application.training.full_backend import FullFineTuneResult
 from persona_training_lab.application.training.service import TrainingService, TrainingValidationError
+from persona_training_lab.domain.training.statuses import TrainingRunStatus
 from persona_training_lab.infrastructure.persistence.repositories.training import SQLiteTrainingRepository
 from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
@@ -73,7 +74,8 @@ def test_start_and_complete_training_run() -> None:
     completed = service.advance_training_run("trn_ready")
     assert completed
     row = service.list_training_runs()[0]
-    assert row.status == "Завершено"
+    assert row.status == TrainingRunStatus.COMPLETED.value
+    assert row.status_code is TrainingRunStatus.COMPLETED
     assert row.artifact_path == "artifacts/full_finetune/trn_ready/model"
     logs = service.list_training_run_logs("trn_ready")
     assert any("Запуск full fine-tune" in log for log in logs)
@@ -123,4 +125,6 @@ def test_viewmodel_start_action() -> None:
     assert message_model is not None
     assert message_model.key == "training.message.completed"
     assert message_model.values["artifact"] == "artifacts/full_finetune/trn_ready/model"
-    assert vm.status == "Завершено"
+    assert vm.status == TrainingRunStatus.COMPLETED.value
+    assert vm.status_code == TrainingRunStatus.COMPLETED.value
+    assert vm.status_model().key == "training.status.completed"
