@@ -2,12 +2,22 @@ from __future__ import annotations
 
 import sqlite3
 
+from persona_training_lab.application.model_versions.quality import (
+    parse_model_version_quality,
+)
+from persona_training_lab.application.model_versions.service import (
+    ModelVersionsService,
+)
 from persona_training_lab.application.training.full_backend import FullFineTuneResult
 from persona_training_lab.application.training.service import TrainingService, TrainingValidationError
+from persona_training_lab.domain.models.statuses import ModelVersionStatus
 from persona_training_lab.domain.training.statuses import TrainingRunStatus
+from persona_training_lab.infrastructure.persistence.repositories.model_versions import (
+    SQLiteModelVersionsRepository,
+)
 from persona_training_lab.infrastructure.persistence.repositories.training import SQLiteTrainingRepository
 from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
-from persona_training_lab.ui.viewmodels.training import TrainingViewModel
+from persona_training_lab.ui.viewmodels.training import TrainingText, TrainingViewModel
 
 
 class _LocalModel:
@@ -128,3 +138,51 @@ def test_viewmodel_start_action() -> None:
     assert vm.status == TrainingRunStatus.COMPLETED.value
     assert vm.status_code == TrainingRunStatus.COMPLETED.value
     assert vm.status_model().key == "training.status.completed"
+
+
+def test_viewmodel_publishes_machine_model_version_quality() -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    create_minimal_schema(conn)
+    _seed_run(conn, run_id="trn_publish")
+    model_versions_service = ModelVersionsService(
+        model_versions_repo=SQLiteModelVersionsRepository(conn)
+    )
+    vm = TrainingViewModel(
+        training_service=_service(conn),
+        model_versions_service=model_versions_service,
+    )
+
+    ok, code = vm.start_selected_training_run()
+
+    assert ok
+    assert code == "completed"
+    row = conn.execute(
+        """
+        SELECT status, quality_summary
+        FROM model_versions
+        WHERE training_run_id = ?
+        """,
+        ("trn_publish",),
+    ).fetchone()
+    assert row is not None
+    assert row["status"] == ModelVersionStatus.READY.value
+    assert row["quality_summary"].startswith("ptl:model-version-quality:v1:")
+    assert "заверш" not in row["quality_summary"].casefold()
+
+    quality = parse_model_version_quality(row["quality_summary"])
+    assert quality is not None
+    assert quality.code == "training_completed"
+    assert dict(quality.values) == {
+        "checkpoints": "01",
+        "loss": "0.100000",
+    }
+
+    version = vm.personality_versions[0]
+    assert version.status_code == ModelVersionStatus.READY.value
+    note_model = vm.version_note_model(version)
+    assert isinstance(note_model, TrainingText)
+    assert note_model.key == "training.version.note"
+    quality_model = note_model.values["quality"]
+    assert isinstance(quality_model, TrainingText)
+    assert quality_model.key == "training.version.quality.training_completed"
