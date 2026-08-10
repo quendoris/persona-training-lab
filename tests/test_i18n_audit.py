@@ -114,6 +114,19 @@ def test_deep_audit_finds_hidden_text_but_ignores_validated_semantics(
     tmp_path: Path,
 ) -> None:
     source = """
+class Defaults:
+    title: str = "Default title"
+    status: str = "Default status"
+    logs: tuple[str, ...] = ("Default log",)
+    metric = TrainingMetric(
+        "Epoch title",
+        "—",
+        "Epoch note",
+        "training.metric.epoch",
+        "training.metric.note.idle",
+    )
+
+
 class VM:
     def update(self, version_id):
         self.title = f"Tests · {version_id}"
@@ -152,6 +165,11 @@ def start_training():
     visitor.visit(ast.parse(source, filename=str(path)))
 
     findings = {(item.call, item.text) for item in visitor.literals}
+    assert ("class.title", "Default title") in findings
+    assert ("class.status", "Default status") in findings
+    assert ("class.logs", "Default log") in findings
+    assert ("TrainingMetric title", "Epoch title") in findings
+    assert ("TrainingMetric note", "Epoch note") in findings
     assert ("self.title", "Tests ·") in findings
     assert ("self.subtitle", "Portrait not collected") in findings
     assert ("self.setup_rows", "Target") in findings
@@ -167,6 +185,8 @@ def start_training():
     assert not any(call == "approve_dataset return" for call, _ in findings)
     assert not any(call == "start_full_finetune_run return" for call, _ in findings)
     assert not any(text == "training.header.title" for _, text in findings)
+    assert not any(text == "training.metric.epoch" for _, text in findings)
+    assert not any(text == "training.metric.note.idle" for _, text in findings)
 
 
 def test_action_result_rejects_human_text_as_machine_code() -> None:
