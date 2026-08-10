@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "docs"
+  },
+  "messages": {
+    "docs.card.topics.title": "Документация",
+    "docs.card.topics.subtitle": "Живые разделы проекта, которые помогают пройти рабочий маршрут.",
+    "docs.card.content.title": "Раздел",
+    "docs.card.content.subtitle": "Текст берётся из markdown-файлов в docs/.",
+    "docs.content.select_summary": "Выберите раздел слева.",
+    "docs.card.next.title": "Что делать дальше",
+    "docs.card.next.subtitle": "Короткие подсказки без лишней мешуры.",
+    "docs.next.select": "Выберите раздел документации.",
+    "docs.content.missing": "Документ не найден: {path}",
+    "docs.content.read_failed": "Не удалось прочитать документ: {path}",
+    "docs.topic.quickstart.title": "Быстрый старт",
+    "docs.topic.quickstart.summary": "Минимальный маршрут от датасета до анализа.",
+    "docs.topic.quickstart.next_step": "Начните с Датасеты → Обучение → Тесты → Анализ.",
+    "docs.topic.training_pipeline.title": "Пайплайн обучения",
+    "docs.topic.training_pipeline.summary": "Как training run превращается в artifact модели.",
+    "docs.topic.training_pipeline.next_step": "После обучения проверьте artifact и локальный ответ модели.",
+    "docs.topic.personality_portrait.title": "Портрет личности",
+    "docs.topic.personality_portrait.summary": "Big Five KPI, SCORE-ответы, reverse scoring и дельта.",
+    "docs.topic.personality_portrait.next_step": "Соберите новый портрет после каждого значимого fine-tune.",
+    "docs.topic.experiment_protocol.title": "Протокол эксперимента",
+    "docs.topic.experiment_protocol.summary": "Что фиксировать, чтобы сравнение было воспроизводимым.",
+    "docs.topic.experiment_protocol.next_step": "Перед статьёй сохраняйте версии модели, датасета, батареи и scoring.",
+    "docs.topic.methodology_limits.title": "Ограничения методики",
+    "docs.topic.methodology_limits.summary": "Границы интерпретации и честные ограничения текущей батареи.",
+    "docs.topic.methodology_limits.next_step": "Для публикации расширьте батарею и добавьте повторные прогоны.",
+    "docs.quick_reference.1": "Датасеты: добавить файл и проверить структуру prompt/response.",
+    "docs.quick_reference.2": "Обучение: выбрать модель, датасет, профиль и запустить fine-tune.",
+    "docs.quick_reference.3": "Снимки: убедиться, что artifact зарегистрирован.",
+    "docs.quick_reference.4": "Тесты: собрать Big Five portrait и проверить VALID_SCORE.",
+    "docs.quick_reference.5": "Анализ: сравнить KPI и delta между двумя портретами.",
+    "docs.context_help.1": "Документация должна отвечать на вопрос: что делать следующим шагом.",
+    "docs.context_help.2": "Если вкладка непонятна — откройте соответствующий раздел и проверьте чеклист.",
+    "docs.context_help.3": "Для исследования всегда фиксируйте версии: модель, датасет, батарея, scoring."
+  }
+}
