@@ -8,7 +8,6 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication
 
 from persona_training_lab.application.lineage.atomic_projection import (
