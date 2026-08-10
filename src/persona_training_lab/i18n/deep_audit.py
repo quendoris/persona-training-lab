@@ -222,8 +222,6 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
         "evaluation_text",
         "SnapshotText",
         "snapshot_text",
-        "_base_text",
-        "_base_status_text",
     }
 )
 
