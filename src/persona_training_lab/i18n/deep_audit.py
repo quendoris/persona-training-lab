@@ -69,6 +69,7 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (2, "summary"),
         (7, "focus_text"),
     ),
+    "TelemetrySnapshot": ((15, "error_message"),),
     "TraitView": ((0, "name"), (2, "note")),
     "ProfileView": ((9, "linked_artifacts"), (11, "readiness")),
     "TrainingConfigurationError": ((0, "message"),),
@@ -86,6 +87,17 @@ _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (6, "target_screen"),
         (9, "operation_kind"),
         (10, "operation_state"),
+    ),
+    "TelemetrySnapshot": (
+        (2, "cpu_status"),
+        (6, "gpu_status"),
+        (12, "processes_status"),
+        (13, "status"),
+        (16, "cpu_status_code"),
+        (17, "gpu_status_code"),
+        (18, "processes_status_code"),
+        (19, "status_code"),
+        (20, "error_code"),
     ),
 }
 _MACHINE_CODE_CLASSES = frozenset(
@@ -129,6 +141,11 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
         "context_rows",
         "insights",
         "deltas",
+        "status_title",
+        "status_subtitle",
+        "status_error",
+        "cpu_cores_text",
+        "processes_rows",
     }
 )
 _UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset(
@@ -205,6 +222,8 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
         "evaluation_text",
         "SnapshotText",
         "snapshot_text",
+        "_base_text",
+        "_base_status_text",
     }
 )
 
@@ -492,7 +511,7 @@ class DeepSurfaceAudit(ast.NodeVisitor):
             node.exc is not None
             and self._class_stack
             and self._class_stack[-1] == "DatasetsService"
-            and function_name in _TYPED_DATASET_ERROR_FUNCTIONS
+            and function_name in _TYP_DATASET_ERROR_FUNCTIONS
             and not (
                 isinstance(node.exc, ast.Call)
                 and _call_name(node.exc.func) == "DatasetServiceError"
