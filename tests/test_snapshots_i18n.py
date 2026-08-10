@@ -10,6 +10,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QLabel
 
+from persona_training_lab.application.model_versions.quality import (
+    training_completed_quality,
+)
 from persona_training_lab.application.model_versions.service import (
     ModelVersionSummary,
 )
@@ -75,6 +78,24 @@ def _ready_version() -> ModelVersionSummary:
         artifact_path="/artifacts/mv_001/model.safetensors",
         quality_summary=(
             "Full fine-tune завершён · loss 0.42 · checkpoints 3"
+        ),
+        status_code=ModelVersionStatus.READY,
+    )
+
+
+def _machine_quality_version() -> ModelVersionSummary:
+    return ModelVersionSummary(
+        version_id="mv_machine",
+        title="Mia machine quality",
+        status=ModelVersionStatus.READY.value,
+        base_model="Qwen 2B",
+        profile_title="Mia core",
+        dataset_title="curated rose v1",
+        training_run_id="trn_machine",
+        artifact_path="/artifacts/mv_machine/model.safetensors",
+        quality_summary=training_completed_quality(
+            loss="0.24",
+            checkpoints="04",
         ),
         status_code=ModelVersionStatus.READY,
     )
@@ -160,6 +181,44 @@ def test_generated_legacy_summary_and_status_use_current_locale(
         "Full fine-tune завершён · loss 0.42 · checkpoints 3"
         in russian
     )
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
+
+
+def test_machine_quality_payload_uses_current_locale_without_rewrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(
+        manager,
+        "_prepare_qt_translator",
+        lambda _locale: None,
+    )
+    version = _machine_quality_version()
+    stored_quality = version.quality_summary
+    service = MutableModelVersionsService()
+    service.versions = [version]
+    vm = SnapshotsViewModel(model_versions_service=service)
+    screen = SnapshotsScreen(vm, manager)
+    screen.show()
+    app.processEvents()
+
+    english = _visible_texts(screen)
+    assert "Full fine-tune completed · loss 0.24 · checkpoints 04" in english
+    assert all("ptl:model-version-quality" not in text for text in english)
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    russian = _visible_texts(screen)
+    assert "Full fine-tune завершён · loss 0.24 · checkpoints 04" in russian
+    assert vm.current_snapshot().quality_summary == stored_quality
+    assert service.versions[0].quality_summary == stored_quality
 
     screen.close()
     screen.deleteLater()
