@@ -33,7 +33,10 @@ from persona_training_lab.ui.training.screen import (
     TrainingScreen,
     _TrainingLogsDialog,
 )
-from persona_training_lab.ui.viewmodels.training import TrainingViewModel
+from persona_training_lab.ui.viewmodels.training import (
+    TrainingViewModel,
+    training_text,
+)
 
 
 CATALOGS = (
@@ -55,6 +58,14 @@ def _manager(app: QApplication) -> LocalizationManager:
         initial_locale="en-US",
         catalog_directory=CATALOGS,
     )
+
+
+def _visible_texts(screen: TrainingScreen) -> set[str]:
+    return {
+        label.text()
+        for label in screen.findChildren(QLabel)
+        if label.isVisible()
+    }
 
 
 def _flush_deferred_deletes() -> None:
@@ -295,6 +306,47 @@ def test_runtime_refresh_rebuilds_metrics_checkpoints_and_versions(
         label.text()
         for label in screen._overview_card.findChildren(QLabel)
     }
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
+
+
+def test_completed_worker_result_remains_completed_across_locale_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(
+        manager,
+        "_prepare_qt_translator",
+        lambda _locale: None,
+    )
+    vm = TrainingViewModel()
+    vm.creation_message = "completed"
+    vm._creation_message_model = training_text(
+        "training.message.completed",
+        artifact="artifacts/trn_live/model",
+    )
+    screen = TrainingScreen(vm, manager)
+    screen.show()
+    screen._on_training_started(True, "completed")
+    app.processEvents()
+
+    assert vm.current_message().key == "training.message.completed"
+    assert screen._create_message.text() == (
+        "Training completed. Artifact: artifacts/trn_live/model"
+    )
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    assert vm.current_message().key == "training.message.completed"
+    assert screen._create_message.text() == (
+        "Обучение завершено. Артефакт: artifacts/trn_live/model"
+    )
 
     screen.close()
     screen.deleteLater()
