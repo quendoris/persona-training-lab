@@ -12,6 +12,26 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "ExperimentRunResult": ((1, "message"),),
     "EvaluationMetric": ((0, "title"), (2, "note")),
     "EvaluationCase": ((0, "title"), (1, "note")),
+    "TrainingMetric": ((0, "title"), (2, "note")),
+    "CheckpointView": ((0, "name"), (1, "note")),
+    "PersonalityVersionView": (
+        (0, "title"),
+        (1, "status"),
+        (2, "note"),
+    ),
+    "CompareMetric": ((0, "title"), (2, "note")),
+    "CompareSummary": (
+        (0, "title"),
+        (1, "subtitle"),
+        (2, "profile_match"),
+        (3, "stability"),
+        (4, "contradiction"),
+    ),
+    "CompareSample": (
+        (0, "title"),
+        (1, "left_note"),
+        (2, "right_note"),
+    ),
     "TrainingConfigurationError": ((0, "message"),),
     "TrainingValidationError": ((0, "message"),),
 }
@@ -19,8 +39,22 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
     {
         "title",
         "subtitle",
+        "status",
+        "selected_objects",
+        "versions_status_message",
+        "logs",
+        "monitor_rows",
+        "risk_title",
+        "risk_body",
+        "next_step",
+        "local_model_status",
+        "local_model_note",
+        "local_inference_status",
+        "progress_note",
         "setup_rows",
         "context_rows",
+        "insights",
+        "deltas",
     }
 )
 _USER_RESULT_FUNCTIONS = frozenset(
@@ -68,9 +102,15 @@ class DeepSurfaceAudit(ast.NodeVisitor):
         self._path = path
         self._display_root = display_root
         self._function_stack: list[str] = []
+        self._class_stack: list[str] = []
         self._assignments: list[dict[str, tuple[str, ...]]] = []
         self._is_ui_viewmodel = _is_ui_viewmodel_path(path)
         self.literals: list[LiteralFinding] = []
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._class_stack.append(node.name)
+        self.generic_visit(node)
+        self._class_stack.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._function_stack.append(node.name)
@@ -101,6 +141,17 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                         f"self.{attribute}",
                         fragments,
                     )
+                elif (
+                    self._class_stack
+                    and not self._function_stack
+                    and isinstance(target, ast.Name)
+                    and target.id in _UI_VIEWMODEL_TEXT_ATTRIBUTES
+                ):
+                    self._append_fragments(
+                        node,
+                        f"class.{target.id}",
+                        fragments,
+                    )
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
@@ -116,6 +167,17 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                 self._append_fragments(
                     node,
                     f"self.{attribute}",
+                    fragments,
+                )
+            elif (
+                self._class_stack
+                and not self._function_stack
+                and isinstance(node.target, ast.Name)
+                and node.target.id in _UI_VIEWMODEL_TEXT_ATTRIBUTES
+            ):
+                self._append_fragments(
+                    node,
+                    f"class.{node.target.id}",
                     fragments,
                 )
         self.generic_visit(node)
@@ -209,10 +271,7 @@ def augment_report_with_deep_literals(
         display_root=display_root,
     ):
         combined[(item.path, item.line, item.call, item.text)] = item
-    literals = tuple(
-        combined[key]
-        for key in sorted(combined)
-    )
+    literals = tuple(combined[key] for key in sorted(combined))
     passed = not report.missing_references and not (
         report.strict_ui_literals and literals
     )
