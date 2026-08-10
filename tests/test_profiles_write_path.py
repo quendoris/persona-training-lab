@@ -160,7 +160,7 @@ def test_profiles_viewmodel_refresh_sees_created_profile() -> None:
     vm = ProfilesViewModel(profiles_service=service)
     assert vm.current_profile().profile_id == "profiles_empty"
 
-    result, created = service.create_profile(
+    ok, legacy = vm.create_profile(
         title="VM profile",
         description="Описание VM",
         communication_style="Тёплый",
@@ -168,12 +168,32 @@ def test_profiles_viewmodel_refresh_sees_created_profile() -> None:
         constraints="Не давить",
         notes="Заметка",
     )
-    assert result.ok is True
-    assert created is not None
-
-    vm.refresh(select_profile_id=created.profile_id)
+    assert ok is True
+    assert legacy == "Профиль личности создан"
+    assert vm.current_message() is not None
+    assert vm.current_message().key == "profiles.message.created"
     assert vm.current_profile().title == "VM profile"
     assert vm.current_profile().status_code == "ready"
+
+    ok, legacy = vm.update_current_profile(
+        title="VM profile v2",
+        description="Обновлённое описание VM",
+        communication_style="Тёплый и точный",
+        principles="Бережность\nЧестность",
+        constraints="Не давить\nНе терять ядро",
+        notes="Обновлённая заметка",
+    )
+    assert ok is True
+    assert legacy == "Профиль личности обновлён"
+    assert vm.current_message() is not None
+    assert vm.current_message().key == "profiles.message.updated"
+    assert vm.current_profile().title == "VM profile v2"
+    assert vm.current_profile().status_code == "ready"
+
+    rows = service.list_profiles()
+    assert len(rows) == 1
+    assert rows[0].title == "VM profile v2"
+    assert rows[0].status == "ready"
 
 
 def test_training_viewmodel_profile_blocker_disappears_when_profile_exists() -> None:
