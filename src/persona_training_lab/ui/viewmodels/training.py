@@ -23,6 +23,7 @@ from persona_training_lab.application.training.service import (
 from persona_training_lab.domain.datasets.statuses import (
     DatasetVersionStatus,
 )
+from persona_training_lab.domain.models.statuses import ModelVersionStatus
 from persona_training_lab.domain.training.statuses import TrainingRunStatus
 
 
@@ -55,6 +56,12 @@ _LOCAL_MODEL_STATUS_KEYS = {
     LocalModelStatus.GENERATION_FAILED: (
         "training.local_model.status.generation_failed"
     ),
+}
+_MODEL_VERSION_STATUS_KEYS = {
+    ModelVersionStatus.DRAFT: "training.version.status.draft",
+    ModelVersionStatus.READY: "training.version.ready",
+    ModelVersionStatus.ARCHIVED: "training.version.status.archived",
+    ModelVersionStatus.FAILED: "training.version.status.failed",
 }
 _ERROR_CODE_KEYS = {
     "invalid_hyperparameters": "training.message.invalid_hyperparameters",
@@ -91,12 +98,12 @@ _LEGACY_MESSAGE_KEYS = {
     "Запуск обучения начат": "training.message.started",
     "Запуск обучения создан": "training.message.created",
 }
-_VERSION_READY_ALIASES = {
-    "готов",
-    "готова",
-    "ready",
-    "available",
-}
+_SELECTED_OBJECT_KEYS = (
+    "training.selected.base_model",
+    "training.selected.profile",
+    "training.selected.dataset",
+    "training.selected.mode",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,14 +116,25 @@ def training_text(key: str, **values: object) -> TrainingText:
     return TrainingText(key, MappingProxyType(dict(values)))
 
 
-def _base_training_text(value: str | TrainingText) -> str:
-    """Render only the historical base-locale compatibility surface lazily."""
+TrainingTextValue = str | TrainingText
+
+
+def _base_training_text(value: TrainingTextValue) -> str:
+    """Render the historical base-locale compatibility surface lazily."""
 
     if isinstance(value, str):
         return value
     from persona_training_lab.ui.i18n.text import text as localized_text
 
-    return localized_text(None, value.key, **dict(value.values))
+    rendered_values = {
+        key: (
+            _base_training_text(item)
+            if isinstance(item, TrainingText)
+            else item
+        )
+        for key, item in value.values.items()
+    }
+    return localized_text(None, value.key, **rendered_values)
 
 
 @dataclass(slots=True, frozen=True)
@@ -126,6 +144,24 @@ class TrainingMetric:
     note: str
     title_key: str = ""
     note_key: str = ""
+    title_model: TrainingTextValue | None = None
+    note_model: TrainingTextValue | None = None
+
+
+def _training_metric(
+    title: TrainingTextValue,
+    value: str,
+    note: TrainingTextValue,
+) -> TrainingMetric:
+    return TrainingMetric(
+        title=_base_training_text(title),
+        value=value,
+        note=_base_training_text(note),
+        title_key=title.key if isinstance(title, TrainingText) else "",
+        note_key=note.key if isinstance(note, TrainingText) else "",
+        title_model=title,
+        note_model=note,
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -135,6 +171,25 @@ class CheckpointView:
     highlighted: bool = False
     name_key: str = ""
     note_key: str = ""
+    name_model: TrainingTextValue | None = None
+    note_model: TrainingTextValue | None = None
+
+
+def _checkpoint_view(
+    name: TrainingTextValue,
+    note: TrainingTextValue,
+    *,
+    highlighted: bool = False,
+) -> CheckpointView:
+    return CheckpointView(
+        name=_base_training_text(name),
+        note=_base_training_text(note),
+        highlighted=highlighted,
+        name_key=name.key if isinstance(name, TrainingText) else "",
+        note_key=note.key if isinstance(note, TrainingText) else "",
+        name_model=name,
+        note_model=note,
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -144,6 +199,36 @@ class PersonalityVersionView:
     note: str
     status_code: str = "unknown"
     state: str = "actual"
+    title_model: TrainingTextValue | None = None
+    status_model: TrainingTextValue | None = None
+    note_model: TrainingTextValue | None = None
+
+
+def _personality_version(
+    title: TrainingTextValue,
+    status: TrainingTextValue,
+    note: TrainingTextValue,
+    *,
+    status_code: str = "unknown",
+    state: str = "actual",
+    raw_title: str | None = None,
+    raw_status: str | None = None,
+    raw_note: str | None = None,
+) -> PersonalityVersionView:
+    return PersonalityVersionView(
+        title=raw_title if raw_title is not None else _base_training_text(title),
+        status=(
+            raw_status
+            if raw_status is not None
+            else _base_training_text(status)
+        ),
+        note=raw_note if raw_note is not None else _base_training_text(note),
+        status_code=status_code,
+        state=state,
+        title_model=title,
+        status_model=status,
+        note_model=note,
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -160,6 +245,89 @@ class TrainingDatasetChoice:
     status_code: DatasetVersionStatus = DatasetVersionStatus.UNKNOWN
 
 
+def _selected_models(
+    values: tuple[str, str, str, str],
+) -> tuple[tuple[TrainingText, str], ...]:
+    return tuple(
+        (training_text(key), value)
+        for key, value in zip(_SELECTED_OBJECT_KEYS, values, strict=True)
+    )
+
+
+def _compat_selected_objects(
+    models: tuple[tuple[TrainingText, str], ...],
+) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        (_base_training_text(label), value)
+        for label, value in models
+    )
+
+
+def _empty_selected_models() -> tuple[tuple[TrainingText, str], ...]:
+    return _selected_models(("—", "—", "—", "—"))
+
+
+def _idle_metrics() -> tuple[TrainingMetric, ...]:
+    note = training_text("training.metric.note.idle")
+    return (
+        _training_metric(training_text("training.metric.epoch"), "—", note),
+        _training_metric(training_text("training.metric.loss"), "—", note),
+        _training_metric(training_text("training.metric.speed"), "—", note),
+        _training_metric(
+            training_text("training.metric.checkpoints"),
+            "00",
+            note,
+        ),
+    )
+
+
+def _empty_checkpoints() -> tuple[CheckpointView, ...]:
+    return (
+        _checkpoint_view(
+            training_text("training.checkpoint.empty.title"),
+            training_text("training.checkpoint.empty.note"),
+        ),
+    )
+
+
+def _empty_versions() -> tuple[PersonalityVersionView, ...]:
+    return (
+        _personality_version(
+            training_text("training.version.empty.title"),
+            training_text("training.version.empty.status"),
+            training_text("training.version.empty.note"),
+            status_code="empty",
+            state="empty",
+        ),
+    )
+
+
+def _idle_logs() -> tuple[TrainingTextValue, ...]:
+    return (training_text("training.log.idle"),)
+
+
+def _idle_monitor_models() -> tuple[tuple[TrainingText, int, TrainingText], ...]:
+    inactive = training_text("training.monitor.inactive")
+    return (
+        (training_text("training.monitor.gpu"), 0, inactive),
+        (training_text("training.monitor.vram"), 0, inactive),
+        (training_text("training.monitor.ram"), 0, inactive),
+    )
+
+
+def _compat_monitor_rows(
+    models: tuple[tuple[TrainingText, int, TrainingTextValue], ...],
+) -> tuple[tuple[str, int, str], ...]:
+    return tuple(
+        (
+            _base_training_text(label),
+            value,
+            _base_training_text(note),
+        )
+        for label, value, note in models
+    )
+
+
 @dataclass(slots=True)
 class TrainingViewModel:
     training_service: TrainingService | None = None
@@ -167,79 +335,68 @@ class TrainingViewModel:
     local_model_service: LocalModelService | None = None
     title: str = ""
     subtitle: str = ""
-    status: str = "ожидание"
+    status: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.status.idle")
+        )
+    )
     status_code: str = "idle"
-    selected_objects: tuple[tuple[str, str], ...] = (
-        ("Базовая модель", "—"),
-        ("Профиль", "—"),
-        ("Версия датасета", "—"),
-        ("Режим", "—"),
+    selected_objects: tuple[tuple[str, str], ...] = field(
+        default_factory=lambda: _compat_selected_objects(
+            _empty_selected_models()
+        )
     )
-    stat_cards: tuple[TrainingMetric, ...] = (
-        TrainingMetric(
-            "Эпоха",
-            "—",
-            "Обучение пока не запускалось",
-            "training.metric.epoch",
-            "training.metric.note.idle",
-        ),
-        TrainingMetric(
-            "Loss",
-            "—",
-            "Обучение пока не запускалось",
-            "training.metric.loss",
-            "training.metric.note.idle",
-        ),
-        TrainingMetric(
-            "Скорость",
-            "—",
-            "Обучение пока не запускалось",
-            "training.metric.speed",
-            "training.metric.note.idle",
-        ),
-        TrainingMetric(
-            "Чекпоинты",
-            "00",
-            "Обучение пока не запускалось",
-            "training.metric.checkpoints",
-            "training.metric.note.idle",
-        ),
+    stat_cards: tuple[TrainingMetric, ...] = field(
+        default_factory=_idle_metrics
     )
-    checkpoints: tuple[CheckpointView, ...] = (
-        CheckpointView(
-            "Чекпоинты и версии личности",
-            "Чекпоинты и версии личности пока не созданы",
-            name_key="training.checkpoint.empty.title",
-            note_key="training.checkpoint.empty.note",
-        ),
+    checkpoints: tuple[CheckpointView, ...] = field(
+        default_factory=_empty_checkpoints
     )
-    personality_versions: tuple[PersonalityVersionView, ...] = (
-        PersonalityVersionView(
-            "Ожидание версий",
-            "пусто",
-            "Версии личности пока не созданы",
-            status_code="empty",
-            state="empty",
-        ),
+    personality_versions: tuple[PersonalityVersionView, ...] = field(
+        default_factory=_empty_versions
     )
-    versions_status_message: str = "Версии личности пока не созданы"
-    logs: tuple[str, ...] = ("[—] Обучение пока не запускалось",)
-    monitor_rows: tuple[tuple[str, int, str], ...] = (
-        ("Нагрузка GPU", 0, "нет активного запуска"),
-        ("Видеопамять", 0, "нет активного запуска"),
-        ("Память RAM", 0, "нет активного запуска"),
+    versions_status_message: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.version.empty.note")
+        )
     )
-    risk_title: str = "Статус"
-    risk_body: str = "Обучение пока не запускалось"
-    next_step: str = (
-        "Выберите профиль и датасет, затем запустите обучение."
+    logs: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            _base_training_text(item) for item in _idle_logs()
+        )
+    )
+    monitor_rows: tuple[tuple[str, int, str], ...] = field(
+        default_factory=lambda: _compat_monitor_rows(
+            _idle_monitor_models()
+        )
+    )
+    risk_title: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.risk.title.status")
+        )
+    )
+    risk_body: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.risk.body.idle")
+        )
+    )
+    next_step: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.next.idle")
+        )
     )
     local_model_name: str = "Qwen3.5-0.8B"
     local_model_path: str = "models/qwen3.5-0.8b"
-    local_model_status: str = "Модель не проверялась"
+    local_model_status: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.local_model.status.unchecked")
+        )
+    )
     local_model_status_code: LocalModelStatus = LocalModelStatus.UNCHECKED
-    local_model_note: str = (
-        "Проверка файлов модели выполняется по запросу."
+    local_model_note: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.local_model.note.unchecked")
+        )
     )
     local_inference_status: str = ""
     local_inference_status_code: LocalModelStatus = LocalModelStatus.UNKNOWN
@@ -254,31 +411,58 @@ class TrainingViewModel:
     can_start_run: bool = False
     training_in_progress: bool = False
     progress_value: int = 0
-    progress_note: str = "ожидание метрики"
-    _title_model: str | TrainingText = field(
+    progress_note: str = field(
+        default_factory=lambda: _base_training_text(
+            training_text("training.progress.waiting")
+        )
+    )
+    _title_model: TrainingTextValue = field(
         default_factory=lambda: training_text("training.header.title")
     )
-    _subtitle_model: str | TrainingText = field(
+    _subtitle_model: TrainingTextValue = field(
         default_factory=lambda: training_text(
             "training.header.subtitle.idle"
         )
     )
-    _status_model: str | TrainingText = field(
+    _status_model: TrainingTextValue = field(
         default_factory=lambda: training_text("training.status.idle")
     )
-    _progress_model: str | TrainingText = field(
+    _selected_object_models: tuple[tuple[TrainingText, str], ...] = field(
+        default_factory=_empty_selected_models
+    )
+    _progress_model: TrainingTextValue = field(
         default_factory=lambda: training_text("training.progress.waiting")
     )
-    _log_models: tuple[str | TrainingText, ...] = field(
-        default_factory=lambda: (training_text("training.log.idle"),)
+    _log_models: tuple[TrainingTextValue, ...] = field(
+        default_factory=_idle_logs
     )
-    _creation_message_model: str | TrainingText | None = None
-    _local_model_note_model: str | TrainingText = field(
+    _monitor_models: tuple[
+        tuple[TrainingText, int, TrainingTextValue], ...
+    ] = field(default_factory=_idle_monitor_models)
+    _risk_title_model: TrainingTextValue = field(
+        default_factory=lambda: training_text("training.risk.title.status")
+    )
+    _risk_body_model: TrainingTextValue = field(
+        default_factory=lambda: training_text("training.risk.body.idle")
+    )
+    _next_step_model: TrainingTextValue = field(
+        default_factory=lambda: training_text("training.next.idle")
+    )
+    _versions_status_model: TrainingTextValue | None = field(
+        default_factory=lambda: training_text("training.version.empty.note")
+    )
+    _creation_message_model: TrainingTextValue | None = None
+    _local_model_status_model: TrainingTextValue = field(
+        default_factory=lambda: training_text(
+            "training.local_model.status.unchecked"
+        )
+    )
+    _local_model_note_model: TrainingTextValue = field(
         default_factory=lambda: training_text(
             "training.local_model.note.unchecked"
         )
     )
-    _local_inference_status_model: str | TrainingText | None = None
+    _local_inference_status_model: TrainingTextValue | None = None
 
     def __post_init__(self) -> None:
         self._apply_training_connector()
@@ -298,97 +482,170 @@ class TrainingViewModel:
         runs = self.training_service.list_training_runs()
         return runs[0] if runs else None
 
-    def _set_idle_state(self) -> None:
-        self._title_model = training_text("training.header.title")
-        self._subtitle_model = training_text(
-            "training.header.subtitle.idle"
+    def _set_header_models(
+        self,
+        title: TrainingTextValue,
+        subtitle: TrainingTextValue,
+    ) -> None:
+        self._title_model = title
+        self._subtitle_model = subtitle
+        self.title = _base_training_text(title)
+        self.subtitle = _base_training_text(subtitle)
+
+    def _set_status_model(
+        self,
+        model: TrainingTextValue,
+        *,
+        raw_status: str | None = None,
+    ) -> None:
+        self._status_model = model
+        self.status = (
+            raw_status if raw_status is not None else _base_training_text(model)
         )
-        self.title = _base_training_text(self._title_model)
-        self.subtitle = _base_training_text(self._subtitle_model)
-        self.status = "ожидание"
+
+    def _set_progress_model(self, model: TrainingTextValue) -> None:
+        self._progress_model = model
+        self.progress_note = _base_training_text(model)
+
+    def _set_selected_values(
+        self,
+        values: tuple[str, str, str, str],
+    ) -> None:
+        self._selected_object_models = _selected_models(values)
+        self.selected_objects = _compat_selected_objects(
+            self._selected_object_models
+        )
+
+    def _set_log_models(
+        self,
+        models: tuple[TrainingTextValue, ...],
+    ) -> None:
+        self._log_models = models
+        self.logs = tuple(_base_training_text(item) for item in models)
+
+    def _set_monitor_models(
+        self,
+        models: tuple[tuple[TrainingText, int, TrainingTextValue], ...],
+    ) -> None:
+        self._monitor_models = models
+        self.monitor_rows = _compat_monitor_rows(models)
+
+    def _set_risk_models(
+        self,
+        title: TrainingTextValue,
+        body: TrainingTextValue,
+        next_step: TrainingTextValue,
+    ) -> None:
+        self._risk_title_model = title
+        self._risk_body_model = body
+        self._next_step_model = next_step
+        self.risk_title = _base_training_text(title)
+        self.risk_body = _base_training_text(body)
+        self.next_step = _base_training_text(next_step)
+
+    def _set_versions_status_model(
+        self,
+        model: TrainingTextValue | None,
+    ) -> None:
+        self._versions_status_model = model
+        self.versions_status_message = (
+            _base_training_text(model) if model is not None else ""
+        )
+
+    def _set_local_model_state(
+        self,
+        status_code: LocalModelStatus,
+        status_model: TrainingTextValue,
+        note_model: TrainingTextValue,
+        *,
+        raw_status: str | None = None,
+        raw_note: str | None = None,
+    ) -> None:
+        self.local_model_status_code = status_code
+        self._local_model_status_model = status_model
+        self._local_model_note_model = note_model
+        self.local_model_status = (
+            raw_status
+            if raw_status is not None
+            else _base_training_text(status_model)
+        )
+        self.local_model_note = (
+            raw_note if raw_note is not None else _base_training_text(note_model)
+        )
+
+    def _set_idle_state(self) -> None:
+        self._set_header_models(
+            training_text("training.header.title"),
+            training_text("training.header.subtitle.idle"),
+        )
+        self._set_status_model(training_text("training.status.idle"))
         self.status_code = "idle"
         self.current_run_id = ""
         self.can_start_run = False
         self.training_in_progress = False
         self.artifact_path = ""
         self.progress_value = 0
-        self.progress_note = "ожидание метрики"
-        self._status_model = training_text("training.status.idle")
-        self._progress_model = training_text("training.progress.waiting")
-        self.logs = ("[—] Обучение пока не запускалось",)
-        self._log_models = (training_text("training.log.idle"),)
-        self.stat_cards = self._metric_cards(
-            note="Обучение пока не запускалось",
-            note_key="training.metric.note.idle",
-            checkpoint_value="00",
-        )
-        self.checkpoints = (
-            CheckpointView(
-                "Чекпоинты и версии личности",
-                "Чекпоинты и версии личности пока не созданы",
-                name_key="training.checkpoint.empty.title",
-                note_key="training.checkpoint.empty.note",
-            ),
+        self._set_progress_model(training_text("training.progress.waiting"))
+        self._set_selected_values(("—", "—", "—", "—"))
+        self._set_log_models(_idle_logs())
+        self.stat_cards = _idle_metrics()
+        self.checkpoints = _empty_checkpoints()
+        self._set_monitor_models(_idle_monitor_models())
+        self._set_risk_models(
+            training_text("training.risk.title.status"),
+            training_text("training.risk.body.idle"),
+            training_text("training.next.idle"),
         )
 
     def _set_load_error_state(self) -> None:
-        self._title_model = training_text("training.header.title")
-        self._subtitle_model = training_text(
-            "training.header.subtitle.load_failed"
+        self._set_header_models(
+            training_text("training.header.title"),
+            training_text("training.header.subtitle.load_failed"),
         )
-        self.title = _base_training_text(self._title_model)
-        self.subtitle = _base_training_text(self._subtitle_model)
-        self.status = "ошибка"
+        self._set_status_model(training_text("training.status.failed"))
         self.status_code = TrainingRunStatus.FAILED.value
         self.can_start_run = False
         self.training_in_progress = False
-        self._status_model = training_text("training.status.failed")
-        self.logs = ("[—] Не удалось загрузить запуски обучения",)
-        self._log_models = (training_text("training.log.load_failed"),)
-        self.risk_title = "Статус"
-        self.risk_body = "Не удалось загрузить запуски обучения"
-        self.next_step = "Проверьте подключение к базе данных."
+        self.progress_value = 0
+        self._set_progress_model(training_text("training.progress.waiting"))
+        self._set_selected_values(("—", "—", "—", "—"))
+        self._set_log_models((training_text("training.log.load_failed"),))
+        self._set_risk_models(
+            training_text("training.risk.title.status"),
+            training_text("training.risk.body.load_failed"),
+            training_text("training.next.load_failed"),
+        )
         self.stat_cards = self._metric_cards(
-            note="Не удалось загрузить запуски обучения",
-            note_key="training.metric.note.load_failed",
+            note=training_text("training.metric.note.load_failed"),
             checkpoint_value="—",
         )
 
     @staticmethod
     def _metric_cards(
         *,
-        note: str,
-        note_key: str,
+        note: TrainingTextValue,
         checkpoint_value: str,
     ) -> tuple[TrainingMetric, ...]:
         return (
-            TrainingMetric(
-                "Эпоха",
+            _training_metric(
+                training_text("training.metric.epoch"),
                 "—",
                 note,
-                "training.metric.epoch",
-                note_key,
             ),
-            TrainingMetric(
-                "Loss",
+            _training_metric(
+                training_text("training.metric.loss"),
                 "—",
                 note,
-                "training.metric.loss",
-                note_key,
             ),
-            TrainingMetric(
-                "Скорость",
+            _training_metric(
+                training_text("training.metric.speed"),
                 "—",
                 note,
-                "training.metric.speed",
-                note_key,
             ),
-            TrainingMetric(
-                "Чекпоинты",
+            _training_metric(
+                training_text("training.metric.checkpoints"),
                 checkpoint_value,
                 note,
-                "training.metric.checkpoints",
-                note_key,
             ),
         )
 
@@ -409,26 +666,23 @@ class TrainingViewModel:
 
         current = runs[0]
         self.current_run_id = current.run_id
-        self._title_model = training_text(
-            "training.header.title.run",
-            run_id=current.run_id,
+        self._set_header_models(
+            training_text(
+                "training.header.title.run",
+                run_id=current.run_id,
+            ),
+            current.subtitle,
         )
-        self._subtitle_model = current.subtitle
-        self.title = _base_training_text(self._title_model)
-        self.subtitle = _base_training_text(self._subtitle_model)
-        self.status = current.status
         self.status_code = current.status_code.value
-        self.can_start_run = (
-            current.status_code is TrainingRunStatus.READY
+        self._set_status_model(
+            self._status_text(current.status_code.value, current.status),
+            raw_status=current.status,
         )
+        self.can_start_run = current.status_code is TrainingRunStatus.READY
         self.training_in_progress = (
             current.status_code is TrainingRunStatus.RUNNING
         )
         self.artifact_path = current.artifact_path
-        self._status_model = self._status_text(
-            current.status_code.value,
-            current.status,
-        )
         try:
             self.progress_value = max(
                 0,
@@ -437,54 +691,44 @@ class TrainingViewModel:
         except Exception:
             self.progress_value = 0
         if current.progress:
-            self.progress_note = (
-                "Прогресс обучения · "
-                f"{self.progress_value}% | эпоха {current.epoch_progress}"
-            )
-            self._progress_model = training_text(
-                "training.progress.value",
-                percent=self.progress_value,
-                epoch=current.epoch_progress,
+            self._set_progress_model(
+                training_text(
+                    "training.progress.value",
+                    percent=self.progress_value,
+                    epoch=current.epoch_progress,
+                )
             )
         else:
-            self.progress_note = "Прогресс обучения · ожидание метрики"
-            self._progress_model = training_text(
-                "training.progress.waiting"
+            self._set_progress_model(training_text("training.progress.waiting"))
+        self._set_selected_values(
+            (
+                current.base_model,
+                current.profile,
+                current.dataset_version,
+                current.mode,
             )
-        self.selected_objects = (
-            ("Базовая модель", current.base_model),
-            ("Профиль", current.profile),
-            ("Версия датасета", current.dataset_version),
-            ("Режим", current.mode),
         )
+        registry_note = training_text("training.metric.note.registry")
         self.stat_cards = (
-            TrainingMetric(
-                "Эпоха",
+            _training_metric(
+                training_text("training.metric.epoch"),
                 current.epoch_progress,
-                "статус из реестра запусков",
-                "training.metric.epoch",
-                "training.metric.note.registry",
+                registry_note,
             ),
-            TrainingMetric(
-                "Loss",
+            _training_metric(
+                training_text("training.metric.loss"),
                 current.loss,
-                "статус из реестра запусков",
-                "training.metric.loss",
-                "training.metric.note.registry",
+                registry_note,
             ),
-            TrainingMetric(
-                "Скорость",
+            _training_metric(
+                training_text("training.metric.speed"),
                 current.speed,
-                "статус из реестра запусков",
-                "training.metric.speed",
-                "training.metric.note.registry",
+                registry_note,
             ),
-            TrainingMetric(
-                "Чекпоинты",
+            _training_metric(
+                training_text("training.metric.checkpoints"),
                 current.checkpoints_count,
-                "статус из реестра запусков",
-                "training.metric.checkpoints",
-                "training.metric.note.registry",
+                registry_note,
             ),
         )
         checkpoints_count = (
@@ -493,53 +737,58 @@ class TrainingViewModel:
             else 0
         )
         checkpoint_rows = [
-            CheckpointView(
+            _checkpoint_view(
                 f"chk_{idx + 1:03d}",
-                "из реестра запуска",
+                training_text("training.checkpoint.registry_note"),
                 highlighted=idx == checkpoints_count - 1,
-                note_key="training.checkpoint.registry_note",
             )
             for idx in range(max(0, checkpoints_count))
         ]
         if current.artifact_path:
             checkpoint_rows.append(
-                CheckpointView(
-                    "model artifact",
+                _checkpoint_view(
+                    training_text("training.checkpoint.artifact"),
                     current.artifact_path,
                     highlighted=(
-                        current.status_code
-                        is TrainingRunStatus.COMPLETED
+                        current.status_code is TrainingRunStatus.COMPLETED
                     ),
-                    name_key="training.checkpoint.artifact",
                 )
             )
-        self.checkpoints = tuple(checkpoint_rows) or (
-            CheckpointView(
-                "Чекпоинты и версии личности",
-                "Чекпоинты и версии личности пока не созданы",
-                name_key="training.checkpoint.empty.title",
-                note_key="training.checkpoint.empty.note",
-            ),
-        )
+        self.checkpoints = tuple(checkpoint_rows) or _empty_checkpoints()
         repo_logs = self.training_service.list_training_run_logs(
             current.run_id
         )
-        self.logs = tuple(repo_logs) if repo_logs else (
-            f"[реестр] run: {current.run_id}",
-            f"[реестр] статус: {current.status}",
-            f"[реестр] прогресс: {current.epoch_progress}",
-            f"[реестр] loss: {current.loss}",
-            f"[реестр] скорость: {current.speed}",
-        )
-        self._log_models = tuple(self.logs)
-        self.risk_title = "Контроль запуска"
-        self.risk_body = (
-            "Состояние и метрики читаются из SQLite-реестра "
-            "запусков обучения."
-        )
-        self.next_step = (
-            "После завершения зафиксируйте snapshot и переходите к "
-            "тестам."
+        if repo_logs:
+            self._set_log_models(tuple(repo_logs))
+        else:
+            self._set_log_models(
+                (
+                    training_text(
+                        "training.log.registry.run",
+                        value=current.run_id,
+                    ),
+                    training_text(
+                        "training.log.registry.status",
+                        value=current.status,
+                    ),
+                    training_text(
+                        "training.log.registry.progress",
+                        value=current.epoch_progress,
+                    ),
+                    training_text(
+                        "training.log.registry.loss",
+                        value=current.loss,
+                    ),
+                    training_text(
+                        "training.log.registry.speed",
+                        value=current.speed,
+                    ),
+                )
+            )
+        self._set_risk_models(
+            training_text("training.risk.title.run_control"),
+            training_text("training.risk.body.registry"),
+            training_text("training.next.after_run"),
         )
 
     def _apply_model_versions_connector(self) -> None:
@@ -549,52 +798,51 @@ class TrainingViewModel:
         try:
             versions = self.model_versions_service.list_model_versions()
         except Exception:
-            self.versions_status_message = (
-                "Не удалось загрузить версии личности"
+            self._set_versions_status_model(
+                training_text("training.version.error.note")
             )
             self.personality_versions = (
-                PersonalityVersionView(
-                    "Ошибка загрузки",
-                    "ошибка",
-                    "Не удалось загрузить версии личности",
+                _personality_version(
+                    training_text("training.version.error.title"),
+                    training_text("training.version.error.status"),
+                    training_text("training.version.error.note"),
                     status_code="error",
                     state="error",
                 ),
             )
             return
         if not versions:
-            self.versions_status_message = (
-                "Версии личности пока не созданы"
+            self._set_versions_status_model(
+                training_text("training.version.empty.note")
             )
-            self.personality_versions = (
-                PersonalityVersionView(
-                    "Ожидание версий",
-                    "пусто",
-                    "Версии личности пока не созданы",
-                    status_code="empty",
-                    state="empty",
-                ),
-            )
+            self.personality_versions = _empty_versions()
             return
-        self.versions_status_message = ""
-        self.personality_versions = tuple(
-            PersonalityVersionView(
-                title=item.title,
-                status=item.status,
-                note=(
-                    f"{item.base_model} · {item.profile_title} · "
-                    f"{item.dataset_title} · {item.training_run_id}\n"
-                    f"{item.quality_summary}\n{item.artifact_path}"
-                ),
-                status_code=(
-                    "ready"
-                    if item.status.strip().casefold()
-                    in _VERSION_READY_ALIASES
-                    else "unknown"
-                ),
+        self._set_versions_status_model(None)
+        rows: list[PersonalityVersionView] = []
+        for item in versions:
+            note = (
+                f"{item.base_model} · {item.profile_title} · "
+                f"{item.dataset_title} · {item.training_run_id}\n"
+                f"{item.quality_summary}\n{item.artifact_path}"
             )
-            for item in versions
-        )
+            rows.append(
+                _personality_version(
+                    training_text(
+                        "training.version.title",
+                        title=item.title,
+                    ),
+                    self._version_status_text(
+                        item.status_code,
+                        item.status,
+                    ),
+                    note,
+                    status_code=item.status_code.value,
+                    raw_title=item.title,
+                    raw_status=item.status,
+                    raw_note=note,
+                )
+            )
+        self.personality_versions = tuple(rows)
 
     def _sync_creation_choices(self) -> None:
         if self.training_service is None:
@@ -685,42 +933,39 @@ class TrainingViewModel:
         return True, self.creation_message
 
     def check_local_model(self) -> None:
-        self.local_model_status = "Проверка модели…"
-        self.local_model_status_code = LocalModelStatus.CHECKING
-        self.local_model_note = "Идёт проверка структуры файлов."
-        self._local_model_note_model = training_text(
-            "training.local_model.note.checking"
+        self._set_local_model_state(
+            LocalModelStatus.CHECKING,
+            training_text("training.local_model.status.checking"),
+            training_text("training.local_model.note.checking"),
         )
         self.local_inference_status = ""
         self.local_inference_status_code = LocalModelStatus.UNKNOWN
         self._local_inference_status_model = None
 
         if self.local_model_service is None:
-            self.local_model_status = "Не удалось проверить модель"
-            self.local_model_status_code = LocalModelStatus.CHECK_FAILED
-            self.local_model_note = (
-                "Сервис локальной модели не подключён."
-            )
-            self._local_model_note_model = training_text(
-                "training.local_model.note.service_unavailable"
+            self._set_local_model_state(
+                LocalModelStatus.CHECK_FAILED,
+                training_text("training.local_model.status.check_failed"),
+                training_text(
+                    "training.local_model.note.service_unavailable"
+                ),
             )
             return
         try:
             result = self.local_model_service.probe_model_files()
-            self.local_model_status = result.status
-            self.local_model_status_code = normalize_local_model_status(
-                result.status
+            status_code = normalize_local_model_status(result.status)
+            self._set_local_model_state(
+                status_code,
+                self._local_status_text(status_code, result.status),
+                result.details,
+                raw_status=result.status,
+                raw_note=result.details,
             )
-            self.local_model_note = result.details
-            self._local_model_note_model = result.details
         except Exception:
-            self.local_model_status = "Не удалось проверить модель"
-            self.local_model_status_code = LocalModelStatus.CHECK_FAILED
-            self.local_model_note = (
-                "Проверьте путь и права доступа к файлам модели."
-            )
-            self._local_model_note_model = training_text(
-                "training.local_model.note.check_failed"
+            self._set_local_model_state(
+                LocalModelStatus.CHECK_FAILED,
+                training_text("training.local_model.status.check_failed"),
+                training_text("training.local_model.note.check_failed"),
             )
 
     def begin_local_inference(
@@ -735,32 +980,37 @@ class TrainingViewModel:
         )
         self.inference_prompt = smoke_prompt
         self.inference_in_progress = True
-        self.local_inference_status = "Генерация…"
         self.local_inference_status_code = LocalModelStatus.GENERATING
         self._local_inference_status_model = training_text(
-            "training.inference.status.generating"
+            "training.local_model.status.generating"
+        )
+        self.local_inference_status = _base_training_text(
+            self._local_inference_status_model
         )
         self.inference_response = ""
         return True, smoke_prompt
 
     def run_local_inference_sync(self, prompt: str) -> tuple[str, str]:
         if self.local_model_service is None:
-            return "Inference backend не подключён", ""
+            return LocalModelStatus.INFERENCE_UNAVAILABLE.value, ""
         try:
             result = self.local_model_service.generate_smoke(prompt)
             return result.status, (result.response or result.message)
         except Exception:
-            return "Ошибка генерации", "Не удалось загрузить локальную модель"
+            return LocalModelStatus.GENERATION_FAILED.value, ""
 
     def finish_local_inference(self, status: str, response: str) -> None:
         self.inference_in_progress = False
-        self.local_inference_status = status
-        self.local_inference_status_code = normalize_local_model_status(
-            status
-        )
+        status_code = self._coerce_local_status(status)
+        self.local_inference_status_code = status_code
         self._local_inference_status_model = self._local_status_text(
-            self.local_inference_status_code,
+            status_code,
             status,
+        )
+        self.local_inference_status = (
+            _base_training_text(self._local_inference_status_model)
+            if status in LocalModelStatus._value2member_map_
+            else status
         )
         self.inference_response = response
 
@@ -837,8 +1087,7 @@ class TrainingViewModel:
                 self.current_run_id
             )
             if logs:
-                self.logs = tuple(logs)
-                self._log_models = tuple(logs)
+                self._set_log_models(tuple(logs))
 
         if self.status_code == TrainingRunStatus.COMPLETED.value:
             self._publish_latest_completed_run()
@@ -853,9 +1102,8 @@ class TrainingViewModel:
             return False
         self.training_in_progress = True
         self.can_start_run = False
-        self.status = "Выполняется"
         self.status_code = TrainingRunStatus.RUNNING.value
-        self._status_model = training_text("training.status.running")
+        self._set_status_model(training_text("training.status.running"))
         self.creation_message = "started"
         self._creation_message_model = training_text(
             "training.message.started"
@@ -865,10 +1113,9 @@ class TrainingViewModel:
     def finish_training_run(self, success: bool, message: str) -> None:
         self.training_in_progress = False
         self.creation_message = message
-        self._creation_message_model = (
-            self._message_from_legacy(message)
-            if not success
-            else training_text("training.message.started")
+        self._creation_message_model = self._message_from_legacy(
+            message,
+            success=success,
         )
         self.refresh()
         if self.current_run_id and self.training_service is not None:
@@ -876,8 +1123,7 @@ class TrainingViewModel:
                 self.current_run_id
             )
             if logs:
-                self.logs = tuple(logs)
-                self._log_models = tuple(logs)
+                self._set_log_models(tuple(logs))
 
     def refresh_current_run(self) -> bool:
         if self.training_service is None or not self.current_run_id:
@@ -892,8 +1138,7 @@ class TrainingViewModel:
                 self.current_run_id
             )
             if logs:
-                self.logs = tuple(logs)
-                self._log_models = tuple(logs)
+                self._set_log_models(tuple(logs))
         return finished
 
     def poll_current_run(self) -> None:
@@ -903,57 +1148,76 @@ class TrainingViewModel:
                 self.current_run_id
             )
             if logs:
-                self.logs = tuple(logs)
-                self._log_models = tuple(logs)
+                self._set_log_models(tuple(logs))
 
-    def header_title_model(self) -> str | TrainingText:
+    def header_title_model(self) -> TrainingTextValue:
         return self._title_model
 
-    def header_subtitle_model(self) -> str | TrainingText:
+    def header_subtitle_model(self) -> TrainingTextValue:
         return self._subtitle_model
 
-    def status_model(self) -> str | TrainingText:
+    def status_model(self) -> TrainingTextValue:
         return self._status_model
 
-    def progress_model(self) -> str | TrainingText:
+    def progress_model(self) -> TrainingTextValue:
         return self._progress_model
 
-    def log_models(self) -> tuple[str | TrainingText, ...]:
+    def log_models(self) -> tuple[TrainingTextValue, ...]:
         return self._log_models
 
-    def current_message(self) -> str | TrainingText | None:
+    def monitor_models(
+        self,
+    ) -> tuple[tuple[TrainingText, int, TrainingTextValue], ...]:
+        return self._monitor_models
+
+    def risk_title_model(self) -> TrainingTextValue:
+        return self._risk_title_model
+
+    def risk_body_model(self) -> TrainingTextValue:
+        return self._risk_body_model
+
+    def next_step_model(self) -> TrainingTextValue:
+        return self._next_step_model
+
+    def versions_status_model(self) -> TrainingTextValue | None:
+        return self._versions_status_model
+
+    def current_message(self) -> TrainingTextValue | None:
         return self._creation_message_model
 
-    def local_model_status_model(self) -> str | TrainingText:
-        return self._local_status_text(
-            self.local_model_status_code,
-            self.local_model_status,
-        )
+    def local_model_status_model(self) -> TrainingTextValue:
+        return self._local_model_status_model
 
-    def local_model_note_model(self) -> str | TrainingText:
+    def local_model_note_model(self) -> TrainingTextValue:
         return self._local_model_note_model
 
     def local_inference_status_model(
         self,
-    ) -> str | TrainingText | None:
+    ) -> TrainingTextValue | None:
         return self._local_inference_status_model
 
     @staticmethod
     def metric_title_model(
         metric: TrainingMetric,
-    ) -> str | TrainingText:
+    ) -> TrainingTextValue:
+        if metric.title_model is not None:
+            return metric.title_model
         return training_text(metric.title_key) if metric.title_key else metric.title
 
     @staticmethod
     def metric_note_model(
         metric: TrainingMetric,
-    ) -> str | TrainingText:
+    ) -> TrainingTextValue:
+        if metric.note_model is not None:
+            return metric.note_model
         return training_text(metric.note_key) if metric.note_key else metric.note
 
     @staticmethod
     def checkpoint_name_model(
         checkpoint: CheckpointView,
-    ) -> str | TrainingText:
+    ) -> TrainingTextValue:
+        if checkpoint.name_model is not None:
+            return checkpoint.name_model
         return (
             training_text(checkpoint.name_key)
             if checkpoint.name_key
@@ -963,7 +1227,9 @@ class TrainingViewModel:
     @staticmethod
     def checkpoint_note_model(
         checkpoint: CheckpointView,
-    ) -> str | TrainingText:
+    ) -> TrainingTextValue:
+        if checkpoint.note_model is not None:
+            return checkpoint.note_model
         return (
             training_text(checkpoint.note_key)
             if checkpoint.note_key
@@ -973,45 +1239,31 @@ class TrainingViewModel:
     @staticmethod
     def version_title_model(
         version: PersonalityVersionView,
-    ) -> str | TrainingText:
-        if version.state == "empty":
-            return training_text("training.version.empty.title")
-        if version.state == "error":
-            return training_text("training.version.error.title")
-        return training_text(
-            "training.version.title",
-            title=version.title,
-        )
+    ) -> TrainingTextValue:
+        if version.title_model is not None:
+            return version.title_model
+        return version.title
 
     @staticmethod
     def version_status_model(
         version: PersonalityVersionView,
-    ) -> str | TrainingText:
-        if version.state == "empty":
-            return training_text("training.version.empty.status")
-        if version.state == "error":
-            return training_text("training.version.error.status")
-        if version.status_code == "ready":
-            return training_text("training.version.ready")
-        return training_text(
-            "training.raw",
-            value=version.status,
-        )
+    ) -> TrainingTextValue:
+        if version.status_model is not None:
+            return version.status_model
+        return version.status
 
     @staticmethod
     def version_note_model(
         version: PersonalityVersionView,
-    ) -> str | TrainingText:
-        if version.state == "empty":
-            return training_text("training.version.empty.note")
-        if version.state == "error":
-            return training_text("training.version.error.note")
+    ) -> TrainingTextValue:
+        if version.note_model is not None:
+            return version.note_model
         return version.note
 
     @staticmethod
     def dataset_status_model(
         dataset: TrainingDatasetChoice,
-    ) -> str | TrainingText:
+    ) -> TrainingTextValue:
         key = _DATASET_STATUS_KEYS.get(dataset.status_code)
         if key is not None:
             return training_text(key)
@@ -1021,16 +1273,10 @@ class TrainingViewModel:
     def selected_object_models(
         selected_objects: tuple[tuple[str, str], ...],
     ) -> tuple[tuple[TrainingText, str], ...]:
-        keys = (
-            "training.selected.base_model",
-            "training.selected.profile",
-            "training.selected.dataset",
-            "training.selected.mode",
-        )
         return tuple(
             (training_text(key), value)
             for key, (_legacy, value) in zip(
-                keys,
+                _SELECTED_OBJECT_KEYS,
                 selected_objects,
                 strict=False,
             )
@@ -1050,6 +1296,19 @@ class TrainingViewModel:
         )
 
     @staticmethod
+    def _version_status_text(
+        status_code: ModelVersionStatus,
+        raw_status: str,
+    ) -> TrainingText:
+        key = _MODEL_VERSION_STATUS_KEYS.get(status_code)
+        if key is not None:
+            return training_text(key)
+        return training_text(
+            "training.version.status.unknown",
+            status=raw_status,
+        )
+
+    @staticmethod
     def _local_status_text(
         status_code: LocalModelStatus,
         raw_status: str,
@@ -1063,15 +1322,29 @@ class TrainingViewModel:
         )
 
     @staticmethod
+    def _coerce_local_status(status: str) -> LocalModelStatus:
+        try:
+            return LocalModelStatus(status)
+        except ValueError:
+            return normalize_local_model_status(status)
+
+    @staticmethod
     def _action_result_model(result: ActionResult) -> TrainingText:
         key = _ACTION_CODE_KEYS.get(
             result.code,
-            "training.message.start_failed",
+            "training.message.result_unavailable",
         )
         return training_text(key, **dict(result.values))
 
     @staticmethod
-    def _message_from_legacy(message: str) -> TrainingText:
+    def _message_from_legacy(
+        message: str,
+        *,
+        success: bool = False,
+    ) -> TrainingText:
+        code_key = _ACTION_CODE_KEYS.get(message.strip())
+        if code_key is not None:
+            return training_text(code_key)
         key = _LEGACY_MESSAGE_KEYS.get(message)
         if key is not None:
             return training_text(key)
@@ -1079,7 +1352,6 @@ class TrainingViewModel:
             return training_text("training.message.resource_busy")
         if message.startswith("Обучение остановлено безопасно"):
             return training_text("training.message.safe_stop")
-        return training_text(
-            "training.message.raw",
-            message=message,
-        )
+        if success:
+            return training_text("training.message.started")
+        return training_text("training.message.result_unavailable")
