@@ -19,6 +19,13 @@ _TRANSLATION_KEY_POSITIONS = {
     "bind_tooltip": 1,
     "bind_window_title": 1,
     "bind_placeholder": 1,
+    "UserMessage": 0,
+    "DatasetText": 0,
+    "dataset_text": 0,
+    "TrainingText": 0,
+    "training_text": 0,
+    "EvaluationText": 0,
+    "evaluation_text": 0,
 }
 _TRANSLATION_FALLBACK_POSITIONS = {
     "_text": (1,),
