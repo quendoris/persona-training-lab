@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "style"
+  },
+  "messages": {
+    "style.accent.cyan": "Бирюзовый",
+    "style.accent.emerald": "Изумрудный",
+    "style.accent.label": "Акцент",
+    "style.accent.rose": "Розовый",
+    "style.accent.violet": "Фиолетовый",
+    "style.apply": "Применить оформление",
+    "style.controls.note": "Выбор сохраняется в SQLite и становится частью живого комфорта системы.",
+    "style.controls.subtitle": "Отдельная вкладка стиля — не декоративная мелочь, а часть комфорта при долгой работе.",
+    "style.controls.title": "Оформление",
+    "style.custom_accent.choose": "Другой",
+    "style.preview.action.compare": "Открыть сравнение",
+    "style.preview.action.training": "Запустить обучение",
+    "style.preview.brand_note": "Спокойная исследовательская рабочая станция для обучения личности и анализа версий.",
+    "style.preview.status.attention": "внимание",
+    "style.preview.status.running": "идёт",
+    "style.preview.subtitle": "Стиль должен ощущаться живым и читабельным, а не абстрактным.",
+    "style.preview.title": "Предпросмотр",
+    "style.theme.eclipse": "Eclipse",
+    "style.theme.label": "Тема",
+    "style.theme.pearl": "Pearl",
+    "style.theme.velvet": "Velvet"
+  }
+}
