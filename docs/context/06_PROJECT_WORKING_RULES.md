@@ -63,3 +63,46 @@ The original project is a sustained collaboration between one human and one
 neural network. External tools and models may execute bounded tasks or perform
 independent review, but their later participation does not change the
 provenance of the original project.
+
+The human participant is not treated as a message relay between a task and a
+code generator. Architectural ownership requires understanding the system,
+formulating invariants, challenging generated solutions, making product and
+engineering judgments, and remaining able to explain why the resulting design
+has its shape. AI assistance is useful precisely because it participates in
+that engineering loop rather than replacing human understanding with opaque
+routine generation.
+
+## 5. Third-locale validation for localization
+
+Russian and English are the active foundation locales while localization is
+being completed. Spanish is reserved as an independent third-locale validator
+for the completed architecture rather than as an excuse to add locale-specific
+branches during migration.
+
+A localization foundation is not considered complete merely because ru-RU and
+en-US work. A complete es-ES catalog must later be installable and selectable
+without Python changes, locale-specific UI code, duplicated layouts, special
+state handling, or a restart-only escape hatch. Representative live UI must be
+able to switch through ru-RU -> en-US -> es-ES -> ru-RU while preserving the
+same domain state, drafts, selection, active operations and lineage state.
+
+If adding Spanish requires a special-case code path, the localization
+foundation is still incomplete.
+
+## 6. External AI isolation
+
+External AI systems are treated as untrusted execution and review contours,
+regardless of vendor or reputation. This is a deliberately conservative threat
+model, not an accusation about a particular provider.
+
+Codex, Qwen Coder and other external agents receive dedicated branches and only
+the repository scope, credentials and secrets required for their bounded task.
+They do not share a writable integration branch with each other or with the
+canonical working branch. Their results are reviewed and deliberately merged
+by the original collaboration after comparison against the project's current
+contracts and release gates.
+
+Open-source publication does not remove the need for least-privilege access
+during development: unpublished state, credentials, local files, unrelated
+repositories and intermediate research may still be sensitive even when the
+final source will eventually be public.
