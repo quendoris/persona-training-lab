@@ -16,6 +16,7 @@ from persona_training_lab.infrastructure.persistence.repositories.datasets impor
 from persona_training_lab.infrastructure.persistence.sqlite.schema import (
     create_minimal_schema,
 )
+from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 
 
 def _build_service(connection: sqlite3.Connection) -> DatasetsService:
@@ -193,3 +194,12 @@ def test_repository_persists_validation_result(tmp_path: Path) -> None:
         persisted["readiness"]
         == DatasetReadinessStatus.AWAITING_AUTHOR_APPROVAL.value
     )
+
+    vm = DatasetsViewModel(datasets_service=service)
+    dataset = vm.current_dataset()
+    version = vm.current_version()
+    assert dataset.subtitle.key == "datasets.subtitle.local_jsonl"
+    assert version.status == DatasetVersionStatus.VALIDATED.value
+    assert version.status_code == "ready"
+    assert vm.status_text(version.status).key == "datasets.status.ready"
+    assert version.quality_summary.key == "datasets.quality.ready"
