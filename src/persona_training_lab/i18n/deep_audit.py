@@ -28,6 +28,14 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (1, "status"),
         (2, "note"),
     ),
+    "SnapshotMetric": ((0, "title"), (2, "note")),
+    "SnapshotRow": (
+        (1, "title"),
+        (2, "status"),
+        (3, "subtitle"),
+        (9, "quality_summary"),
+    ),
+    "TimelineItem": ((0, "title"), (1, "note")),
     "create_from_training_run": ((5, "quality_summary"),),
     "CompareMetric": ((0, "title"), (2, "note")),
     "_compare_metric": ((0, "title"), (2, "note")),
@@ -81,6 +89,7 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
         "deltas",
     }
 )
+_UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset({"lineage", "next_step"})
 _PERSISTED_SEMANTIC_FIELDS = {
     "create_training_run": frozenset({"status"}),
     "start_full_finetune_run": frozenset({"status"}),
@@ -104,6 +113,8 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
         "training_text",
         "EvaluationText",
         "evaluation_text",
+        "SnapshotText",
+        "snapshot_text",
     }
 )
 
@@ -115,8 +126,8 @@ class DeepSurfaceAudit(ast.NodeVisitor):
     explicitly modeled presentation DTOs. This second pass targets historical
     compatibility surfaces where text can still reach the UI without appearing
     in a QWidget call: application result objects, typed user-facing errors,
-    legacy public fields on UI view models, and persisted semantic fields that
-    must remain language-neutral.
+    legacy public fields and return values on UI view models, and persisted
+    semantic fields that must remain language-neutral.
 
     Semantic text constructors are opaque here because the ordinary audit
     validates their keys against complete catalogs. ``ActionResult`` is opaque
@@ -258,7 +269,13 @@ class DeepSurfaceAudit(ast.NodeVisitor):
 
     def visit_Return(self, node: ast.Return) -> None:
         function_name = self._function_stack[-1] if self._function_stack else ""
-        if function_name in _USER_RESULT_FUNCTIONS and node.value is not None:
+        if node.value is not None and (
+            function_name in _USER_RESULT_FUNCTIONS
+            or (
+                self._is_ui_viewmodel
+                and function_name in _UI_VIEWMODEL_RESULT_FUNCTIONS
+            )
+        ):
             fragments = self._resolved_fragments(node.value)
             self._append_fragments(
                 node,
