@@ -80,6 +80,12 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
         "deltas",
     }
 )
+_PERSISTED_SEMANTIC_FIELDS = {
+    "create_training_run": frozenset({"status"}),
+    "start_full_finetune_run": frozenset({"status"}),
+    "_set_terminal_error": frozenset({"status"}),
+    "create_from_training_run": frozenset({"status", "quality_summary"}),
+}
 _USER_RESULT_FUNCTIONS = frozenset(
     {
         "approve_dataset",
@@ -108,7 +114,8 @@ class DeepSurfaceAudit(ast.NodeVisitor):
     explicitly modeled presentation DTOs. This second pass targets historical
     compatibility surfaces where text can still reach the UI without appearing
     in a QWidget call: application result objects, typed user-facing errors,
-    and legacy public fields on UI view models.
+    legacy public fields on UI view models, and persisted semantic fields that
+    must remain language-neutral.
 
     Semantic text constructors are opaque here because the ordinary audit
     validates their keys against complete catalogs. ``ActionResult`` is opaque
@@ -201,6 +208,29 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                 self._append_fragments(
                     node,
                     f"class.{node.target.id}",
+                    fragments,
+                )
+        self.generic_visit(node)
+
+    def visit_Dict(self, node: ast.Dict) -> None:
+        function_name = self._function_stack[-1] if self._function_stack else ""
+        fields = _PERSISTED_SEMANTIC_FIELDS.get(function_name)
+        if fields is not None:
+            for key, value in zip(node.keys, node.values, strict=True):
+                if (
+                    not isinstance(key, ast.Constant)
+                    or not isinstance(key.value, str)
+                    or key.value not in fields
+                ):
+                    continue
+                fragments = tuple(
+                    fragment
+                    for fragment in self._resolved_fragments(value)
+                    if not _looks_machine_code(fragment)
+                )
+                self._append_fragments(
+                    node,
+                    f"{function_name} persisted {key.value}",
                     fragments,
                 )
         self.generic_visit(node)
@@ -378,6 +408,22 @@ def _string_fragments(node: ast.expr) -> tuple[str, ...]:
             call_fragments.extend(_string_fragments(keyword.value))
         return tuple(call_fragments)
     return ()
+
+
+def _looks_machine_code(text: str) -> bool:
+    stripped = text.strip()
+    return bool(
+        stripped
+        and stripped.isascii()
+        and stripped[0].isalpha()
+        and stripped[0].islower()
+        and all(
+            character.islower()
+            or character.isdigit()
+            or character == "_"
+            for character in stripped
+        )
+    )
 
 
 def _display_path(path: Path, root: Path | None) -> str:
