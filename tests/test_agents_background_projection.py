@@ -18,6 +18,7 @@ from persona_training_lab.application.lineage.projection import (
 from persona_training_lab.application.lineage.snapshot import (
     LineageSourceSnapshot,
 )
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.ui.agents import AgentsScreen
 from persona_training_lab.ui.agents.lineage_state_atomic import (
     AtomicLineageStateStore,
@@ -218,12 +219,20 @@ def test_local_branch_detail_uses_local_lineage_semantics(tmp_path) -> None:
 
         detail = screen._detail_for(branch_id)
 
-        assert detail.title == "Version · branch 001"
-        assert "Parent: snapshot" in detail.body
-        assert "Статус: черновик" in detail.body
-        assert "В архиве: Нет" in detail.body
-        assert "Новая локальная ветка" in detail.body
-        assert "Локальная ветка lineage" in detail.checks
+        assert isinstance(detail.title, UserMessage)
+        assert detail.title.key == "agents.node.custom.title"
+        assert detail.title.values["index"] == "001"
+        assert isinstance(detail.body, UserMessage)
+        assert detail.body.key == "agents.custom.body"
+        assert detail.body.values["parent"] == "snapshot"
+        assert detail.body.values["archived"] == "Нет"
+        assert tuple(
+            item.key for item in detail.checks if isinstance(item, UserMessage)
+        )[:3] == (
+            "agents.custom.check.local",
+            "agents.custom.check.training",
+            "agents.custom.check.snapshot",
+        )
         assert detail.title != "Model version"
     finally:
         assert screen.shutdown_background_work(2_000) is True
@@ -251,9 +260,12 @@ def test_agents_constructor_and_refresh_use_atomic_lineage_only() -> None:
         assert loader.calls == 1
 
         stale_detail = screen._detail_for("stale_missing")
-        assert stale_detail.title == "Неизвестная точка"
-        assert "действия заблокированы" in stale_detail.body
-        assert stale_detail.actions == ()
+        assert isinstance(stale_detail.title, UserMessage)
+        assert stale_detail.title.key == "agents.node.kind.unknown"
+        assert isinstance(stale_detail.body, UserMessage)
+        assert stale_detail.body.key == "agents.detail.unknown.body"
+        assert stale_detail.actions
+        assert all(isinstance(item, UserMessage) for item in stale_detail.actions)
     finally:
         assert screen.shutdown_background_work(2_000) is True
         assert loader.closed is True
