@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import sqlite3
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from persona_training_lab.domain.datasets.statuses import (
     DatasetReadinessStatus,
     DatasetVersionStatus,
 )
+from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.infrastructure.persistence.repositories.datasets import (
     SQLiteDatasetsRepository,
 )
@@ -203,3 +205,35 @@ def test_repository_persists_validation_result(tmp_path: Path) -> None:
     assert version.status_code == "ready"
     assert vm.status_text(version.status).key == "datasets.status.ready"
     assert version.quality_summary.key == "datasets.quality.ready"
+
+
+def test_dataset_repository_defaults_require_machine_semantics(
+    tmp_path: Path,
+) -> None:
+    source = """
+def add_dataset(payload):
+    hidden = payload.get("status", "Не проверен")
+    semantic = payload.get("readiness", "awaiting_validation")
+    return hidden, semantic
+
+
+def update_dataset_validation(payload):
+    hidden = payload.get("quality_summary", "Generated quality fallback")
+    semantic = payload.get("status", "validated")
+    return hidden, semantic
+"""
+    path = tmp_path / "infrastructure" / "persistence" / "datasets.py"
+    visitor = DeepSurfaceAudit(path, display_root=tmp_path)
+    visitor.visit(ast.parse(source, filename=str(path)))
+
+    findings = {(item.call, item.text) for item in visitor.literals}
+    assert (
+        "add_dataset persisted status default",
+        "Не проверен",
+    ) in findings
+    assert (
+        "update_dataset_validation persisted quality_summary default",
+        "Generated quality fallback",
+    ) in findings
+    assert not any(text == "awaiting_validation" for _, text in findings)
+    assert not any(text == "validated" for _, text in findings)
