@@ -22,6 +22,7 @@ from persona_training_lab.application.local_model.status_mapping import (
     LocalModelStatus,
     normalize_local_model_status,
 )
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
@@ -249,7 +250,8 @@ class ExperimentsService:
             return self._safe_failure(
                 error,
                 component="experiments.load_battery",
-                user_message="Не удалось загрузить батарею тестов",
+                user_message=UserMessage("error.experiments.battery_load"),
+                legacy_message="Не удалось загрузить батарею тестов",
                 message_code="battery_load_failed",
             )
 
@@ -305,13 +307,16 @@ class ExperimentsService:
             return result
         except Exception as error:
             report = None
+            legacy_message = (
+                "Тест остановлен безопасно. Остальные части интерфейса "
+                "продолжают работать."
+            )
             if self.error_reporter is not None:
                 report = self.error_reporter.capture(
                     error,
                     component="experiments.personality_portrait",
-                    user_message=(
-                        "Тест остановлен безопасно. Остальные части интерфейса "
-                        "продолжают работать."
+                    user_message=UserMessage(
+                        "error.experiments.portrait.safe_stop"
                     ),
                     entity_kind="experiment",
                     entity_id=experiment_id,
@@ -327,11 +332,7 @@ class ExperimentsService:
                         "battery_resource": self.battery_resource,
                     },
                 )
-            message = (
-                report.user_message
-                if report is not None
-                else "Тест остановлен безопасно"
-            )
+            message = legacy_message
             error_id = report.error_id if report is not None else ""
             if error_id:
                 message += f" Код: {error_id}."
@@ -530,13 +531,14 @@ class ExperimentsService:
         error: BaseException,
         *,
         component: str,
-        user_message: str,
+        user_message: UserMessage,
+        legacy_message: str,
         message_code: str,
     ) -> ExperimentRunResult:
         if self.error_reporter is None:
             return experiment_result(
                 False,
-                user_message,
+                legacy_message,
                 message_code=message_code,
             )
         report = self.error_reporter.capture(
@@ -548,7 +550,7 @@ class ExperimentsService:
         )
         return experiment_result(
             False,
-            f"{user_message}. Код: {report.error_id}.",
+            f"{legacy_message}. Код: {report.error_id}.",
             message_code=message_code,
             error_id=report.error_id,
         )
