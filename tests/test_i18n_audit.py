@@ -154,6 +154,34 @@ class VM:
             "completed",
             evaluation_text("tests.metric.note.runs"),
         )
+        hidden_training_metric = _training_metric(
+            "Hidden training metric",
+            "0",
+            "Hidden training metric note",
+        )
+        hidden_checkpoint = _checkpoint_view(
+            "Hidden checkpoint",
+            "Hidden checkpoint note",
+        )
+        hidden_version = _personality_version(
+            "Hidden version",
+            "Hidden version status",
+            "Hidden version note",
+        )
+        semantic_training_metric = _training_metric(
+            training_text("training.metric.epoch"),
+            "0",
+            training_text("training.metric.note.idle"),
+        )
+        semantic_checkpoint = _checkpoint_view(
+            training_text("training.checkpoint.empty.title"),
+            training_text("training.checkpoint.empty.note"),
+        )
+        semantic_version = _personality_version(
+            training_text("training.version.empty.title"),
+            training_text("training.version.empty.status"),
+            training_text("training.version.empty.note"),
+        )
         hidden_metric = _compare_metric(
             "Hidden metric",
             "0",
@@ -182,6 +210,12 @@ class VM:
             hidden_evaluation_metric,
             hidden_evaluation_case,
             semantic_evaluation_metric,
+            hidden_training_metric,
+            hidden_checkpoint,
+            hidden_version,
+            semantic_training_metric,
+            semantic_checkpoint,
+            semantic_version,
             hidden_metric,
             hidden_summary,
             hidden_sample,
@@ -246,6 +280,25 @@ def start_training():
         "_evaluation_case note_models",
         "Hidden evaluation case note",
     ) in findings
+    assert ("_training_metric title", "Hidden training metric") in findings
+    assert (
+        "_training_metric note",
+        "Hidden training metric note",
+    ) in findings
+    assert ("_checkpoint_view name", "Hidden checkpoint") in findings
+    assert (
+        "_checkpoint_view note",
+        "Hidden checkpoint note",
+    ) in findings
+    assert ("_personality_version title", "Hidden version") in findings
+    assert (
+        "_personality_version status",
+        "Hidden version status",
+    ) in findings
+    assert (
+        "_personality_version note",
+        "Hidden version note",
+    ) in findings
     assert ("_compare_metric title", "Hidden metric") in findings
     assert ("_compare_metric note", "Hidden metric note") in findings
     assert ("_compare_summary title", "Hidden summary") in findings
@@ -271,6 +324,11 @@ def start_training():
     assert not any(text == "training.header.title" for _, text in findings)
     assert not any(text == "training.metric.epoch" for _, text in findings)
     assert not any(text == "training.metric.note.idle" for _, text in findings)
+    assert not any(text == "training.checkpoint.empty.title" for _, text in findings)
+    assert not any(text == "training.checkpoint.empty.note" for _, text in findings)
+    assert not any(text == "training.version.empty.title" for _, text in findings)
+    assert not any(text == "training.version.empty.status" for _, text in findings)
+    assert not any(text == "training.version.empty.note" for _, text in findings)
     assert not any(text == "tests.case.valid_score" for _, text in findings)
     assert not any(text == "tests.metric.runs" for _, text in findings)
     assert not any(text == "tests.metric.note.runs" for _, text in findings)
