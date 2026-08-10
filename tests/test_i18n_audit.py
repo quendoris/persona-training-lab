@@ -3,6 +3,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
+from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.i18n.audit import SourceAudit
 from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 
@@ -27,6 +30,8 @@ def configure(localization, widget, menu, reporter, painter, rect, self):
     localization.text("missing.translation.key")
     reporter.capture(RuntimeError(), user_message="Visible failure")
     reporter.capture(RuntimeError(), user_message=UserMessage("error.semantic"))
+    UserMessage("missing.semantic.constructor")
+    training_text("missing.training.constructor")
     build_result(legacy_message="Legacy visible fallback")
     AgentDetailView(
         "Detail title",
@@ -74,6 +79,8 @@ def configure(localization, widget, menu, reporter, painter, rect, self):
         "agents.detail.title",
         "app.name",
         "error.semantic",
+        "missing.semantic.constructor",
+        "missing.training.constructor",
         "missing.translation.key",
         "nav.agents",
         "nav.open_tooltip",
@@ -103,7 +110,9 @@ def configure(localization, widget, menu, reporter, painter, rect, self):
     assert visitor.literals[-1].call == "drawText"
 
 
-def test_deep_audit_finds_hidden_result_and_viewmodel_text(tmp_path: Path) -> None:
+def test_deep_audit_finds_hidden_text_but_ignores_validated_semantics(
+    tmp_path: Path,
+) -> None:
     source = """
 class VM:
     def update(self, version_id):
@@ -111,6 +120,7 @@ class VM:
         self.subtitle = "Portrait not collected"
         self.setup_rows = (("Target", "Big Five portrait"),)
         self.context_rows = ("Next: analysis",)
+        self.semantic = training_text("training.header.title")
         metric = EvaluationMetric("Runs", "0", "no result")
         case = EvaluationCase("Missing portrait", "Run evaluation again")
         return metric, case
@@ -122,7 +132,15 @@ def execute():
 
 
 def approve_dataset():
-    return False, "Fix JSONL errors first"
+    return ActionResult(False, "approval_blocked")
+
+
+def compare_dataset_versions():
+    return False, "Comparison unavailable"
+
+
+def start_full_finetune_run():
+    return ActionResult(False, "resource_busy", {"blocker_kind": "training"})
 
 
 def start_training():
@@ -144,5 +162,16 @@ def start_training():
     assert ("EvaluationCase title", "Missing portrait") in findings
     assert ("EvaluationCase note", "Run evaluation again") in findings
     assert ("experiment_result message", "Resource is already in use") in findings
-    assert ("approve_dataset return", "Fix JSONL errors first") in findings
+    assert ("compare_dataset_versions return", "Comparison unavailable") in findings
     assert ("TrainingValidationError message", "Training is not ready") in findings
+    assert not any(call == "approve_dataset return" for call, _ in findings)
+    assert not any(call == "start_full_finetune_run return" for call, _ in findings)
+    assert not any(text == "training.header.title" for _, text in findings)
+
+
+def test_action_result_rejects_human_text_as_machine_code() -> None:
+    result = ActionResult(True, "completed", {"artifact": "model/path"})
+    assert result.code == "completed"
+    assert result.values["artifact"] == "model/path"
+    with pytest.raises(ValueError, match="lower_snake_case"):
+        ActionResult(False, "Training failed")
