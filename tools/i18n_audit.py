@@ -9,6 +9,9 @@ from persona_training_lab.i18n.audit import (
     render_text_report,
 )
 from persona_training_lab.i18n.catalog import CatalogValidationError
+from persona_training_lab.i18n.deep_audit import (
+    augment_report_with_deep_literals,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +28,12 @@ def run(*, strict_ui_literals: bool, as_json: bool) -> int:
             base_locale="ru-RU",
             strict_ui_literals=strict_ui_literals,
         )
-    except CatalogValidationError as error:
+        report = augment_report_with_deep_literals(
+            report,
+            source_root=SRC,
+            display_root=ROOT,
+        )
+    except (CatalogValidationError, OSError, SyntaxError) as error:
         if as_json:
             print(
                 json.dumps(
@@ -52,12 +60,14 @@ def run(*, strict_ui_literals: bool, as_json: bool) -> int:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate complete PTL locale catalogs and UI text usage.",
+        description=(
+            "Validate complete PTL locale catalogs and user-facing text usage."
+        ),
     )
     parser.add_argument(
         "--strict-ui-literals",
         action="store_true",
-        help="Fail when user-visible widget text remains hard-coded.",
+        help="Fail when user-visible source-language text remains hard-coded.",
     )
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
