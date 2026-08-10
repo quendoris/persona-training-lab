@@ -2,15 +2,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from persona_training_lab.application.experiments.service import ExperimentSummary, ExperimentsService
+from persona_training_lab.application.experiments.service import (
+    ExperimentSummary,
+    ExperimentsService,
+)
+from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
+from persona_training_lab.ui.viewmodels.evaluation import (
+    EvaluationText,
+    evaluation_status_text,
+    evaluation_text,
+)
 
 
 @dataclass(slots=True, frozen=True)
 class ExperimentView:
     experiment_id: str
-    title: str
-    subtitle: str
-    status: str
+    title: str | EvaluationText
+    subtitle: str | EvaluationText
+    status: str | EvaluationText
+    status_code: EvaluationRunStatus = EvaluationRunStatus.UNKNOWN
 
 
 @dataclass(slots=True)
@@ -49,29 +59,45 @@ class ExperimentsViewModel:
             experiment_id=summary.experiment_id,
             title=summary.title,
             subtitle=summary.subtitle,
-            status=summary.status,
+            status=evaluation_status_text(
+                summary.status_code,
+                summary.status,
+            ),
+            status_code=summary.status_code,
         )
 
     @staticmethod
     def _empty_experiment() -> ExperimentView:
         return ExperimentView(
             experiment_id="experiments_empty",
-            title="Эксперименты пока не созданы",
-            subtitle="Эксперименты пока не созданы",
-            status="пусто",
+            title=evaluation_text("experiments.empty.title"),
+            subtitle=evaluation_text("experiments.empty.subtitle"),
+            status=evaluation_text("experiments.empty.status"),
         )
 
     @staticmethod
     def _error_experiment() -> ExperimentView:
         return ExperimentView(
             experiment_id="experiments_error",
-            title="Не удалось загрузить эксперименты",
-            subtitle="Не удалось загрузить эксперименты",
-            status="ошибка",
+            title=evaluation_text("experiments.error.title"),
+            subtitle=evaluation_text("experiments.error.subtitle"),
+            status=evaluation_text("experiments.error.status"),
         )
 
-    def experiments(self) -> list[tuple[str, str, str, str]]:
-        return [(e.experiment_id, e.title, e.subtitle, e.status) for e in self._experiments]
+    def experiments(
+        self,
+    ) -> list[
+        tuple[
+            str,
+            str | EvaluationText,
+            str | EvaluationText,
+            str | EvaluationText,
+        ]
+    ]:
+        return [
+            (e.experiment_id, e.title, e.subtitle, e.status)
+            for e in self._experiments
+        ]
 
     def current_experiment(self) -> ExperimentView:
         for item in self._experiments:
@@ -79,6 +105,8 @@ class ExperimentsViewModel:
                 return item
         return self._experiments[0]
 
-    def header_summary(self) -> tuple[str, str]:
+    def header_summary(
+        self,
+    ) -> tuple[str | EvaluationText, str | EvaluationText]:
         current = self.current_experiment()
         return current.title, current.subtitle
