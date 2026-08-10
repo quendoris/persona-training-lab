@@ -18,7 +18,7 @@ I18N_KEY_PREFIXES = (
 )
 
 
-def configure(localization, widget, menu, reporter, self):
+def configure(localization, widget, menu, reporter, painter, rect, self):
     localization.bind_text(widget, "app.name")
     localization.bind_title(menu, "shell.panels")
     localization.bind_tooltip(widget, key="nav.open_tooltip")
@@ -27,12 +27,34 @@ def configure(localization, widget, menu, reporter, self):
     reporter.capture(RuntimeError(), user_message="Visible failure")
     reporter.capture(RuntimeError(), user_message=UserMessage("error.semantic"))
     build_result(legacy_message="Legacy visible fallback")
+    AgentDetailView(
+        "Detail title",
+        "Detail body",
+        ("Detail check", UserMessage("agents.detail.check")),
+        ("Detail action",),
+    )
+    ProjectedVersionNode(
+        node_id="node_1",
+        depth=0,
+        title="Version title",
+        subtitle="Version subtitle",
+        status="ready",
+    )
+    AgentDetailView(
+        UserMessage("agents.detail.title"),
+        UserMessage("agents.detail.body"),
+        (UserMessage("agents.detail.check"),),
+    )
+    painter.drawText(rect, 0, "Painted label")
 """
     path = tmp_path / "sample.py"
     visitor = SourceAudit(
         path,
         known_keys=frozenset(
             {
+                "agents.detail.body",
+                "agents.detail.check",
+                "agents.detail.title",
                 "app.name",
                 "error.semantic",
                 "nav.agents",
@@ -46,6 +68,9 @@ def configure(localization, widget, menu, reporter, self):
     visitor.visit(ast.parse(source, filename=str(path)))
 
     assert visitor.translation_keys == {
+        "agents.detail.body",
+        "agents.detail.check",
+        "agents.detail.title",
         "app.name",
         "error.semantic",
         "missing.translation.key",
@@ -59,7 +84,19 @@ def configure(localization, widget, menu, reporter, self):
         "──── panels ────",
         "Visible failure",
         "Legacy visible fallback",
+        "Detail title",
+        "Detail body",
+        "Detail check",
+        "Detail action",
+        "Version title",
+        "Version subtitle",
+        "ready",
+        "Painted label",
     ]
     assert visitor.literals[0].call == "_text fallback"
     assert visitor.literals[1].call == "capture user_message"
     assert visitor.literals[2].call == "build_result legacy_message"
+    assert visitor.literals[3].call == "AgentDetailView title"
+    assert visitor.literals[6].call == "AgentDetailView actions"
+    assert visitor.literals[7].call == "ProjectedVersionNode title"
+    assert visitor.literals[-1].call == "drawText"
