@@ -117,6 +117,7 @@
     "tests.message.storage_read_only": "The experiment store does not support writing results.",
     "tests.message.portrait_completed": "Portrait completed for {model_version_id}: {passed}/{total} valid items.",
     "tests.message.portrait_partial": "Portrait completed with errors for {model_version_id}: {passed}/{total} valid items.",
-    "tests.message.service_unavailable": "The testing service is unavailable."
+    "tests.message.service_unavailable": "The testing service is unavailable.",
+    "tests.message.result_unavailable": "The test result could not be interpreted."
   }
 }
