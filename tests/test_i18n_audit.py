@@ -236,8 +236,26 @@ def compare_dataset_versions():
     return False, "Comparison unavailable"
 
 
+def create_training_run():
+    status = "Готов к запуску"
+    return {"status": status}
+
+
 def start_full_finetune_run():
+    payload = {"status": "Выполняется"}
     return ActionResult(False, "resource_busy", {"blocker_kind": "training"})
+
+
+def _set_terminal_error():
+    return {"status": "Ошибка"}
+
+
+def create_from_training_run():
+    status = "ready"
+    return {
+        "status": status,
+        "quality_summary": "Generated human quality summary",
+    }
 
 
 def start_training():
@@ -318,8 +336,25 @@ def start_training():
     assert ("experiment_result message", "Resource is already in use") in findings
     assert ("compare_dataset_versions return", "Comparison unavailable") in findings
     assert ("TrainingValidationError message", "Training is not ready") in findings
+    assert (
+        "create_training_run persisted status",
+        "Готов к запуску",
+    ) in findings
+    assert (
+        "start_full_finetune_run persisted status",
+        "Выполняется",
+    ) in findings
+    assert ("_set_terminal_error persisted status", "Ошибка") in findings
+    assert (
+        "create_from_training_run persisted quality_summary",
+        "Generated human quality summary",
+    ) in findings
     assert not any(call == "approve_dataset return" for call, _ in findings)
     assert not any(call == "start_full_finetune_run return" for call, _ in findings)
+    assert (
+        "create_from_training_run persisted status",
+        "ready",
+    ) not in findings
     assert not any(text == "completed" for _, text in findings)
     assert not any(text == "training.header.title" for _, text in findings)
     assert not any(text == "training.metric.epoch" for _, text in findings)
