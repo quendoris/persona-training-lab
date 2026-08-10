@@ -109,6 +109,16 @@ def training_text(key: str, **values: object) -> TrainingText:
     return TrainingText(key, MappingProxyType(dict(values)))
 
 
+def _base_training_text(value: str | TrainingText) -> str:
+    """Render only the historical base-locale compatibility surface lazily."""
+
+    if isinstance(value, str):
+        return value
+    from persona_training_lab.ui.i18n.text import text as localized_text
+
+    return localized_text(None, value.key, **dict(value.values))
+
+
 @dataclass(slots=True, frozen=True)
 class TrainingMetric:
     title: str
@@ -155,8 +165,8 @@ class TrainingViewModel:
     training_service: TrainingService | None = None
     model_versions_service: ModelVersionsService | None = None
     local_model_service: LocalModelService | None = None
-    title: str = "Обучение"
-    subtitle: str = "Обучение пока не запускалось"
+    title: str = ""
+    subtitle: str = ""
     status: str = "ожидание"
     status_code: str = "idle"
     selected_objects: tuple[tuple[str, str], ...] = (
@@ -289,8 +299,12 @@ class TrainingViewModel:
         return runs[0] if runs else None
 
     def _set_idle_state(self) -> None:
-        self.title = "Обучение"
-        self.subtitle = "Обучение пока не запускалось"
+        self._title_model = training_text("training.header.title")
+        self._subtitle_model = training_text(
+            "training.header.subtitle.idle"
+        )
+        self.title = _base_training_text(self._title_model)
+        self.subtitle = _base_training_text(self._subtitle_model)
         self.status = "ожидание"
         self.status_code = "idle"
         self.current_run_id = ""
@@ -299,10 +313,6 @@ class TrainingViewModel:
         self.artifact_path = ""
         self.progress_value = 0
         self.progress_note = "ожидание метрики"
-        self._title_model = training_text("training.header.title")
-        self._subtitle_model = training_text(
-            "training.header.subtitle.idle"
-        )
         self._status_model = training_text("training.status.idle")
         self._progress_model = training_text("training.progress.waiting")
         self.logs = ("[—] Обучение пока не запускалось",)
@@ -322,16 +332,16 @@ class TrainingViewModel:
         )
 
     def _set_load_error_state(self) -> None:
-        self.title = "Обучение"
-        self.subtitle = "Не удалось загрузить запуски обучения"
-        self.status = "ошибка"
-        self.status_code = TrainingRunStatus.FAILED.value
-        self.can_start_run = False
-        self.training_in_progress = False
         self._title_model = training_text("training.header.title")
         self._subtitle_model = training_text(
             "training.header.subtitle.load_failed"
         )
+        self.title = _base_training_text(self._title_model)
+        self.subtitle = _base_training_text(self._subtitle_model)
+        self.status = "ошибка"
+        self.status_code = TrainingRunStatus.FAILED.value
+        self.can_start_run = False
+        self.training_in_progress = False
         self._status_model = training_text("training.status.failed")
         self.logs = ("[—] Не удалось загрузить запуски обучения",)
         self._log_models = (training_text("training.log.load_failed"),)
@@ -399,8 +409,13 @@ class TrainingViewModel:
 
         current = runs[0]
         self.current_run_id = current.run_id
-        self.title = f"Обучение · {current.run_id}"
-        self.subtitle = current.subtitle
+        self._title_model = training_text(
+            "training.header.title.run",
+            run_id=current.run_id,
+        )
+        self._subtitle_model = current.subtitle
+        self.title = _base_training_text(self._title_model)
+        self.subtitle = _base_training_text(self._subtitle_model)
         self.status = current.status
         self.status_code = current.status_code.value
         self.can_start_run = (
@@ -410,11 +425,6 @@ class TrainingViewModel:
             current.status_code is TrainingRunStatus.RUNNING
         )
         self.artifact_path = current.artifact_path
-        self._title_model = training_text(
-            "training.header.title.run",
-            run_id=current.run_id,
-        )
-        self._subtitle_model = current.subtitle
         self._status_model = self._status_text(
             current.status_code.value,
             current.status,
