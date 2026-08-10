@@ -5,7 +5,11 @@
     "fragment": "errors"
   },
   "messages": {
+    "error.experiments.battery_load": "The test battery could not be loaded.",
+    "error.experiments.portrait.safe_stop": "The test stopped safely. The rest of the interface remains available.",
     "error.python.main_thread": "A background operation failed, but the application remains available.",
-    "error.python.worker_thread": "A background task stopped safely; the interface remains available."
+    "error.python.worker_thread": "A background task stopped safely; the interface remains available.",
+    "error.training.full_finetune.safe_stop": "Training stopped safely. The interface remains available; details were written to the log.",
+    "error.ui.event_dispatch": "The interface operation could not be completed, but the application remains available."
   }
 }
