@@ -22,6 +22,8 @@ _TRANSLATION_KEY_POSITIONS = {
     "UserMessage": 0,
     "DatasetText": 0,
     "dataset_text": 0,
+    "ProfileText": 0,
+    "profile_text": 0,
     "TrainingText": 0,
     "training_text": 0,
     "EvaluationText": 0,
