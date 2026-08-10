@@ -258,6 +258,29 @@ def create_from_training_run():
     }
 
 
+def publish_model_versions(service, loss, checkpoints):
+    hidden = service.create_from_training_run(
+        training_run_id="run",
+        base_model="model",
+        profile_title="profile",
+        dataset_title="dataset",
+        artifact_path="artifact",
+        quality_summary="Hidden caller quality summary",
+    )
+    semantic = service.create_from_training_run(
+        training_run_id="run",
+        base_model="model",
+        profile_title="profile",
+        dataset_title="dataset",
+        artifact_path="artifact",
+        quality_summary=training_completed_quality(
+            loss=loss,
+            checkpoints=checkpoints,
+        ),
+    )
+    return hidden, semantic
+
+
 def start_training():
     raise TrainingValidationError("Training is not ready", code="not_ready")
 """
@@ -349,6 +372,10 @@ def start_training():
         "create_from_training_run persisted quality_summary",
         "Generated human quality summary",
     ) in findings
+    assert (
+        "create_from_training_run quality_summary",
+        "Hidden caller quality summary",
+    ) in findings
     assert not any(call == "approve_dataset return" for call, _ in findings)
     assert not any(call == "start_full_finetune_run return" for call, _ in findings)
     assert (
@@ -356,6 +383,7 @@ def start_training():
         "ready",
     ) not in findings
     assert not any(text == "completed" for _, text in findings)
+    assert not any(text == "training_completed" for _, text in findings)
     assert not any(text == "training.header.title" for _, text in findings)
     assert not any(text == "training.metric.epoch" for _, text in findings)
     assert not any(text == "training.metric.note.idle" for _, text in findings)
