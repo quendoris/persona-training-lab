@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "fragment": "docs"
+  },
+  "messages": {
+    "docs.card.topics.title": "Documentation",
+    "docs.card.topics.subtitle": "Living project sections that guide the current workflow.",
+    "docs.card.content.title": "Section",
+    "docs.card.content.subtitle": "The body is read from markdown files under docs/.",
+    "docs.content.select_summary": "Select a section on the left.",
+    "docs.card.next.title": "What to do next",
+    "docs.card.next.subtitle": "Short guidance without unnecessary decoration.",
+    "docs.next.select": "Select a documentation section.",
+    "docs.content.missing": "Document not found: {path}",
+    "docs.content.read_failed": "Could not read document: {path}",
+    "docs.topic.quickstart.title": "Quick start",
+    "docs.topic.quickstart.summary": "The minimum route from dataset to analysis.",
+    "docs.topic.quickstart.next_step": "Start with Datasets → Training → Tests → Analysis.",
+    "docs.topic.training_pipeline.title": "Training pipeline",
+    "docs.topic.training_pipeline.summary": "How a training run becomes a model artifact.",
+    "docs.topic.training_pipeline.next_step": "After training, verify the artifact and the model's local response.",
+    "docs.topic.personality_portrait.title": "Personality portrait",
+    "docs.topic.personality_portrait.summary": "Big Five KPI, SCORE responses, reverse scoring, and delta.",
+    "docs.topic.personality_portrait.next_step": "Collect a new portrait after every meaningful fine-tune.",
+    "docs.topic.experiment_protocol.title": "Experiment protocol",
+    "docs.topic.experiment_protocol.summary": "What to record so comparisons remain reproducible.",
+    "docs.topic.experiment_protocol.next_step": "Before publication, preserve model, dataset, battery, and scoring versions.",
+    "docs.topic.methodology_limits.title": "Methodology limits",
+    "docs.topic.methodology_limits.summary": "Interpretation boundaries and explicit limitations of the current battery.",
+    "docs.topic.methodology_limits.next_step": "For publication, expand the battery and add repeated runs.",
+    "docs.quick_reference.1": "Datasets: add a file and verify the prompt/response structure.",
+    "docs.quick_reference.2": "Training: choose a model, dataset, and profile, then start fine-tuning.",
+    "docs.quick_reference.3": "Snapshots: verify that the artifact is registered.",
+    "docs.quick_reference.4": "Tests: collect a Big Five portrait and verify VALID_SCORE.",
+    "docs.quick_reference.5": "Analysis: compare KPI and delta between two portraits.",
+    "docs.context_help.1": "Documentation should answer one question: what should happen next?",
+    "docs.context_help.2": "If a workspace is unclear, open its section and check the checklist.",
+    "docs.context_help.3": "For research, always preserve versions for the model, dataset, battery, and scoring."
+  }
+}
