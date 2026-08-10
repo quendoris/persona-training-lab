@@ -207,6 +207,41 @@ def test_open_cases_dialog_switches_without_recreation(
     app.processEvents()
 
 
+def test_analysis_method_summary_switches_manual_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(
+        manager,
+        "_prepare_qt_translator",
+        lambda _locale: None,
+    )
+    vm = AnalysisViewModel(experiments_service=_Experiments())
+    screen = AnalysisScreen(vm, manager)
+    screen.show()
+    app.processEvents()
+
+    assert vm.left.contradiction == "ручн."
+    english = _visible_texts(screen)
+    assert "Method" in english
+    assert "manual" in english
+    assert "ручн." not in english
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    russian = _visible_texts(screen)
+    assert "Метод" in russian
+    assert "ручн." in russian
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
+
+
 def test_analysis_pair_switches_live_and_never_substitutes_versions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
