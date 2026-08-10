@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from persona_training_lab.application.datasets.diagnostics import (
+    decode_dataset_diagnostic,
+)
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.domain.datasets.statuses import (
     DatasetReadinessStatus,
@@ -54,6 +57,9 @@ def test_validate_messages_jsonl_ready(tmp_path: Path) -> None:
     assert result.total_rows == 1
     assert result.valid_rows == 1
     assert result.invalid_rows == 0
+    preview = service.preview_dataset(created.dataset_id)
+    assert preview[0].input_summary == "Привет"
+    assert preview[0].quality == "structure_ok"
 
 
 def test_validate_instruction_output_jsonl_ready(tmp_path: Path) -> None:
@@ -71,6 +77,9 @@ def test_validate_instruction_output_jsonl_ready(tmp_path: Path) -> None:
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
     assert result.status == DatasetVersionStatus.VALIDATED.value
+    preview = service.preview_dataset(created.dataset_id)
+    assert preview[0].input_summary == "Сделай ответ · контекст"
+    assert preview[0].quality == "structure_ok"
 
 
 def test_approve_valid_dataset_sets_approved_status(tmp_path: Path) -> None:
@@ -105,7 +114,8 @@ def test_validate_invalid_message_role_sets_structure_error(
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
-    service = _build_service(connection)
+    repo = SQLiteDatasetsRepository(connection)
+    service = DatasetsService(datasets_repo=repo)
 
     dataset_file = tmp_path / "bad_role.jsonl"
     dataset_file.write_text(
@@ -117,9 +127,22 @@ def test_validate_invalid_message_role_sets_structure_error(
     result = service.validate_dataset(created.dataset_id)
     assert result.status == DatasetVersionStatus.STRUCTURE_ERROR.value
     assert result.invalid_rows == 1
-    assert "role должен быть system, user или assistant" in "\n".join(
-        result.errors_preview
-    )
+    diagnostic = result.errors_preview[0]
+    assert diagnostic.code == "invalid_role"
+    assert diagnostic.line == 1
+    assert diagnostic.values["role"] == "critic"
+
+    persisted = repo.get_dataset(created.dataset_id)
+    assert persisted is not None
+    decoded = decode_dataset_diagnostic(persisted["validation_errors_preview"])
+    assert decoded is not None
+    assert decoded.code == "invalid_role"
+    assert decoded.line == 1
+    assert decoded.values["role"] == "critic"
+
+    preview = service.preview_dataset(created.dataset_id)
+    assert preview[0].input_summary == diagnostic
+    assert preview[0].quality == "structure_error"
 
 
 def test_validate_invalid_json_line_sets_structure_error(
@@ -141,7 +164,8 @@ def test_validate_invalid_json_line_sets_structure_error(
     assert result.status == DatasetVersionStatus.STRUCTURE_ERROR.value
     assert result.valid_rows == 1
     assert result.invalid_rows == 1
-    assert "невалидный JSON" in "\n".join(result.errors_preview)
+    assert result.errors_preview[0].code == "invalid_json"
+    assert result.errors_preview[0].line == 2
 
 
 def test_validate_empty_file_sets_structure_error(tmp_path: Path) -> None:
@@ -157,6 +181,8 @@ def test_validate_empty_file_sets_structure_error(tmp_path: Path) -> None:
     result = service.validate_dataset(created.dataset_id)
     assert result.status == DatasetVersionStatus.STRUCTURE_ERROR.value
     assert result.total_rows == 0
+    assert result.errors_preview[0].code == "empty_file"
+    assert result.errors_preview[0].line is None
 
 
 def test_repository_persists_validation_result(tmp_path: Path) -> None:
@@ -192,6 +218,7 @@ def test_repository_persists_validation_result(tmp_path: Path) -> None:
     assert persisted["valid_count"] == 1
     assert persisted["invalid_count"] == 0
     assert persisted["quality_summary"] == ""
+    assert persisted["validation_errors_preview"] == ""
     assert (
         persisted["readiness"]
         == DatasetReadinessStatus.AWAITING_AUTHOR_APPROVAL.value
@@ -205,6 +232,10 @@ def test_repository_persists_validation_result(tmp_path: Path) -> None:
     assert version.status_code == "ready"
     assert vm.status_text(version.status).key == "datasets.status.ready"
     assert version.quality_summary.key == "datasets.quality.ready"
+    assert version.preview_rows[0].input_summary == "A"
+    assert version.preview_rows[0].quality.key == (
+        "datasets.preview.quality.structure_ok"
+    )
 
 
 def test_dataset_repository_defaults_require_machine_semantics(
@@ -219,8 +250,12 @@ def add_dataset(payload):
 
 def update_dataset_validation(payload):
     hidden = payload.get("quality_summary", "Generated quality fallback")
+    hidden_diagnostics = payload.get(
+        "validation_errors_preview",
+        "Generated diagnostic fallback",
+    )
     semantic = payload.get("status", "validated")
-    return hidden, semantic
+    return hidden, hidden_diagnostics, semantic
 """
     path = tmp_path / "infrastructure" / "persistence" / "datasets.py"
     visitor = DeepSurfaceAudit(path, display_root=tmp_path)
@@ -234,6 +269,10 @@ def update_dataset_validation(payload):
     assert (
         "update_dataset_validation persisted quality_summary default",
         "Generated quality fallback",
+    ) in findings
+    assert (
+        "update_dataset_validation persisted validation_errors_preview default",
+        "Generated diagnostic fallback",
     ) in findings
     assert not any(text == "awaiting_validation" for _, text in findings)
     assert not any(text == "validated" for _, text in findings)
