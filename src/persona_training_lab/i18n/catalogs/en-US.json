@@ -197,6 +197,7 @@
     "panel.issues.title": "Problems",
     "panel.issues.waiting": "Waiting for the problems log connection.",
     "panel.telemetry.cpu_tooltip": "{status} · load {value}\nLogical cores: {cores}",
+    "panel.telemetry.logical_cores": "Logical cores: {cores}",
     "panel.telemetry.metric.process.full": "Process",
     "panel.telemetry.metric.process.short": "Proc",
     "panel.telemetry.metric.temperature.full": "Temperature",
