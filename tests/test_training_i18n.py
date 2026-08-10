@@ -389,3 +389,41 @@ def test_model_probe_and_open_logs_dialog_switch_live(
     dialog.deleteLater()
     screen.deleteLater()
     app.processEvents()
+
+
+def test_registry_fallback_logs_localize_status_without_rewriting_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(
+        manager,
+        "_prepare_qt_translator",
+        lambda _locale: None,
+    )
+    service = MutableTrainingService(
+        _run(status="выполняется · checkpoint-safe")
+    )
+    service.logs = ()
+    vm = TrainingViewModel(training_service=service)
+    screen = TrainingScreen(vm, manager)
+    screen.show()
+    app.processEvents()
+
+    assert vm.status == "выполняется · checkpoint-safe"
+    english_logs = screen._log_box.toPlainText()
+    assert "[registry] status: running" in english_logs
+    assert "выполняется" not in english_logs
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    russian_logs = screen._log_box.toPlainText()
+    assert "[реестр] статус: выполняется" in russian_logs
+    assert vm.status == "выполняется · checkpoint-safe"
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
