@@ -13,6 +13,12 @@ from PySide6.QtWidgets import QApplication, QLabel
 from persona_training_lab.application.local_model.service import (
     LocalModelService,
 )
+from persona_training_lab.application.model_versions.quality import (
+    training_completed_quality,
+)
+from persona_training_lab.application.model_versions.service import (
+    ModelVersionSummary,
+)
 from persona_training_lab.application.ports.local_model_probe import (
     InferenceProbeResult,
     ModelProbeResult,
@@ -28,6 +34,7 @@ from persona_training_lab.application.training.status_mapping import (
 from persona_training_lab.domain.datasets.statuses import (
     DatasetVersionStatus,
 )
+from persona_training_lab.domain.models.statuses import ModelVersionStatus
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.training.screen import (
     TrainingScreen,
@@ -121,6 +128,14 @@ class MutableTrainingService:
                 DatasetVersionStatus.APPROVED,
             )
         ]
+
+
+class MutableModelVersionsService:
+    def __init__(self, versions: list[ModelVersionSummary]) -> None:
+        self.versions = versions
+
+    def list_model_versions(self) -> list[ModelVersionSummary]:
+        return list(self.versions)
 
 
 class FoundModelProbe:
@@ -423,6 +438,88 @@ def test_registry_fallback_logs_localize_status_without_rewriting_storage(
     russian_logs = screen._log_box.toPlainText()
     assert "[реестр] статус: выполняется" in russian_logs
     assert vm.status == "выполняется · checkpoint-safe"
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
+
+
+def test_model_version_quality_switches_live_without_rewriting_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(
+        manager,
+        "_prepare_qt_translator",
+        lambda _locale: None,
+    )
+    machine_quality = training_completed_quality(
+        loss="0.42",
+        checkpoints="03",
+    )
+    raw_quality = "Operator certified raw summary"
+    versions = [
+        ModelVersionSummary(
+            version_id="mv_machine",
+            title="Machine quality",
+            status=ModelVersionStatus.READY.value,
+            base_model="Qwen",
+            profile_title="Mia core",
+            dataset_title="curated_v1",
+            training_run_id="trn_machine",
+            artifact_path="artifacts/mv_machine/model",
+            quality_summary=machine_quality,
+            status_code=ModelVersionStatus.READY,
+        ),
+        ModelVersionSummary(
+            version_id="mv_raw",
+            title="Raw quality",
+            status=ModelVersionStatus.READY.value,
+            base_model="Qwen",
+            profile_title="Mia core",
+            dataset_title="curated_v1",
+            training_run_id="trn_raw",
+            artifact_path="artifacts/mv_raw/model",
+            quality_summary=raw_quality,
+            status_code=ModelVersionStatus.READY,
+        ),
+    ]
+    service = MutableModelVersionsService(versions)
+    vm = TrainingViewModel(model_versions_service=service)
+    screen = TrainingScreen(vm, manager)
+    screen.show()
+    app.processEvents()
+
+    english = {
+        label.text()
+        for label in screen._checkpoints_card.findChildren(QLabel)
+        if label.text()
+    }
+    assert any(
+        "Full fine-tune completed · loss 0.42 · checkpoints 03" in text
+        for text in english
+    )
+    assert any(raw_quality in text for text in english)
+    assert all("ptl:model-version-quality" not in text for text in english)
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    russian = {
+        label.text()
+        for label in screen._checkpoints_card.findChildren(QLabel)
+        if label.text()
+    }
+    assert any(
+        "Full fine-tune завершён · loss 0.42 · чекпоинты 03" in text
+        for text in russian
+    )
+    assert any(raw_quality in text for text in russian)
+    assert service.versions[0].quality_summary == machine_quality
+    assert service.versions[1].quality_summary == raw_quality
 
     screen.close()
     screen.deleteLater()
