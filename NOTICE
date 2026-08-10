@@ -11,25 +11,22 @@ copyright holder. Copyright notices in this repository refer only to rights
 that subsist under applicable law and are lawfully held by the stated human
 licensor or other identified rightsholders.
 
-ORIGIN TERMS UNDER GNU AGPL VERSION 3, SECTION 7
+LICENSE AND ORIGIN
 
-To the extent the licensor is authorized to impose additional terms on original
-copyrightable material in this repository, the following terms are added under
-sections 7(b) and 7(c) of the GNU Affero General Public License version 3:
+Original project material is made available under the GNU Affero General Public
+License, version 3 only, to the extent the stated licensor has authority to
+license that material. The canonical license text is in LICENSE.
 
-1. Preserve this NOTICE and the AUTHORS file with distributions of the covered
-   source material, or preserve an equivalent readable copy containing the same
-   origin attribution.
-2. Do not misrepresent the origin of the original Persona Training Lab
-   material. In particular, do not state or imply that the original project was
-   created by a different person, company, institution or automated system.
-3. Modified versions must be identified as modified and must not be presented
-   as the unmodified original project. This supplements, and does not replace,
-   the modification-notice requirements already imposed by the GNU AGPL.
+The GNU AGPL already requires appropriate copyright and license notices to be
+kept with conveyed source, requires modified source versions to carry prominent
+modification notices, and requires covered modified work to remain under the
+license. Its network-interaction terms also apply when their stated conditions
+are met.
 
-These origin terms do not restrict use by any person, group or field of
-endeavor. They protect attribution and prohibit misrepresentation of origin;
-they do not grant ownership or authorship status to a neural network.
+This NOTICE records the origin of the original project. It does not add a
+field-of-use restriction, does not prohibit commercial use permitted by the GNU
+AGPL, and does not grant ownership or legal authorship status to a neural
+network.
 
 THIRD-PARTY MATERIAL
 
