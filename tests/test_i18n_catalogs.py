@@ -10,11 +10,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QLabel
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.i18n.catalog import (
     CatalogSet,
     CatalogValidationError,
 )
 from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.i18n.text import render_user_message
 
 
 CATALOGS = (
@@ -113,6 +115,29 @@ def test_live_binding_switches_atomically_without_widget_rebuild(
     assert manager.locale == "ru-RU"
     label.deleteLater()
     app.processEvents()
+
+
+def test_semantic_user_message_renders_from_active_locale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = LocalizationManager(
+        app,
+        initial_locale="en-US",
+        catalog_directory=CATALOGS,
+    )
+    message = UserMessage("error.python.worker_thread")
+
+    assert render_user_message(manager, message) == (
+        "A background task stopped safely; the interface remains available."
+    )
+
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+    manager.set_locale("ru-RU", persist=False)
+
+    assert render_user_message(manager, message) == (
+        "Фоновая задача остановлена безопасно; интерфейс продолжает работать."
+    )
 
 
 def test_complete_third_locale_is_discovered_without_python_changes(
