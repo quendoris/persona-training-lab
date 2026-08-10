@@ -9,18 +9,24 @@ from persona_training_lab.application.messages import ActionResult
 
 
 _STATUS_ALIASES = {
+    "approved_for_training": "approved",
     "одобрен для обучения": "approved",
     "одобрен": "approved",
     "approved for training": "approved",
     "approved": "approved",
+    "validated": "ready",
     "готов к обучению": "ready",
     "готово": "ready",
     "ready for training": "ready",
     "ready": "ready",
+    "structure_error": "structure_error",
     "ошибка структуры": "structure_error",
     "structure error": "structure_error",
+    "validation_failed": "validation_failed",
     "не удалось проверить датасет": "validation_failed",
     "validation failed": "validation_failed",
+    "imported": "unchecked",
+    "draft": "unchecked",
     "не проверен": "unchecked",
     "not validated": "unchecked",
     "пусто": "empty",
@@ -428,7 +434,10 @@ class DatasetsViewModel:
             title=title,
             subtitle=(
                 dataset_text("datasets.subtitle.local_jsonl")
-                if subtitle == "Локальный JSONL датасет"
+                if (
+                    subtitle == "Локальный JSONL датасет"
+                    or (not subtitle and format_name == "jsonl")
+                )
                 else dataset_text("datasets.raw", value=subtitle)
             ),
             versions=(
