@@ -48,6 +48,7 @@ _WIDGET_TEXT_METHODS = {
     "setWhatsThis": (0,),
     "setWindowTitle": (0,),
 }
+_USER_VISIBLE_KEYWORDS = {"user_message"}
 _DYNAMIC_PREFIX_NAMES = {"I18N_KEY_PREFIXES"}
 
 
@@ -138,6 +139,11 @@ class SourceAudit(ast.NodeVisitor):
                 call_name,
                 _WIDGET_TEXT_METHODS[call_name],
             )
+        self._collect_keyword_literals(
+            node,
+            call_name,
+            _USER_VISIBLE_KEYWORDS,
+        )
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> None:
@@ -175,14 +181,42 @@ class SourceAudit(ast.NodeVisitor):
             text = _constant_string(node.args, position)
             if text is None or not _looks_user_visible(text):
                 continue
-            self.literals.append(
-                LiteralFinding(
-                    path=_display_path(self._path, self._display_root),
-                    line=node.lineno,
-                    call=call_name,
-                    text=" ".join(text.split()),
-                )
+            self._append_literal(node, call_name, text)
+
+    def _collect_keyword_literals(
+        self,
+        node: ast.Call,
+        call_name: str,
+        keywords: set[str],
+    ) -> None:
+        for item in node.keywords:
+            if item.arg not in keywords:
+                continue
+            if not isinstance(item.value, ast.Constant):
+                continue
+            text = item.value.value
+            if not isinstance(text, str) or not _looks_user_visible(text):
+                continue
+            self._append_literal(
+                node,
+                f"{call_name} {item.arg}".strip(),
+                text,
             )
+
+    def _append_literal(
+        self,
+        node: ast.Call,
+        call_name: str,
+        text: str,
+    ) -> None:
+        self.literals.append(
+            LiteralFinding(
+                path=_display_path(self._path, self._display_root),
+                line=node.lineno,
+                call=call_name,
+                text=" ".join(text.split()),
+            )
+        )
 
 
 def audit_sources(
