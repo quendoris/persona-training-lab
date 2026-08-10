@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+)
 
-from persona_training_lab.ui.agents.version_graph_locked import VersionGraphCanvas as LockableVersionGraphCanvas
+from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.ui.agents.version_graph_locked import (
+    VersionGraphCanvas as LockableVersionGraphCanvas,
+)
 from persona_training_lab.ui.viewmodels.agents import VersionNodeView
 
 
@@ -87,9 +98,17 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
                 self._drag_target_ids = ()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
             else:
-                self._drag_mode = "subtree" if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else "node"
+                self._drag_mode = (
+                    "subtree"
+                    if event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                    else "node"
+                )
                 self._drag_node_id = node_id
-                self._drag_target_ids = self._subtree_node_ids(node_id) if self._drag_mode == "subtree" else (node_id,)
+                self._drag_target_ids = (
+                    self._subtree_node_ids(node_id)
+                    if self._drag_mode == "subtree"
+                    else (node_id,)
+                )
                 self._selected_node_id = node_id
                 self.node_selected.emit(node_id)
                 self.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -101,8 +120,16 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if self._drag_mode in {"left_pan", "right_pan"}:
-            required_button = Qt.MouseButton.LeftButton if self._drag_mode == "left_pan" else Qt.MouseButton.RightButton
-            if self._press_global_pos is None or self._last_global_pos is None or not event.buttons() & required_button:
+            required_button = (
+                Qt.MouseButton.LeftButton
+                if self._drag_mode == "left_pan"
+                else Qt.MouseButton.RightButton
+            )
+            if (
+                self._press_global_pos is None
+                or self._last_global_pos is None
+                or not event.buttons() & required_button
+            ):
                 super().mouseMoveEvent(event)
                 return
             current = event.globalPosition()
@@ -117,7 +144,11 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             return
 
         if self._drag_mode in {"node", "subtree"}:
-            if self._press_global_pos is None or self._last_global_pos is None or not event.buttons() & Qt.MouseButton.RightButton:
+            if (
+                self._press_global_pos is None
+                or self._last_global_pos is None
+                or not event.buttons() & Qt.MouseButton.RightButton
+            ):
                 super().mouseMoveEvent(event)
                 return
             current = event.globalPosition()
@@ -141,7 +172,11 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton and self._drag_mode in {"left_pan", "left_node_click", "menu_action"}:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._drag_mode
+            in {"left_pan", "left_node_click", "menu_action"}
+        ):
             mode = self._drag_mode
             was_dragging = self._dragging
             action = self._menu_press_action
@@ -154,11 +189,25 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             self._drag_node_id = None
             self._drag_target_ids = ()
             self._menu_press_action = None
-            if mode == "menu_action" and not was_dragging and action is not None:
+            if (
+                mode == "menu_action"
+                and not was_dragging
+                and action is not None
+            ):
                 release_action = self._menu_action_at(event.position())
-                if release_action == action and self._menu_node_id is not None:
-                    self.menu_action_requested.emit(self._menu_node_id, action)
-            elif mode == "left_node_click" and not was_dragging and node_id is not None:
+                if (
+                    release_action == action
+                    and self._menu_node_id is not None
+                ):
+                    self.menu_action_requested.emit(
+                        self._menu_node_id,
+                        action,
+                    )
+            elif (
+                mode == "left_node_click"
+                and not was_dragging
+                and node_id is not None
+            ):
                 self._menu_node_id = node_id
                 self.update()
             elif mode == "left_pan" and not was_dragging:
@@ -167,7 +216,10 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             event.accept()
             return
 
-        if event.button() == Qt.MouseButton.RightButton and self._drag_mode in {"right_pan", "node", "subtree"}:
+        if (
+            event.button() == Qt.MouseButton.RightButton
+            and self._drag_mode in {"right_pan", "node", "subtree"}
+        ):
             self.unsetCursor()
             self._press_global_pos = None
             self._last_global_pos = None
@@ -183,7 +235,15 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
 
         super().mouseReleaseEvent(event)
 
-    def _draw_connector(self, painter: QPainter, px: float, py: float, x: float, y: float, tone: str) -> None:
+    def _draw_connector(
+        self,
+        painter: QPainter,
+        px: float,
+        py: float,
+        x: float,
+        y: float,
+        tone: str,
+    ) -> None:
         color = self._tone_color(tone)
         color.setAlpha(150)
         pen = QPen(color, max(1.2, 1.8 * self._zoom))
@@ -198,9 +258,16 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             painter.drawLine(QPointF(px, start_y), QPointF(x, end_y))
             return
         vertical_direction = 1 if y > py else -1
-        control_y = py + vertical_direction * min(max(abs(y - py) * 0.28, 18 * self._zoom), 34 * self._zoom)
+        control_y = py + vertical_direction * min(
+            max(abs(y - py) * 0.28, 18 * self._zoom),
+            34 * self._zoom,
+        )
         curve = QPainterPath(QPointF(px, start_y))
-        curve.cubicTo(QPointF(px, control_y), QPointF(x, control_y), QPointF(x, end_y))
+        curve.cubicTo(
+            QPointF(px, control_y),
+            QPointF(x, control_y),
+            QPointF(x, end_y),
+        )
         painter.drawPath(curve)
 
     def _draw_canvas_menu(self) -> None:
@@ -211,35 +278,80 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setPen(QPen(QColor(34, 211, 238, 150), max(1.0, 1.1 * self._zoom)))
+        painter.setPen(
+            QPen(
+                QColor(34, 211, 238, 150),
+                max(1.0, 1.1 * self._zoom),
+            )
+        )
         painter.setBrush(QColor(15, 23, 42, 236))
-        painter.drawRoundedRect(frame, 12 * self._zoom, 12 * self._zoom)
+        painter.drawRoundedRect(
+            frame,
+            12 * self._zoom,
+            12 * self._zoom,
+        )
 
         title_font = QFont(painter.font())
         title_font.setPointSizeF(max(7.0, 9.4 * self._zoom))
         title_font.setBold(True)
         painter.setFont(title_font)
         painter.setPen(QColor(226, 232, 240))
-        title_rect = QRectF(frame.x() + 12 * self._zoom, frame.y() + 8 * self._zoom, frame.width() - 24 * self._zoom, 20 * self._zoom)
-        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, "Действия точки")
+        title_rect = QRectF(
+            frame.x() + 12 * self._zoom,
+            frame.y() + 8 * self._zoom,
+            frame.width() - 24 * self._zoom,
+            20 * self._zoom,
+        )
+        painter.drawText(
+            title_rect,
+            Qt.AlignLeft | Qt.AlignVCenter,
+            self._menu_text("agents.menu.title"),
+        )
 
         muted_font = QFont(painter.font())
         muted_font.setPointSizeF(max(6.5, 8.0 * self._zoom))
         muted_font.setBold(False)
         painter.setFont(muted_font)
         painter.setPen(QColor(148, 163, 184))
-        id_rect = QRectF(frame.x() + 12 * self._zoom, frame.y() + 28 * self._zoom, frame.width() - 24 * self._zoom, 18 * self._zoom)
-        painter.drawText(id_rect, Qt.AlignLeft | Qt.AlignVCenter, self._menu_node_id)
+        id_rect = QRectF(
+            frame.x() + 12 * self._zoom,
+            frame.y() + 28 * self._zoom,
+            frame.width() - 24 * self._zoom,
+            18 * self._zoom,
+        )
+        painter.drawText(
+            id_rect,
+            Qt.AlignLeft | Qt.AlignVCenter,
+            self._menu_node_id,
+        )
 
         action_font = QFont(painter.font())
         action_font.setPointSizeF(max(6.8, 8.6 * self._zoom))
         painter.setFont(action_font)
         for _action, label, rect in rows:
-            painter.setPen(QPen(QColor(51, 65, 85, 220), max(0.8, 1.0 * self._zoom)))
+            painter.setPen(
+                QPen(
+                    QColor(51, 65, 85, 220),
+                    max(0.8, 1.0 * self._zoom),
+                )
+            )
             painter.setBrush(QColor(30, 41, 59, 226))
-            painter.drawRoundedRect(rect, 7 * self._zoom, 7 * self._zoom)
+            painter.drawRoundedRect(
+                rect,
+                7 * self._zoom,
+                7 * self._zoom,
+            )
             painter.setPen(QColor(226, 232, 240))
-            painter.drawText(rect.adjusted(10 * self._zoom, 0, -8 * self._zoom, 0), Qt.AlignLeft | Qt.AlignVCenter, label)
+            painter.drawText(
+                rect.adjusted(
+                    10 * self._zoom,
+                    0,
+                    -8 * self._zoom,
+                    0,
+                ),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                label,
+            )
 
     def _menu_action_at(self, pos: QPointF) -> str | None:
         if self._menu_node_id is None:
@@ -250,7 +362,9 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
                 return action
         return None
 
-    def _menu_layout(self) -> tuple[QRectF | None, tuple[tuple[str, str, QRectF], ...]]:
+    def _menu_layout(
+        self,
+    ) -> tuple[QRectF | None, tuple[tuple[str, str, QRectF], ...]]:
         if self._menu_node_id is None:
             return None, ()
         positions = self._positions()
@@ -263,7 +377,12 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         row_height = 27 * scale
         gap = 5 * scale
         actions = self._menu_actions()
-        height = header_height + len(actions) * row_height + max(0, len(actions) - 1) * gap + 12 * scale
+        height = (
+            header_height
+            + len(actions) * row_height
+            + max(0, len(actions) - 1) * gap
+            + 12 * scale
+        )
         left = x + 38 * scale
         top = y + 18 * scale
         if left + width > self.width() - 14 * scale:
@@ -276,21 +395,38 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         rows: list[tuple[str, str, QRectF]] = []
         row_y = top + header_height
         for action, label in actions:
-            rect = QRectF(left + 10 * scale, row_y, width - 20 * scale, row_height)
+            rect = QRectF(
+                left + 10 * scale,
+                row_y,
+                width - 20 * scale,
+                row_height,
+            )
             rows.append((action, label, rect))
             row_y += row_height + gap
         return frame, tuple(rows)
 
+    def _menu_text(self, key: str) -> str:
+        return self._text_renderer(UserMessage(key))
+
     def _menu_actions(self) -> tuple[tuple[str, str], ...]:
         return (
-            ("make_current", "Сделать актуальной"),
-            ("mark_good", "Пометить удачной"),
-            ("mark_pending", "Пометить спорной"),
-            ("mark_bad", "Пометить неудачной"),
-            ("continue", "Продолжить от этой точки"),
-            ("center", "Центрировать на точке"),
-            ("reset_node", "Сбросить смещение точки"),
-            ("reset_subtree", "Сбросить смещение поддерева"),
+            ("make_current", self._menu_text("agents.menu.make_current")),
+            ("mark_good", self._menu_text("agents.menu.mark_good")),
+            (
+                "mark_pending",
+                self._menu_text("agents.menu.mark_pending"),
+            ),
+            ("mark_bad", self._menu_text("agents.menu.mark_bad")),
+            ("continue", self._menu_text("agents.menu.continue")),
+            ("center", self._menu_text("agents.menu.center")),
+            (
+                "reset_node",
+                self._menu_text("agents.menu.reset_node"),
+            ),
+            (
+                "reset_subtree",
+                self._menu_text("agents.menu.reset_subtree"),
+            ),
         )
 
     def _node_at(self, pos: QPointF) -> str | None:
@@ -300,9 +436,19 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
             if node.node_id not in positions:
                 continue
             x, y = positions[node.node_id]
-            dot_rect = QRectF(x - 18 * self._zoom, y - 18 * self._zoom, 36 * self._zoom, 36 * self._zoom)
+            dot_rect = QRectF(
+                x - 18 * self._zoom,
+                y - 18 * self._zoom,
+                36 * self._zoom,
+                36 * self._zoom,
+            )
             label_width = self._label_width(node.title)
-            label_rect = QRectF(x + 20 * self._zoom, y - 17 * self._zoom, max(42.0, label_width + 22.0) * self._zoom, 34 * self._zoom)
+            label_rect = QRectF(
+                x + 20 * self._zoom,
+                y - 17 * self._zoom,
+                max(42.0, label_width + 22.0) * self._zoom,
+                34 * self._zoom,
+            )
             if dot_rect.contains(pos) or label_rect.contains(pos):
                 distance = (pos.x() - x) ** 2 + (pos.y() - y) ** 2
                 candidates.append((distance, node.node_id))
