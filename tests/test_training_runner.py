@@ -66,7 +66,10 @@ def test_start_and_complete_training_run() -> None:
     _seed_run(conn)
     service = _service(conn)
 
-    service.start_training_run("trn_ready")
+    result = service.start_full_finetune_run("trn_ready")
+    assert result.ok is True
+    assert result.code == "completed"
+    assert result.values["artifact"] == "artifacts/full_finetune/trn_ready/model"
     completed = service.advance_training_run("trn_ready")
     assert completed
     row = service.list_training_runs()[0]
@@ -85,7 +88,8 @@ def test_start_missing_run_fails() -> None:
     try:
         service.start_training_run("missing")
     except TrainingValidationError as exc:
-        assert str(exc) == "Запуск обучения не найден"
+        assert exc.code == "run_not_found"
+        assert str(exc) == "run_not_found"
     else:
         raise AssertionError("expected TrainingValidationError")
 
@@ -99,7 +103,8 @@ def test_cannot_start_non_ready_run() -> None:
     try:
         service.start_training_run("trn_ready")
     except TrainingValidationError as exc:
-        assert str(exc) == "Запуск обучения не готов к старту"
+        assert exc.code == "not_ready"
+        assert str(exc) == "not_ready"
     else:
         raise AssertionError("expected TrainingValidationError")
 
@@ -110,7 +115,12 @@ def test_viewmodel_start_action() -> None:
     create_minimal_schema(conn)
     _seed_run(conn)
     vm = TrainingViewModel(training_service=_service(conn))
-    ok, message = vm.start_selected_training_run()
+    ok, code = vm.start_selected_training_run()
     assert ok
-    assert message == "artifacts/full_finetune/trn_ready/model"
+    assert code == "completed"
+    assert vm.creation_message == "completed"
+    message_model = vm.current_message()
+    assert message_model is not None
+    assert message_model.key == "training.message.completed"
+    assert message_model.values["artifact"] == "artifacts/full_finetune/trn_ready/model"
     assert vm.status == "Завершено"
