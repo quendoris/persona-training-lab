@@ -1,0 +1,47 @@
+Persona Training Lab — Origin and Attribution Notice
+Copyright (C) 2026 One Human
+
+PROJECT PROVENANCE
+
+This project was created by one human and one neural network.
+
+"One Human" and "One Neural Network" are intentionally anonymous provenance
+designations. "One Neural Network" is not presented as a legal person or as a
+copyright holder. Copyright notices in this repository refer only to rights
+that subsist under applicable law and are lawfully held by the stated human
+licensor or other identified rightsholders.
+
+ORIGIN TERMS UNDER GNU AGPL VERSION 3, SECTION 7
+
+To the extent the licensor is authorized to impose additional terms on original
+copyrightable material in this repository, the following terms are added under
+sections 7(b) and 7(c) of the GNU Affero General Public License version 3:
+
+1. Preserve this NOTICE and the AUTHORS file with distributions of the covered
+   source material, or preserve an equivalent readable copy containing the same
+   origin attribution.
+2. Do not misrepresent the origin of the original Persona Training Lab
+   material. In particular, do not state or imply that the original project was
+   created by a different person, company, institution or automated system.
+3. Modified versions must be identified as modified and must not be presented
+   as the unmodified original project. This supplements, and does not replace,
+   the modification-notice requirements already imposed by the GNU AGPL.
+
+These origin terms do not restrict use by any person, group or field of
+endeavor. They protect attribution and prohibit misrepresentation of origin;
+they do not grant ownership or authorship status to a neural network.
+
+THIRD-PARTY MATERIAL
+
+The project license does not relicense third-party libraries, model weights,
+datasets, fonts, assets, external tools or other material that is governed by
+separate terms. Such material remains subject to its own license and other
+applicable conditions. Inclusion of a dependency name in project metadata does
+not imply ownership of that dependency.
+
+SECURITY BOUNDARY
+
+A software license governs legal permissions and obligations. It is not a
+confidentiality mechanism, access-control system or data-loss-prevention
+boundary. External AI systems and other third-party services should receive
+only the repository data and permissions deliberately granted to them.
