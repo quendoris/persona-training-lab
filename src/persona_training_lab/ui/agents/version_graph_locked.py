@@ -6,7 +6,10 @@ from typing import Any
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QFontMetricsF, QMouseEvent
 
-from persona_training_lab.ui.agents.version_graph_persistent import VersionGraphCanvas as PersistentVersionGraphCanvas
+from persona_training_lab.ui.agents.version_graph_persistent import (
+    VersionGraphCanvas as PersistentVersionGraphCanvas,
+)
+from persona_training_lab.ui.viewmodels.agents_contracts import AgentText
 
 
 class VersionGraphCanvas(PersistentVersionGraphCanvas):
@@ -61,7 +64,11 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if self._drag_mode == "right_pan":
-            if self._press_global_pos is None or self._last_global_pos is None or not event.buttons() & Qt.MouseButton.RightButton:
+            if (
+                self._press_global_pos is None
+                or self._last_global_pos is None
+                or not event.buttons() & Qt.MouseButton.RightButton
+            ):
                 super().mouseMoveEvent(event)
                 return
             current = event.globalPosition()
@@ -80,7 +87,10 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.RightButton and self._drag_mode == "right_pan":
+        if (
+            event.button() == Qt.MouseButton.RightButton
+            and self._drag_mode == "right_pan"
+        ):
             self.unsetCursor()
             self._press_global_pos = None
             self._last_global_pos = None
@@ -102,27 +112,42 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
         self._drag_target_ids = ()
         event.accept()
 
-    def _label_width(self, title: str) -> float:
+    def _label_width(self, title: AgentText) -> float:
+        rendered = self._display_label(title)
         try:
-            return float(QFontMetricsF(self.font()).horizontalAdvance(self._display_label(title)))
+            return float(
+                QFontMetricsF(self.font()).horizontalAdvance(rendered)
+            )
         except Exception:
-            return float(len(self._display_label(title)) * 7)
+            return float(len(rendered) * 7)
 
-    def _move_nodes(self, node_ids: tuple[str, ...], delta: QPointF) -> None:
+    def _move_nodes(
+        self,
+        node_ids: tuple[str, ...],
+        delta: QPointF,
+    ) -> None:
         if self._layout_locked or not node_ids or not (delta.x() or delta.y()):
             return
-        layout_delta = QPointF(delta.x() / self._zoom, delta.y() / self._zoom)
+        layout_delta = QPointF(
+            delta.x() / self._zoom,
+            delta.y() / self._zoom,
+        )
         if self._flipped:
             layout_delta.setY(-layout_delta.y())
         for node_id in node_ids:
             current = self._node_offsets.get(node_id, QPointF())
-            self._node_offsets[node_id] = QPointF(current.x() + layout_delta.x(), current.y() + layout_delta.y())
+            self._node_offsets[node_id] = QPointF(
+                current.x() + layout_delta.x(),
+                current.y() + layout_delta.y(),
+            )
         self._layout_dirty = True
         self.update()
 
     def _load_layout_locked(self) -> bool:
         try:
-            payload = json.loads(self._layout_path.read_text(encoding="utf-8"))
+            payload = json.loads(
+                self._layout_path.read_text(encoding="utf-8")
+            )
         except (OSError, json.JSONDecodeError):
             return False
         if not isinstance(payload, dict):
@@ -141,6 +166,9 @@ class VersionGraphCanvas(PersistentVersionGraphCanvas):
                     if point.x() or point.y()
                 },
             }
-            self._layout_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._layout_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         except OSError:
             return
