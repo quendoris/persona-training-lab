@@ -73,10 +73,11 @@ def test_approve_valid_dataset_sets_approved_status(tmp_path: Path) -> None:
     dataset_file.write_text('{"prompt":"A","response":"B"}\n', encoding="utf-8")
 
     created = service.add_dataset_from_path(str(dataset_file))
-    ok, message = service.approve_dataset(created.dataset_id)
+    result = service.approve_dataset(created.dataset_id)
 
-    assert ok is True
-    assert "одобрен" in message.lower()
+    assert result.ok is True
+    assert result.code == "approved"
+    assert dict(result.values) == {}
     persisted = repo.get_dataset(created.dataset_id)
     assert persisted is not None
     assert persisted["status"] == "Одобрен для обучения"
