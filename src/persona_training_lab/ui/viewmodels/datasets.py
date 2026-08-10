@@ -129,11 +129,10 @@ def _dataset_action_text(
 def _dataset_service_error_text(
     error: DatasetServiceError,
     *,
-    fallback_key: str,
+    fallback: DatasetText,
 ) -> DatasetText:
-    return dataset_text(
-        _DATASET_SERVICE_ERROR_KEYS.get(error.code, fallback_key),
-    )
+    key = _DATASET_SERVICE_ERROR_KEYS.get(error.code)
+    return dataset_text(key) if key is not None else fallback
 
 
 def _dataset_diagnostic_text(value: DatasetDiagnostic | str) -> DatasetText:
@@ -243,7 +242,7 @@ class DatasetsViewModel:
                 False,
                 _dataset_service_error_text(
                     exc,
-                    fallback_key="datasets.error.add_failed",
+                    fallback=dataset_text("datasets.error.add_failed"),
                 ),
             )
         except Exception:
@@ -275,7 +274,7 @@ class DatasetsViewModel:
                 False,
                 _dataset_service_error_text(
                     exc,
-                    fallback_key="datasets.error.validate_failed",
+                    fallback=dataset_text("datasets.error.validate_failed"),
                 ),
             )
         except Exception:
@@ -315,7 +314,7 @@ class DatasetsViewModel:
                 False,
                 _dataset_service_error_text(
                     exc,
-                    fallback_key="datasets.error.approve_failed",
+                    fallback=dataset_text("datasets.error.approve_failed"),
                 ),
             )
         except Exception:
