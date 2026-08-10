@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from persona_training_lab.application.agents.service import AgentSummary, AgentsService
+from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.ui.i18n.text import render_user_message
 from persona_training_lab.ui.viewmodels.agents_contracts import AgentView
 
 
@@ -51,28 +53,30 @@ class AgentsOverviewViewModel:
     def _empty_agent() -> AgentView:
         return AgentView(
             agent_id="agents_empty",
-            title="Системные роли готовы",
-            subtitle=(
-                "База агентов пуста, но рабочие роли доступны как встроенный "
-                "навигатор."
-            ),
-            status="локально",
+            title=UserMessage("agents.overview.empty.title"),
+            subtitle=UserMessage("agents.overview.empty.subtitle"),
+            status=UserMessage("agents.overview.empty.status"),
         )
 
     @staticmethod
     def _error_agent() -> AgentView:
         return AgentView(
             agent_id="agents_error",
-            title="Не удалось загрузить агентов",
-            subtitle=(
-                "База ролей недоступна, используются встроенные подсказки."
-            ),
-            status="ошибка",
+            title=UserMessage("agents.overview.error.title"),
+            subtitle=UserMessage("agents.overview.error.subtitle"),
+            status=UserMessage("agents.overview.error.status"),
         )
 
     def agents(self) -> list[tuple[str, str, str, str]]:
+        """Base-locale compatibility surface for historical callers."""
+
         return [
-            (agent.agent_id, agent.title, agent.subtitle, agent.status)
+            (
+                agent.agent_id,
+                render_user_message(None, agent.title),
+                render_user_message(None, agent.subtitle),
+                render_user_message(None, agent.status),
+            )
             for agent in self._agents
         ]
 
@@ -83,10 +87,11 @@ class AgentsOverviewViewModel:
         return self._agents[0]
 
     def header_summary(self) -> tuple[str, str]:
+        """Base-locale compatibility surface for historical callers."""
+
         return (
-            "Агенты",
-            "Рабочий центр версий: роли подсказывают, lineage показывает "
-            "состояние модели.",
+            render_user_message(None, UserMessage("agents.header.title")),
+            render_user_message(None, UserMessage("agents.header.subtitle")),
         )
 
 
