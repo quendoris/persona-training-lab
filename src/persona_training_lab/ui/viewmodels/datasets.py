@@ -4,6 +4,10 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
+from persona_training_lab.application.datasets.diagnostics import (
+    DatasetDiagnostic,
+    decode_dataset_diagnostic,
+)
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.messages import ActionResult
 
@@ -45,6 +49,28 @@ _DATASET_ACTION_KEYS = {
     "approval_blocked": "datasets.message.approve_blocked",
     "not_found": "datasets.error.not_found",
     "version_compare_unavailable": "datasets.action.compare_unavailable",
+}
+_DIAGNOSTIC_KEYS = {
+    "file_not_found": "datasets.error.file_not_found",
+    "only_jsonl": "datasets.error.only_jsonl",
+    "invalid_json": "datasets.diagnostic.invalid_json",
+    "record_not_object": "datasets.diagnostic.record_not_object",
+    "messages_not_list": "datasets.diagnostic.messages_not_list",
+    "message_not_object": "datasets.diagnostic.message_not_object",
+    "invalid_role": "datasets.diagnostic.invalid_role",
+    "content_empty": "datasets.diagnostic.content_empty",
+    "messages_missing_pair": "datasets.diagnostic.messages_missing_pair",
+    "instruction_empty": "datasets.diagnostic.instruction_empty",
+    "output_empty": "datasets.diagnostic.output_empty",
+    "input_not_string": "datasets.diagnostic.input_not_string",
+    "prompt_empty": "datasets.diagnostic.prompt_empty",
+    "response_empty": "datasets.diagnostic.response_empty",
+    "unsupported_schema": "datasets.diagnostic.unsupported_schema",
+    "empty_file": "datasets.diagnostic.empty_file",
+}
+_PREVIEW_QUALITY_KEYS = {
+    "structure_ok": "datasets.preview.quality.structure_ok",
+    "structure_error": "datasets.preview.quality.structure_error",
 }
 
 
@@ -88,6 +114,44 @@ def _dataset_action_text(
         _DATASET_ACTION_KEYS.get(result.code, fallback_key),
         **dict(result.values),
     )
+
+
+def _dataset_diagnostic_text(value: DatasetDiagnostic | str) -> DatasetText:
+    diagnostic = (
+        value
+        if isinstance(value, DatasetDiagnostic)
+        else decode_dataset_diagnostic(value)
+    )
+    if diagnostic is None:
+        return dataset_text("datasets.raw", value=value)
+    key = _DIAGNOSTIC_KEYS.get(diagnostic.code)
+    message = (
+        dataset_text(key, **dict(diagnostic.values))
+        if key is not None
+        else dataset_text("datasets.diagnostic.unknown")
+    )
+    if diagnostic.line is None:
+        return message
+    return dataset_text(
+        "datasets.diagnostic.line",
+        line=diagnostic.line,
+        message=message,
+    )
+
+
+def _preview_quality_text(value: str) -> DatasetText:
+    key = _PREVIEW_QUALITY_KEYS.get(value)
+    if key is not None:
+        return dataset_text(key)
+    normalized = value.strip()
+    if (
+        normalized
+        and normalized.isascii()
+        and normalized.replace("_", "").isalnum()
+        and normalized == normalized.casefold()
+    ):
+        return dataset_text("datasets.preview.quality.unknown")
+    return dataset_text("datasets.raw", value=value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -413,7 +477,7 @@ class DatasetsViewModel:
                         dataset_text(
                             "datasets.signal.structure_error.title"
                         ),
-                        dataset_text("datasets.raw", value=line),
+                        _dataset_diagnostic_text(line),
                         "warning",
                     )
                 )
@@ -504,9 +568,13 @@ class DatasetsViewModel:
         return tuple(
             DatasetPreviewRow(
                 row.row_id,
-                row.input_summary,
+                (
+                    _dataset_diagnostic_text(row.input_summary)
+                    if isinstance(row.input_summary, DatasetDiagnostic)
+                    else row.input_summary
+                ),
                 row.traits,
-                row.quality,
+                _preview_quality_text(row.quality),
             )
             for row in rows
         )
