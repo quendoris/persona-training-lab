@@ -26,6 +26,7 @@ def configure(localization, widget, menu, reporter, self):
     localization.text("missing.translation.key")
     reporter.capture(RuntimeError(), user_message="Visible failure")
     reporter.capture(RuntimeError(), user_message=UserMessage("error.semantic"))
+    build_result(legacy_message="Legacy visible fallback")
 """
     path = tmp_path / "sample.py"
     visitor = SourceAudit(
@@ -57,6 +58,8 @@ def configure(localization, widget, menu, reporter, self):
     assert [finding.text for finding in visitor.literals] == [
         "──── panels ────",
         "Visible failure",
+        "Legacy visible fallback",
     ]
     assert visitor.literals[0].call == "_text fallback"
     assert visitor.literals[1].call == "capture user_message"
+    assert visitor.literals[2].call == "build_result legacy_message"
