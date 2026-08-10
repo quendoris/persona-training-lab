@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import QApplication
 
-from persona_training_lab.ui.agents.history_event_orchestrator import HistoryEventOrchestrator
+from persona_training_lab.ui.agents.history_event_orchestrator import (
+    HistoryEventOrchestrator,
+)
 from persona_training_lab.ui.agents.history_gesture_core import (
     HISTORY_TOGGLE,
     HISTORY_UNDO,
@@ -13,12 +15,17 @@ from persona_training_lab.ui.agents.history_gesture_core import (
 )
 from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
-from persona_training_lab.ui.agents.history_modifier_snapshot import HistoryModifierSnapshot
+from persona_training_lab.ui.agents.history_modifier_snapshot import (
+    HistoryModifierSnapshot,
+)
 from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
-from persona_training_lab.ui.agents.history_shortcut_routing import HistoryShortcutRouting
+from persona_training_lab.ui.agents.history_shortcut_routing import (
+    HistoryShortcutRouting,
+)
 from persona_training_lab.ui.agents.screen_lineage_interactions import (
     AgentsScreen as _LineageInteractionAgentsScreen,
 )
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 
 
@@ -35,22 +42,37 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     _REPEAT_INTERVAL_MS = 85
     _MODIFIER_POLL_MS = 16
     _FLIP_GUARD_SECONDS = HistoryGestureCore.DEFAULT_FLIP_GUARD_SECONDS
-    _KEYBOARD_LAYOUT_CHANGE = getattr(QEvent.Type, "KeyboardLayoutChange", None)
+    _KEYBOARD_LAYOUT_CHANGE = getattr(
+        QEvent.Type,
+        "KeyboardLayoutChange",
+        None,
+    )
 
-    def __init__(self, view_model, key_binding_manager: KeyBindingManager | None = None) -> None:
-        self._key_binding_manager = key_binding_manager or KeyBindingManager()
+    def __init__(
+        self,
+        view_model,
+        key_binding_manager: KeyBindingManager | None = None,
+        localization: LocalizationManager | None = None,
+    ) -> None:
+        self._key_binding_manager = (
+            key_binding_manager or KeyBindingManager()
+        )
         self._history_gesture = HistoryGestureCore(
             flip_guard_seconds=self._FLIP_GUARD_SECONDS,
         )
-        super().__init__(view_model)
+        super().__init__(view_model, localization)
 
         self._history_repeat = HistoryRepeatTimers(
             delay_ms=self._REPEAT_DELAY_MS,
             interval_ms=self._REPEAT_INTERVAL_MS,
             parent=self,
         )
-        self._history_repeat.delay_elapsed.connect(self._start_undo_repeat)
-        self._history_repeat.repeat_elapsed.connect(self._repeat_undo_history)
+        self._history_repeat.delay_elapsed.connect(
+            self._start_undo_repeat
+        )
+        self._history_repeat.repeat_elapsed.connect(
+            self._repeat_undo_history
+        )
 
         # Polling is a positive-only fallback for modifier events consumed by the
         # desktop. Real KeyRelease events remain the authoritative release signal.
@@ -58,21 +80,25 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             interval_ms=self._MODIFIER_POLL_MS,
             parent=self,
         )
-        self._modifier_poll.poll_requested.connect(self._poll_physical_modifiers)
+        self._modifier_poll.poll_requested.connect(
+            self._poll_physical_modifiers
+        )
         self._history_events = HistoryEventOrchestrator(
             keyboard_layout_change=self._KEYBOARD_LAYOUT_CHANGE,
         )
 
-        self._key_binding_manager.bindings_changed.connect(self._apply_key_binding_sequences)
+        self._key_binding_manager.bindings_changed.connect(
+            self._apply_key_binding_sequences
+        )
         self._apply_key_binding_sequences()
         QTimer.singleShot(0, self._sync_history_shortcut_routing)
 
-        for button in self.findChildren(QPushButton):
-            if button.text().replace("&", "") == "Отразить":
-                button.setShortcut(QKeySequence())
-                button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-                button.setAutoDefault(False)
-                button.setDefault(False)
+        flip_button = getattr(self, "_flip_button", None)
+        if flip_button is not None:
+            flip_button.setShortcut(QKeySequence())
+            flip_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            flip_button.setAutoDefault(False)
+            flip_button.setDefault(False)
 
         app = QApplication.instance()
         if app is not None:
@@ -88,7 +114,11 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             return decision
         return super().eventFilter(watched, event)
 
-    def _handle_history_key_press(self, event: QKeyEvent, key_name: str) -> bool:
+    def _handle_history_key_press(
+        self,
+        event: QKeyEvent,
+        key_name: str,
+    ) -> bool:
         if not self._history_gesture.has_guarded_bindings:
             return False
 
@@ -116,11 +146,16 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         if not self._history_gesture.undo_binding_owned:
             return
         control, _shift = self._queried_modifiers()
-        transition = self._history_gesture.layout_changed(observed_control=control)
+        transition = self._history_gesture.layout_changed(
+            observed_control=control
+        )
         self._apply_history_transition(transition)
 
     def _poll_physical_modifiers(self) -> None:
-        if not self._history_keys_are_active() or not self._history_gesture.has_guarded_bindings:
+        if (
+            not self._history_keys_are_active()
+            or not self._history_gesture.has_guarded_bindings
+        ):
             return
 
         control, shift = self._queried_modifiers()
@@ -130,7 +165,10 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         )
         self._apply_history_transition(transition)
 
-    def _apply_history_transition(self, transition: HistoryTransition) -> None:
+    def _apply_history_transition(
+        self,
+        transition: HistoryTransition,
+    ) -> None:
         if transition.stop_repeat:
             self._stop_undo_repeat()
         self._dispatch_history_actions(transition.actions)
@@ -150,10 +188,16 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     def _guarded_history_gesture_active(self) -> bool:
         return self._history_gesture.gesture_is_guarded()
 
-    def _observed_modifiers(self, event: QKeyEvent) -> tuple[bool, bool]:
+    def _observed_modifiers(
+        self,
+        event: QKeyEvent,
+    ) -> tuple[bool, bool]:
         """Return only transport observations, never core-derived latch state."""
+
         queried_control, queried_shift = self._queried_modifiers()
-        event_modifiers = HistoryModifierSnapshot.from_qt(event.modifiers())
+        event_modifiers = HistoryModifierSnapshot.from_qt(
+            event.modifiers()
+        )
         return (
             queried_control or event_modifiers.control,
             queried_shift or event_modifiers.shift,
@@ -161,7 +205,9 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
 
     @staticmethod
     def _has_extra_history_modifiers(event: QKeyEvent) -> bool:
-        return HistoryModifierSnapshot.from_qt(event.modifiers()).has_extra_history_modifiers
+        return HistoryModifierSnapshot.from_qt(
+            event.modifiers()
+        ).has_extra_history_modifiers
 
     @staticmethod
     def _queried_modifiers() -> tuple[bool, bool]:
@@ -170,10 +216,15 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
 
     @staticmethod
     def _queried_extra_history_modifiers() -> bool:
-        return HistoryModifierSnapshot.current().has_extra_history_modifiers
+        return (
+            HistoryModifierSnapshot.current()
+            .has_extra_history_modifiers
+        )
 
     def _repeat_is_allowed(self) -> bool:
-        return self._history_gesture.repeat_is_allowed(can_undo=self._state.can_undo())
+        return self._history_gesture.repeat_is_allowed(
+            can_undo=self._state.can_undo()
+        )
 
     def _arm_undo_repeat(self) -> None:
         if not self._repeat_is_allowed():
@@ -204,7 +255,11 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self._stop_undo_repeat()
         self._history_gesture.reset()
 
-    def _claims_history_override(self, event: QKeyEvent, key_name: str | None) -> bool:
+    def _claims_history_override(
+        self,
+        event: QKeyEvent,
+        key_name: str | None,
+    ) -> bool:
         if not self._history_gesture.has_guarded_bindings:
             return False
 
@@ -222,8 +277,15 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
 
     def _apply_key_binding_sequences(self) -> None:
         self._reset_history_gesture_if_ready()
-        definitions = {item.binding_id: item for item in self._key_binding_manager.definitions()}
-        for binding_id, shortcut in getattr(self, "_shortcuts", {}).items():
+        definitions = {
+            item.binding_id: item
+            for item in self._key_binding_manager.definitions()
+        }
+        for binding_id, shortcut in getattr(
+            self,
+            "_shortcuts",
+            {},
+        ).items():
             sequence_text = self._key_binding_manager.sequence(binding_id)
             sequence = QKeySequence.fromString(
                 sequence_text,
@@ -258,7 +320,8 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         if not hasattr(self, "_modifier_poll"):
             return
         self._modifier_poll.set_active(
-            self._history_gesture.has_guarded_bindings and self._history_keys_are_active()
+            self._history_gesture.has_guarded_bindings
+            and self._history_keys_are_active()
         )
 
     def _stop_modifier_polling(self) -> None:
@@ -286,9 +349,13 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
 
     def _graph_flip_is_blocked(self) -> bool:
         control, shift = self._queried_modifiers()
-        has_extra_modifiers = self._queried_extra_history_modifiers()
+        has_extra_modifiers = (
+            self._queried_extra_history_modifiers()
+        )
         guarded = control or shift or has_extra_modifiers
-        return self._history_gesture.flip_is_blocked(modifier_guarded=guarded)
+        return self._history_gesture.flip_is_blocked(
+            modifier_guarded=guarded
+        )
 
     @staticmethod
     def _history_key_name(event: QKeyEvent) -> str | None:
@@ -296,7 +363,11 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
 
     def _history_keys_are_active(self) -> bool:
         app = QApplication.instance()
-        if app is None or not self.isVisible() or not self.window().isActiveWindow():
+        if (
+            app is None
+            or not self.isVisible()
+            or not self.window().isActiveWindow()
+        ):
             return False
         if app.activeModalWidget() is not None:
             return False
