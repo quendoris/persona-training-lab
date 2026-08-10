@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -30,21 +32,25 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def _localization(app: QApplication) -> LocalizationManager:
+def _localization(
+    app: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+) -> LocalizationManager:
     manager = LocalizationManager(
         app,
         initial_locale="en-US",
         catalog_directory=CATALOGS,
     )
-    manager._prepare_qt_translator = lambda _locale: None  # type: ignore[method-assign]
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     return manager
 
 
 def test_keybindings_live_language_preserves_conflicting_draft_and_capture(
     tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _app()
-    localization = _localization(app)
+    localization = _localization(app, monkeypatch)
     manager = KeyBindingManager(storage_path=tmp_path / "key_bindings.json")
     screen = KeyBindingsScreen(manager, localization)
 
@@ -98,9 +104,10 @@ def test_keybindings_live_language_preserves_conflicting_draft_and_capture(
 
 def test_keybinding_dialogs_switch_language_without_losing_values(
     tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _app()
-    localization = _localization(app)
+    localization = _localization(app, monkeypatch)
 
     shortcut = _ShortcutCaptureDialog(
         "keybindings.binding.history_toggle.title",
@@ -142,9 +149,10 @@ def test_keybinding_dialogs_switch_language_without_losing_values(
 
 def test_keybinding_storage_errors_are_semantic_and_render_per_locale(
     tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _app()
-    localization = _localization(app)
+    localization = _localization(app, monkeypatch)
     path = tmp_path / "key_bindings.json"
     path.write_text("{not-json", encoding="utf-8")
 
