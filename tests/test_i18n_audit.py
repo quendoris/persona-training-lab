@@ -212,6 +212,22 @@ class VM:
                 snapshot_text("snapshots.quality.missing")
             ),
         )
+        hidden_dataset_validation = DatasetValidationResult(
+            "Готов к обучению",
+            1,
+            1,
+            0,
+            0,
+            (),
+        )
+        semantic_dataset_validation = DatasetValidationResult(
+            "validated",
+            1,
+            1,
+            0,
+            0,
+            (),
+        )
         hidden_metric = _compare_metric(
             "Hidden metric",
             "0",
@@ -251,6 +267,8 @@ class VM:
             hidden_timeline,
             semantic_snapshot_metric,
             semantic_snapshot_row,
+            hidden_dataset_validation,
+            semantic_dataset_validation,
             hidden_metric,
             hidden_summary,
             hidden_sample,
@@ -289,6 +307,61 @@ class VM:
 
     def validate_current_dataset(self):
         return False, "Hidden dataset validate result"
+
+
+def add_dataset_from_path():
+    hidden = {
+        "subtitle": "Generated dataset subtitle",
+        "status": "Не проверен",
+        "quality_summary": "Generated dataset quality",
+        "readiness": "Ожидает проверку",
+    }
+    semantic = {
+        "subtitle": "",
+        "status": "imported",
+        "quality_summary": "",
+        "readiness": "awaiting_validation",
+    }
+    return hidden, semantic
+
+
+def add_dataset():
+    hidden = {
+        "status": "Не проверен",
+        "quality_summary": "Generated repository quality",
+        "readiness": "Ожидает проверку",
+    }
+    semantic = {
+        "status": "imported",
+        "quality_summary": "",
+        "readiness": "awaiting_validation",
+    }
+    return hidden, semantic
+
+
+def update_dataset_validation():
+    hidden = {
+        "status": "Готов к обучению",
+        "quality_summary": "Generated validation quality",
+    }
+    semantic = {"status": "validated", "quality_summary": ""}
+    return hidden, semantic
+
+
+def _save_result():
+    hidden = {
+        "status": "Одобрен для обучения",
+        "quality_summary": "Generated approval quality",
+    }
+    semantic = {
+        "status": "approved_for_training",
+        "quality_summary": "",
+    }
+    return hidden, semantic
+
+
+def _readiness_from_status(machine):
+    return "awaiting_validation" if machine else "Ожидает проверку"
 
 
 def execute():
@@ -426,6 +499,10 @@ def start_training():
         "Hidden snapshot timeline note",
     ) in findings
     assert (
+        "DatasetValidationResult status",
+        "Готов к обучению",
+    ) in findings
+    assert (
         "add_dataset_from_path return",
         "Hidden dataset add result",
     ) in findings
@@ -450,6 +527,51 @@ def start_training():
     assert (
         "validate_current_dataset return",
         "Hidden dataset validate result",
+    ) in findings
+    assert (
+        "add_dataset_from_path persisted subtitle",
+        "Generated dataset subtitle",
+    ) in findings
+    assert (
+        "add_dataset_from_path persisted status",
+        "Не проверен",
+    ) in findings
+    assert (
+        "add_dataset_from_path persisted quality_summary",
+        "Generated dataset quality",
+    ) in findings
+    assert (
+        "add_dataset_from_path persisted readiness",
+        "Ожидает проверку",
+    ) in findings
+    assert ("add_dataset persisted status", "Не проверен") in findings
+    assert (
+        "add_dataset persisted quality_summary",
+        "Generated repository quality",
+    ) in findings
+    assert (
+        "add_dataset persisted readiness",
+        "Ожидает проверку",
+    ) in findings
+    assert (
+        "update_dataset_validation persisted status",
+        "Готов к обучению",
+    ) in findings
+    assert (
+        "update_dataset_validation persisted quality_summary",
+        "Generated validation quality",
+    ) in findings
+    assert (
+        "_save_result persisted status",
+        "Одобрен для обучения",
+    ) in findings
+    assert (
+        "_save_result persisted quality_summary",
+        "Generated approval quality",
+    ) in findings
+    assert (
+        "_readiness_from_status return",
+        "Ожидает проверку",
     ) in findings
     assert ("_compare_metric title", "Hidden metric") in findings
     assert ("_compare_metric note", "Hidden metric note") in findings
@@ -493,6 +615,10 @@ def start_training():
         "create_from_training_run persisted status",
         "ready",
     ) not in findings
+    assert not any(text == "validated" for _, text in findings)
+    assert not any(text == "imported" for _, text in findings)
+    assert not any(text == "awaiting_validation" for _, text in findings)
+    assert not any(text == "approved_for_training" for _, text in findings)
     assert not any(text == "completed" for _, text in findings)
     assert not any(text == "training_completed" for _, text in findings)
     assert not any(text == "training.header.title" for _, text in findings)
