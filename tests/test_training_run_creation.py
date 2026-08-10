@@ -133,7 +133,7 @@ def test_dataset_not_ready_configuration_error() -> None:
 
     service = _build_service(connection, _ReadyProbe())
 
-    with pytest.raises(TrainingConfigurationError, match="Сначала добавьте, проверьте и одобрите датасет"):
+    with pytest.raises(TrainingConfigurationError) as captured:
         service.create_training_run(
             title="Run B",
             profile_id="prf_001",
@@ -143,6 +143,8 @@ def test_dataset_not_ready_configuration_error() -> None:
             batch_size=8,
             learning_rate=0.0002,
         )
+    assert captured.value.code == "dataset_required"
+    assert str(captured.value) == "dataset_required"
 
 
 def test_missing_model_configuration_error() -> None:
@@ -155,7 +157,7 @@ def test_missing_model_configuration_error() -> None:
 
     service = _build_service(connection, _MissingModelProbe())
 
-    with pytest.raises(TrainingConfigurationError, match="Сначала проверьте локальную модель"):
+    with pytest.raises(TrainingConfigurationError) as captured:
         service.create_training_run(
             title="Run C",
             profile_id="prf_001",
@@ -165,6 +167,8 @@ def test_missing_model_configuration_error() -> None:
             batch_size=8,
             learning_rate=0.0002,
         )
+    assert captured.value.code == "model_required"
+    assert str(captured.value) == "model_required"
 
 
 def test_invalid_hyperparameters_validation_error() -> None:
@@ -177,7 +181,7 @@ def test_invalid_hyperparameters_validation_error() -> None:
 
     service = _build_service(connection, _ReadyProbe())
 
-    with pytest.raises(TrainingValidationError, match="гиперпараметры"):
+    with pytest.raises(TrainingValidationError) as captured:
         service.create_training_run(
             title="Run D",
             profile_id="prf_001",
@@ -187,6 +191,8 @@ def test_invalid_hyperparameters_validation_error() -> None:
             batch_size=8,
             learning_rate=0.0002,
         )
+    assert captured.value.code == "invalid_hyperparameters"
+    assert str(captured.value) == "invalid_hyperparameters"
 
 
 def test_repository_persists_created_training_run() -> None:
