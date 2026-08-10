@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from persona_training_lab.application.experiments.portrait import (
@@ -24,6 +25,7 @@ from persona_training_lab.ui.viewmodels.evaluation import (
 
 
 EvaluationTextValue = str | EvaluationText
+_RESULT_MESSAGE_CODE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
 
 @dataclass(slots=True, frozen=True)
@@ -544,10 +546,11 @@ class TestsViewModel:
     def _result_message(
         result: ExperimentRunResult,
     ) -> EvaluationTextValue:
-        if not result.message_code:
-            return result.message
+        message_code = result.message_code.strip()
+        if not _RESULT_MESSAGE_CODE_RE.fullmatch(message_code):
+            return evaluation_text("tests.message.result_unavailable")
         return evaluation_text(
-            f"tests.message.{result.message_code}",
+            f"tests.message.{message_code}",
             **dict(result.message_values),
         )
 
