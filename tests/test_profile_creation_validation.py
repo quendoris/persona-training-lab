@@ -3,8 +3,12 @@ from __future__ import annotations
 import sqlite3
 
 from persona_training_lab.application.profiles.service import ProfilesService
-from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
+from persona_training_lab.infrastructure.persistence.repositories.profiles import (
+    SQLiteProfilesRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
 
 
 def _build_service(connection: sqlite3.Connection) -> ProfilesService:
@@ -17,7 +21,7 @@ def test_create_profile_requires_structural_fields() -> None:
     create_minimal_schema(connection)
     service = _build_service(connection)
 
-    ok, message, created = service.create_profile(
+    result, created = service.create_profile(
         title="Core",
         description="Описание",
         communication_style="",
@@ -26,9 +30,9 @@ def test_create_profile_requires_structural_fields() -> None:
         notes="",
     )
 
-    assert ok is False
+    assert result.ok is False
+    assert result.code == "communication_style_required"
     assert created is None
-    assert message == "Стиль общения не должен быть пустым"
 
 
 def test_create_profile_persists_complete_profile() -> None:
@@ -38,7 +42,7 @@ def test_create_profile_persists_complete_profile() -> None:
     repo = SQLiteProfilesRepository(connection)
     service = ProfilesService(profiles_repo=repo)
 
-    ok, message, created = service.create_profile(
+    result, created = service.create_profile(
         title="Core",
         description="Описание личности",
         communication_style="Тёплый прямой стиль",
@@ -47,8 +51,8 @@ def test_create_profile_persists_complete_profile() -> None:
         notes="Заметка",
     )
 
-    assert ok is True
-    assert message == "Профиль личности создан"
+    assert result.ok is True
+    assert result.code == "created"
     assert created is not None
     rows = repo.list_profiles()
     assert len(rows) == 1
@@ -56,6 +60,7 @@ def test_create_profile_persists_complete_profile() -> None:
     assert rows[0]["communication_style"] == "Тёплый прямой стиль"
     assert rows[0]["principles"] == "Принцип 1\nПринцип 2"
     assert rows[0]["constraints"] == "Не терять ядро\nНе ломать стиль"
+    assert rows[0]["status"] == "ready"
 
 
 def test_update_profile_requires_existing_profile_and_structural_fields() -> None:
@@ -64,7 +69,7 @@ def test_update_profile_requires_existing_profile_and_structural_fields() -> Non
     create_minimal_schema(connection)
     service = _build_service(connection)
 
-    ok, message, created = service.create_profile(
+    create_result, created = service.create_profile(
         title="Core",
         description="Описание личности",
         communication_style="Стиль",
@@ -72,10 +77,10 @@ def test_update_profile_requires_existing_profile_and_structural_fields() -> Non
         constraints="Ограничение",
         notes="",
     )
-    assert ok is True
+    assert create_result.ok is True
     assert created is not None
 
-    ok, message = service.update_profile(
+    invalid_result = service.update_profile(
         profile_id=created.profile_id,
         title="Core v2",
         description="Новое описание",
@@ -85,10 +90,10 @@ def test_update_profile_requires_existing_profile_and_structural_fields() -> Non
         notes="",
     )
 
-    assert ok is False
-    assert message == "Принципы профиля не должны быть пустыми"
+    assert invalid_result.ok is False
+    assert invalid_result.code == "principles_required"
 
-    ok, message = service.update_profile(
+    update_result = service.update_profile(
         profile_id=created.profile_id,
         title="Core v2",
         description="Новое описание",
@@ -98,5 +103,5 @@ def test_update_profile_requires_existing_profile_and_structural_fields() -> Non
         notes="",
     )
 
-    assert ok is True
-    assert message == "Профиль личности обновлён"
+    assert update_result.ok is True
+    assert update_result.code == "updated"
