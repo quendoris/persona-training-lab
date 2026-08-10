@@ -13,6 +13,7 @@ from persona_training_lab.application.training.service import (
     TrainingService,
     TrainingValidationError,
 )
+from persona_training_lab.domain.training.statuses import TrainingRunStatus
 from persona_training_lab.infrastructure.persistence.repositories.datasets import SQLiteDatasetsRepository
 from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
 from persona_training_lab.infrastructure.persistence.repositories.training import SQLiteTrainingRepository
@@ -116,11 +117,13 @@ def test_successful_create_training_run() -> None:
         learning_rate=0.0002,
     )
 
-    assert created.status == "Готов к запуску"
+    assert created.status == TrainingRunStatus.READY.value
+    assert created.status_code is TrainingRunStatus.READY
     runs = service.list_training_runs()
     assert len(runs) == 1
     assert runs[0].title == "Run A"
-    assert runs[0].status == "Готов к запуску"
+    assert runs[0].status == TrainingRunStatus.READY.value
+    assert runs[0].status_code is TrainingRunStatus.READY
 
 
 def test_dataset_not_ready_configuration_error() -> None:
