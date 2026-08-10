@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from persona_training_lab.application.agents.service import AgentsService
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.infrastructure.persistence.repositories.agents import SQLiteAgentsRepository
 from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
 from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
@@ -26,9 +27,17 @@ def test_agents_connector_empty_state() -> None:
     title, subtitle = vm.header_summary()
     assert title == "Агенты"
     assert "Рабочий центр версий" in subtitle
-    assert vm.current_agent().title == "Системные роли готовы"
+
+    current = vm.current_agent()
+    assert isinstance(current.title, UserMessage)
+    assert current.title.key == "agents.overview.empty.title"
+    assert vm.agents()[0][1] == "Системные роли готовы"
     assert any(role.role_id == "version_navigator" for role in vm.roles())
-    assert vm.version_nodes()[0].title == "Base · —"
+
+    base = vm.version_nodes()[0]
+    assert isinstance(base.title, UserMessage)
+    assert base.title.key == "agents.node.title.base_model"
+    assert base.title.values["label"] == "—"
 
 
 def test_agents_connector_single_row() -> None:
