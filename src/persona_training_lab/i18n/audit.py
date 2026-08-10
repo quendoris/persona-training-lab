@@ -94,6 +94,7 @@ _STRUCTURED_TEXT_ARGUMENTS: dict[str, tuple[tuple[int, str], ...]] = {
 _PAINTER_TEXT_CALLS = {"drawText", "drawStaticText"}
 _USER_VISIBLE_KEYWORDS = {"legacy_message", "user_message"}
 _DYNAMIC_PREFIX_NAMES = {"I18N_KEY_PREFIXES"}
+_DYNAMIC_KEY_COLLECTION_SUFFIX = "_KEYS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +149,7 @@ class SourceAudit(ast.NodeVisitor):
         self._path = path
         self._known_keys = known_keys
         self._display_root = display_root
+        self._is_ui_viewmodel = _is_ui_viewmodel_path(path)
         self.translation_keys: set[str] = set()
         self.translation_prefixes: set[str] = set()
         self.literals: list[LiteralFinding] = []
@@ -196,22 +198,36 @@ class SourceAudit(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        if any(
-            _target_name(target) in _DYNAMIC_PREFIX_NAMES
-            for target in node.targets
-        ):
+        target_names = tuple(_target_name(target) for target in node.targets)
+        if any(name in _DYNAMIC_PREFIX_NAMES for name in target_names):
             self.translation_prefixes.update(
                 _constant_string_sequence(node.value)
+            )
+        if self._is_ui_viewmodel and any(
+            name.endswith(_DYNAMIC_KEY_COLLECTION_SUFFIX)
+            for name in target_names
+            if name
+        ):
+            self.translation_keys.update(
+                _dotted_string_values(node.value)
             )
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        if (
-            _target_name(node.target) in _DYNAMIC_PREFIX_NAMES
-            and node.value is not None
-        ):
+        if node.value is None:
+            self.generic_visit(node)
+            return
+        target_name = _target_name(node.target)
+        if target_name in _DYNAMIC_PREFIX_NAMES:
             self.translation_prefixes.update(
                 _constant_string_sequence(node.value)
+            )
+        if (
+            self._is_ui_viewmodel
+            and target_name.endswith(_DYNAMIC_KEY_COLLECTION_SUFFIX)
+        ):
+            self.translation_keys.update(
+                _dotted_string_values(node.value)
             )
         self.generic_visit(node)
 
@@ -428,6 +444,26 @@ def _constant_string_sequence(node: ast.expr) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _dotted_string_values(node: ast.expr) -> tuple[str, ...]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return (node.value,) if "." in node.value else ()
+    if isinstance(node, ast.Dict):
+        values: list[str] = []
+        for value in node.values:
+            values.extend(_dotted_string_values(value))
+        return tuple(values)
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        values = []
+        for item in node.elts:
+            values.extend(_dotted_string_values(item))
+        return tuple(values)
+    if isinstance(node, ast.IfExp):
+        return _dotted_string_values(node.body) + _dotted_string_values(
+            node.orelse
+        )
+    return ()
+
+
 def _constant_argument(
     node: ast.Call,
     position: int,
@@ -477,6 +513,14 @@ def _constant_string(args: list[ast.expr], index: int) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     return None
+
+
+def _is_ui_viewmodel_path(path: Path) -> bool:
+    parts = path.parts
+    for index in range(len(parts) - 1):
+        if parts[index] == "ui" and parts[index + 1] == "viewmodels":
+            return True
+    return False
 
 
 def _display_path(path: Path, root: Path | None) -> str:
