@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "fragment": "agents_graph"
+  },
+  "messages": {
+    "agents.menu.title": "Node actions"
+  }
+}
