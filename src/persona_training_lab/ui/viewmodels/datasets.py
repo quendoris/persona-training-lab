@@ -145,7 +145,6 @@ class DatasetsViewModel:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.load_failed"),
-                "Не удалось загрузить датасеты",
             )
         try:
             created = self.datasets_service.add_dataset_from_path(file_path)
@@ -154,32 +153,28 @@ class DatasetsViewModel:
                 "Файл датасета не найден": "datasets.error.file_not_found",
                 "Поддерживается только формат .jsonl": "datasets.error.only_jsonl",
             }.get(str(exc), "datasets.error.add_failed")
-            return self._set_action_result(False, dataset_text(key), str(exc))
+            return self._set_action_result(False, dataset_text(key))
         except Exception:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.add_failed"),
-                "Не удалось загрузить датасеты",
             )
         message = dataset_text("datasets.message.added", title=created.title)
-        legacy = f"Добавлен датасет: {created.title}"
-        self._set_action_result(True, message, legacy)
+        ok, legacy = self._set_action_result(True, message)
         self._apply_datasets_connector(select_dataset_id=created.dataset_id)
-        return True, legacy
+        return ok, legacy
 
     def validate_current_dataset(self) -> tuple[bool, str]:
         if self.datasets_service is None:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.validate_failed"),
-                "Не удалось проверить датасет",
             )
         dataset_id = self.current_dataset().dataset_id
         if dataset_id == "datasets_empty":
             return self._set_action_result(
                 False,
                 dataset_text("datasets.empty.registry"),
-                "Датасеты пока не добавлены",
             )
         try:
             result = self.datasets_service.validate_dataset(dataset_id)
@@ -187,7 +182,6 @@ class DatasetsViewModel:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.validate_failed"),
-                "Не удалось проверить датасет",
             )
         status = self.status_text(result.status)
         message = dataset_text(
@@ -197,31 +191,22 @@ class DatasetsViewModel:
             valid=result.valid_rows,
             invalid=result.invalid_rows,
         )
-        legacy = (
-            f"Структура: {result.status} · Записей: {result.total_rows} · "
-            f"Валидных: {result.valid_rows} · Ошибок: {result.invalid_rows}"
-        )
-        self._set_action_result(
-            result.status == "Готов к обучению",
-            message,
-            legacy,
-        )
+        is_ready = self.status_code(result.status) == "ready"
+        ok, legacy = self._set_action_result(is_ready, message)
         self._apply_datasets_connector(select_dataset_id=dataset_id)
-        return result.status == "Готов к обучению", legacy
+        return ok, legacy
 
     def approve_current_dataset(self) -> tuple[bool, str]:
         if self.datasets_service is None:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.approve_failed"),
-                "Не удалось одобрить датасет",
             )
         dataset_id = self.current_dataset().dataset_id
         if dataset_id == "datasets_empty":
             return self._set_action_result(
                 False,
                 dataset_text("datasets.empty.registry"),
-                "Датасеты пока не добавлены",
             )
         try:
             result = self.datasets_service.approve_dataset(dataset_id)
@@ -229,7 +214,6 @@ class DatasetsViewModel:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.approve_failed"),
-                "Не удалось одобрить датасет",
             )
         semantic = _dataset_action_text(
             result,
@@ -245,14 +229,12 @@ class DatasetsViewModel:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.compare_failed"),
-                "Не удалось сравнить версии",
             )
         dataset_id = self.current_dataset().dataset_id
         if dataset_id == "datasets_empty":
             return self._set_action_result(
                 False,
                 dataset_text("datasets.empty.registry"),
-                "Датасеты пока не добавлены",
             )
         try:
             result = self.datasets_service.compare_dataset_versions(dataset_id)
@@ -260,7 +242,6 @@ class DatasetsViewModel:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.compare_failed"),
-                "Не удалось сравнить версии",
             )
         self._message = _dataset_action_text(
             result,
@@ -276,8 +257,8 @@ class DatasetsViewModel:
         self,
         ok: bool,
         message: DatasetText,
-        legacy: str,
     ) -> tuple[bool, str]:
+        legacy = _base_dataset_text(message)
         self._message = message
         self._legacy_message = legacy
         return ok, legacy
