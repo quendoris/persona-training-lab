@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.runtime.operations import ResourceClaim
 from persona_training_lab.ui.agents.branch_deletion import (
     BranchDeletionCommittedError,
@@ -60,8 +61,9 @@ from persona_training_lab.ui.components.panels import (
     make_muted_label,
     make_status_label,
 )
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
-from persona_training_lab.ui.viewmodels.agents import AgentDetailView
+from persona_training_lab.ui.viewmodels.agents_contracts import AgentDetailView
 
 
 _CONTEXT_ROUTER = LineageContextRouter()
@@ -79,6 +81,7 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         key_binding_manager: KeyBindingManager | None = None,
         lineage_runtime_safety: LineageRuntimeSafety | None = None,
         lineage_refresh_coordinator: LineageRefreshCoordinator | None = None,
+        localization: LocalizationManager | None = None,
     ) -> None:
         coordinator = lineage_refresh_coordinator
         owns_coordinator = False
@@ -99,7 +102,9 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self._branch_transactions = LineageBranchTransactions(
             lineage_runtime_safety
         )
-        self._runtime_blocker_signature: tuple[tuple[str, str, str], ...] = ()
+        self._runtime_blocker_signature: tuple[
+            tuple[str, str, str], ...
+        ] = ()
         self._real_projection: LineagePresentationProjection | None = None
         self._real_projection_signature: tuple[
             tuple[str, str, str, str], ...
@@ -113,7 +118,11 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self._projection_update_planner = ProjectionUpdatePlanner()
 
         try:
-            super().__init__(view_model, key_binding_manager)
+            super().__init__(
+                view_model,
+                key_binding_manager,
+                localization,
+            )
         except Exception:
             if owns_coordinator and coordinator is not None:
                 coordinator.shutdown()
@@ -132,16 +141,20 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self._bind_projection_resources()
         self._refresh_runtime_safety(force=True)
 
-        if coordinator is None:
-            return
-        if owns_coordinator:
-            coordinator.setParent(self)
-        self._runtime_safety_timer.stop()
-        coordinator.projection_ready.connect(self._on_projection_ready)
-        coordinator.refresh_failed.connect(self._on_projection_failed)
-        last_good = coordinator.last_good
-        if last_good is not None:
-            self._on_projection_ready(last_good)
+        if coordinator is not None:
+            if owns_coordinator:
+                coordinator.setParent(self)
+            self._runtime_safety_timer.stop()
+            coordinator.projection_ready.connect(self._on_projection_ready)
+            coordinator.refresh_failed.connect(self._on_projection_failed)
+            last_good = coordinator.last_good
+            if last_good is not None:
+                self._on_projection_ready(last_good)
+
+        if localization is not None:
+            localization.language_changed.connect(
+                self._refresh_language
+            )
 
     def _build_nodes(self):
         coordinator = self._lineage_refresh_coordinator
@@ -150,11 +163,15 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         else:
             result = coordinator.last_good
             projection = (
-                result.projection if result is not None else build_empty_lineage()
+                result.projection
+                if result is not None
+                else build_empty_lineage()
             )
         self._real_projection = projection
         self._real_projection_signature = projection.signature
-        return self._state.apply(build_version_lineage(projection.nodes))
+        return self._state.apply(
+            build_version_lineage(projection.nodes)
+        )
 
     def _detail_for(self, node_id: str) -> AgentDetailView:
         projection = self._real_projection
@@ -163,21 +180,41 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             and node_id in projection.details
             and not self._state.is_custom_node(node_id)
         ):
-            return projection.details[node_id]
+            detail = projection.details[node_id]
+            return self._with_key_binding_help(
+                AgentDetailView(
+                    title=detail.title,
+                    body=detail.body,
+                    checks=detail.checks,
+                    actions=detail.actions,
+                    action_codes=(
+                        *detail.action_codes,
+                        "open_actions",
+                        "pan",
+                        "toggle",
+                        "undo",
+                    ),
+                )
+            )
         node = self._node_by_id(node_id)
         if node is not None and self._state.is_custom_node(node_id):
             return super()._detail_for(node_id)
-        return AgentDetailView(
-            "Неизвестная точка",
-            (
-                "Точка отсутствует в текущем согласованном lineage snapshot; "
-                "действия заблокированы до следующего обновления."
-            ),
-            (
-                "Проверить актуальность lineage snapshot",
-                "Дождаться согласованного обновления",
-            ),
-            (),
+        return self._with_key_binding_help(
+            AgentDetailView(
+                title=UserMessage("agents.node.kind.unknown"),
+                body=UserMessage("agents.detail.unknown.body"),
+                checks=(
+                    UserMessage("agents.detail.unknown.check.snapshot"),
+                    UserMessage("agents.detail.unknown.check.refresh"),
+                ),
+                actions=(),
+                action_codes=(
+                    "open_actions",
+                    "pan",
+                    "toggle",
+                    "undo",
+                ),
+            )
         )
 
     def _continue_from_selected(self) -> None:
@@ -270,19 +307,18 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             return
         plan = self._branch_deletion_controller.prepare(
             node_id,
-            node_title=node.title,
+            node_title=self._render_text(node.title),
             parent_id=node.parent_id or "",
             graph_current_id=self._graph.current_node_id(),
         )
         if plan is None:
             return
 
-        detail = "Ветку можно будет вернуть через защищённую историю действий."
+        detail = self._text("agents.dialog.delete.single")
         if plan.descendant_count:
-            detail = (
-                "Будет удалена эта ветка и дочерние точки: "
-                f"{plan.descendant_count}. "
-                "Удаление сохранится в защищённой истории."
+            detail = self._text(
+                "agents.dialog.delete.subtree",
+                count=plan.descendant_count,
             )
         if not self._confirm_branch_deletion(plan.node_title, detail):
             return
@@ -357,13 +393,14 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
 
         if overrides.delete_reason_code == "registered_model_version":
             self._delete_action.setToolTip(
-                "Зарегистрированные model versions удаляются только через "
-                "отдельную транзакцию хранения, не из локального lineage."
+                self._text("agents.runtime.delete_registered")
             )
         elif overrides.delete_reason_code == "active_operation":
             self._delete_action.setToolTip(
-                "Удаление временно заблокировано активной операцией: "
-                + overrides.blocker_text
+                self._text(
+                    "agents.runtime.delete_active",
+                    blocker=overrides.blocker_text,
+                )
             )
 
     def _render_detail(self, detail: AgentDetailView) -> None:
@@ -373,17 +410,17 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         )
         kind = context.get("node_kind", "")
         if kind:
-            self._detail_type_value.setText(
-                {
-                    "base_model": "Базовая модель",
-                    "dataset": "Набор данных",
-                    "training_run": "Реальный запуск обучения",
-                    "model_version": "Снимок весов / model version",
-                    "experiment": "Реальный тест / портрет",
-                    "evaluation_run": "Реальный тест / портрет",
-                    "analysis_delta": "Сравнение реальных тестов",
-                }.get(kind, self._detail_type_value.text())
-            )
+            key = {
+                "base_model": "agents.node.kind.base_model",
+                "dataset": "agents.node.kind.dataset",
+                "training_run": "agents.node.kind.training_run",
+                "model_version": "agents.node.kind.model_version",
+                "experiment": "agents.node.kind.evaluation_run",
+                "evaluation_run": "agents.node.kind.evaluation_run",
+                "analysis_delta": "agents.node.kind.analysis_delta",
+            }.get(kind)
+            if key is not None:
+                self._detail_type_value.setText(self._text(key))
         self._apply_runtime_dependency_text()
 
     def _refresh_runtime_safety(self, *, force: bool = False) -> None:
@@ -392,7 +429,11 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             if not self.isVisible() and not force:
                 return
             projection = build_lineage_projection(self._vm)
-            if force or projection.signature != self._real_projection_signature:
+            if (
+                force
+                or projection.signature
+                != self._real_projection_signature
+            ):
                 self._apply_projection(projection)
         self._refresh_runtime_blockers(force=force)
 
@@ -409,7 +450,8 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         blocker_state = self._runtime_policy.blockers_for(node_ids)
         if (
             not force
-            and blocker_state.signature == self._runtime_blocker_signature
+            and blocker_state.signature
+            == self._runtime_blocker_signature
         ):
             return
         self._runtime_blocker_signature = blocker_state.signature
@@ -446,13 +488,11 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             else (node_id,)
         )
         blocker_state = self._runtime_policy.blockers_for(node_ids)
+        base = self._detail_dependency.text().strip()
         if blocker_state.blockers:
-            base = self._detail_dependency.text().strip()
-            runtime_text = (
-                "Активная операция удерживает эту точку или её зависимость: "
-                + blocker_state.text
-                + ". Интерфейс остаётся доступен, но разрушительные действия "
-                "временно отключены."
+            runtime_text = self._text(
+                "agents.runtime.blocker_detail",
+                blocker=blocker_state.text,
             )
             self._detail_dependency.setText(
                 f"{base}\n\n{runtime_text}" if base else runtime_text
@@ -461,28 +501,46 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
 
         links = self._runtime_policy.linked_resources(node_id)
         if links:
-            base = self._detail_dependency.text().strip()
             linked = ", ".join(
                 f"{claim.resource_kind}={claim.resource_id}"
                 for claim in links
             )
+            runtime_text = self._text(
+                "agents.runtime.linked_resources",
+                resources=linked,
+            )
             self._detail_dependency.setText(
-                f"{base}\n\nСвязанные реальные ресурсы: {linked}."
+                f"{base}\n\n{runtime_text}" if base else runtime_text
             )
 
     def _show_runtime_blockers(self, blockers) -> None:
-        message = (
-            "Удаление не выполнено: точка используется активной операцией. "
-            + self._runtime_policy.text_for_blockers(blockers)
+        blocker_text = self._runtime_policy.text_for_blockers(blockers)
+        message = self._text(
+            "agents.runtime.delete_blocked",
+            blockers=blocker_text,
         )
         self._detail_dependency.setText(message)
         self._delete_action.setEnabled(False)
         self._delete_action.setToolTip(message)
+        self._set_window_status_message(
+            "agents.runtime.delete_blocked",
+            blockers=blocker_text,
+        )
+
+    def _set_window_status_message(
+        self,
+        key: str,
+        **values: object,
+    ) -> None:
         window = self.window()
         status = getattr(window, "_status", None)
+        semantic_setter = getattr(status, "set_message_key", None)
+        if callable(semantic_setter):
+            semantic_setter(key, **values)
+            return
         setter = getattr(status, "set_message", None)
         if callable(setter):
-            setter(message)
+            setter(self._text(key, **values))
 
     def _deletion_blockers(self, node_ids):
         return self._runtime_policy.blockers_for(node_ids).blockers
@@ -505,7 +563,9 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         node_id: str,
     ) -> tuple[ResourceClaim, ...]:
         projection = self._real_projection
-        resources = {} if projection is None else projection.resources
+        resources = (
+            {} if projection is None else projection.resources
+        )
         return self._runtime_policy.claims_for_node(
             node_id,
             is_custom=self._state.is_custom_node(node_id),
@@ -523,23 +583,26 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         context = _CONTEXT_ROUTER.node_context(
             node_id,
             base_context=self._node_context(node_id),
-            node_title="" if node is None else node.title,
-            node_status="" if node is None else node.status,
+            node_title=(
+                "" if node is None else self._render_text(node.title)
+            ),
+            node_status=(
+                "" if node is None else self._render_text(node.status)
+            ),
             claims=self._runtime_claims_for_node(node_id),
         )
         return dict(context)
 
     def _roles(self) -> QWidget:
-        if self._lineage_refresh_coordinator is None:
-            return super()._roles()
         content = QWidget()
         content.setProperty("transparentBg", True)
         layout = QVBoxLayout(content)
         layout.setContentsMargins(0, 0, 0, 0)
         card = PanelCard(
-            "Рабочие роли",
-            "Подсказки рассчитаны из того же атомарного lineage snapshot.",
+            self._text("agents.roles.title"),
+            self._text("agents.roles.projection_subtitle"),
         )
+        self._roles_card = card
         self._projection_roles_layout = QVBoxLayout()
         self._projection_roles_layout.setSpacing(8)
         card._layout.addLayout(self._projection_roles_layout)
@@ -569,7 +632,9 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             row_layout.addWidget(title_label)
             row_layout.addWidget(make_muted_label(mission))
             row_layout.addWidget(make_muted_label(next_action))
-            row_layout.addWidget(make_status_label(status, "pending"))
+            row_layout.addWidget(
+                make_status_label(status, "pending")
+            )
             layout.addWidget(row)
 
     def _projection_roles(
@@ -592,7 +657,9 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             context.get("node_kind") == "evaluation_run"
             for context in real_contexts
         )
-        bad_count = sum(node.tone == "bad" for node in projection.nodes)
+        bad_count = sum(
+            node.tone == "bad" for node in projection.nodes
+        )
         pending_count = sum(
             node.tone == "pending"
             and not self._is_placeholder_context(
@@ -600,10 +667,7 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             )
             for node in projection.nodes
         )
-        unresolved_count = sum(
-            "unresolved:" in node.subtitle
-            for node in projection.nodes
-        )
+        unresolved_count = self._projection_unresolved_count(projection)
         snapshot_context = contexts.get("snapshot", {})
         current_version = snapshot_context.get("model_version_id", "")
         delta_context = contexts.get("delta", {})
@@ -611,63 +675,101 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             delta_context.get("left_experiment_id")
             and delta_context.get("right_experiment_id")
         )
-        next_action = self._projection_next_action(contexts, delta_ready)
+        next_action = self._projection_next_action(
+            contexts,
+            delta_ready,
+        )
+        delta_text = self._text(
+            "agents.role.researcher.delta_ready"
+            if delta_ready
+            else "agents.role.researcher.delta_pending"
+        )
         return (
             (
-                "Версионный навигатор",
-                "Следит за причинной цепочкой model lineage.",
+                self._text("agents.role.navigator.title"),
+                self._text("agents.role.navigator.mission"),
                 next_action,
-                "главный",
+                self._text("agents.role.navigator.status"),
             ),
             (
-                "Исследователь",
-                "Сверяет реальные evaluation runs и delta.",
-                f"Портретов: {evaluation_count}; delta: "
-                + ("готова" if delta_ready else "нужен второй запуск"),
-                "анализ",
+                self._text("agents.role.researcher.title"),
+                self._text("agents.role.researcher.mission"),
+                self._text(
+                    "agents.role.researcher.next",
+                    count=evaluation_count,
+                    delta=delta_text,
+                ),
+                self._text("agents.role.researcher.status"),
             ),
             (
-                "Аудитор датасета",
-                "Проверяет состояние данных до продолжения обучения.",
-                f"Датасетов: {dataset_count}; проблемных узлов: {bad_count}.",
-                "проверка",
+                self._text("agents.role.dataset.title"),
+                self._text("agents.role.dataset.mission"),
+                self._text(
+                    "agents.role.dataset.next",
+                    datasets=dataset_count,
+                    bad=bad_count,
+                ),
+                self._text("agents.role.dataset.status"),
             ),
             (
-                "Протоколист",
-                "Не позволяет скрыть разорванные зависимости.",
-                f"Unresolved связей: {unresolved_count}; current: "
-                f"{current_version or '—'}.",
-                "протокол",
+                self._text("agents.role.protocol.title"),
+                self._text("agents.role.protocol.mission"),
+                self._text(
+                    "agents.role.protocol.next",
+                    unresolved=unresolved_count,
+                    current=current_version or "—",
+                ),
+                self._text("agents.role.protocol.status"),
             ),
             (
-                "Разметчик",
-                "Готовит corrective data по неустойчивым результатам.",
-                f"Ожидающих или partial узлов: {pending_count}.",
-                "позже",
+                self._text("agents.role.labeler.title"),
+                self._text("agents.role.labeler.mission"),
+                self._text(
+                    "agents.role.labeler.next",
+                    pending=pending_count,
+                ),
+                self._text("agents.role.labeler.status"),
             ),
         )
+
+    @staticmethod
+    def _projection_unresolved_count(
+        projection: LineagePresentationProjection,
+    ) -> int:
+        count = 0
+        for detail in projection.details.values():
+            body = detail.body
+            if not isinstance(body, UserMessage):
+                continue
+            if body.key != "agents.detail.semantic_body":
+                continue
+            unresolved = str(body.values.get("unresolved", "—"))
+            if unresolved and unresolved != "—":
+                count += len(unresolved.splitlines())
+        return count
 
     @staticmethod
     def _is_placeholder_context(context: Mapping[str, str]) -> bool:
         return context.get("node_kind", "").endswith("_placeholder")
 
-    @classmethod
     def _projection_next_action(
-        cls,
+        self,
         contexts: Mapping[str, Mapping[str, str]],
         delta_ready: bool,
     ) -> str:
-        for node_id, action in (
-            ("dataset", "Добавьте и проверьте датасет."),
-            ("training", "Создайте и завершите training run."),
-            ("snapshot", "Зарегистрируйте model version из artifact."),
-            ("portrait", "Соберите портрет текущей model version."),
+        for node_id, key in (
+            ("dataset", "agents.next.dataset"),
+            ("training", "agents.next.training"),
+            ("snapshot", "agents.next.snapshot"),
+            ("portrait", "agents.next.portrait"),
         ):
-            if cls._is_placeholder_context(contexts.get(node_id, {})):
-                return action
+            if self._is_placeholder_context(
+                contexts.get(node_id, {})
+            ):
+                return self._text(key)
         if not delta_ready:
-            return "Соберите второй сопоставимый portrait для delta."
-        return "Откройте анализ и проверьте следующую ветку."
+            return self._text("agents.next.delta")
+        return self._text("agents.next.analysis")
 
     def request_projection_refresh(self, *, force: bool = True) -> None:
         coordinator = self._lineage_refresh_coordinator
@@ -736,18 +838,27 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             failure,
             last_good_available=last_good_available,
         )
-        window = self.window()
-        status = getattr(window, "_status", None)
-        setter = getattr(status, "set_message", None)
-        if not callable(setter):
-            return
         if correlation:
-            setter(
-                "Lineage refresh не обновлён; сохранён последний "
-                f"согласованный снимок. Код события: {correlation}."
+            self._set_window_status_message(
+                "agents.refresh.failed_with_code",
+                correlation=correlation,
             )
             return
-        setter(
-            "Lineage refresh не обновлён; сохранён последний "
-            f"согласованный снимок ({failure.error_type})."
+        self._set_window_status_message(
+            "agents.refresh.failed",
+            error_type=failure.error_type,
         )
+
+    def _refresh_language(self, _locale: str = "") -> None:
+        """Refresh presentation only; never rebuild or persist lineage state."""
+
+        before_signature = self._real_projection_signature
+        selected = getattr(self, "_selected_node_id", "")
+        self._refresh_presentation_language()
+        self._refresh_projection_roles()
+        if selected:
+            self._selected_node_id = selected
+        if self._real_projection_signature != before_signature:
+            raise RuntimeError(
+                "Localization refresh must not replace lineage projection"
+            )
