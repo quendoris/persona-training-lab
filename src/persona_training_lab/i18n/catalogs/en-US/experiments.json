@@ -13,6 +13,8 @@
     "experiments.empty.status": "empty",
     "experiments.error.title": "Could not load experiments",
     "experiments.error.subtitle": "The experiment registry could not be loaded.",
-    "experiments.error.status": "error"
+    "experiments.error.status": "error",
+    "experiments.generated.title.personality_portrait": "Big Five portrait · {time}",
+    "experiments.generated.title.unknown": "Experiment"
   }
 }
