@@ -28,7 +28,10 @@ class LineagePresentationProjection:
     details: Mapping[str, AgentDetailView]
     resources: Mapping[str, tuple[ResourceClaim, ...]]
     entity_context: Mapping[str, Mapping[str, str]]
-    signature: tuple[tuple[str, str, str, str], ...]
+    signature: tuple[
+        tuple[AgentText, AgentText, AgentText, AgentText],
+        ...,
+    ]
 
 
 # Compatibility type name retained while callers migrate to the semantic name.
