@@ -83,7 +83,8 @@ class ModelVersionsService:
 
         version_id = f"mdl_{uuid4().hex[:8]}"
         title = f"{profile_title} · {training_run_id}"
-        status = "Готова"
+        status = ModelVersionStatus.READY.value
+        normalized_quality = quality_summary.strip()
         payload = {
             "id": version_id,
             "title": title,
@@ -93,10 +94,7 @@ class ModelVersionsService:
             "dataset_title": dataset_title,
             "training_run_id": training_run_id,
             "artifact_path": artifact_path,
-            "quality_summary": (
-                quality_summary
-                or "Full fine-tune artifact создан и сохранён"
-            ),
+            "quality_summary": normalized_quality,
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         }
@@ -110,6 +108,6 @@ class ModelVersionsService:
             dataset_title=dataset_title,
             training_run_id=training_run_id,
             artifact_path=artifact_path,
-            quality_summary=payload["quality_summary"],
+            quality_summary=normalized_quality,
             status_code=ModelVersionStatus.READY,
         )
