@@ -17,6 +17,15 @@ TELEMETRY_STATUS_KEYS: dict[str, str] = {
     "active": "panel.telemetry.status.active",
     "refresh_failed": "panel.telemetry.status.refresh_failed",
 }
+TELEMETRY_TEXT_KEYS: dict[str, str] = {
+    "updated_at": "panel.telemetry.updated_at",
+    "logical_cores": "panel.telemetry.logical_cores",
+    "process_row": "panel.telemetry.process_row",
+    "temperature_short": "panel.telemetry.metric.temperature.short",
+    "temperature_full": "panel.telemetry.metric.temperature.full",
+    "process_short": "panel.telemetry.metric.process.short",
+    "process_full": "panel.telemetry.metric.process.full",
+}
 
 
 def telemetry_status_key(code: str) -> str | None:
@@ -70,7 +79,7 @@ class TelemetryViewModel:
             raw=snapshot.status,
         )
         self.status_subtitle = _base_telemetry_text(
-            "panel.telemetry.updated_at",
+            TELEMETRY_TEXT_KEYS["updated_at"],
             time=snapshot.last_updated_at,
         )
         self.status_error = (
@@ -82,14 +91,14 @@ class TelemetryViewModel:
             else snapshot.error_message
         )
         self.cpu_cores_text = _base_telemetry_text(
-            "panel.telemetry.logical_cores",
+            TELEMETRY_TEXT_KEYS["logical_cores"],
             cores=snapshot.cpu_logical_cores,
         )
 
         if snapshot.processes:
             self.processes_rows = tuple(
                 _base_telemetry_text(
-                    "panel.telemetry.process_row",
+                    TELEMETRY_TEXT_KEYS["process_row"],
                     pid=item.pid,
                     name=item.name,
                     cpu=f"{item.cpu_percent:.1f}",
@@ -191,10 +200,10 @@ class TelemetryViewModel:
             ),
             TelemetryMetricView(
                 short_label=_base_telemetry_text(
-                    "panel.telemetry.metric.temperature.short"
+                    TELEMETRY_TEXT_KEYS["temperature_short"]
                 ),
                 full_label=_base_telemetry_text(
-                    "panel.telemetry.metric.temperature.full"
+                    TELEMETRY_TEXT_KEYS["temperature_full"]
                 ),
                 value_percent=temp_percent,
                 tooltip=temp_text,
@@ -202,10 +211,10 @@ class TelemetryViewModel:
             ),
             TelemetryMetricView(
                 short_label=_base_telemetry_text(
-                    "panel.telemetry.metric.process.short"
+                    TELEMETRY_TEXT_KEYS["process_short"]
                 ),
                 full_label=_base_telemetry_text(
-                    "panel.telemetry.metric.process.full"
+                    TELEMETRY_TEXT_KEYS["process_full"]
                 ),
                 value_percent=proc_value,
                 tooltip=_base_telemetry_status_text(
