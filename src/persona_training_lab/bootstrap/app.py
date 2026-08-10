@@ -6,6 +6,7 @@ import threading
 from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 
 from persona_training_lab import __version__
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.bootstrap.wiring import build_container
 from persona_training_lab.ui.density import (
     apply_density,
@@ -78,10 +79,7 @@ def _install_exception_boundaries(error_reporter) -> None:
         error_reporter.capture(
             exc,
             component="python.main_thread",
-            user_message=(
-                "Фоновая операция завершилась с ошибкой, но приложение "
-                "осталось доступно."
-            ),
+            user_message=UserMessage("error.python.main_thread"),
             entity_kind="python",
             entity_id="main_thread",
         )
@@ -96,10 +94,7 @@ def _install_exception_boundaries(error_reporter) -> None:
         error_reporter.capture(
             error,
             component="python.worker_thread",
-            user_message=(
-                "Фоновая задача остановлена безопасно; интерфейс продолжает "
-                "работать."
-            ),
+            user_message=UserMessage("error.python.worker_thread"),
             entity_kind="thread",
             entity_id=(
                 args.thread.name
