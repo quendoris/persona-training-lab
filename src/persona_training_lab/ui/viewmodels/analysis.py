@@ -37,14 +37,16 @@ TRAIT_LABELS = {
     "Openness": "O",
 }
 
+EvaluationTextValue = str | EvaluationText
+
 
 @dataclass(slots=True, frozen=True)
 class CompareMetric:
     title: str
     delta: str
     note: str
-    title_model: str | EvaluationText | None = None
-    note_model: str | EvaluationText | None = None
+    title_model: EvaluationTextValue | None = None
+    note_model: EvaluationTextValue | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -54,9 +56,10 @@ class CompareSummary:
     profile_match: str
     stability: str
     contradiction: str
-    title_model: str | EvaluationText | None = None
-    subtitle_model: str | EvaluationText | None = None
-    stability_model: str | EvaluationText | None = None
+    title_model: EvaluationTextValue | None = None
+    subtitle_model: EvaluationTextValue | None = None
+    stability_model: EvaluationTextValue | None = None
+    contradiction_model: EvaluationTextValue | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -64,9 +67,82 @@ class CompareSample:
     title: str
     left_note: str
     right_note: str
-    title_model: str | EvaluationText | None = None
-    left_models: tuple[str | EvaluationText, ...] = ()
-    right_models: tuple[str | EvaluationText, ...] = ()
+    title_model: EvaluationTextValue | None = None
+    left_models: tuple[EvaluationTextValue, ...] = ()
+    right_models: tuple[EvaluationTextValue, ...] = ()
+
+
+def _compat_text(value: EvaluationTextValue) -> str:
+    return render_base_evaluation_text(value)
+
+
+def _compare_metric(
+    title: EvaluationTextValue,
+    delta: str,
+    note: EvaluationTextValue,
+) -> CompareMetric:
+    return CompareMetric(
+        title=_compat_text(title),
+        delta=delta,
+        note=_compat_text(note),
+        title_model=title,
+        note_model=note,
+    )
+
+
+def _compare_summary(
+    title: EvaluationTextValue,
+    subtitle: EvaluationTextValue,
+    profile_match: str,
+    stability: EvaluationTextValue,
+    contradiction: EvaluationTextValue,
+) -> CompareSummary:
+    return CompareSummary(
+        title=_compat_text(title),
+        subtitle=_compat_text(subtitle),
+        profile_match=profile_match,
+        stability=_compat_text(stability),
+        contradiction=_compat_text(contradiction),
+        title_model=title,
+        subtitle_model=subtitle,
+        stability_model=stability,
+        contradiction_model=contradiction,
+    )
+
+
+def _compare_sample(
+    title: EvaluationTextValue,
+    left_models: tuple[EvaluationTextValue, ...],
+    right_models: tuple[EvaluationTextValue, ...],
+) -> CompareSample:
+    return CompareSample(
+        title=_compat_text(title),
+        left_note="\n".join(_compat_text(item) for item in left_models),
+        right_note="\n".join(_compat_text(item) for item in right_models),
+        title_model=title,
+        left_models=left_models,
+        right_models=right_models,
+    )
+
+
+def _method_summary() -> CompareSummary:
+    return _compare_summary(
+        evaluation_text("analysis.summary.method"),
+        evaluation_text("analysis.summary.method.subtitle"),
+        "1-5",
+        evaluation_text("analysis.summary.method.stability"),
+        evaluation_text("analysis.value.manual"),
+    )
+
+
+def _waiting_summary() -> CompareSummary:
+    return _compare_summary(
+        evaluation_text("analysis.summary.latest"),
+        evaluation_text("analysis.value.waiting"),
+        "—",
+        evaluation_text("analysis.value.unavailable"),
+        "—",
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -94,20 +170,8 @@ class AnalysisViewModel:
     experiments_service: ExperimentsService | None = None
     title: str = ""
     subtitle: str = ""
-    left: CompareSummary = CompareSummary(
-        "Метод",
-        "Big Five scored items",
-        "ручн.",
-        "ручн.",
-        "ручн.",
-    )
-    right: CompareSummary = CompareSummary(
-        "Последний портрет",
-        "ожидание",
-        "—",
-        "—",
-        "—",
-    )
+    left: CompareSummary = field(default_factory=_method_summary)
+    right: CompareSummary = field(default_factory=_waiting_summary)
     metrics: tuple[CompareMetric, ...] = ()
     insights: tuple[str, ...] = ()
     deltas: tuple[str, ...] = ()
@@ -116,16 +180,16 @@ class AnalysisViewModel:
     current_model_version_id: str = ""
     selected_node_id: str = ""
     current_node_id: str = ""
-    _title_model: str | EvaluationText = field(
+    _title_model: EvaluationTextValue = field(
         default_factory=lambda: evaluation_text("analysis.header.title")
     )
-    _subtitle_model: str | EvaluationText = field(
+    _subtitle_model: EvaluationTextValue = field(
         default_factory=lambda: evaluation_text(
             "analysis.header.subtitle.empty"
         )
     )
-    _insight_models: tuple[str | EvaluationText, ...] = ()
-    _delta_models: tuple[str | EvaluationText, ...] = ()
+    _insight_models: tuple[EvaluationTextValue, ...] = ()
+    _delta_models: tuple[EvaluationTextValue, ...] = ()
 
     def __post_init__(self) -> None:
         self.refresh()
@@ -279,71 +343,50 @@ class AnalysisViewModel:
         self.title = render_base_evaluation_text(self._title_model)
         self.subtitle = render_base_evaluation_text(self._subtitle_model)
         if previous_stats is not None:
-            self.left = CompareSummary(
-                "Предыдущий портрет",
-                previous_stats.title,
-                self._score_line(previous_stats.scores) or "—",
-                previous_stats.raw_status,
-                str(previous_stats.failures),
+            self.left = _compare_summary(
                 evaluation_text("analysis.summary.previous"),
                 previous_stats.title,
+                self._score_line(previous_stats.scores) or "—",
                 evaluation_status_text(
                     previous_stats.status_code,
                     previous_stats.raw_status,
                 ),
+                str(previous_stats.failures),
             )
         else:
-            self.left = CompareSummary(
-                "Метод",
-                "Big Five / IPIP-style KPI",
-                "1-5",
-                "reverse",
-                "manual",
-                evaluation_text("analysis.summary.method"),
-                evaluation_text("analysis.summary.method.subtitle"),
-                evaluation_text("analysis.summary.method.stability"),
-            )
-        self.right = CompareSummary(
-            "Последний портрет",
+            self.left = _method_summary()
+        self.right = _compare_summary(
+            evaluation_text("analysis.summary.latest"),
             latest_stats.title,
             (
                 f"{latest_stats.passed}/{latest_stats.total}"
                 if latest_stats.total
                 else "—"
             ),
-            latest_stats.raw_status,
-            str(latest_stats.failures),
-            evaluation_text("analysis.summary.latest"),
-            latest_stats.title,
             evaluation_status_text(
                 latest_stats.status_code,
                 latest_stats.raw_status,
             ),
+            str(latest_stats.failures),
         )
         self.metrics = (
-            CompareMetric(
-                "Big Five KPI",
-                score_line or "—",
-                "текущий средний балл по валидным SCORE",
+            _compare_metric(
                 evaluation_text("analysis.metric.kpi"),
+                score_line or "—",
                 evaluation_text("analysis.metric.note.kpi"),
             ),
-            CompareMetric(
-                "Дельта",
-                delta_line,
-                "latest - previous по факторам",
+            _compare_metric(
                 evaluation_text("analysis.metric.delta"),
+                delta_line,
                 evaluation_text(
                     "analysis.metric.note.delta.ready"
                     if previous_stats is not None
                     else "analysis.metric.note.delta.missing"
                 ),
             ),
-            CompareMetric(
-                "Ошибки",
-                str(latest_stats.failures),
-                "пункты без валидного SCORE",
+            _compare_metric(
                 evaluation_text("analysis.metric.errors"),
+                str(latest_stats.failures),
                 evaluation_text("analysis.metric.note.errors"),
             ),
         )
@@ -406,8 +449,8 @@ class AnalysisViewModel:
 
     @staticmethod
     def _sample_from_case(case) -> CompareSample:
-        left_models: list[str | EvaluationText] = []
-        right_models: list[str | EvaluationText] = []
+        left_models: list[EvaluationTextValue] = []
+        right_models: list[EvaluationTextValue] = []
         if case.trait:
             left_models.append(
                 evaluation_text(
@@ -465,26 +508,13 @@ class AnalysisViewModel:
                     value=case.raw_response,
                 )
             )
-        return CompareSample(
-            title=f"Пункт {case.index}",
-            left_note="\n".join(
-                (
-                    f"Фактор: {case.trait}" if case.trait else "",
-                    f"Ключ: {case.key}" if case.key else "",
-                    f"Пункт: {case.item}" if case.item else "",
-                )
-            ).strip(),
-            right_note=(
-                f"Raw: {case.score if case.score is not None else '—'}\n"
-                "Score: "
-                f"{case.adjusted_score if case.adjusted_score is not None else '—'}"
-            ),
-            title_model=evaluation_text(
+        return _compare_sample(
+            evaluation_text(
                 "analysis.sample.title",
                 index=case.index,
             ),
-            left_models=tuple(left_models),
-            right_models=tuple(right_models),
+            tuple(left_models),
+            tuple(right_models),
         )
 
     @staticmethod
@@ -525,7 +555,7 @@ class AnalysisViewModel:
         latest: PortraitStats,
         previous: PortraitStats | None,
         profile_type: str,
-    ) -> tuple[str | EvaluationText, ...]:
+    ) -> tuple[EvaluationTextValue, ...]:
         if not latest.scores:
             return (
                 evaluation_text("analysis.insight.no_scores.detect"),
@@ -581,7 +611,7 @@ class AnalysisViewModel:
     def _build_delta_models(
         latest: PortraitStats,
         previous: PortraitStats | None,
-    ) -> tuple[str | EvaluationText, ...]:
+    ) -> tuple[EvaluationTextValue, ...]:
         if previous is None or not previous.scores or not latest.scores:
             return (
                 evaluation_text("analysis.delta.need_two"),
@@ -607,14 +637,18 @@ class AnalysisViewModel:
         previous: PortraitStats | None,
     ) -> tuple[CompareSample, ...]:
         if previous is None or not previous.samples:
-            return latest.samples or (
-                CompareSample(
-                    "Ответы не найдены",
-                    "—",
-                    latest.record.raw_summary,
+            if latest.samples:
+                return latest.samples
+            right_models: tuple[EvaluationTextValue, ...] = (
+                (latest.record.raw_summary,)
+                if latest.record.raw_summary
+                else (evaluation_text("analysis.sample.empty.note"),)
+            )
+            return (
+                _compare_sample(
                     evaluation_text("analysis.sample.empty.title"),
                     (evaluation_text("analysis.value.unavailable"),),
-                    (latest.record.raw_summary,),
+                    right_models,
                 ),
             )
         compared: list[CompareSample] = []
@@ -624,20 +658,15 @@ class AnalysisViewModel:
                 left_models = left_sample.right_models or (
                     left_sample.right_note,
                 )
-                left_note = left_sample.right_note
             else:
                 left_models = (
                     evaluation_text("analysis.sample.previous_missing"),
                 )
-                left_note = "предыдущий пункт отсутствует"
             compared.append(
-                CompareSample(
-                    sample.title,
-                    left_note,
-                    sample.right_note,
-                    sample.title_model,
-                    left_models,
-                    sample.right_models,
+                _compare_sample(
+                    sample.title_model or sample.title,
+                    tuple(left_models),
+                    sample.right_models or (sample.right_note,),
                 )
             )
         return tuple(compared)
@@ -663,42 +692,23 @@ class AnalysisViewModel:
         )
         self.title = render_base_evaluation_text(self._title_model)
         self.subtitle = render_base_evaluation_text(self._subtitle_model)
-        self.left = CompareSummary(
-            "Метод",
-            "Big Five scored items",
-            "1-5",
-            "reverse",
-            "manual",
-            evaluation_text("analysis.summary.method"),
-            evaluation_text("analysis.summary.method.subtitle"),
-            evaluation_text("analysis.summary.method.stability"),
-        )
-        self.right = CompareSummary(
-            "Последний портрет",
-            "ожидание",
-            "—",
-            "—",
-            "—",
-            evaluation_text("analysis.summary.latest"),
-            evaluation_text("analysis.value.waiting"),
-            evaluation_text("analysis.value.unavailable"),
-        )
+        self.left = _method_summary()
+        self.right = _waiting_summary()
         self.metrics = self._empty_metrics()
         self._insight_models = (
             evaluation_text("analysis.insight.empty"),
         )
-        self.insights = ("Соберите портрет во вкладке «Тесты».",)
+        self.insights = tuple(
+            self._legacy_text(item) for item in self._insight_models
+        )
         self._delta_models = (
             evaluation_text("analysis.delta.need_two"),
         )
-        self.deltas = (
-            "После двух SCORE-прогонов анализ рассчитает изменение факторов.",
+        self.deltas = tuple(
+            self._legacy_text(item) for item in self._delta_models
         )
         self.samples = (
-            CompareSample(
-                "Нет данных",
-                "—",
-                "Нет сохранённых ответов",
+            _compare_sample(
                 evaluation_text("analysis.sample.empty.title"),
                 (evaluation_text("analysis.value.unavailable"),),
                 (evaluation_text("analysis.sample.empty.note"),),
@@ -714,7 +724,9 @@ class AnalysisViewModel:
         self._insight_models = (
             evaluation_text("analysis.insight.load_failed"),
         )
-        self.insights = ("Проверьте SQLite-реестр experiments.",)
+        self.insights = tuple(
+            self._legacy_text(item) for item in self._insight_models
+        )
 
     def _set_missing_pair(
         self,
@@ -738,46 +750,34 @@ class AnalysisViewModel:
         )
         self.title = render_base_evaluation_text(self._title_model)
         self.subtitle = render_base_evaluation_text(self._subtitle_model)
-        self.left = CompareSummary(
-            "Выбранная версия",
-            selected_id,
-            "—",
-            "портрет отсутствует",
-            "—",
+        self.left = _compare_summary(
             evaluation_text("analysis.summary.selected"),
             selected_id,
+            "—",
             evaluation_text("analysis.value.portrait_missing"),
+            "—",
         )
-        self.right = CompareSummary(
-            "Актуальная версия",
-            current_id,
-            "—",
-            "портрет отсутствует",
-            "—",
+        self.right = _compare_summary(
             evaluation_text("analysis.summary.current"),
             current_id,
+            "—",
             evaluation_text("analysis.value.portrait_missing"),
+            "—",
         )
         self.metrics = (
-            CompareMetric(
-                "Big Five KPI",
-                "—",
-                "нужны портреты обеих версий",
+            _compare_metric(
                 evaluation_text("analysis.metric.kpi"),
+                "—",
                 evaluation_text("analysis.metric.note.pair_required"),
             ),
-            CompareMetric(
-                "Дельта",
-                "—",
-                "сравнение не вычисляется на неполной паре",
+            _compare_metric(
                 evaluation_text("analysis.metric.delta"),
+                "—",
                 evaluation_text("analysis.metric.note.pair_incomplete"),
             ),
-            CompareMetric(
-                "Ошибки",
-                "—",
-                "Сравнение недоступно",
+            _compare_metric(
                 evaluation_text("analysis.metric.errors"),
+                "—",
                 reason,
             ),
         )
@@ -792,14 +792,11 @@ class AnalysisViewModel:
         self._delta_models = (
             evaluation_text("analysis.pair.no_substitution"),
         )
-        self.deltas = (
-            "Никакие данные другой версии не подставлены автоматически.",
+        self.deltas = tuple(
+            self._legacy_text(item) for item in self._delta_models
         )
         self.samples = (
-            CompareSample(
-                "Сравнение ожидает данные",
-                selected_id,
-                current_id,
+            _compare_sample(
                 evaluation_text("analysis.sample.pair_waiting"),
                 (selected_id,),
                 (current_id,),
@@ -809,25 +806,19 @@ class AnalysisViewModel:
     @staticmethod
     def _empty_metrics() -> tuple[CompareMetric, ...]:
         return (
-            CompareMetric(
-                "Big Five KPI",
-                "—",
-                "тесты пока не запускались",
+            _compare_metric(
                 evaluation_text("analysis.metric.kpi"),
+                "—",
                 evaluation_text("analysis.metric.note.empty"),
             ),
-            CompareMetric(
-                "Дельта",
-                "—",
-                "нужны два портрета",
+            _compare_metric(
                 evaluation_text("analysis.metric.delta"),
+                "—",
                 evaluation_text("analysis.metric.note.delta.missing"),
             ),
-            CompareMetric(
-                "Ошибки",
-                "—",
-                "тесты пока не запускались",
+            _compare_metric(
                 evaluation_text("analysis.metric.errors"),
+                "—",
                 evaluation_text("analysis.metric.note.empty"),
             ),
         )
@@ -835,7 +826,7 @@ class AnalysisViewModel:
     @staticmethod
     def _summary_model(
         record: PortraitRunRecord,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         if record.total:
             return evaluation_text(
                 "analysis.header.subtitle.summary",
@@ -867,66 +858,72 @@ class AnalysisViewModel:
         self.title = render_base_evaluation_text(self._title_model)
         self.subtitle = render_base_evaluation_text(self._subtitle_model)
 
-    def header_title_model(self) -> str | EvaluationText:
+    def header_title_model(self) -> EvaluationTextValue:
         return self._title_model
 
-    def header_subtitle_model(self) -> str | EvaluationText:
+    def header_subtitle_model(self) -> EvaluationTextValue:
         return self._subtitle_model
 
     @staticmethod
     def summary_title_model(
         summary: CompareSummary,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         return summary.title_model or summary.title
 
     @staticmethod
     def summary_subtitle_model(
         summary: CompareSummary,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         return summary.subtitle_model or summary.subtitle
 
     @staticmethod
     def summary_stability_model(
         summary: CompareSummary,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         return summary.stability_model or summary.stability
+
+    @staticmethod
+    def summary_contradiction_model(
+        summary: CompareSummary,
+    ) -> EvaluationTextValue:
+        return summary.contradiction_model or summary.contradiction
 
     @staticmethod
     def metric_title_model(
         metric: CompareMetric,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         return metric.title_model or metric.title
 
     @staticmethod
     def metric_note_model(
         metric: CompareMetric,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         return metric.note_model or metric.note
 
-    def insight_models(self) -> tuple[str | EvaluationText, ...]:
+    def insight_models(self) -> tuple[EvaluationTextValue, ...]:
         return self._insight_models
 
-    def delta_models(self) -> tuple[str | EvaluationText, ...]:
+    def delta_models(self) -> tuple[EvaluationTextValue, ...]:
         return self._delta_models
 
     @staticmethod
     def sample_title_model(
         sample: CompareSample,
-    ) -> str | EvaluationText:
+    ) -> EvaluationTextValue:
         return sample.title_model or sample.title
 
     @staticmethod
     def sample_left_models(
         sample: CompareSample,
-    ) -> tuple[str | EvaluationText, ...]:
+    ) -> tuple[EvaluationTextValue, ...]:
         return sample.left_models or (sample.left_note,)
 
     @staticmethod
     def sample_right_models(
         sample: CompareSample,
-    ) -> tuple[str | EvaluationText, ...]:
+    ) -> tuple[EvaluationTextValue, ...]:
         return sample.right_models or (sample.right_note,)
 
     @staticmethod
-    def _legacy_text(value: str | EvaluationText) -> str:
+    def _legacy_text(value: EvaluationTextValue) -> str:
         return render_base_evaluation_text(value)
