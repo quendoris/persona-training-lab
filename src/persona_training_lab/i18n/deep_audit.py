@@ -30,6 +30,18 @@ _USER_RESULT_FUNCTIONS = frozenset(
         "start_full_finetune_run",
     }
 )
+_OPAQUE_VALIDATED_CALLS = frozenset(
+    {
+        "ActionResult",
+        "UserMessage",
+        "DatasetText",
+        "dataset_text",
+        "TrainingText",
+        "training_text",
+        "EvaluationText",
+        "evaluation_text",
+    }
+)
 
 
 class DeepSurfaceAudit(ast.NodeVisitor):
@@ -40,6 +52,11 @@ class DeepSurfaceAudit(ast.NodeVisitor):
     compatibility surfaces where text can still reach the UI without appearing
     in a QWidget call: application result objects, typed user-facing errors,
     and legacy public fields on UI view models.
+
+    Semantic text constructors are opaque here because the ordinary audit
+    validates their keys against complete catalogs. ``ActionResult`` is opaque
+    because its application contract independently enforces lower-snake-case
+    machine codes rather than human-readable messages.
     """
 
     def __init__(
@@ -270,6 +287,8 @@ def _string_fragments(node: ast.expr) -> tuple[str, ...]:
             fragments.extend(_string_fragments(value))
         return tuple(fragments)
     if isinstance(node, ast.Call):
+        if _call_name(node.func) in _OPAQUE_VALIDATED_CALLS:
+            return ()
         fragments: list[str] = []
         for argument in node.args:
             fragments.extend(_string_fragments(argument))
