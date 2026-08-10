@@ -15,14 +15,11 @@ from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.ports.event_log import EventLogPort, EventRecord
 
 
-UserMessageLike = UserMessage | str
-
-
 @dataclass(slots=True, frozen=True)
 class ReportedError:
     error_id: str
     correlation_id: str
-    user_message: UserMessageLike
+    user_message: UserMessage
 
 
 class ApplicationErrorReporter:
@@ -51,7 +48,7 @@ class ApplicationErrorReporter:
         error: BaseException,
         *,
         component: str,
-        user_message: UserMessageLike,
+        user_message: UserMessage,
         entity_kind: str = "application",
         entity_id: str = "",
         operation_id: str = "",
