@@ -42,6 +42,7 @@ QUICK_TESTS = (
     "tests/test_model_versions_connector.py",
     "tests/test_model_version_statuses.py",
     "tests/test_snapshots_i18n.py",
+    "tests/test_style_i18n.py",
     "tests/test_personality_battery_loader.py",
     "tests/test_experiments_connector.py",
     "tests/test_experiments_selected_model.py",
