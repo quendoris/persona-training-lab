@@ -338,11 +338,11 @@ class DatasetsService:
                         user_text = content
                     if role == "assistant":
                         assistant_text = content
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text or "messages"), "messages", "structure_ok")
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text), "messages", "structure_ok")
         if "instruction" in payload or "output" in payload:
             instruction = str(payload.get("instruction", "")).strip()
             input_text = str(payload.get("input", "")).strip()
-            summary = instruction if not input_text else f"{instruction} · input: {input_text}"
+            summary = instruction if not input_text else f"{instruction} · {input_text}"
             return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "structure_ok")
         prompt = str(payload.get("prompt", "")).strip()
         return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "structure_ok")
