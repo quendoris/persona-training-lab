@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "agents_graph"
+  },
+  "messages": {
+    "agents.menu.title": "Действия точки"
+  }
+}
