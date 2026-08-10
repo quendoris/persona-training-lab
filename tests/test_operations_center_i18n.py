@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from persona_training_lab.application.telemetry.service import (
     TelemetryProcessRow,
     TelemetrySnapshot,
 )
+from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.panels.activity_panel import ActivityPanel
 from persona_training_lab.ui.panels.inspector_panel import (
@@ -137,6 +139,7 @@ def test_activity_and_issues_empty_states_switch_without_rebuild(
 
 def test_semantic_operation_row_switches_language(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     app = _app()
     manager = _manager(app)
@@ -179,6 +182,76 @@ def test_semantic_operation_row_switches_language(
 
     panel.deleteLater()
     app.processEvents()
+
+    source = """
+def _operation_label(kind):
+    return "Обучение"
+
+
+def _state_label(state):
+    return "выполняется"
+
+
+def _operation_target(kind):
+    return {
+        "training": (
+            "training",
+            "Запустить",
+            "focus.training.start",
+        ),
+    }.get(kind, ("dashboard", "", ""))
+
+
+def _event_target(event, payload):
+    return "tests", "Собрать портрет", "focus.tests.build_portrait"
+
+
+def build_item():
+    return OperationsCenterItem(
+        item_id="operation:1",
+        title="Generated operation title",
+        summary="Generated operation summary",
+        status="готов",
+        severity="active",
+        occurred_at="2026-08-06T10:00:00Z",
+        target_screen="training",
+        focus_text="Запустить",
+        operation_kind="training",
+        operation_state="running",
+        operation_subject="trn-1",
+        focus_key="focus.training.start",
+    )
+"""
+    path = tmp_path / "application" / "operations_center" / "service.py"
+    path.parent.mkdir(parents=True)
+    visitor = DeepSurfaceAudit(path, display_root=tmp_path)
+    visitor.visit(ast.parse(source, filename=str(path)))
+    findings = {(item.call, item.text) for item in visitor.literals}
+
+    assert (
+        "forbidden operations presentation helper",
+        "_operation_label",
+    ) in findings
+    assert (
+        "forbidden operations presentation helper",
+        "_state_label",
+    ) in findings
+    assert ("_operation_target mapping", "Запустить") in findings
+    assert ("_event_target return", "Собрать портрет") in findings
+    assert (
+        "OperationsCenterItem title",
+        "Generated operation title",
+    ) in findings
+    assert (
+        "OperationsCenterItem summary",
+        "Generated operation summary",
+    ) in findings
+    assert ("OperationsCenterItem status", "готов") in findings
+    assert ("OperationsCenterItem focus_text", "Запустить") in findings
+    assert not any(text == "training" for _, text in findings)
+    assert not any(text == "running" for _, text in findings)
+    assert not any(text == "active" for _, text in findings)
+    assert not any(text == "focus.training.start" for _, text in findings)
 
 
 def test_inspector_context_and_runtime_switch_language(
