@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.ports.repositories import DatasetsReadRepositoryPort
 
 
@@ -91,21 +92,21 @@ class DatasetsService:
         self._save_result(dataset_id, result, approve=False)
         return result
 
-    def approve_dataset(self, dataset_id: str) -> tuple[bool, str]:
+    def approve_dataset(self, dataset_id: str) -> ActionResult:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
             raise ValueError("Датасет не найден")
         result = self._validate_jsonl_path(str(row.get("path", "")))
         if result.status != "Готов к обучению":
             self._save_result(dataset_id, result, approve=False)
-            return False, "Нельзя одобрить: сначала исправьте структурные ошибки JSONL"
+            return ActionResult(False, "approval_blocked")
         self._save_result(dataset_id, result, approve=True)
-        return True, "Датасет одобрен для обучения: структура валидна, смысл утверждён автором"
+        return ActionResult(True, "approved")
 
-    def compare_dataset_versions(self, dataset_id: str) -> tuple[bool, str]:
+    def compare_dataset_versions(self, dataset_id: str) -> ActionResult:
         if self.datasets_repo.get_dataset(dataset_id) is None:
-            return False, "Датасет не найден"
-        return False, "Сравнение версий появится после поддержки нескольких версий одного датасета"
+            return ActionResult(False, "not_found")
+        return ActionResult(False, "version_compare_unavailable")
 
     def preview_dataset(self, dataset_id: str, limit: int = 25) -> tuple[DatasetPreviewRecord, ...]:
         row = self.datasets_repo.get_dataset(dataset_id)
