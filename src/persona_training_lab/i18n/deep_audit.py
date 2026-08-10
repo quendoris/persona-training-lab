@@ -71,8 +71,17 @@ _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "DatasetDiagnostic": ((0, "code"),),
     "dataset_diagnostic": ((0, "code"),),
     "DatasetPreviewRecord": ((3, "quality"),),
+    "DatasetServiceError": ((0, "code"),),
     "DatasetValidationResult": ((0, "status"),),
 }
+_MACHINE_CODE_CLASSES = frozenset({"DatasetServiceErrorCode"})
+_TYPED_DATASET_ERROR_FUNCTIONS = frozenset(
+    {
+        "add_dataset_from_path",
+        "approve_dataset",
+        "validate_dataset",
+    }
+)
 _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
     {
         "title",
@@ -152,6 +161,7 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
         "DatasetDiagnostic",
         "dataset_diagnostic",
         "encode_dataset_diagnostic",
+        "DatasetServiceError",
         "DatasetText",
         "dataset_text",
         "TrainingText",
@@ -219,6 +229,21 @@ class DeepSurfaceAudit(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     self._assignments[-1][target.id] = fragments
+        if (
+            self._class_stack
+            and not self._function_stack
+            and self._class_stack[-1] in _MACHINE_CODE_CLASSES
+        ):
+            machine_fragments = tuple(
+                fragment
+                for fragment in fragments
+                if not _looks_machine_code(fragment)
+            )
+            self._append_fragments(
+                node,
+                f"{self._class_stack[-1]} code",
+                machine_fragments,
+            )
         if self._is_ui_viewmodel:
             for target in node.targets:
                 attribute = _self_attribute_name(target)
@@ -248,6 +273,21 @@ class DeepSurfaceAudit(ast.NodeVisitor):
         fragments = _string_fragments(node.value)
         if self._assignments and fragments and isinstance(node.target, ast.Name):
             self._assignments[-1][node.target.id] = fragments
+        if (
+            self._class_stack
+            and not self._function_stack
+            and self._class_stack[-1] in _MACHINE_CODE_CLASSES
+        ):
+            machine_fragments = tuple(
+                fragment
+                for fragment in fragments
+                if not _looks_machine_code(fragment)
+            )
+            self._append_fragments(
+                node,
+                f"{self._class_stack[-1]} code",
+                machine_fragments,
+            )
         if self._is_ui_viewmodel:
             attribute = _self_attribute_name(node.target)
             if attribute in _UI_VIEWMODEL_TEXT_ATTRIBUTES:
@@ -351,6 +391,26 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                     f"{call_name} {keyword}",
                     fragments,
                 )
+        self.generic_visit(node)
+
+    def visit_Raise(self, node: ast.Raise) -> None:
+        function_name = self._function_stack[-1] if self._function_stack else ""
+        if (
+            node.exc is not None
+            and function_name in _TYPED_DATASET_ERROR_FUNCTIONS
+            and not (
+                isinstance(node.exc, ast.Call)
+                and _call_name(node.exc.func) == "DatasetServiceError"
+            )
+        ):
+            self.literals.append(
+                LiteralFinding(
+                    path=_display_path(self._path, self._display_root),
+                    line=getattr(node, "lineno", 0),
+                    call=f"{function_name} exception protocol",
+                    text=_exception_expression_name(node.exc),
+                )
+            )
         self.generic_visit(node)
 
     def visit_Return(self, node: ast.Return) -> None:
@@ -474,6 +534,14 @@ def _call_name(node: ast.expr) -> str:
     if isinstance(node, ast.Attribute):
         return node.attr
     return ""
+
+
+def _exception_expression_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Call):
+        return _call_name(node.func) or type(node.func).__name__
+    if isinstance(node, ast.Name):
+        return node.id
+    return type(node).__name__
 
 
 def _argument_expression(
