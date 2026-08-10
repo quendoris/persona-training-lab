@@ -257,6 +257,15 @@ class VM:
             semantic_metric,
         )
 
+    def add_dataset_from_path(self):
+        return False, "Hidden dataset add result"
+
+    def approve_current_dataset(self):
+        return False, "Hidden dataset approve result"
+
+    def compare_current_versions(self):
+        return False, "Hidden dataset compare result"
+
     def header_summary(self):
         return (
             _base_dataset_text(dataset_text("datasets.header.summary")),
@@ -277,6 +286,9 @@ class VM:
                 "Hidden dataset summary value",
             )
         ]
+
+    def validate_current_dataset(self):
+        return False, "Hidden dataset validate result"
 
 
 def execute():
@@ -414,6 +426,18 @@ def start_training():
         "Hidden snapshot timeline note",
     ) in findings
     assert (
+        "add_dataset_from_path return",
+        "Hidden dataset add result",
+    ) in findings
+    assert (
+        "approve_current_dataset return",
+        "Hidden dataset approve result",
+    ) in findings
+    assert (
+        "compare_current_versions return",
+        "Hidden dataset compare result",
+    ) in findings
+    assert (
         "header_summary return",
         "Hidden dataset header summary",
     ) in findings
@@ -422,6 +446,10 @@ def start_training():
     assert (
         "right_summary return",
         "Hidden dataset summary value",
+    ) in findings
+    assert (
+        "validate_current_dataset return",
+        "Hidden dataset validate result",
     ) in findings
     assert ("_compare_metric title", "Hidden metric") in findings
     assert ("_compare_metric note", "Hidden metric note") in findings
