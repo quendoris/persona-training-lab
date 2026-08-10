@@ -106,3 +106,31 @@ Open-source publication does not remove the need for least-privilege access
 during development: unpublished state, credentials, local files, unrelated
 repositories and intermediate research may still be sensitive even when the
 final source will eventually be public.
+
+## 7. Licensing, provenance and release integrity are distinct concerns
+
+File-level license and copyright notices are part of the final legal hardening
+pass. Commentable project files should carry concise machine-readable license
+metadata and provenance information, while canonical full license texts remain
+in repository-level license files. Files that cannot safely carry comments may
+use an adjacent or repository-level metadata mechanism.
+
+The final release may additionally contain a generated provenance manifest with
+a stable file identifier, path and cryptographic digest for every covered file.
+That manifest is evidence for the exact composition and provenance of a release;
+it is not the source of the software license and it is not an application
+runtime trust root.
+
+Provenance manifests, file identifiers and release checksums are introduced only
+after the foundation, final audit and adversarial/stress-test repair cycle have
+stabilized the file set. Creating them earlier would turn routine foundation
+changes into meaningless integrity churn and encourage treating provisional
+artifacts as canonical.
+
+Release tooling and CI may verify license metadata and provenance manifests for
+an official release. The application itself must not refuse to start, disable
+features, or otherwise punish a user merely because files were modified, added,
+reformatted or do not match the official release manifest. Local forks,
+experiments, plugins and personal modifications are legitimate open-source use
+cases. Integrity evidence exists to identify an official release and detect
+unexpected drift, not to create removable DRM around a modifiable program.
