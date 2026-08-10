@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.ui.agents.lineage import build_version_lineage
 from persona_training_lab.ui.viewmodels.agents import VersionNodeView
 
@@ -21,7 +22,9 @@ def test_pending_delta_becomes_side_branch_from_snapshot() -> None:
     assert lineage["delta"].parent_id == "snapshot"
     assert lineage["delta"].branch_note == "side"
     assert lineage["delta"].tone == "pending"
-    assert lineage["delta"].title == "Version · pending branch"
+    title = lineage["delta"].title
+    assert isinstance(title, UserMessage)
+    assert title.key == "agents.node.pending_delta.title"
 
 
 def test_ready_delta_stays_on_mainline_after_portrait() -> None:
