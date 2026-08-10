@@ -19,7 +19,10 @@ from persona_training_lab.infrastructure.persistence.sqlite.schema import (
     create_minimal_schema,
 )
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
-from persona_training_lab.ui.viewmodels.evaluation import EvaluationText
+from persona_training_lab.ui.viewmodels.evaluation import (
+    EvaluationText,
+    render_base_evaluation_text,
+)
 
 
 def _build_analysis_service(
@@ -65,6 +68,13 @@ def _portrait_subtitle(
     )
 
 
+def _assert_header_is_base_projection(vm: AnalysisViewModel) -> None:
+    assert vm.title == render_base_evaluation_text(vm.header_title_model())
+    assert vm.subtitle == render_base_evaluation_text(
+        vm.header_subtitle_model()
+    )
+
+
 def test_analysis_connector_empty_state() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
@@ -75,10 +85,12 @@ def test_analysis_connector_empty_state() -> None:
 
     vm = AnalysisViewModel(experiments_service=service)
 
-    assert vm.title == "Анализ"
-    assert vm.subtitle == "Нет результатов тестов для анализа"
+    _assert_header_is_base_projection(vm)
     assert vm.header_title_model() == EvaluationText(
         "analysis.header.title"
+    )
+    assert vm.header_subtitle_model() == EvaluationText(
+        "analysis.header.subtitle.empty"
     )
     assert vm.metrics[0].title == "Big Five KPI"
     assert vm.metric_note_model(vm.metrics[0]) == EvaluationText(
@@ -114,8 +126,12 @@ def test_analysis_connector_single_row() -> None:
 
     vm = AnalysisViewModel(experiments_service=service)
 
-    assert vm.title == "Анализ · Big Five portrait · 2026-04-26 16:00"
-    assert vm.subtitle == "PORTRAIT: 10/10 Big Five items · snapshot_a"
+    _assert_header_is_base_projection(vm)
+    assert vm.header_title_model() == EvaluationText(
+        "analysis.header.title.run",
+        {"title": "Big Five portrait · 2026-04-26 16:00"},
+    )
+    assert isinstance(vm.header_subtitle_model(), EvaluationText)
     assert vm.right.profile_match == "10/10"
     assert vm.metrics[0].title == "Big Five KPI"
     assert "E=4.00" in vm.metrics[0].delta
@@ -160,7 +176,7 @@ def test_analysis_compares_latest_with_previous_portrait() -> None:
         experiments_service=_build_experiments_service(connection)
     )
 
-    assert vm.title == "Анализ · Big Five portrait · new"
+    _assert_header_is_base_projection(vm)
     assert vm.left.title == "Предыдущий портрет"
     assert vm.left.subtitle == "Big Five portrait · old"
     assert vm.metrics[1].title == "Дельта"
@@ -237,7 +253,7 @@ def test_analysis_legacy_repository_fallback_title() -> None:
         analysis_service=_build_analysis_service(connection)
     )
 
-    assert vm.title == "Анализ · anl_001"
+    _assert_header_is_base_projection(vm)
     assert vm.subtitle == "Сравнение snapshot-версий на основе реестра"
     assert vm.header_title_model() == EvaluationText(
         "analysis.header.title.result",
