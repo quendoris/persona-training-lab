@@ -240,7 +240,9 @@ class AnalysisScreen(QWidget):
             ),
             (
                 self._text("analysis.summary.metric.contradictions"),
-                summary.contradiction,
+                self._render(
+                    self._vm.summary_contradiction_model(summary)
+                ),
             ),
         )
         for key, value in rows:
