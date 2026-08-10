@@ -140,17 +140,18 @@ class ExperimentRunResult:
 
 def experiment_result(
     ok: bool,
-    message: str,
+    message: str | None = None,
     *,
     experiment_id: str = "",
     message_code: str = "",
     **values: object,
 ) -> ExperimentRunResult:
+    stable_code = message_code.strip() or (message or "unknown").strip()
     return ExperimentRunResult(
         ok=ok,
-        message=message,
+        message=message if message is not None else stable_code,
         experiment_id=experiment_id,
-        message_code=message_code,
+        message_code=stable_code,
         message_values=MappingProxyType(dict(values)),
     )
 
@@ -194,7 +195,6 @@ class ExperimentsService:
         if self.local_model_service is None:
             return experiment_result(
                 False,
-                "Локальная модель не подключена",
                 message_code="local_model_unavailable",
             )
 
@@ -210,7 +210,6 @@ class ExperimentsService:
         if model_version_id and selected_version is None:
             return experiment_result(
                 False,
-                f"Версия модели не найдена: {model_version_id}",
                 message_code="model_version_not_found",
                 model_version_id=model_version_id,
             )
@@ -230,12 +229,6 @@ class ExperimentsService:
         ):
             return experiment_result(
                 False,
-                (
-                    "Выбранные веса недоступны: "
-                    if selected_version is not None
-                    else ""
-                )
-                + model_probe.details,
                 message_code=(
                     "selected_weights_unavailable"
                     if selected_version is not None
@@ -251,7 +244,6 @@ class ExperimentsService:
                 error,
                 component="experiments.load_battery",
                 user_message=UserMessage("error.experiments.battery_load"),
-                legacy_message="Не удалось загрузить батарею тестов",
                 message_code="battery_load_failed",
             )
 
@@ -264,13 +256,9 @@ class ExperimentsService:
                 model_path,
             )
         except OperationConflictError as conflict:
-            message = (
-                "Портрет временно не запущен: выбранная модель или локальный "
-                "inference-ресурс уже используется"
-            )
             if self.error_reporter is not None:
                 self.error_reporter.report_message(
-                    message,
+                    "experiments.resource_busy",
                     component="experiments.start_portrait",
                     level="WARNING",
                     entity_kind="experiment",
@@ -286,7 +274,6 @@ class ExperimentsService:
                 )
             return experiment_result(
                 False,
-                message,
                 message_code="resource_busy",
             )
 
@@ -303,14 +290,10 @@ class ExperimentsService:
                 if result.ok:
                     lease.succeed()
                 else:
-                    lease.fail(result.message)
+                    lease.fail(result.message_code)
             return result
         except Exception as error:
             report = None
-            legacy_message = (
-                "Тест остановлен безопасно. Остальные части интерфейса "
-                "продолжают работать."
-            )
             if self.error_reporter is not None:
                 report = self.error_reporter.capture(
                     error,
@@ -332,21 +315,19 @@ class ExperimentsService:
                         "battery_resource": self.battery_resource,
                     },
                 )
-            message = legacy_message
             error_id = report.error_id if report is not None else ""
-            if error_id:
-                message += f" Код: {error_id}."
             if lease is not None:
-                lease.fail(message)
+                lease.fail(
+                    "safe_stop" if not error_id else f"safe_stop:{error_id}"
+                )
             return experiment_result(
                 False,
-                message,
                 message_code="safe_stop",
                 error_id=error_id,
             )
         finally:
             if lease is not None and not lease.closed:
-                lease.fail("Operation ended without a terminal status")
+                lease.fail("operation_without_terminal_status")
 
     @staticmethod
     def _select_model_version(versions, model_version_id: str | None):
@@ -488,7 +469,6 @@ class ExperimentsService:
         if creator is None:
             return experiment_result(
                 False,
-                "Хранилище тестов не поддерживает запись",
                 message_code="storage_read_only",
             )
         creator(
@@ -503,18 +483,8 @@ class ExperimentsService:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        legacy_status = (
-            "Портрет собран"
-            if status_code is EvaluationRunStatus.COMPLETED
-            else "Есть ошибки"
-        )
         return experiment_result(
             status_code is EvaluationRunStatus.COMPLETED,
-            (
-                f"Психологический портрет {version_id}: {legacy_status}"
-                if version_id
-                else f"Психологический портрет: {legacy_status}"
-            ),
             experiment_id=experiment_id,
             message_code=(
                 "portrait_completed"
@@ -532,13 +502,11 @@ class ExperimentsService:
         *,
         component: str,
         user_message: UserMessage,
-        legacy_message: str,
         message_code: str,
     ) -> ExperimentRunResult:
         if self.error_reporter is None:
             return experiment_result(
                 False,
-                legacy_message,
                 message_code=message_code,
             )
         report = self.error_reporter.capture(
@@ -550,7 +518,6 @@ class ExperimentsService:
         )
         return experiment_result(
             False,
-            f"{legacy_message}. Код: {report.error_id}.",
             message_code=message_code,
             error_id=report.error_id,
         )
