@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from persona_training_lab.application.ports.repositories import ProfilesReadRepositoryPort, ProfilesWriteRepositoryPort
+from persona_training_lab.application.messages import ActionResult
+from persona_training_lab.application.ports.repositories import (
+    ProfilesReadRepositoryPort,
+    ProfilesWriteRepositoryPort,
+)
+from persona_training_lab.domain.persona.statuses import ProfileStatus
 
 
 @dataclass(slots=True, frozen=True)
@@ -50,16 +55,16 @@ class ProfilesService:
         principles: str,
         constraints: str,
         notes: str,
-    ) -> tuple[bool, str, ProfileSummary | None]:
-        valid, message = self._validate_inputs(
+    ) -> tuple[ActionResult, ProfileSummary | None]:
+        validation = self._validate_inputs(
             title=title,
             description=description,
             communication_style=communication_style,
             principles=principles,
             constraints=constraints,
         )
-        if not valid:
-            return False, message, None
+        if not validation.ok:
+            return validation, None
 
         now = datetime.now(timezone.utc).isoformat()
         profile_id = f"prf_{uuid4().hex[:8]}"
@@ -68,21 +73,24 @@ class ProfilesService:
             "title": self._normalize_text(title, 120),
             "subtitle": self._normalize_text(description, 180),
             "description": self._normalize_text(description, 2000),
-            "communication_style": self._normalize_text(communication_style, 2000),
+            "communication_style": self._normalize_text(
+                communication_style,
+                2000,
+            ),
             "principles": self._normalize_text(principles, 3000),
             "constraints": self._normalize_text(constraints, 3000),
             "notes": self._normalize_text(notes, 3000),
-            "status": "готов",
+            "status": ProfileStatus.READY.value,
             "created_at": now,
             "updated_at": now,
         }
         try:
             create_method = getattr(self.profiles_repo, "create_profile", None)
             if create_method is None:
-                return False, "Не удалось сохранить профиль личности", None
+                return ActionResult(False, "save_failed"), None
             create_method(payload)
         except Exception:
-            return False, "Не удалось сохранить профиль личности", None
+            return ActionResult(False, "save_failed"), None
 
         created = ProfileSummary(
             profile_id=payload["id"],
@@ -95,7 +103,7 @@ class ProfilesService:
             notes=payload["notes"],
             status=payload["status"],
         )
-        return True, "Профиль личности создан", created
+        return ActionResult(True, "created"), created
 
     def update_profile(
         self,
@@ -107,41 +115,44 @@ class ProfilesService:
         principles: str,
         constraints: str,
         notes: str,
-    ) -> tuple[bool, str]:
-        valid, message = self._validate_inputs(
+    ) -> ActionResult:
+        validation = self._validate_inputs(
             title=title,
             description=description,
             communication_style=communication_style,
             principles=principles,
             constraints=constraints,
         )
-        if not valid:
-            return False, message
+        if not validation.ok:
+            return validation
         if not profile_id.strip():
-            return False, "Не удалось сохранить профиль личности"
+            return ActionResult(False, "save_failed")
 
         payload = {
             "title": self._normalize_text(title, 120),
             "subtitle": self._normalize_text(description, 180),
             "description": self._normalize_text(description, 2000),
-            "communication_style": self._normalize_text(communication_style, 2000),
+            "communication_style": self._normalize_text(
+                communication_style,
+                2000,
+            ),
             "principles": self._normalize_text(principles, 3000),
             "constraints": self._normalize_text(constraints, 3000),
             "notes": self._normalize_text(notes, 3000),
-            "status": "готов",
+            "status": ProfileStatus.READY.value,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         try:
             update_method = getattr(self.profiles_repo, "update_profile", None)
             if update_method is None:
-                return False, "Не удалось сохранить профиль личности"
+                return ActionResult(False, "save_failed")
             updated = bool(update_method(profile_id, payload))
         except Exception:
-            return False, "Не удалось сохранить профиль личности"
+            return ActionResult(False, "save_failed")
 
         if not updated:
-            return False, "Не удалось сохранить профиль личности"
-        return True, "Профиль личности обновлён"
+            return ActionResult(False, "save_failed")
+        return ActionResult(True, "updated")
 
     def _validate_inputs(
         self,
@@ -151,18 +162,18 @@ class ProfilesService:
         communication_style: str,
         principles: str,
         constraints: str,
-    ) -> tuple[bool, str]:
+    ) -> ActionResult:
         required_fields = (
-            (title, "Название профиля не должно быть пустым"),
-            (description, "Описание личности не должно быть пустым"),
-            (communication_style, "Стиль общения не должен быть пустым"),
-            (principles, "Принципы профиля не должны быть пустыми"),
-            (constraints, "Ограничения профиля не должны быть пустыми"),
+            (title, "title_required"),
+            (description, "description_required"),
+            (communication_style, "communication_style_required"),
+            (principles, "principles_required"),
+            (constraints, "constraints_required"),
         )
-        for value, message in required_fields:
+        for value, code in required_fields:
             if not value.strip():
-                return False, message
-        return True, ""
+                return ActionResult(False, code)
+        return ActionResult(True, "valid")
 
     def _normalize_text(self, value: str, max_len: int) -> str:
         text = value.strip()
