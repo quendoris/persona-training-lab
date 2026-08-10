@@ -173,6 +173,7 @@ def test_profiles_viewmodel_refresh_sees_created_profile() -> None:
 
     vm.refresh(select_profile_id=created.profile_id)
     assert vm.current_profile().title == "VM profile"
+    assert vm.current_profile().status_code == "ready"
 
 
 def test_training_viewmodel_profile_blocker_disappears_when_profile_exists() -> None:
