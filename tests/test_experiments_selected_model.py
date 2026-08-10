@@ -75,6 +75,7 @@ def test_portrait_runs_against_requested_weight_artifact() -> None:
 
     assert result.ok is True
     assert result.message_code == "portrait_completed"
+    assert result.message == "portrait_completed"
     assert model.probed == ["/models/old"]
     assert model.generated
     assert set(model.generated) == {"/models/old"}
@@ -98,8 +99,8 @@ def test_unknown_requested_version_fails_without_using_latest() -> None:
 
     assert result.ok is False
     assert result.message_code == "model_version_not_found"
+    assert result.message == "model_version_not_found"
     assert result.message_values["model_version_id"] == "mdl_missing"
-    assert "mdl_missing" in result.message
     assert model.probed == []
     assert model.generated == []
     assert repo.created == []
