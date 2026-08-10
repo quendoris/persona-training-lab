@@ -89,7 +89,14 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
         "deltas",
     }
 )
-_UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset({"lineage", "next_step"})
+_UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset(
+    {
+        "header_summary",
+        "lineage",
+        "next_step",
+        "right_summary",
+    }
+)
 _PERSISTED_SEMANTIC_FIELDS = {
     "create_training_run": frozenset({"status"}),
     "start_full_finetune_run": frozenset({"status"}),
