@@ -87,11 +87,9 @@ class OperationsCenterService:
         return tuple(issues[: max(1, limit)])
 
     def _operation_item(self, operation: RuntimeOperation) -> OperationsCenterItem:
-        screen, focus, focus_key = _operation_target(operation.operation_kind)
-        label = _operation_label(operation.operation_kind)
-        status = _state_label(operation.state)
+        screen, focus_key = _operation_target(operation.operation_kind)
         subject = operation.subject_id or operation.subject_kind
-        summary_parts = [subject, status]
+        summary_parts = [subject, operation.state]
         if operation.error_message:
             summary_parts.append(operation.error_message)
         severity = (
@@ -103,11 +101,13 @@ class OperationsCenterService:
             if operation.state in {"starting", "running"}
             else "success"
         )
+        operation_identity = operation.operation_kind or operation.operation_id
+        subject_identity = operation.subject_id or operation.operation_id
         return OperationsCenterItem(
             item_id=f"operation:{operation.operation_id}",
-            title=f"{label} · {operation.subject_id or operation.operation_id}",
+            title=f"{operation_identity} · {subject_identity}",
             summary=" · ".join(part for part in summary_parts if part),
-            status=status,
+            status=operation.state,
             severity=severity,
             occurred_at=(
                 operation.finished_at
@@ -115,7 +115,6 @@ class OperationsCenterService:
                 or operation.started_at
             ),
             target_screen=screen,
-            focus_text=focus,
             correlation_id=operation.correlation_id,
             operation_kind=operation.operation_kind,
             operation_state=operation.state,
@@ -127,18 +126,15 @@ class OperationsCenterService:
     def _event_item(self, event: EventRecord) -> OperationsCenterItem:
         payload = _payload(event.payload_json)
         severity = self._event_severity(event)
-        screen, focus, focus_key = _event_target(event, payload)
-        title = _event_title(event, payload)
-        summary = _event_summary(event, payload)
+        screen, focus_key = _event_target(event, payload)
         return OperationsCenterItem(
             item_id=f"event:{event.id}",
-            title=title,
-            summary=summary,
+            title=_event_title(event, payload),
+            summary=_event_summary(event, payload),
             status=severity,
             severity=severity,
             occurred_at=event.occurred_at,
             target_screen=screen,
-            focus_text=focus,
             correlation_id=str(
                 payload.get("correlation_id")
                 or event.correlation_id
@@ -152,7 +148,7 @@ class OperationsCenterService:
         if event.event_type == "application.error":
             return "error"
         payload = _payload(event.payload_json)
-        level = str(payload.get("level", "INFO")).casefold()
+        level = str(payload.get("level", "info")).casefold()
         if level in {"critical", "fatal"}:
             return "critical"
         if level == "error":
@@ -170,80 +166,46 @@ def _payload(raw: str) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
-def _operation_label(kind: str) -> str:
+def _operation_target(kind: str) -> tuple[str, str]:
     return {
-        "training": "Обучение",
-        "personality_test": "Портрет",
-        "analysis": "Анализ",
-        "inference": "Инференс",
-        "lineage_delete": "Удаление ветки",
-    }.get(kind, kind.replace("_", " ").title() or "Операция")
-
-
-def _state_label(state: str) -> str:
-    return {
-        "starting": "запускается",
-        "running": "выполняется",
-        "cancelling": "отменяется",
-        "succeeded": "завершено",
-        "failed": "ошибка",
-        "cancelled": "отменено",
-        "abandoned": "прервано",
-    }.get(state, state or "без статуса")
-
-
-def _operation_target(kind: str) -> tuple[str, str, str]:
-    return {
-        "training": ("training", "Запустить", "focus.training.start"),
-        "personality_test": (
-            "tests",
-            "Собрать портрет",
-            "focus.tests.build_portrait",
-        ),
-        "analysis": ("analysis", "", ""),
-        "inference": (
-            "training",
-            "Проверить модель",
-            "focus.training.check_model",
-        ),
-        "lineage_delete": (
-            "agents",
-            "Удалить ветку",
-            "focus.agents.delete_branch",
-        ),
-    }.get(kind, ("dashboard", "", ""))
+        "training": ("training", "focus.training.start"),
+        "personality_test": ("tests", "focus.tests.build_portrait"),
+        "analysis": ("analysis", ""),
+        "inference": ("training", "focus.training.check_model"),
+        "lineage_delete": ("agents", "focus.agents.delete_branch"),
+    }.get(kind, ("dashboard", ""))
 
 
 def _event_target(
     event: EventRecord,
     payload: dict[str, object],
-) -> tuple[str, str, str]:
+) -> tuple[str, str]:
     component = str(payload.get("component", "")).casefold()
     entity = f"{event.entity_kind} {event.entity_id}".casefold()
     haystack = f"{component} {entity}"
     if "train" in haystack:
-        return "training", "", ""
+        return "training", ""
     if "experiment" in haystack or "portrait" in haystack or "test" in haystack:
-        return "tests", "Собрать портрет", "focus.tests.build_portrait"
+        return "tests", "focus.tests.build_portrait"
     if "analysis" in haystack:
-        return "analysis", "", ""
+        return "analysis", ""
     if "dataset" in haystack:
-        return "datasets", "", ""
+        return "datasets", ""
     if "model_version" in haystack or "snapshot" in haystack:
-        return "snapshots", "", ""
+        return "snapshots", ""
     if "lineage" in haystack or "agent" in haystack:
-        return "agents", "", ""
+        return "agents", ""
     if "keybinding" in haystack:
-        return "keybindings", "", ""
-    return "dashboard", "", ""
+        return "keybindings", ""
+    return "dashboard", ""
 
 
 def _event_title(event: EventRecord, payload: dict[str, object]) -> str:
     component = str(payload.get("component", "")).strip()
     if event.event_type == "application.error":
-        error_type = str(payload.get("exception_type", "Ошибка")).strip()
+        error_type = str(payload.get("exception_type") or event.event_type).strip()
         return f"{error_type} · {component or event.entity_kind}"
-    level = str(payload.get("level", "Событие")).upper()
+    level = str(payload.get("level") or event.event_type).strip()
     return f"{level} · {component or event.entity_kind}"
 
 
