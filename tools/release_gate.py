@@ -65,6 +65,7 @@ QUICK_TESTS = (
     "tests/test_lineage_atomic_snapshot.py",
     "tests/test_agents_atomic_lineage.py",
     "tests/test_agents_lineage_state.py",
+    "tests/test_lineage_state_schema6_i18n.py",
     "tests/test_agents_lineage_layout_undo_chain.py",
     "tests/test_lineage_refresh_schedule.py",
     "tests/test_lineage_refresh_coordinator.py",
