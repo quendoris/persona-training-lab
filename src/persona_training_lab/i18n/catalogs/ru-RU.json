@@ -203,6 +203,7 @@
     "panel.issues.title": "Проблемы",
     "panel.issues.waiting": "Ожидание подключения журнала проблем.",
     "panel.telemetry.cpu_tooltip": "{status} · загрузка {value}\nЛогические ядра: {cores}",
+    "panel.telemetry.logical_cores": "Логические ядра: {cores}",
     "panel.telemetry.metric.process.full": "Процесс",
     "panel.telemetry.metric.process.short": "Проц",
     "panel.telemetry.metric.temperature.full": "Температура",
