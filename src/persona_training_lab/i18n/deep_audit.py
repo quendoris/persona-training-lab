@@ -64,6 +64,8 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (2, "right_note"),
     ),
     "DatasetPreviewRecord": ((1, "input_summary"),),
+    "TraitView": ((0, "name"), (2, "note")),
+    "ProfileView": ((9, "linked_artifacts"), (11, "readiness")),
     "TrainingConfigurationError": ((0, "message"),),
     "TrainingValidationError": ((0, "message"),),
 }
@@ -74,7 +76,12 @@ _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "DatasetServiceError": ((0, "code"),),
     "DatasetValidationResult": ((0, "status"),),
 }
-_MACHINE_CODE_CLASSES = frozenset({"DatasetServiceErrorCode"})
+_MACHINE_CODE_CLASSES = frozenset(
+    {
+        "DatasetServiceErrorCode",
+        "ProfileStatus",
+    }
+)
 _TYPED_DATASET_ERROR_FUNCTIONS = frozenset(
     {
         "add_dataset_from_path",
@@ -82,6 +89,7 @@ _TYPED_DATASET_ERROR_FUNCTIONS = frozenset(
         "validate_dataset",
     }
 )
+_FORBIDDEN_UI_PRESENTATION_CATALOGS = frozenset({"_LEGACY_TEMPLATES"})
 _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
     {
         "title",
@@ -110,10 +118,13 @@ _UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset(
         "add_dataset_from_path",
         "approve_current_dataset",
         "compare_current_versions",
+        "create_profile",
         "header_summary",
         "lineage",
         "next_step",
+        "profiles",
         "right_summary",
+        "update_current_profile",
         "validate_current_dataset",
     }
 )
@@ -141,6 +152,8 @@ _PERSISTED_SEMANTIC_FIELDS = {
     "_save_result": frozenset(
         {"status", "quality_summary", "validation_errors_preview"}
     ),
+    "create_profile": frozenset({"status"}),
+    "update_profile": frozenset({"status"}),
     "create_training_run": frozenset({"status"}),
     "start_full_finetune_run": frozenset({"status"}),
     "_set_terminal_error": frozenset({"status"}),
@@ -151,7 +164,9 @@ _USER_RESULT_FUNCTIONS = frozenset(
     {
         "approve_dataset",
         "compare_dataset_versions",
+        "create_profile",
         "start_full_finetune_run",
+        "update_profile",
     }
 )
 _OPAQUE_VALIDATED_CALLS = frozenset(
@@ -164,6 +179,8 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
         "DatasetServiceError",
         "DatasetText",
         "dataset_text",
+        "ProfileText",
+        "profile_text",
         "TrainingText",
         "training_text",
         "EvaluationText",
@@ -246,6 +263,22 @@ class DeepSurfaceAudit(ast.NodeVisitor):
             )
         if self._is_ui_viewmodel:
             for target in node.targets:
+                if (
+                    not self._function_stack
+                    and isinstance(target, ast.Name)
+                    and target.id in _FORBIDDEN_UI_PRESENTATION_CATALOGS
+                ):
+                    self.literals.append(
+                        LiteralFinding(
+                            path=_display_path(
+                                self._path,
+                                self._display_root,
+                            ),
+                            line=getattr(node, "lineno", 0),
+                            call="forbidden presentation catalog",
+                            text=target.id,
+                        )
+                    )
                 attribute = _self_attribute_name(target)
                 if attribute in _UI_VIEWMODEL_TEXT_ATTRIBUTES:
                     self._append_fragments(
@@ -289,6 +322,19 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                 machine_fragments,
             )
         if self._is_ui_viewmodel:
+            if (
+                not self._function_stack
+                and isinstance(node.target, ast.Name)
+                and node.target.id in _FORBIDDEN_UI_PRESENTATION_CATALOGS
+            ):
+                self.literals.append(
+                    LiteralFinding(
+                        path=_display_path(self._path, self._display_root),
+                        line=getattr(node, "lineno", 0),
+                        call="forbidden presentation catalog",
+                        text=node.target.id,
+                    )
+                )
             attribute = _self_attribute_name(node.target)
             if attribute in _UI_VIEWMODEL_TEXT_ATTRIBUTES:
                 self._append_fragments(
