@@ -11,6 +11,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QLabel
 
+from persona_training_lab.application.datasets.diagnostics import (
+    dataset_diagnostic,
+    encode_dataset_diagnostic,
+)
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import text as localized_text
@@ -124,6 +128,46 @@ class LegacyRussianDatasetsService:
         return ()
 
 
+class SemanticDiagnosticDatasetsService:
+    def list_datasets(self):
+        diagnostic = dataset_diagnostic(
+            "invalid_role",
+            line=2,
+            role="critic",
+        )
+        return [
+            SimpleNamespace(
+                dataset_id="ds_diagnostic",
+                title="diagnostic_dataset",
+                subtitle="",
+                status="structure_error",
+                record_count=1,
+                valid_count=0,
+                invalid_count=1,
+                quality_summary="",
+                validation_errors_preview=encode_dataset_diagnostic(
+                    diagnostic
+                ),
+                format="jsonl",
+            )
+        ]
+
+    def preview_dataset(self, _dataset_id: str, limit: int = 25):
+        assert limit == 25
+        return (
+            SimpleNamespace(
+                row_id="#002",
+                input_summary=dataset_diagnostic(
+                    "invalid_role",
+                    line=2,
+                    role="critic",
+                ),
+                traits="messages",
+                quality="structure_error",
+            ),
+        )
+
+
 class EmptyDatasetsService:
     def list_datasets(self):
         return []
@@ -160,6 +204,46 @@ def test_datasets_switch_static_and_dynamic_content_live(
     assert screen._approve_dataset_btn.text() == "Одобрить для обучения"
     assert "одобрен для обучения" in _visible_texts(screen)
     assert screen._datasets_card.title_label.text() == "Реестр датасетов"
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
+
+
+def test_dataset_diagnostics_switch_live_without_rewriting_raw_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+    vm = DatasetsViewModel(
+        datasets_service=SemanticDiagnosticDatasetsService()
+    )
+    screen = DatasetsScreen(vm, manager)
+    screen.show()
+    app.processEvents()
+
+    english = (
+        "line 2: role critic is not supported; expected system, user, or "
+        "assistant"
+    )
+    assert screen._table.item(0, 1).text() == english
+    assert screen._table.item(0, 3).text() == "structure error"
+    assert english in _visible_texts(screen)
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    russian = (
+        "строка 2: роль critic не поддерживается; ожидается system, user "
+        "или assistant"
+    )
+    assert screen._table.item(0, 1).text() == russian
+    assert screen._table.item(0, 3).text() == "ошибка структуры"
+    assert russian in _visible_texts(screen)
+    assert "critic" in screen._table.item(0, 1).text()
 
     screen.close()
     screen.deleteLater()
