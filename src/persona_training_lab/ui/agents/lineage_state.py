@@ -758,6 +758,9 @@ class LineageStateStore:
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         normalized = deepcopy(payload)
+        source_schema = _schema_number(normalized.get("schema"))
+        if source_schema < _SCHEMA_VERSION:
+            self._migrate_legacy_generated_titles(normalized)
         if "undo_stack" not in normalized:
             legacy_history = normalized.pop("history", [])
             normalized["undo_stack"] = (
@@ -783,6 +786,48 @@ class LineageStateStore:
         )
         normalized["schema"] = _SCHEMA_VERSION
         return normalized
+
+    def _migrate_legacy_generated_titles(
+        self,
+        payload: dict[str, Any],
+    ) -> None:
+        self._strip_legacy_generated_titles(payload.get("custom_nodes"))
+        for stack_name in ("history", "undo_stack", "redo_stack"):
+            raw_stack = payload.get(stack_name)
+            if not isinstance(raw_stack, list):
+                continue
+            for raw_entry in raw_stack:
+                if not isinstance(raw_entry, dict):
+                    continue
+                snapshot = raw_entry.get("snapshot")
+                if not isinstance(snapshot, dict):
+                    continue
+                lineage = snapshot.get("lineage")
+                if isinstance(lineage, dict):
+                    self._strip_legacy_generated_titles(
+                        lineage.get("custom_nodes")
+                    )
+                else:
+                    self._strip_legacy_generated_titles(
+                        snapshot.get("custom_nodes")
+                    )
+
+    def _strip_legacy_generated_titles(self, raw: object) -> None:
+        if not isinstance(raw, list):
+            return
+        for value in raw:
+            if not isinstance(value, dict):
+                continue
+            node_id = str(value.get("node_id", ""))
+            index = self._branch_index(node_id)
+            title = value.get("title")
+            if not isinstance(title, str):
+                continue
+            match = _DEFAULT_BRANCH_TITLE_RE.fullmatch(title.strip())
+            if match is None:
+                continue
+            if int(match.group("index")) == index:
+                value.pop("title", None)
 
     def _normalise_lineage_payload(
         self,
@@ -846,18 +891,7 @@ class LineageStateStore:
                 )
             item.pop("status", None)
             item.pop("subtitle", None)
-            index = self._branch_index(node_id)
-            item.setdefault("default_index", index)
-            title = item.get("title")
-            if isinstance(title, str):
-                match = _DEFAULT_BRANCH_TITLE_RE.fullmatch(
-                    title.strip()
-                )
-                if (
-                    match is not None
-                    and int(match.group("index")) == index
-                ):
-                    item.pop("title", None)
+            item.setdefault("default_index", self._branch_index(node_id))
             normalized.append(item)
         return normalized
 
@@ -906,6 +940,13 @@ class LineageStateStore:
             )
         except OSError:
             return
+
+
+def _schema_number(value: object) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _status_message(status_code: str) -> UserMessage:
