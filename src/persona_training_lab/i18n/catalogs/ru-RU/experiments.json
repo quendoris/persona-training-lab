@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "experiments"
+  },
+  "messages": {
+    "experiments.header.title": "Эксперименты · {title}",
+    "experiments.registry.title": "Реестр экспериментов",
+    "experiments.registry.subtitle": "Связь проекта, агента и параметров в одном read-only срезе.",
+    "experiments.empty.title": "Эксперименты пока не созданы",
+    "experiments.empty.subtitle": "Эксперименты пока не созданы",
+    "experiments.empty.status": "пусто",
+    "experiments.error.title": "Не удалось загрузить эксперименты",
+    "experiments.error.subtitle": "Не удалось загрузить эксперименты",
+    "experiments.error.status": "ошибка"
+  }
+}
