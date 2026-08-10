@@ -103,7 +103,6 @@ def test_keybindings_live_language_preserves_conflicting_draft_and_capture(
 
 
 def test_keybinding_dialogs_switch_language_without_losing_values(
-    tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _app()
