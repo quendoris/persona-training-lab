@@ -92,3 +92,36 @@ def test_model_versions_connector_single_row() -> None:
         snapshots_vm.current_snapshot().status_code
         is ModelVersionStatus.READY
     )
+
+
+def test_created_model_version_persists_machine_semantics() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+
+    service = _build_service(connection)
+    created = service.create_from_training_run(
+        training_run_id="trn_machine",
+        base_model="Qwen",
+        profile_title="Mia core",
+        dataset_title="curated_v1",
+        artifact_path="artifacts/trn_machine/model",
+        quality_summary="   ",
+    )
+
+    assert created is not None
+    assert created.status == ModelVersionStatus.READY.value
+    assert created.status_code is ModelVersionStatus.READY
+    assert created.quality_summary == ""
+
+    row = connection.execute(
+        """
+        SELECT status, quality_summary
+        FROM model_versions
+        WHERE training_run_id = ?
+        """,
+        ("trn_machine",),
+    ).fetchone()
+    assert row is not None
+    assert row["status"] == ModelVersionStatus.READY.value
+    assert row["quality_summary"] == ""
