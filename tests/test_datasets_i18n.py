@@ -86,6 +86,20 @@ def _assert_base_projection(vm: DatasetsViewModel) -> None:
     assert vm.next_step() == _render_base(vm.next_step_model())
 
 
+def _assert_action_projection(
+    vm: DatasetsViewModel,
+    result: tuple[bool, str],
+    *,
+    expected_key: str,
+) -> None:
+    ok, compatibility = result
+    assert ok is False
+    message = vm.current_message()
+    assert message is not None
+    assert message.key == expected_key
+    assert compatibility == _render_base(message)
+
+
 class LegacyRussianDatasetsService:
     def list_datasets(self):
         return [
@@ -190,3 +204,25 @@ def test_datasets_compatibility_is_base_locale_projection() -> None:
     )
     _assert_base_projection(legacy_vm)
     assert legacy_vm.current_version().status == "Одобрен для обучения"
+
+    disconnected_vm = DatasetsViewModel()
+    _assert_action_projection(
+        disconnected_vm,
+        disconnected_vm.add_dataset_from_path("ignored.jsonl"),
+        expected_key="datasets.error.load_failed",
+    )
+    _assert_action_projection(
+        disconnected_vm,
+        disconnected_vm.validate_current_dataset(),
+        expected_key="datasets.error.validate_failed",
+    )
+    _assert_action_projection(
+        disconnected_vm,
+        disconnected_vm.approve_current_dataset(),
+        expected_key="datasets.error.approve_failed",
+    )
+    _assert_action_projection(
+        disconnected_vm,
+        disconnected_vm.compare_current_versions(),
+        expected_key="datasets.error.compare_failed",
+    )
