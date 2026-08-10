@@ -463,10 +463,7 @@ class AgentsScreen(_LineageBaseAgentsScreen):
 
     def _detail_for(self, node_id: str) -> AgentDetailView:
         node = self._node_by_id(node_id)
-        if node is None:
-            return self._vm.node_detail(node_id)
-        base = self._vm.node_detail(node_id)
-        if self._state.is_custom_node(node_id):
+        if node is not None and self._state.is_custom_node(node_id):
             return AgentDetailView(
                 title=node.title,
                 body=UserMessage(
@@ -496,6 +493,7 @@ class AgentsScreen(_LineageBaseAgentsScreen):
                     "undo",
                 ),
             )
+        base = self._vm.node_detail(node_id)
         return AgentDetailView(
             title=base.title,
             body=base.body,
