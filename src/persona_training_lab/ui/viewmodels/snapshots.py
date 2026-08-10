@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
+from persona_training_lab.application.model_versions.quality import (
+    parse_model_version_quality,
+)
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
@@ -34,15 +36,6 @@ _LEGACY_EMPTY_STATES = {
     ),
     "load_failed": ("Не удалось загрузить снимки", "ошибка"),
     "empty": ("Снимки пока не созданы", "пусто"),
-}
-_GENERATED_QUALITY_PATTERN = re.compile(
-    r"^Full fine-tune завершён · loss (?P<loss>.+?) · "
-    r"checkpoints (?P<checkpoints>.+)$",
-    re.IGNORECASE,
-)
-_GENERATED_QUALITY_DEFAULTS = {
-    "full fine-tune artifact создан и сохранён",
-    "full fine-tune artifact created and saved",
 }
 
 
@@ -374,19 +367,19 @@ class SnapshotsViewModel:
         )
 
     def _quality_model(self, quality: str) -> SnapshotValue:
-        normalized = quality.strip()
-        if not normalized:
-            return snapshot_text("snapshots.quality.missing")
-        if normalized.casefold() in _GENERATED_QUALITY_DEFAULTS:
-            return snapshot_text("snapshots.quality.artifact_saved")
-        match = _GENERATED_QUALITY_PATTERN.fullmatch(normalized)
-        if match is not None:
+        parsed = parse_model_version_quality(quality)
+        if parsed is None:
+            normalized = quality.strip()
+            return normalized or snapshot_text("snapshots.quality.missing")
+        if parsed.code == "training_completed":
             return snapshot_text(
                 "snapshots.quality.training_completed",
-                loss=match.group("loss"),
-                checkpoints=match.group("checkpoints"),
+                loss=parsed.values.get("loss", "—"),
+                checkpoints=parsed.values.get("checkpoints", "—"),
             )
-        return normalized
+        if parsed.code == "artifact_saved":
+            return snapshot_text("snapshots.quality.artifact_saved")
+        return snapshot_text("snapshots.quality.missing")
 
     def detail_metrics(self) -> tuple[tuple[str, str], ...]:
         return tuple((metric.title, metric.value) for metric in self.metrics)
