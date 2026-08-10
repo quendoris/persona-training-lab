@@ -11,6 +11,10 @@ from persona_training_lab.application.datasets.diagnostics import (
     dataset_diagnostic,
     encode_dataset_diagnostic,
 )
+from persona_training_lab.application.datasets.errors import (
+    DatasetServiceError,
+    DatasetServiceErrorCode,
+)
 from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.ports.repositories import DatasetsReadRepositoryPort
 from persona_training_lab.domain.datasets.statuses import (
@@ -62,9 +66,9 @@ class DatasetsService:
     def add_dataset_from_path(self, file_path: str) -> DatasetSummary:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
-            raise ValueError("Файл датасета не найден")
+            raise DatasetServiceError(DatasetServiceErrorCode.FILE_NOT_FOUND)
         if path.suffix.lower() != ".jsonl":
-            raise ValueError("Поддерживается только формат .jsonl")
+            raise DatasetServiceError(DatasetServiceErrorCode.ONLY_JSONL)
 
         now = datetime.now(timezone.utc).isoformat()
         dataset_id = f"ds_{uuid4().hex[:8]}"
@@ -90,13 +94,13 @@ class DatasetsService:
         )
         created = self.datasets_repo.get_dataset(dataset_id)
         if created is None:
-            raise RuntimeError("Не удалось сохранить датасет")
+            raise DatasetServiceError(DatasetServiceErrorCode.SAVE_FAILED)
         return self._row_to_summary(created)
 
     def validate_dataset(self, dataset_id: str) -> DatasetValidationResult:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
-            raise ValueError("Датасет не найден")
+            raise DatasetServiceError(DatasetServiceErrorCode.NOT_FOUND)
         result = self._validate_jsonl_path(str(row.get("path", "")))
         self._save_result(dataset_id, result, approve=False)
         return result
@@ -104,7 +108,7 @@ class DatasetsService:
     def approve_dataset(self, dataset_id: str) -> ActionResult:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
-            raise ValueError("Датасет не найден")
+            raise DatasetServiceError(DatasetServiceErrorCode.NOT_FOUND)
         result = self._validate_jsonl_path(str(row.get("path", "")))
         if result.status != DatasetVersionStatus.VALIDATED.value:
             self._save_result(dataset_id, result, approve=False)
