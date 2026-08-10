@@ -13,6 +13,8 @@
     "experiments.empty.status": "пусто",
     "experiments.error.title": "Не удалось загрузить эксперименты",
     "experiments.error.subtitle": "Не удалось загрузить эксперименты",
-    "experiments.error.status": "ошибка"
+    "experiments.error.status": "ошибка",
+    "experiments.generated.title.personality_portrait": "Портрет Big Five · {time}",
+    "experiments.generated.title.unknown": "Эксперимент"
   }
 }
