@@ -12,6 +12,9 @@ from persona_training_lab.application.experiments.service import (
     ExperimentsService,
     experiment_result,
 )
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -36,6 +39,45 @@ _RESULT_MESSAGE_KEYS = {
     "portrait_completed": "tests.message.portrait_completed",
     "portrait_partial": "tests.message.portrait_partial",
     "service_unavailable": "tests.message.service_unavailable",
+}
+_EMPTY_METRIC_NOTE_KEYS = {
+    "empty": (
+        "tests.metric.note.empty.runs",
+        "tests.metric.note.empty.status",
+        "tests.metric.note.empty.items",
+        "tests.metric.note.empty.errors",
+    ),
+    "service_unavailable": (
+        "tests.metric.note.service_unavailable.runs",
+        "tests.metric.note.service_unavailable.status",
+        "tests.metric.note.service_unavailable.items",
+        "tests.metric.note.service_unavailable.errors",
+    ),
+    "load_failed": (
+        "tests.metric.note.load_failed.runs",
+        "tests.metric.note.load_failed.status",
+        "tests.metric.note.load_failed.items",
+        "tests.metric.note.load_failed.errors",
+    ),
+    "target_empty": (
+        "tests.metric.note.target_empty.runs",
+        "tests.metric.note.target_empty.status",
+        "tests.metric.note.target_empty.items",
+        "tests.metric.note.target_empty.errors",
+    ),
+}
+_MODEL_STATUS_KEYS = {
+    LocalModelStatus.UNCHECKED: "tests.model_status.unchecked",
+    LocalModelStatus.CHECKING: "tests.model_status.checking",
+    LocalModelStatus.FOUND: "tests.model_status.found",
+    LocalModelStatus.MISSING: "tests.model_status.missing",
+    LocalModelStatus.CHECK_FAILED: "tests.model_status.check_failed",
+    LocalModelStatus.NOT_LOADED: "tests.model_status.not_loaded",
+    LocalModelStatus.RESPONDING: "tests.model_status.responding",
+    LocalModelStatus.INFERENCE_UNAVAILABLE: "tests.model_status.inference_unavailable",
+    LocalModelStatus.GENERATING: "tests.model_status.generating",
+    LocalModelStatus.GENERATION_FAILED: "tests.model_status.generation_failed",
+    LocalModelStatus.UNKNOWN: "tests.model_status.unknown",
 }
 
 
@@ -400,26 +442,32 @@ class TestsViewModel:
 
     @staticmethod
     def _empty_metrics(state: str) -> tuple[EvaluationMetric, ...]:
+        (
+            run_note_key,
+            status_note_key,
+            items_note_key,
+            errors_note_key,
+        ) = _EMPTY_METRIC_NOTE_KEYS[state]
         return (
             _evaluation_metric(
                 evaluation_text("tests.metric.runs"),
                 "0",
-                evaluation_text(f"tests.metric.note.{state}.runs"),
+                evaluation_text(run_note_key),
             ),
             _evaluation_metric(
                 evaluation_text("tests.metric.latest_status"),
                 "—",
-                evaluation_text(f"tests.metric.note.{state}.status"),
+                evaluation_text(status_note_key),
             ),
             _evaluation_metric(
                 evaluation_text("tests.metric.items"),
                 "—",
-                evaluation_text(f"tests.metric.note.{state}.items"),
+                evaluation_text(items_note_key),
             ),
             _evaluation_metric(
                 evaluation_text("tests.metric.errors"),
                 "—",
-                evaluation_text(f"tests.metric.note.{state}.errors"),
+                evaluation_text(errors_note_key),
             ),
         )
 
@@ -488,7 +536,7 @@ class TestsViewModel:
                 evaluation_text(
                     "tests.case.field.status",
                     status=evaluation_text(
-                        f"tests.model_status.{case.status_code.value}"
+                        _MODEL_STATUS_KEYS[case.status_code]
                     ),
                 )
             )
