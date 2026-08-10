@@ -257,12 +257,26 @@ class VM:
             semantic_metric,
         )
 
+    def header_summary(self):
+        return (
+            _base_dataset_text(dataset_text("datasets.header.summary")),
+            "Hidden dataset header summary",
+        )
+
     @property
     def lineage(self):
         return ("Hidden snapshot lineage",)
 
     def next_step(self):
         return "Hidden snapshot next step"
+
+    def right_summary(self):
+        return [
+            (
+                _base_dataset_text(dataset_text("datasets.summary.status")),
+                "Hidden dataset summary value",
+            )
+        ]
 
 
 def execute():
@@ -399,8 +413,16 @@ def start_training():
         "TimelineItem note",
         "Hidden snapshot timeline note",
     ) in findings
+    assert (
+        "header_summary return",
+        "Hidden dataset header summary",
+    ) in findings
     assert ("lineage return", "Hidden snapshot lineage") in findings
     assert ("next_step return", "Hidden snapshot next step") in findings
+    assert (
+        "right_summary return",
+        "Hidden dataset summary value",
+    ) in findings
     assert ("_compare_metric title", "Hidden metric") in findings
     assert ("_compare_metric note", "Hidden metric note") in findings
     assert ("_compare_summary title", "Hidden summary") in findings
@@ -457,6 +479,8 @@ def start_training():
     assert not any(text == "snapshots.status.ready" for _, text in findings)
     assert not any(text == "snapshots.state.empty" for _, text in findings)
     assert not any(text == "snapshots.quality.missing" for _, text in findings)
+    assert not any(text == "datasets.header.summary" for _, text in findings)
+    assert not any(text == "datasets.summary.status" for _, text in findings)
     assert not any(text == "tests.case.valid_score" for _, text in findings)
     assert not any(text == "tests.metric.runs" for _, text in findings)
     assert not any(text == "tests.metric.note.runs" for _, text in findings)
