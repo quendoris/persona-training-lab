@@ -315,6 +315,7 @@ def test_all_inspector_contexts_render_in_both_catalogs(
 
 def test_telemetry_snapshot_switches_language_without_refresh(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     app = _app()
     manager = _manager(app)
@@ -369,3 +370,81 @@ def test_telemetry_snapshot_switches_language_without_refresh(
 
     panel.deleteLater()
     app.processEvents()
+
+    source = """
+def build_snapshot():
+    return TelemetrySnapshot(
+        cpu_percent=90.0,
+        cpu_logical_cores=8,
+        cpu_status="Высокая нагрузка",
+        ram_used_bytes=1,
+        ram_total_bytes=2,
+        ram_percent=50.0,
+        gpu_status="Источник GPU не подключён",
+        gpu_util_percent=None,
+        vram_used_mb=None,
+        vram_total_mb=None,
+        gpu_temperature_c=None,
+        processes=(),
+        processes_status="Данные процессов пока недоступны",
+        status="Телеметрия активна",
+        last_updated_at="10:10:00",
+        error_message="Не удалось обновить телеметрию",
+        cpu_status_code="Высокая нагрузка",
+        gpu_status_code="gpu_unavailable",
+        processes_status_code="processes_unavailable",
+        status_code="active",
+        error_code="refresh_failed",
+    )
+
+
+class TelemetryVM:
+    def refresh(self):
+        self.status_title = "Телеметрия активна"
+        self.status_subtitle = "Последнее обновление: 10:10:00"
+        self.status_error = "Не удалось обновить телеметрию"
+        self.cpu_cores_text = "Логические ядра: 8"
+        self.processes_rows = ("Данные процессов пока недоступны",)
+"""
+    path = tmp_path / "ui" / "viewmodels" / "telemetry_sample.py"
+    path.parent.mkdir(parents=True)
+    visitor = DeepSurfaceAudit(path, display_root=tmp_path)
+    visitor.visit(ast.parse(source, filename=str(path)))
+    findings = {(item.call, item.text) for item in visitor.literals}
+
+    assert ("TelemetrySnapshot cpu_status", "Высокая нагрузка") in findings
+    assert (
+        "TelemetrySnapshot gpu_status",
+        "Источник GPU не подключён",
+    ) in findings
+    assert (
+        "TelemetrySnapshot processes_status",
+        "Данные процессов пока недоступны",
+    ) in findings
+    assert ("TelemetrySnapshot status", "Телеметрия активна") in findings
+    assert (
+        "TelemetrySnapshot error_message",
+        "Не удалось обновить телеметрию",
+    ) in findings
+    assert (
+        "TelemetrySnapshot cpu_status_code",
+        "Высокая нагрузка",
+    ) in findings
+    assert ("self.status_title", "Телеметрия активна") in findings
+    assert (
+        "self.status_subtitle",
+        "Последнее обновление: 10:10:00",
+    ) in findings
+    assert (
+        "self.status_error",
+        "Не удалось обновить телеметрию",
+    ) in findings
+    assert ("self.cpu_cores_text", "Логические ядра: 8") in findings
+    assert (
+        "self.processes_rows",
+        "Данные процессов пока недоступны",
+    ) in findings
+    assert not any(text == "gpu_unavailable" for _, text in findings)
+    assert not any(text == "processes_unavailable" for _, text in findings)
+    assert not any(text == "active" for _, text in findings)
+    assert not any(text == "refresh_failed" for _, text in findings)
