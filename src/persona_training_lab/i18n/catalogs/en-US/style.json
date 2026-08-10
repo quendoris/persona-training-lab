@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "fragment": "style"
+  },
+  "messages": {
+    "style.accent.cyan": "Cyan",
+    "style.accent.emerald": "Emerald",
+    "style.accent.label": "Accent",
+    "style.accent.rose": "Rose",
+    "style.accent.violet": "Violet",
+    "style.apply": "Apply appearance",
+    "style.controls.note": "The selection is saved in SQLite and becomes part of the system's long-session comfort.",
+    "style.controls.subtitle": "Appearance is not merely decorative; it is part of comfortable long-running work.",
+    "style.controls.title": "Appearance",
+    "style.custom_accent.choose": "Custom",
+    "style.preview.action.compare": "Open comparison",
+    "style.preview.action.training": "Start training",
+    "style.preview.brand_note": "A calm research workstation for personality training and version analysis.",
+    "style.preview.status.attention": "attention",
+    "style.preview.status.running": "running",
+    "style.preview.subtitle": "The interface should feel alive and readable rather than abstract.",
+    "style.preview.title": "Preview",
+    "style.theme.eclipse": "Eclipse",
+    "style.theme.label": "Theme",
+    "style.theme.pearl": "Pearl",
+    "style.theme.velvet": "Velvet"
+  }
+}
