@@ -18,6 +18,7 @@ from persona_training_lab.ui.viewmodels.evaluation import (
     EvaluationText,
     evaluation_status_text,
     evaluation_text,
+    render_base_evaluation_text,
 )
 
 
@@ -91,8 +92,8 @@ class PortraitStats:
 class AnalysisViewModel:
     analysis_service: AnalysisService | None = None
     experiments_service: ExperimentsService | None = None
-    title: str = "Анализ"
-    subtitle: str = "Нет результатов тестов для анализа"
+    title: str = ""
+    subtitle: str = ""
     left: CompareSummary = CompareSummary(
         "Метод",
         "Big Five scored items",
@@ -218,11 +219,6 @@ class AnalysisViewModel:
         assert selected_experiment is not None
         assert current_experiment is not None
         self._apply_experiment(current_experiment, selected_experiment)
-        self.title = f"Анализ · {selected_id} ↔ {current_id}"
-        self.subtitle = (
-            "Точное сравнение версий из lineage. Левый портрет относится к "
-            f"{selected_id}, правый — к {current_id}."
-        )
         self._title_model = evaluation_text(
             "analysis.header.title.pair",
             selected_id=selected_id,
@@ -233,6 +229,8 @@ class AnalysisViewModel:
             selected_id=selected_id,
             current_id=current_id,
         )
+        self.title = render_base_evaluation_text(self._title_model)
+        self.subtitle = render_base_evaluation_text(self._subtitle_model)
 
     @staticmethod
     def _experiment_for_version(
@@ -273,13 +271,13 @@ class AnalysisViewModel:
             else "—"
         )
 
-        self.title = f"Анализ · {latest_stats.title}"
-        self.subtitle = latest_stats.record.raw_summary
         self._title_model = evaluation_text(
             "analysis.header.title.run",
             title=latest_stats.title,
         )
         self._subtitle_model = self._summary_model(latest_stats.record)
+        self.title = render_base_evaluation_text(self._title_model)
+        self.subtitle = render_base_evaluation_text(self._subtitle_model)
         if previous_stats is not None:
             self.left = CompareSummary(
                 "Предыдущий портрет",
@@ -659,12 +657,12 @@ class AnalysisViewModel:
         return max(common, key=lambda item: abs(item[1]))
 
     def _set_empty(self) -> None:
-        self.title = "Анализ"
-        self.subtitle = "Нет результатов тестов для анализа"
         self._title_model = evaluation_text("analysis.header.title")
         self._subtitle_model = evaluation_text(
             "analysis.header.subtitle.empty"
         )
+        self.title = render_base_evaluation_text(self._title_model)
+        self.subtitle = render_base_evaluation_text(self._subtitle_model)
         self.left = CompareSummary(
             "Метод",
             "Big Five scored items",
@@ -709,10 +707,10 @@ class AnalysisViewModel:
 
     def _set_load_failed(self) -> None:
         self._set_empty()
-        self.subtitle = "Не удалось загрузить результаты тестов"
         self._subtitle_model = evaluation_text(
             "analysis.header.subtitle.load_failed"
         )
+        self.subtitle = render_base_evaluation_text(self._subtitle_model)
         self._insight_models = (
             evaluation_text("analysis.insight.load_failed"),
         )
@@ -725,8 +723,6 @@ class AnalysisViewModel:
         reason_code: str,
         **values: object,
     ) -> None:
-        self.title = f"Анализ · {selected_id} ↔ {current_id}"
-        self.subtitle = "Сравнение недоступно для выбранной пары"
         self._title_model = evaluation_text(
             "analysis.header.title.pair",
             selected_id=selected_id,
@@ -740,6 +736,8 @@ class AnalysisViewModel:
             "analysis.header.subtitle.pair_missing",
             reason=reason,
         )
+        self.title = render_base_evaluation_text(self._title_model)
+        self.subtitle = render_base_evaluation_text(self._subtitle_model)
         self.left = CompareSummary(
             "Выбранная версия",
             selected_id,
@@ -861,13 +859,13 @@ class AnalysisViewModel:
             return
         result = results[0]
         self._set_empty()
-        self.title = f"Анализ · {result.result_id}"
-        self.subtitle = result.subtitle
         self._title_model = evaluation_text(
             "analysis.header.title.result",
             result_id=result.result_id,
         )
         self._subtitle_model = result.subtitle
+        self.title = render_base_evaluation_text(self._title_model)
+        self.subtitle = render_base_evaluation_text(self._subtitle_model)
 
     def header_title_model(self) -> str | EvaluationText:
         return self._title_model
@@ -931,4 +929,4 @@ class AnalysisViewModel:
 
     @staticmethod
     def _legacy_text(value: str | EvaluationText) -> str:
-        return value if isinstance(value, str) else value.key
+        return render_base_evaluation_text(value)
