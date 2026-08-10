@@ -186,19 +186,38 @@ class LineageStateStore:
         clean_title = title.strip()
         if not clean_title or not self.is_custom_node(node_id):
             return False
-        for raw in self._custom_node_payloads():
-            if str(raw.get("node_id", "")) != node_id:
-                continue
-            if str(raw.get("title", "")) == clean_title:
-                return True
-            self._record_history("branch_rename", layout_snapshot)
-            raw["title"] = clean_title
-            override = self._overrides().get(node_id)
-            if isinstance(override, dict):
-                override.pop("title", None)
-            self._save()
+        current = next(
+            (
+                raw
+                for raw in self._custom_node_payloads()
+                if str(raw.get("node_id", "")) == node_id
+            ),
+            None,
+        )
+        if current is None:
+            return False
+        if str(current.get("title", "")) == clean_title:
             return True
-        return False
+
+        self._record_history("branch_rename", layout_snapshot)
+        current = next(
+            (
+                raw
+                for raw in self._custom_node_payloads()
+                if str(raw.get("node_id", "")) == node_id
+            ),
+            None,
+        )
+        if current is None:
+            raise RuntimeError(
+                "Custom lineage node disappeared while recording rename history"
+            )
+        current["title"] = clean_title
+        override = self._overrides().get(node_id)
+        if isinstance(override, dict):
+            override.pop("title", None)
+        self._save()
+        return True
 
     def is_archived(self, node_id: str) -> bool:
         override = self._overrides().get(node_id, {})
@@ -919,6 +938,7 @@ class LineageStateStore:
     def _default_payload() -> dict[str, Any]:
         return {
             "schema": _SCHEMA_VERSION,
+            "current_node_id": "",
             "overrides": {},
             "custom_nodes": [],
             "undo_stack": [],
