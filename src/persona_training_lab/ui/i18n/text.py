@@ -4,6 +4,7 @@ from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.i18n.catalog import CatalogSet, LocaleCatalog
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 
@@ -33,3 +34,18 @@ def text(
         count=count,
         values=values,
     )
+
+
+def render_user_message(
+    localization: LocalizationManager | None,
+    message: UserMessage | str,
+) -> str:
+    """Render semantic messages at the UI boundary; strings are transitional."""
+
+    if isinstance(message, UserMessage):
+        return text(
+            localization,
+            message.key,
+            **dict(message.values),
+        )
+    return message
