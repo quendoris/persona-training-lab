@@ -13,7 +13,11 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
-from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
+from persona_training_lab.ui.i18n.text import text as localized_text
+from persona_training_lab.ui.viewmodels.datasets import (
+    DatasetText,
+    DatasetsViewModel,
+)
 
 
 CATALOGS = (
@@ -50,6 +54,36 @@ def _flush_deferred_deletes() -> None:
         None,
         QEvent.Type.DeferredDelete,
     )
+
+
+def _render_base(value: object) -> str:
+    if not isinstance(value, DatasetText):
+        return str(value)
+    rendered_values = {
+        key: _render_base(item) if isinstance(item, DatasetText) else item
+        for key, item in value.values.items()
+    }
+    count_value = rendered_values.pop("count", None)
+    count = count_value if isinstance(count_value, int) else None
+    return localized_text(
+        None,
+        value.key,
+        count=count,
+        **rendered_values,
+    )
+
+
+def _assert_base_projection(vm: DatasetsViewModel) -> None:
+    title, summary_model = vm.header_summary_model()
+    assert vm.header_summary() == (title, _render_base(summary_model))
+    assert vm.right_summary() == [
+        (
+            _render_base(DatasetText(key)),
+            _render_base(value),
+        )
+        for key, value in vm.right_summary_model()
+    ]
+    assert vm.next_step() == _render_base(vm.next_step_model())
 
 
 class LegacyRussianDatasetsService:
@@ -143,3 +177,16 @@ def test_legacy_status_is_normalized_before_rendering() -> None:
     assert vm.status_text(version.status).key == "datasets.status.approved"
     assert vm.next_step_model().key == "datasets.next.approved"
     assert version.quality_summary.key == "datasets.quality.approved"
+
+
+def test_datasets_compatibility_is_base_locale_projection() -> None:
+    empty_vm = DatasetsViewModel(datasets_service=EmptyDatasetsService())
+    _assert_base_projection(empty_vm)
+    assert empty_vm.current_dataset().title == "Датасеты"
+    assert empty_vm.current_version().status == "пусто"
+
+    legacy_vm = DatasetsViewModel(
+        datasets_service=LegacyRussianDatasetsService()
+    )
+    _assert_base_projection(legacy_vm)
+    assert legacy_vm.current_version().status == "Одобрен для обучения"
