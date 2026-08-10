@@ -8,6 +8,10 @@ from persona_training_lab.application.datasets.diagnostics import (
     DatasetDiagnostic,
     decode_dataset_diagnostic,
 )
+from persona_training_lab.application.datasets.errors import (
+    DatasetServiceError,
+    DatasetServiceErrorCode,
+)
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.messages import ActionResult
 
@@ -49,6 +53,12 @@ _DATASET_ACTION_KEYS = {
     "approval_blocked": "datasets.message.approve_blocked",
     "not_found": "datasets.error.not_found",
     "version_compare_unavailable": "datasets.action.compare_unavailable",
+}
+_DATASET_SERVICE_ERROR_KEYS = {
+    DatasetServiceErrorCode.FILE_NOT_FOUND: "datasets.error.file_not_found",
+    DatasetServiceErrorCode.ONLY_JSONL: "datasets.error.only_jsonl",
+    DatasetServiceErrorCode.SAVE_FAILED: "datasets.error.add_failed",
+    DatasetServiceErrorCode.NOT_FOUND: "datasets.error.not_found",
 }
 _DIAGNOSTIC_KEYS = {
     "file_not_found": "datasets.error.file_not_found",
@@ -113,6 +123,16 @@ def _dataset_action_text(
     return dataset_text(
         _DATASET_ACTION_KEYS.get(result.code, fallback_key),
         **dict(result.values),
+    )
+
+
+def _dataset_service_error_text(
+    error: DatasetServiceError,
+    *,
+    fallback_key: str,
+) -> DatasetText:
+    return dataset_text(
+        _DATASET_SERVICE_ERROR_KEYS.get(error.code, fallback_key),
     )
 
 
@@ -218,12 +238,14 @@ class DatasetsViewModel:
             )
         try:
             created = self.datasets_service.add_dataset_from_path(file_path)
-        except ValueError as exc:
-            key = {
-                "Файл датасета не найден": "datasets.error.file_not_found",
-                "Поддерживается только формат .jsonl": "datasets.error.only_jsonl",
-            }.get(str(exc), "datasets.error.add_failed")
-            return self._set_action_result(False, dataset_text(key))
+        except DatasetServiceError as exc:
+            return self._set_action_result(
+                False,
+                _dataset_service_error_text(
+                    exc,
+                    fallback_key="datasets.error.add_failed",
+                ),
+            )
         except Exception:
             return self._set_action_result(
                 False,
@@ -248,6 +270,14 @@ class DatasetsViewModel:
             )
         try:
             result = self.datasets_service.validate_dataset(dataset_id)
+        except DatasetServiceError as exc:
+            return self._set_action_result(
+                False,
+                _dataset_service_error_text(
+                    exc,
+                    fallback_key="datasets.error.validate_failed",
+                ),
+            )
         except Exception:
             return self._set_action_result(
                 False,
@@ -280,6 +310,14 @@ class DatasetsViewModel:
             )
         try:
             result = self.datasets_service.approve_dataset(dataset_id)
+        except DatasetServiceError as exc:
+            return self._set_action_result(
+                False,
+                _dataset_service_error_text(
+                    exc,
+                    fallback_key="datasets.error.approve_failed",
+                ),
+            )
         except Exception:
             return self._set_action_result(
                 False,
