@@ -17,6 +17,7 @@ from persona_training_lab.application.lineage.projection_model import (
     LineageState,
 )
 from persona_training_lab.application.lineage.snapshot import LineageSourceSnapshot
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.runtime.operations import ResourceClaim
 from persona_training_lab.ui.agents.lineage_presentation import (
     LineagePresentationProjection,
@@ -32,14 +33,14 @@ _CANONICAL_BY_KIND = {
     LineageEntityKind.MODEL_VERSION: "snapshot",
     LineageEntityKind.EVALUATION_RUN: "portrait",
 }
-_PREFIX_BY_KIND = {
-    LineageEntityKind.BASE_MODEL: "Base",
-    LineageEntityKind.PERSONA_PROFILE: "Profile",
-    LineageEntityKind.DATASET: "Dataset",
-    LineageEntityKind.TRAINING_RUN: "Train",
-    LineageEntityKind.ARTIFACT: "Artifact",
-    LineageEntityKind.MODEL_VERSION: "Version",
-    LineageEntityKind.EVALUATION_RUN: "Portrait",
+_KIND_ID_BY_KIND = {
+    LineageEntityKind.BASE_MODEL: "base_model",
+    LineageEntityKind.PERSONA_PROFILE: "persona_profile",
+    LineageEntityKind.DATASET: "dataset",
+    LineageEntityKind.TRAINING_RUN: "training_run",
+    LineageEntityKind.ARTIFACT: "artifact",
+    LineageEntityKind.MODEL_VERSION: "model_version",
+    LineageEntityKind.EVALUATION_RUN: "evaluation_run",
 }
 _PRIMARY_RELATION_PRIORITY = {
     LineageRelation.PRODUCES_VERSION: 0,
@@ -87,7 +88,7 @@ def build_atomic_lineage(
                 depth=_depth(node.node_id, primary_parent),
                 title=_title(node),
                 subtitle=_subtitle(node, projection),
-                status=node.state.value,
+                status=_state_message(node.state),
                 tone=_tone(node.state),
                 branch_note=(
                     "current"
@@ -253,21 +254,24 @@ def _depth(
     return depth
 
 
-def _title(node: LineageNode) -> str:
-    prefix = _PREFIX_BY_KIND[node.kind]
+def _title(node: LineageNode) -> UserMessage:
     label = (
         node.attributes.get("title")
         or node.attributes.get("path")
         or node.attributes.get("reference")
         or node.entity_id
     )
-    return f"{prefix} · {label}"
+    kind_id = _KIND_ID_BY_KIND[node.kind]
+    return UserMessage(
+        f"agents.node.title.{kind_id}",
+        {"label": label},
+    )
 
 
 def _subtitle(
     node: LineageNode,
     projection: LineageProjection,
-) -> str:
+) -> UserMessage:
     attributes = [
         f"{key}={value}"
         for key, value in sorted(node.attributes.items())
@@ -279,10 +283,21 @@ def _subtitle(
         if item.dependent_node_id == node.node_id
     ]
     attributes.extend(
-        f"unresolved:{item.relation.value}={item.reason_code}"
+        f"{item.relation.value}={item.reason_code}"
         for item in unresolved
     )
-    return " · ".join(attributes) or node.kind.value
+    if attributes:
+        return UserMessage(
+            "agents.node.subtitle.attributes",
+            {"attributes": " · ".join(attributes)},
+        )
+    return UserMessage(
+        f"agents.node.kind.{_KIND_ID_BY_KIND[node.kind]}"
+    )
+
+
+def _state_message(state: LineageState) -> UserMessage:
+    return UserMessage(f"agents.lineage_state.{state.value}")
 
 
 def _tone(state: LineageState) -> str:
@@ -303,12 +318,7 @@ def _detail(
     node: LineageNode,
     projection: LineageProjection,
 ) -> AgentDetailView:
-    body_lines = [
-        f"kind: {node.kind.value}",
-        f"entity: {node.entity_id}",
-        f"state: {node.state.value}",
-    ]
-    body_lines.extend(
+    attributes = "\n".join(
         f"{key}: {value}"
         for key, value in sorted(node.attributes.items())
         if value
@@ -318,19 +328,34 @@ def _detail(
         for item in projection.unresolved
         if item.dependent_node_id == node.node_id
     )
-    body_lines.extend(
-        "unresolved "
-        f"{item.relation.value}: {item.reference or '∅'} "
-        f"({item.reason_code})"
+    unresolved_text = "\n".join(
+        f"{item.relation.value}: {item.reference or '∅'} ({item.reason_code})"
         for item in unresolved
     )
     checks = tuple(
-        f"{edge.relation.value}: {edge.source_node_id}"
+        UserMessage(
+            "agents.detail.relation_check",
+            {
+                "relation": edge.relation.value,
+                "source": edge.source_node_id,
+            },
+        )
         for edge in projection.incoming(node.node_id)
-    ) or ("semantic node registered",)
+    ) or (UserMessage("agents.detail.semantic_node_registered"),)
     return AgentDetailView(
-        title=node.kind.value,
-        body="\n".join(body_lines),
+        title=UserMessage(
+            f"agents.node.kind.{_KIND_ID_BY_KIND[node.kind]}"
+        ),
+        body=UserMessage(
+            "agents.detail.semantic_body",
+            {
+                "kind": node.kind.value,
+                "entity": node.entity_id,
+                "state": node.state.value,
+                "attributes": attributes or "—",
+                "unresolved": unresolved_text or "—",
+            },
+        ),
         checks=checks,
         actions=(),
     )
@@ -396,22 +421,24 @@ def _ensure_placeholders(
 ) -> None:
     existing = {node.node_id for node in nodes}
     chain = (
-        ("base", None, "Base"),
-        ("dataset", "base", "Dataset"),
-        ("training", "dataset", "Train"),
-        ("snapshot", "training", "Version"),
-        ("portrait", "snapshot", "Portrait"),
+        ("base", None, "base_model"),
+        ("dataset", "base", "dataset"),
+        ("training", "dataset", "training_run"),
+        ("snapshot", "training", "model_version"),
+        ("portrait", "snapshot", "evaluation_run"),
     )
-    for depth, (node_id, parent_id, title) in enumerate(chain):
+    for depth, (node_id, parent_id, kind_id) in enumerate(chain):
         if node_id in existing:
             continue
         nodes.append(
             ProjectedVersionNode(
                 node_id=node_id,
                 depth=depth,
-                title=f"{title} · —",
-                subtitle="presentation placeholder",
-                status=LineageState.PENDING.value,
+                title=UserMessage(
+                    f"agents.node.placeholder_title.{kind_id}"
+                ),
+                subtitle=UserMessage("agents.node.placeholder.subtitle"),
+                status=_state_message(LineageState.PENDING),
                 tone="pending",
                 branch_note=(
                     "current" if node_id == "snapshot" else "main"
@@ -420,9 +447,9 @@ def _ensure_placeholders(
             )
         )
         details[node_id] = AgentDetailView(
-            title=title,
-            body="No persisted semantic entity is linked to this stage.",
-            checks=("awaiting persisted entity",),
+            title=UserMessage(f"agents.node.kind.{kind_id}"),
+            body=UserMessage("agents.detail.placeholder.body"),
+            checks=(UserMessage("agents.detail.placeholder.check"),),
             actions=(),
         )
         resources[node_id] = ()
@@ -449,16 +476,14 @@ def _append_delta(
         ProjectedVersionNode(
             node_id="delta",
             depth=5,
-            title="Delta · latest - previous",
-            subtitle=(
-                "two exact evaluation runs available"
+            title=UserMessage("agents.node.delta.title"),
+            subtitle=UserMessage(
+                "agents.node.delta.subtitle.ready"
                 if ready
-                else "second evaluation run required"
+                else "agents.node.delta.subtitle.pending"
             ),
-            status=(
-                LineageState.READY.value
-                if ready
-                else LineageState.PENDING.value
+            status=_state_message(
+                LineageState.READY if ready else LineageState.PENDING
             ),
             tone="good" if ready else "pending",
             branch_note="main",
@@ -481,17 +506,20 @@ def _append_delta(
         ),
     }
     details["delta"] = AgentDetailView(
-        title="analysis_delta",
-        body="\n".join(
-            (
-                f"left: {context['delta']['left_experiment_id'] or '—'}",
-                f"right: {context['delta']['right_experiment_id'] or '—'}",
-            )
+        title=UserMessage("agents.node.kind.analysis_delta"),
+        body=UserMessage(
+            "agents.detail.delta.body",
+            {
+                "left": context["delta"]["left_experiment_id"] or "—",
+                "right": context["delta"]["right_experiment_id"] or "—",
+            },
         ),
         checks=(
-            "two exact evaluation runs"
-            if ready
-            else "second exact evaluation run missing",
+            UserMessage(
+                "agents.detail.delta.check.ready"
+                if ready
+                else "agents.detail.delta.check.pending"
+            ),
         ),
         actions=(),
     )
