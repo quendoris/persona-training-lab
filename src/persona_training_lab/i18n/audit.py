@@ -48,7 +48,7 @@ _WIDGET_TEXT_METHODS = {
     "setWhatsThis": (0,),
     "setWindowTitle": (0,),
 }
-_USER_VISIBLE_KEYWORDS = {"user_message"}
+_USER_VISIBLE_KEYWORDS = {"legacy_message", "user_message"}
 _DYNAMIC_PREFIX_NAMES = {"I18N_KEY_PREFIXES"}
 
 
