@@ -7,7 +7,7 @@ from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 
 from persona_training_lab.ui.agents.drag_scope import (
-    drag_history_label,
+    drag_history_action_code,
     drag_target_ids,
 )
 from persona_training_lab.ui.agents.version_graph_layout_authority import (
@@ -30,7 +30,10 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         self._drag_history_before = None
         self._drag_history_moved_node = False
         self._drag_history_moved_subtree = False
-        if event.button() == Qt.MouseButton.RightButton and not self.layout_locked():
+        if (
+            event.button() == Qt.MouseButton.RightButton
+            and not self.layout_locked()
+        ):
             node_id = self._node_at(event.position())
             if node_id is not None:
                 self._drag_history_before = self.layout_snapshot()
@@ -48,10 +51,13 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         before_move: dict[str, Any] | None = None
         if is_node_drag:
             scope_is_subtree = bool(
-                event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                event.modifiers()
+                & Qt.KeyboardModifier.ShiftModifier
             )
             subtree_ids = self._subtree_node_ids(node_id)
-            self._drag_mode = "subtree" if scope_is_subtree else "node"
+            self._drag_mode = (
+                "subtree" if scope_is_subtree else "node"
+            )
             self._drag_target_ids = drag_target_ids(
                 node_id,
                 subtree_ids,
@@ -61,7 +67,10 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
 
         super().mouseMoveEvent(event)
 
-        if before_move is not None and before_move != self.layout_snapshot():
+        if (
+            before_move is not None
+            and before_move != self.layout_snapshot()
+        ):
             if scope_is_subtree:
                 self._drag_history_moved_subtree = True
             else:
@@ -76,23 +85,32 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         self._drag_history_moved_node = False
         self._drag_history_moved_subtree = False
         if before is not None and before != self.layout_snapshot():
-            label = drag_history_label(
+            action_code = drag_history_action_code(
                 moved_node=moved_node,
                 moved_subtree=moved_subtree,
             )
-            self.layout_action_committed.emit(label, before, False)
+            self.layout_action_committed.emit(
+                action_code,
+                before,
+                False,
+            )
 
     def layout_snapshot(self) -> dict[str, Any]:
         return {
             "schema": 1,
             "offsets": {
                 node_id: {"x": point.x(), "y": point.y()}
-                for node_id, point in sorted(self._node_offsets.items())
+                for node_id, point in sorted(
+                    self._node_offsets.items()
+                )
                 if point.x() or point.y()
             },
         }
 
-    def restore_layout_snapshot(self, snapshot: dict[str, Any]) -> None:
+    def restore_layout_snapshot(
+        self,
+        snapshot: dict[str, Any],
+    ) -> None:
         if not isinstance(snapshot, dict) or "offsets" not in snapshot:
             return
         raw_offsets = snapshot.get("offsets", {})
@@ -122,7 +140,7 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         super().reset_layout()
         if before != self.layout_snapshot():
             self.layout_action_committed.emit(
-                "полный сброс раскладки",
+                "layout_reset_all",
                 before,
                 True,
             )
@@ -132,7 +150,7 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         super().reset_node_layout(node_id)
         if before != self.layout_snapshot():
             self.layout_action_committed.emit(
-                "сброс смещения точки",
+                "layout_reset_node",
                 before,
                 False,
             )
@@ -142,12 +160,15 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         super().reset_subtree_layout(node_id)
         if before != self.layout_snapshot():
             self.layout_action_committed.emit(
-                "сброс смещения поддерева",
+                "layout_reset_subtree",
                 before,
                 False,
             )
 
-    def forget_layout_nodes(self, node_ids: Iterable[str]) -> None:
+    def forget_layout_nodes(
+        self,
+        node_ids: Iterable[str],
+    ) -> None:
         removed = set(node_ids)
         for node_id in removed:
             self._node_offsets.pop(node_id, None)
