@@ -3,15 +3,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from persona_training_lab.application.workflows.supervisor import WorkflowSupervisor
+from persona_training_lab.ui.i18n.text import UserMessage
 
 
 @dataclass(slots=True)
 class ShellViewModel:
     workflow_supervisor: WorkflowSupervisor
     current_screen: str = "dashboard"
-    title: str = "Persona Training Lab"
-    subtitle: str = "исследовательская станция для обучения личности"
-    status_message: str = field(default="Готово")
+    title: UserMessage = field(
+        default_factory=lambda: UserMessage("app.name")
+    )
+    subtitle: UserMessage = field(
+        default_factory=lambda: UserMessage("app.subtitle")
+    )
+    status_message: UserMessage = field(
+        default_factory=lambda: UserMessage("status.ready")
+    )
 
     def navigate(self, screen: str) -> None:
         self.current_screen = screen
