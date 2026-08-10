@@ -52,10 +52,7 @@ class DatasetsService:
     datasets_repo: DatasetsReadRepositoryPort
 
     def list_datasets(self) -> list[DatasetSummary]:
-        return [
-            self._row_to_summary(row)
-            for row in self.datasets_repo.list_datasets()
-        ]
+        return [self._row_to_summary(row) for row in self.datasets_repo.list_datasets()]
 
     def add_dataset_from_path(self, file_path: str) -> DatasetSummary:
         path = Path(file_path)
@@ -115,26 +112,13 @@ class DatasetsService:
             return ActionResult(False, "not_found")
         return ActionResult(False, "version_compare_unavailable")
 
-    def preview_dataset(
-        self,
-        dataset_id: str,
-        limit: int = 25,
-    ) -> tuple[DatasetPreviewRecord, ...]:
+    def preview_dataset(self, dataset_id: str, limit: int = 25) -> tuple[DatasetPreviewRecord, ...]:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
             return ()
-        return self._preview_jsonl_path(
-            str(row.get("path", "")),
-            limit=limit,
-        )
+        return self._preview_jsonl_path(str(row.get("path", "")), limit=limit)
 
-    def _save_result(
-        self,
-        dataset_id: str,
-        result: DatasetValidationResult,
-        *,
-        approve: bool,
-    ) -> None:
+    def _save_result(self, dataset_id: str, result: DatasetValidationResult, *, approve: bool) -> None:
         status = (
             DatasetVersionStatus.APPROVED.value
             if approve and result.status == DatasetVersionStatus.VALIDATED.value
@@ -148,9 +132,7 @@ class DatasetsService:
                 "valid_count": result.valid_rows,
                 "invalid_count": result.invalid_rows,
                 "quality_summary": "",
-                "validation_errors_preview": "\n".join(
-                    result.errors_preview
-                ),
+                "validation_errors_preview": "\n".join(result.errors_preview),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -191,9 +173,7 @@ class DatasetsService:
                 except json.JSONDecodeError:
                     invalid_rows += 1
                     if len(errors) < 8:
-                        errors.append(
-                            f"строка {line_number}: невалидный JSON"
-                        )
+                        errors.append(f"строка {line_number}: невалидный JSON")
                     continue
                 ok, message = self._validate_record(payload)
                 if ok:
@@ -210,14 +190,7 @@ class DatasetsService:
             status = DatasetVersionStatus.STRUCTURE_ERROR.value
         else:
             status = DatasetVersionStatus.VALIDATED.value
-        return DatasetValidationResult(
-            status,
-            total_rows,
-            valid_rows,
-            invalid_rows,
-            0,
-            tuple(errors[:8]),
-        )
+        return DatasetValidationResult(status, total_rows, valid_rows, invalid_rows, 0, tuple(errors[:8]))
 
     def _validate_record(self, payload: object) -> tuple[bool, str]:
         if not isinstance(payload, dict):
@@ -261,27 +234,12 @@ class DatasetsService:
             if not isinstance(response, str) or not response.strip():
                 return False, "response должен быть непустой строкой"
             return True, "ok"
-        return (
-            False,
-            "поддерживаются схемы messages, instruction/output или "
-            "prompt/response",
-        )
+        return False, "поддерживаются схемы messages, instruction/output или prompt/response"
 
-    def _preview_jsonl_path(
-        self,
-        file_path: str,
-        limit: int,
-    ) -> tuple[DatasetPreviewRecord, ...]:
+    def _preview_jsonl_path(self, file_path: str, limit: int) -> tuple[DatasetPreviewRecord, ...]:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
-            return (
-                DatasetPreviewRecord(
-                    "—",
-                    "Файл датасета не найден",
-                    "—",
-                    "ошибка структуры",
-                ),
-            )
+            return (DatasetPreviewRecord("—", "Файл датасета не найден", "—", "ошибка структуры"),)
         rows: list[DatasetPreviewRecord] = []
         with path.open("r", encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, start=1):
@@ -293,45 +251,16 @@ class DatasetsService:
                 try:
                     payload = json.loads(line)
                 except json.JSONDecodeError:
-                    rows.append(
-                        DatasetPreviewRecord(
-                            f"#{line_number:03d}",
-                            "Невалидный JSON",
-                            "—",
-                            "ошибка структуры",
-                        )
-                    )
+                    rows.append(DatasetPreviewRecord(f"#{line_number:03d}", "Невалидный JSON", "—", "ошибка структуры"))
                     continue
                 ok, message = self._validate_record(payload)
                 if not ok:
-                    rows.append(
-                        DatasetPreviewRecord(
-                            f"#{line_number:03d}",
-                            message,
-                            "—",
-                            "ошибка структуры",
-                        )
-                    )
+                    rows.append(DatasetPreviewRecord(f"#{line_number:03d}", message, "—", "ошибка структуры"))
                     continue
                 rows.append(self._preview_record(line_number, payload))
-        return (
-            tuple(rows)
-            if rows
-            else (
-                DatasetPreviewRecord(
-                    "—",
-                    "Файл не содержит записей",
-                    "—",
-                    "ошибка структуры",
-                ),
-            )
-        )
+        return tuple(rows) if rows else (DatasetPreviewRecord("—", "Файл не содержит записей", "—", "ошибка структуры"),)
 
-    def _preview_record(
-        self,
-        line_number: int,
-        payload: dict[str, object],
-    ) -> DatasetPreviewRecord:
+    def _preview_record(self, line_number: int, payload: dict[str, object]) -> DatasetPreviewRecord:
         if "messages" in payload:
             messages = payload.get("messages") or []
             user_text = ""
@@ -346,41 +275,18 @@ class DatasetsService:
                         user_text = content
                     if role == "assistant":
                         assistant_text = content
-            return DatasetPreviewRecord(
-                f"#{line_number:03d}",
-                self._short(user_text or assistant_text or "messages"),
-                "messages",
-                "структура OK",
-            )
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text or "messages"), "messages", "структура OK")
         if "instruction" in payload or "output" in payload:
             instruction = str(payload.get("instruction", "")).strip()
             input_text = str(payload.get("input", "")).strip()
-            summary = (
-                instruction
-                if not input_text
-                else f"{instruction} · input: {input_text}"
-            )
-            return DatasetPreviewRecord(
-                f"#{line_number:03d}",
-                self._short(summary),
-                "instruction/output",
-                "структура OK",
-            )
+            summary = instruction if not input_text else f"{instruction} · input: {input_text}"
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "структура OK")
         prompt = str(payload.get("prompt", "")).strip()
-        return DatasetPreviewRecord(
-            f"#{line_number:03d}",
-            self._short(prompt),
-            "prompt/response",
-            "структура OK",
-        )
+        return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "структура OK")
 
     def _short(self, value: str, limit: int = 140) -> str:
         compact = " ".join(value.split())
-        return (
-            compact
-            if len(compact) <= limit
-            else compact[: limit - 1] + "…"
-        )
+        return compact if len(compact) <= limit else compact[: limit - 1] + "…"
 
     def _row_to_summary(self, row: dict[str, str | int]) -> DatasetSummary:
         return DatasetSummary(
@@ -392,9 +298,7 @@ class DatasetsService:
             valid_count=int(row.get("valid_count", 0)),
             invalid_count=int(row.get("invalid_count", 0)),
             quality_summary=str(row.get("quality_summary", "")),
-            validation_errors_preview=str(
-                row.get("validation_errors_preview", "")
-            ),
+            validation_errors_preview=str(row.get("validation_errors_preview", "")),
             path=str(row.get("path", "")),
             format=str(row.get("format", "jsonl")),
         )
