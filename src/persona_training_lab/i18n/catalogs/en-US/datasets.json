@@ -47,6 +47,7 @@
     "datasets.error.compare_failed": "Could not compare versions",
     "datasets.error.file_not_found": "Dataset file was not found",
     "datasets.error.load_failed": "Could not load datasets",
+    "datasets.error.not_found": "Dataset was not found",
     "datasets.error.only_jsonl": "Only the .jsonl format is supported",
     "datasets.error.validate_failed": "Could not validate the dataset",
     "datasets.header.summary": "{subtitle} · {version} · {records}",
