@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
         )
         self._workspace.register(
             "keybindings",
-            KeyBindingsScreen(self._key_binding_manager),
+            KeyBindingsScreen(self._key_binding_manager, localization),
         )
         self._workspace.register(
             "docs",
