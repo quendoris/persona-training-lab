@@ -49,6 +49,7 @@ def _screen(controller: _Controller):
             parent_id="snapshot",
         ),
         _render_text=lambda value: value,
+        _text=lambda key, **_values: key,
         _graph=SimpleNamespace(current_node_id=lambda: "snapshot"),
         _branch_deletion_controller=controller,
         _confirm_branch_deletion=lambda _title, _detail: True,
