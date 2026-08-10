@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.ui.i18n.text import (
+    render_user_message,
+    text as localized_text,
+)
 from persona_training_lab.ui.keybindings.definitions import (
-    MOUSE_BUTTON_LABELS,
-    MOUSE_MODIFIER_LABELS,
+    MOUSE_BUTTON_IDS,
+    MOUSE_MODIFIER_IDS,
 )
 from persona_training_lab.ui.keybindings.manager import (
     KeyBindingManager,
@@ -16,7 +21,12 @@ from persona_training_lab.ui.keybindings.manager import (
 class DraftChangeResult:
     accepted: bool
     changed: bool
-    error: str = ""
+    message: UserMessage | None = None
+
+    @property
+    def error(self) -> str:
+        """Base-locale compatibility surface for legacy callers."""
+        return render_user_message(None, self.message or "")
 
 
 class KeyBindingDraftSession:
@@ -52,9 +62,16 @@ class KeyBindingDraftSession:
         return self._draft_mouse_bindings[binding_id]
 
     def mouse_binding_text(self, binding_id: str) -> str:
+        """Base-locale compatibility renderer for legacy callers."""
         binding = self.mouse_binding(binding_id)
-        button = MOUSE_BUTTON_LABELS.get(binding.button, binding.button)
-        modifier = MOUSE_MODIFIER_LABELS.get(binding.modifier, binding.modifier)
+        button = localized_text(
+            None,
+            f"keybindings.mouse.button.{binding.button}",
+        )
+        modifier = localized_text(
+            None,
+            f"keybindings.mouse.modifier.{binding.modifier}",
+        )
         if binding.modifier == "none":
             return button
         return f"{modifier} + {button}"
@@ -62,13 +79,17 @@ class KeyBindingDraftSession:
     def set_sequence(self, binding_id: str, sequence: str) -> DraftChangeResult:
         definition = self._manager.definition(binding_id)
         if not definition.editable:
-            return DraftChangeResult(False, False, "Это назначение нельзя изменить.")
+            return DraftChangeResult(
+                False,
+                False,
+                UserMessage("keybindings.error.not_editable"),
+            )
         normalized = self._manager.normalize_sequence(sequence)
         if not normalized:
             return DraftChangeResult(
                 False,
                 False,
-                "Введите хотя бы одну клавишу или сочетание.",
+                UserMessage("keybindings.error.empty_sequence"),
             )
         previous = self._draft_bindings[binding_id]
         if previous == normalized:
@@ -85,21 +106,29 @@ class KeyBindingDraftSession:
         definition = self._manager.mouse_definition(binding_id)
         normalized_button = button.strip().casefold()
         normalized_modifier = modifier.strip().casefold() or "none"
-        if normalized_button not in MOUSE_BUTTON_LABELS:
-            return DraftChangeResult(False, False, "Неизвестная кнопка мыши.")
-        if normalized_modifier not in MOUSE_MODIFIER_LABELS:
-            return DraftChangeResult(False, False, "Неизвестный модификатор.")
+        if normalized_button not in MOUSE_BUTTON_IDS:
+            return DraftChangeResult(
+                False,
+                False,
+                UserMessage("keybindings.error.unknown_mouse_button"),
+            )
+        if normalized_modifier not in MOUSE_MODIFIER_IDS:
+            return DraftChangeResult(
+                False,
+                False,
+                UserMessage("keybindings.error.unknown_modifier"),
+            )
         if definition.trigger == "wheel" and normalized_button != "wheel":
             return DraftChangeResult(
                 False,
                 False,
-                "Масштабирование должно оставаться на колесе мыши; можно изменить его модификатор.",
+                UserMessage("keybindings.error.wheel_required"),
             )
         if definition.trigger != "wheel" and normalized_button == "wheel":
             return DraftChangeResult(
                 False,
                 False,
-                "Колесо нельзя назначить действию клика или перемещения.",
+                UserMessage("keybindings.error.wheel_forbidden"),
             )
         candidate = MouseBindingValue(normalized_button, normalized_modifier)
         if self._draft_mouse_bindings[binding_id] == candidate:
@@ -185,6 +214,7 @@ class KeyBindingDraftSession:
         }
 
     def conflict_text(self, binding_id: str, *, mouse: bool) -> str:
+        """Base-locale compatibility renderer for legacy callers."""
         conflicts = self.mouse_conflicts() if mouse else self.keyboard_conflicts()
         partner_ids = conflicts.get(binding_id, ())
         if not partner_ids:
@@ -195,8 +225,16 @@ class KeyBindingDraftSession:
                 for item in partner_ids
             ]
         else:
-            titles = [self._manager.definition(item).title for item in partner_ids]
-        return "Конфликт с: " + ", ".join(f"«{title}»" for title in titles)
+            titles = [
+                self._manager.definition(item).title
+                for item in partner_ids
+            ]
+        rendered_titles = ", ".join(f"«{title}»" for title in titles)
+        return localized_text(
+            None,
+            "keybindings.conflict.with",
+            titles=rendered_titles,
+        )
 
     def discard_conflicting_changes(self) -> DraftChangeResult:
         keyboard_ids = set(self.keyboard_conflicts())
@@ -236,18 +274,18 @@ class KeyBindingDraftSession:
 
         # One atomic write is essential for swaps and multi-step conflict
         # resolution: no intermediate invalid mapping becomes active.
-        error = self._manager._write(  # noqa: SLF001
+        message = self._manager._write(  # noqa: SLF001
             self._draft_bindings,
             self._draft_mouse_bindings,
         )
-        if error:
-            return DraftChangeResult(False, True, error)
+        if message is not None:
+            return DraftChangeResult(False, True, message)
 
         self._manager._bindings = dict(self._draft_bindings)  # noqa: SLF001
         self._manager._mouse_bindings = dict(  # noqa: SLF001
             self._draft_mouse_bindings
         )
-        self._manager._last_error = ""  # noqa: SLF001
+        self._manager._last_error_message = None  # noqa: SLF001
         self._active_bindings = dict(self._draft_bindings)
         self._active_mouse_bindings = dict(self._draft_mouse_bindings)
         self._manager.bindings_changed.emit()
