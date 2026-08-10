@@ -106,7 +106,7 @@ def test_training_creation_accepts_semantic_english_dependency_states() -> None:
     assert repository.created["status"] == "Готов к запуску"
 
 
-def test_training_validation_error_exposes_stable_code() -> None:
+def test_training_validation_error_exposes_only_stable_code() -> None:
     service = TrainingService(training_repo=MemoryTrainingRepository())
 
     with pytest.raises(TrainingValidationError) as captured:
@@ -121,4 +121,4 @@ def test_training_validation_error_exposes_stable_code() -> None:
         )
 
     assert captured.value.code == "invalid_hyperparameters"
-    assert "гиперпараметры" in str(captured.value)
+    assert str(captured.value) == "invalid_hyperparameters"
