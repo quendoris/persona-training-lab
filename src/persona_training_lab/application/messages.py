@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from types import MappingProxyType
 from typing import Mapping
+
+
+_ACTION_CODE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,10 +32,10 @@ class UserMessage:
 class ActionResult:
     """Locale-neutral outcome for an application operation.
 
-    ``code`` is a stable machine contract for GUI, CLI, recipes, tests, and
-    automation. Human-readable text is selected only by a presentation
-    boundary. ``values`` carries structured interpolation/provenance data and
-    must never be parsed back out of rendered text.
+    ``code`` is a stable lower-snake-case machine contract for GUI, CLI,
+    recipes, tests, and automation. Human-readable text is selected only by a
+    presentation boundary. ``values`` carries structured interpolation and
+    provenance data and must never be parsed back out of rendered text.
     """
 
     ok: bool
@@ -40,8 +44,10 @@ class ActionResult:
 
     def __post_init__(self) -> None:
         code = self.code.strip()
-        if not code:
-            raise ValueError("ActionResult code must not be empty")
+        if not _ACTION_CODE_RE.fullmatch(code):
+            raise ValueError(
+                "ActionResult code must be non-empty lower_snake_case"
+            )
         object.__setattr__(self, "code", code)
         object.__setattr__(
             self,
