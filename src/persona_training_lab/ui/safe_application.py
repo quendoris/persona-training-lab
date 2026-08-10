@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QEvent
 from PySide6.QtWidgets import QApplication
 
 from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
+from persona_training_lab.application.messages import UserMessage
 
 
 class SafeApplication(QApplication):
@@ -39,10 +40,7 @@ class SafeApplication(QApplication):
                         report = reporter.capture(
                             error,
                             component="qt.event_dispatch",
-                            user_message=(
-                                "Операция интерфейса не выполнена, но приложение "
-                                "продолжает работу."
-                            ),
+                            user_message=UserMessage("error.ui.event_dispatch"),
                             entity_kind="qt_widget",
                             entity_id=(
                                 receiver.objectName() or receiver_class
