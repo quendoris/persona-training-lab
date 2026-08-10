@@ -397,6 +397,8 @@ class DeepSurfaceAudit(ast.NodeVisitor):
         function_name = self._function_stack[-1] if self._function_stack else ""
         if (
             node.exc is not None
+            and self._class_stack
+            and self._class_stack[-1] == "DatasetsService"
             and function_name in _TYPED_DATASET_ERROR_FUNCTIONS
             and not (
                 isinstance(node.exc, ast.Call)
