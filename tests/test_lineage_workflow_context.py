@@ -172,6 +172,7 @@ def test_custom_branch_context_is_derived_from_inherited_resources() -> None:
     screen = SimpleNamespace(
         _node_context=lambda _node_id: {},
         _node_by_id=lambda _node_id: node,
+        _render_text=lambda value: value,
         _runtime_claims_for_node=lambda _node_id: (
             ResourceClaim("model_version", "mdl_parent", "read"),
             ResourceClaim("artifact_path", "/models/mdl_parent", "read"),
