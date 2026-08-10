@@ -3,12 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from persona_training_lab.application.datasets.service import DatasetsService
+from persona_training_lab.application.datasets.status_mapping import (
+    normalize_dataset_status,
+)
 from persona_training_lab.application.experiments.portrait import parse_portrait_payload
 from persona_training_lab.application.experiments.service import ExperimentsService
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.training.service import TrainingService
+from persona_training_lab.application.training.status_mapping import (
+    normalize_training_status,
+)
+from persona_training_lab.domain.datasets.statuses import DatasetVersionStatus
+from persona_training_lab.domain.training.statuses import TrainingRunStatus
+from persona_training_lab.ui.i18n.text import render_user_message
 from persona_training_lab.ui.viewmodels.agents_contracts import (
     AgentRoleView,
+    AgentText,
     PortraitStats,
 )
 from persona_training_lab.ui.viewmodels.agents_overview import AgentsOverviewViewModel
@@ -40,80 +51,89 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
     experiments_service: ExperimentsService | None = None
 
     def roles(self) -> tuple[AgentRoleView, ...]:
-        next_step = self.next_best_step()
+        next_step = self.next_best_step_message()
         latest = self._latest_portrait()
-        delta = self.delta_line() or "нужен второй портрет"
-        dataset_note = self._dataset_note()
+        delta: AgentText = self.delta_line() or UserMessage(
+            "agents.legacy.guidance.delta_required"
+        )
+        dataset_note = self._dataset_note_message()
         return (
             AgentRoleView(
                 "version_navigator",
-                "Версионный навигатор",
-                "Видит дерево model lineage и не даёт потерять актуальную версию.",
+                UserMessage("agents.legacy.role.navigator.title"),
+                UserMessage("agents.legacy.role.navigator.mission"),
                 next_step,
-                "главный",
+                UserMessage("agents.legacy.role.navigator.status"),
             ),
             AgentRoleView(
                 "researcher",
-                "Исследователь",
-                "Объясняет KPI и delta между портретами.",
-                f"Текущая delta: {delta}",
-                "анализ",
+                UserMessage("agents.legacy.role.researcher.title"),
+                UserMessage("agents.legacy.role.researcher.mission"),
+                UserMessage(
+                    "agents.legacy.role.researcher.next",
+                    {"delta": delta},
+                ),
+                UserMessage("agents.legacy.role.researcher.status"),
             ),
             AgentRoleView(
                 "dataset_auditor",
-                "Аудитор датасета",
-                "Проверяет структурную готовность обучающих данных.",
+                UserMessage("agents.legacy.role.dataset.title"),
+                UserMessage("agents.legacy.role.dataset.mission"),
                 dataset_note,
-                "проверка",
+                UserMessage("agents.legacy.role.dataset.status"),
             ),
             AgentRoleView(
                 "protocolist",
-                "Протоколист",
-                "Напоминает, что фиксировать для воспроизводимости.",
-                "Фиксируйте model, dataset, battery, scoring и raw responses.",
-                "протокол",
+                UserMessage("agents.legacy.role.protocol.title"),
+                UserMessage("agents.legacy.role.protocol.mission"),
+                UserMessage("agents.legacy.role.protocol.next"),
+                UserMessage("agents.legacy.role.protocol.status"),
             ),
             AgentRoleView(
                 "labeler",
-                "Разметчик",
-                "Готовит будущий corrective dataset по ошибкам и слабым факторам.",
-                self._labeler_step(latest),
-                "позже",
+                UserMessage("agents.legacy.role.labeler.title"),
+                UserMessage("agents.legacy.role.labeler.mission"),
+                self._labeler_step_message(latest),
+                UserMessage("agents.legacy.role.labeler.status"),
             ),
         )
 
-    def next_best_step(self) -> str:
+    def next_best_step_message(self) -> UserMessage:
         datasets = self._datasets()
         runs = self._training_runs()
         versions = self._model_versions()
         portraits = self._portraits()
         latest = self._portrait_stats(portraits[0]) if portraits else None
         if not datasets:
-            return "Добавьте датасет и проверьте структуру."
+            return UserMessage("agents.legacy.next.dataset_add")
         if not any(
-            getattr(item, "status", "") == "Одобрен для обучения"
+            normalize_dataset_status(getattr(item, "status", ""))
+            is DatasetVersionStatus.APPROVED
             for item in datasets
         ):
-            return "Одобрите валидный датасет для обучения."
+            return UserMessage("agents.legacy.next.dataset_approve")
         if not runs:
-            return "Создайте training run."
+            return UserMessage("agents.legacy.next.training_create")
         if (
             not getattr(runs[0], "artifact_path", "")
-            and getattr(runs[0], "status", "")
-            not in {"Завершён", "Готово", "Готова"}
+            and normalize_training_status(getattr(runs[0], "status", ""))
+            is not TrainingRunStatus.COMPLETED
         ):
-            return "Доведите training run до artifact."
+            return UserMessage("agents.legacy.next.training_complete")
         if not versions:
-            return "Создайте snapshot/model version из artifact."
+            return UserMessage("agents.legacy.next.version_create")
         if latest is None:
-            return "Соберите Big Five portrait текущей модели."
+            return UserMessage("agents.legacy.next.portrait_build")
         if latest.failures > 0:
-            return "Повторите портрет: есть invalid SCORE."
+            return UserMessage("agents.legacy.next.portrait_retry")
         if len(portraits) < 2:
-            return (
-                "После следующего fine-tune соберите второй портрет для delta."
-            )
-        return "Откройте анализ и сравните latest - previous."
+            return UserMessage("agents.legacy.next.delta_second")
+        return UserMessage("agents.legacy.next.analysis_open")
+
+    def next_best_step(self) -> str:
+        """Base-locale compatibility surface for historical callers."""
+
+        return render_user_message(None, self.next_best_step_message())
 
     def delta_line(self) -> str:
         portraits = self._portraits()
@@ -193,45 +213,56 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
             if key in scores
         )
 
-    def _dataset_note(self) -> str:
+    def _dataset_note_message(self) -> UserMessage:
         datasets = self._datasets()
         if not datasets:
-            return "Датасет не добавлен."
+            return UserMessage("agents.legacy.dataset.none")
         approved = sum(
             1
             for item in datasets
-            if getattr(item, "status", "") == "Одобрен для обучения"
+            if normalize_dataset_status(getattr(item, "status", ""))
+            is DatasetVersionStatus.APPROVED
         )
         errors = sum(
             1
             for item in datasets
             if getattr(item, "invalid_count", 0) > 0
         )
-        return (
-            f"Датасеты: {len(datasets)} · одобрено {approved} · "
-            f"с ошибками {errors}."
+        return UserMessage(
+            "agents.legacy.dataset.summary",
+            {
+                "count": len(datasets),
+                "approved": approved,
+                "errors": errors,
+            },
         )
 
-    def _labeler_step(self, latest: PortraitStats | None) -> str:
+    def _dataset_note(self) -> str:
+        """Base-locale compatibility surface for historical callers."""
+
+        return render_user_message(None, self._dataset_note_message())
+
+    def _labeler_step_message(self, latest: PortraitStats | None) -> UserMessage:
         if latest is None:
-            return (
-                "Сначала соберите портрет, потом размечайте слабые факторы."
-            )
+            return UserMessage("agents.legacy.labeler.no_portrait")
         if latest.failures > 0:
-            return (
-                "Сначала уберите invalid SCORE, потом собирайте corrective dataset."
-            )
+            return UserMessage("agents.legacy.labeler.invalid")
         weakest = (
             min(latest.scores.items(), key=lambda item: item[1])
             if latest.scores
             else None
         )
         if weakest is None:
-            return "Нет KPI для разметки."
-        return (
-            "Начните corrective dataset со слабого фактора: "
-            f"{weakest[0]}={weakest[1]:.2f}."
+            return UserMessage("agents.legacy.labeler.no_kpi")
+        return UserMessage(
+            "agents.legacy.labeler.weakest",
+            {"trait": weakest[0], "score": f"{weakest[1]:.2f}"},
         )
+
+    def _labeler_step(self, latest: PortraitStats | None) -> str:
+        """Base-locale compatibility surface for historical callers."""
+
+        return render_user_message(None, self._labeler_step_message(latest))
 
 
 __all__ = ("AgentsGuidanceViewModel",)
