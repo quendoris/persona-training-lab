@@ -6,6 +6,7 @@ import logging
 from persona_training_lab.application.errors.reporter import (
     ApplicationErrorReporter,
 )
+from persona_training_lab.application.messages import UserMessage
 
 
 class _MemoryEventLog:
@@ -24,6 +25,7 @@ class _BrokenEventLog:
 def test_capture_returns_safe_user_reference_and_structured_event() -> None:
     events = _MemoryEventLog()
     reporter = ApplicationErrorReporter(events)
+    message = UserMessage("error.python.worker_thread")
 
     try:
         raise RuntimeError("backend exploded")
@@ -31,7 +33,7 @@ def test_capture_returns_safe_user_reference_and_structured_event() -> None:
         result = reporter.capture(
             error,
             component="training.worker",
-            user_message="Операция остановлена безопасно",
+            user_message=message,
             entity_kind="training_run",
             entity_id="trn_001",
             context={"token": "secret", "epoch": 2},
@@ -39,7 +41,7 @@ def test_capture_returns_safe_user_reference_and_structured_event() -> None:
 
     assert result.error_id.startswith("err_")
     assert result.correlation_id.startswith("corr_")
-    assert result.user_message == "Операция остановлена безопасно"
+    assert result.user_message == message
     assert len(events.records) == 1
     payload = json.loads(events.records[0].payload_json)
     assert payload["exception_type"] == "RuntimeError"
