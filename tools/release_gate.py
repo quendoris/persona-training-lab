@@ -57,6 +57,7 @@ QUICK_TESTS = (
     "tests/test_agents_key_bindings.py",
     "tests/test_keybindings_i18n.py",
     "tests/test_agents_i18n.py",
+    "tests/test_agents_legacy_i18n.py",
     "tests/test_tests_connector.py",
     "tests/test_analysis_connector.py",
     "tests/test_lineage_workflow_context.py",
