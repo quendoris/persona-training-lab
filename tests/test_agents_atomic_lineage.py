@@ -12,6 +12,7 @@ from persona_training_lab.application.lineage.snapshot import (
     LineageSourceSnapshot,
     LineageTrainingRunRecord,
 )
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.ui.agents.atomic_lineage import build_real_lineage
 from persona_training_lab.ui.viewmodels.agents_lineage import AgentsViewModel
 
@@ -232,7 +233,10 @@ def test_unresolved_evaluation_is_never_attached_to_latest_snapshot() -> None:
         projection.entity_context["portrait"]["model_version_id"]
         == "mdl_missing"
     )
-    assert "unknown_reference" in projection.details["portrait"].body
+    detail_body = projection.details["portrait"].body
+    assert isinstance(detail_body, UserMessage)
+    assert detail_body.key == "agents.detail.semantic_body"
+    assert "unknown_reference" in str(detail_body.values["unresolved"])
 
 
 def test_empty_atomic_projection_keeps_explicit_presentation_placeholders() -> None:
@@ -250,5 +254,7 @@ def test_empty_atomic_projection_keeps_explicit_presentation_placeholders() -> N
         "portrait",
         "delta",
     } <= set(by_id)
-    assert by_id["snapshot"].subtitle == "presentation placeholder"
+    subtitle = by_id["snapshot"].subtitle
+    assert isinstance(subtitle, UserMessage)
+    assert subtitle.key == "agents.node.placeholder.subtitle"
     assert projection.resources["snapshot"] == ()
