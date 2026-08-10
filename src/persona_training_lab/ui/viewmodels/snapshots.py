@@ -29,14 +29,6 @@ _EMPTY_STATUS_KEYS = {
     "load_failed": "snapshots.status.error",
     "empty": "snapshots.status.empty",
 }
-_LEGACY_EMPTY_STATES = {
-    "service_unavailable": (
-        "Сервис версий модели не подключён",
-        "недоступно",
-    ),
-    "load_failed": ("Не удалось загрузить снимки", "ошибка"),
-    "empty": ("Снимки пока не созданы", "пусто"),
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +42,24 @@ def snapshot_text(key: str, **values: object) -> SnapshotText:
 
 
 SnapshotValue = SnapshotText | str
+
+
+def _base_snapshot_text(value: SnapshotValue) -> str:
+    """Render only the historical base-locale compatibility projection."""
+
+    if isinstance(value, str):
+        return value
+    from persona_training_lab.ui.i18n.text import text as localized_text
+
+    rendered_values = {
+        key: (
+            _base_snapshot_text(item)
+            if isinstance(item, SnapshotText)
+            else item
+        )
+        for key, item in value.values.items()
+    }
+    return localized_text(None, value.key, **rendered_values)
 
 
 @dataclass(slots=True, frozen=True)
@@ -147,11 +157,17 @@ class SnapshotsViewModel:
             self.current_snapshot_id = self.snapshots[0].snapshot_id
 
     def _empty_snapshot(self, state_code: str) -> SnapshotRow:
-        message, status = _LEGACY_EMPTY_STATES[state_code]
+        state_model = snapshot_text(
+            _EMPTY_STATE_KEYS.get(state_code, "snapshots.state.empty")
+        )
+        status_model = snapshot_text(
+            _EMPTY_STATUS_KEYS.get(state_code, "snapshots.status.empty")
+        )
+        message = _base_snapshot_text(state_model)
         return SnapshotRow(
             snapshot_id="snapshots_empty",
-            title="Снимки",
-            status=status,
+            title=_base_snapshot_text(snapshot_text("snapshots.screen.title")),
+            status=_base_snapshot_text(status_model),
             subtitle=message,
             quality_summary=message,
             state_code=state_code,
@@ -386,51 +402,13 @@ class SnapshotsViewModel:
 
     @property
     def metrics(self) -> tuple[SnapshotMetric, ...]:
-        snap = self.current_snapshot()
-        if snap.snapshot_id == "snapshots_empty":
-            return (
-                SnapshotMetric(
-                    "Жизненный цикл",
-                    snap.status,
-                    snap.subtitle,
-                ),
-                SnapshotMetric(
-                    "Источник",
-                    "—",
-                    "успешный full fine-tune ещё не зарегистрировал artifact",
-                ),
-                SnapshotMetric(
-                    "Artifact",
-                    "—",
-                    "нет сохранённой версии модели",
-                ),
-                SnapshotMetric(
-                    "Готовность",
-                    "0%",
-                    "создайте training run и дождитесь artifact",
-                ),
+        return tuple(
+            SnapshotMetric(
+                _base_snapshot_text(metric.title),
+                _base_snapshot_text(metric.value),
+                _base_snapshot_text(metric.note),
             )
-        return (
-            SnapshotMetric(
-                "Жизненный цикл",
-                snap.status,
-                "версия модели зарегистрирована после обучения",
-            ),
-            SnapshotMetric(
-                "Источник",
-                snap.training_run_id or "—",
-                "training run, который создал artifact",
-            ),
-            SnapshotMetric(
-                "Artifact",
-                "есть" if snap.artifact_path else "нет",
-                snap.artifact_path or "artifact path отсутствует",
-            ),
-            SnapshotMetric(
-                "Профиль",
-                snap.profile_title or "—",
-                "профиль, выбранный при обучении",
-            ),
+            for metric in self.metric_models()
         )
 
     def timeline_rows(self) -> tuple[tuple[str, str], ...]:
@@ -438,26 +416,12 @@ class SnapshotsViewModel:
 
     @property
     def timeline(self) -> tuple[TimelineItem, ...]:
-        snap = self.current_snapshot()
-        if snap.snapshot_id == "snapshots_empty":
-            return (TimelineItem("ожидание artifact", snap.subtitle),)
-        return (
+        return tuple(
             TimelineItem(
-                "обучение завершено",
-                f"run: {snap.training_run_id}",
-            ),
-            TimelineItem(
-                "artifact сохранён",
-                snap.artifact_path or "artifact path отсутствует",
-            ),
-            TimelineItem(
-                "версия модели зарегистрирована",
-                snap.quality_summary or "без quality summary",
-            ),
-            TimelineItem(
-                "готово к тестам",
-                "откройте вкладку «Тесты» и запустите проверку модели",
-            ),
+                _base_snapshot_text(item.title),
+                _base_snapshot_text(item.note),
+            )
+            for item in self.timeline_models()
         )
 
     def lineage_rows(self) -> tuple[str, ...]:
@@ -465,27 +429,9 @@ class SnapshotsViewModel:
 
     @property
     def lineage(self) -> tuple[str, ...]:
-        snap = self.current_snapshot()
-        if snap.snapshot_id == "snapshots_empty":
-            return (
-                "Нет lineage: снимки появятся после успешного обучения.",
-            )
-        return (
-            f"Базовая модель · {snap.base_model or '—'}",
-            f"Профиль · {snap.profile_title or '—'}",
-            f"Версия датасета · {snap.dataset_title or '—'}",
-            f"Запуск обучения · {snap.training_run_id or '—'}",
-            f"Artifact · {snap.artifact_path or '—'}",
+        return tuple(
+            _base_snapshot_text(item) for item in self.lineage_models()
         )
 
     def next_step(self) -> str:
-        snap = self.current_snapshot()
-        if snap.snapshot_id == "snapshots_empty":
-            return (
-                "Завершите обучение: после artifact снимок появится "
-                "автоматически из зарегистрированной версии модели."
-            )
-        return (
-            "Запустите тесты для этой версии модели и затем "
-            "переходите к анализу результатов."
-        )
+        return _base_snapshot_text(self.next_step_model())
