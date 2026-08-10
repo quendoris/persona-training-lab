@@ -9,7 +9,10 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from persona_training_lab.application.lineage.atomic_projection import (
     AtomicLineageSnapshot,
 )
-from persona_training_lab.application.lineage.loader import LineageLoaderFactory
+from persona_training_lab.application.lineage.loader import (
+    AtomicLineageLoader,
+    LineageLoaderFactory,
+)
 from persona_training_lab.ui.agents.lineage_presentation import (
     LineagePresentationProjection,
 )
@@ -48,7 +51,7 @@ class LineageRefreshWorker(QObject):
     def __init__(self, loader_factory: LineageLoaderFactory) -> None:
         super().__init__()
         self._loader_factory = loader_factory
-        self._loader = None
+        self._loader: AtomicLineageLoader | None = None
         self._closed = False
 
     @Slot(int)
