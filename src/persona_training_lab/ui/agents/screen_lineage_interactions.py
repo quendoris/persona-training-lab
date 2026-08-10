@@ -14,24 +14,39 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from persona_training_lab.ui.agents.key_bindings import agent_graph_key_bindings_by_id
-from persona_training_lab.ui.agents.lineage_state import HistoryTransition
+from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.ui.agents.key_bindings import (
+    agent_graph_key_bindings_by_id,
+)
+from persona_training_lab.ui.agents.lineage_state import (
+    HISTORY_ACTION_KEYS,
+    HistoryTransition,
+)
 from persona_training_lab.ui.agents.screen_lineage_base import (
     AgentsScreen as _LineageBaseAgentsScreen,
 )
 from persona_training_lab.ui.components.cards import PanelCard
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView
 
 
 class AgentsScreen(_LineageBaseAgentsScreen):
     """Own lineage commands, local branch mutation, and state-history effects."""
 
-    def __init__(self, view_model) -> None:
-        super().__init__(view_model)
+    def __init__(
+        self,
+        view_model,
+        localization: LocalizationManager | None = None,
+    ) -> None:
+        super().__init__(view_model, localization)
         if hasattr(self._graph, "menu_action_requested"):
-            self._graph.menu_action_requested.connect(self._handle_canvas_menu_action)
+            self._graph.menu_action_requested.connect(
+                self._handle_canvas_menu_action
+            )
         if hasattr(self._graph, "layout_action_committed"):
-            self._graph.layout_action_committed.connect(self._record_graph_layout_action)
+            self._graph.layout_action_committed.connect(
+                self._record_graph_layout_action
+            )
         self._setup_shortcuts()
         self._sync_history_action()
 
@@ -50,7 +65,9 @@ class AgentsScreen(_LineageBaseAgentsScreen):
                 QKeySequence.SequenceFormat.PortableText,
             )
             shortcut = QShortcut(sequence, self)
-            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.setContext(
+                Qt.ShortcutContext.WidgetWithChildrenShortcut
+            )
             shortcut.setAutoRepeat(definition.auto_repeat)
             shortcut.activated.connect(handler)
             self._shortcuts[binding_id] = shortcut
@@ -63,19 +80,26 @@ class AgentsScreen(_LineageBaseAgentsScreen):
         layout.setSpacing(12)
 
         detail_card = PanelCard(
-            "Карточка узла",
-            "Действия открываются ЛКМ по точке прямо на графе.",
+            self._text("agents.details.node_title"),
+            self._text("agents.details.node_subtitle"),
         )
+        self._details_card = detail_card
         self._detail_title = QLabel("—")
         self._detail_title.setObjectName("CardTitle")
         self._detail_body = QLabel("—")
         self._detail_body.setWordWrap(True)
         detail_card.add_widget(self._detail_title)
         detail_card.add_widget(self._detail_body)
-        detail_card.add_widget(QLabel("Проверить"))
+        self._detail_checks_title = QLabel(
+            self._text("agents.details.check")
+        )
+        detail_card.add_widget(self._detail_checks_title)
         self._checks_layout = QGridLayout()
         detail_card._layout.addLayout(self._checks_layout)
-        detail_card.add_widget(QLabel("Справка"))
+        self._detail_help_title = QLabel(
+            self._text("agents.details.help")
+        )
+        detail_card.add_widget(self._detail_help_title)
         self._actions_layout = QGridLayout()
         detail_card._layout.addLayout(self._actions_layout)
         layout.addWidget(detail_card)
@@ -125,18 +149,33 @@ class AgentsScreen(_LineageBaseAgentsScreen):
         ratio = new_zoom / old_zoom
         hbar = self._graph_scroll.horizontalScrollBar()
         vbar = self._graph_scroll.verticalScrollBar()
-        target_h = int(round(hbar.value() + (ratio - 1.0) * anchor.x()))
-        target_v = int(round(vbar.value() + (ratio - 1.0) * anchor.y()))
+        target_h = int(
+            round(hbar.value() + (ratio - 1.0) * anchor.x())
+        )
+        target_v = int(
+            round(vbar.value() + (ratio - 1.0) * anchor.y())
+        )
         QTimer.singleShot(
             0,
-            lambda: self._apply_graph_zoom_scroll(target_h, target_v),
+            lambda: self._apply_graph_zoom_scroll(
+                target_h,
+                target_v,
+            ),
         )
 
-    def _apply_graph_zoom_scroll(self, horizontal: int, vertical: int) -> None:
+    def _apply_graph_zoom_scroll(
+        self,
+        horizontal: int,
+        vertical: int,
+    ) -> None:
         self._graph_scroll.horizontalScrollBar().setValue(horizontal)
         self._graph_scroll.verticalScrollBar().setValue(vertical)
 
-    def _handle_canvas_menu_action(self, node_id: str, action: str) -> None:
+    def _handle_canvas_menu_action(
+        self,
+        node_id: str,
+        action: str,
+    ) -> None:
         self._select_node(node_id)
         self._close_canvas_menu()
         if action == "make_current":
@@ -173,12 +212,16 @@ class AgentsScreen(_LineageBaseAgentsScreen):
 
     def _toggle_last_history_action(self) -> None:
         self._close_canvas_menu()
-        transition = self._state.quick_toggle(self._layout_snapshot())
+        transition = self._state.quick_toggle(
+            self._layout_snapshot()
+        )
         self._apply_history_transition(transition)
 
     def _undo_history_only(self) -> None:
         self._close_canvas_menu()
-        transition = self._state.undo_only(self._layout_snapshot())
+        transition = self._state.undo_only(
+            self._layout_snapshot()
+        )
         self._apply_history_transition(transition)
 
     def _undo_last_lineage_action(self) -> None:
@@ -215,43 +258,57 @@ class AgentsScreen(_LineageBaseAgentsScreen):
                 )
         self._graph.set_nodes(self._lineage_nodes)
         if hasattr(self._graph, "restore_layout_snapshot"):
-            self._graph.restore_layout_snapshot(transition.layout_snapshot)
+            self._graph.restore_layout_snapshot(
+                transition.layout_snapshot
+            )
         self._select_node(self._selected_node_id)
         self._sync_history_action()
         if old_selected != self._selected_node_id:
             QTimer.singleShot(
                 0,
-                lambda: self._center_on_node(self._selected_node_id),
+                lambda: self._center_on_node(
+                    self._selected_node_id
+                ),
             )
 
     def _record_graph_layout_action(
         self,
-        label: str,
+        action_code: str,
         before_layout: object,
         critical: bool,
     ) -> None:
         if not isinstance(before_layout, dict):
             return
         self._state.record_layout_action(
-            label,
+            action_code,
             before_layout,
             critical=critical,
         )
         self._sync_history_action()
 
+    def _history_action_label(self, action_code: str) -> str:
+        key = HISTORY_ACTION_KEYS.get(action_code)
+        return self._text(key) if key is not None else action_code
+
     def _sync_history_action(self) -> None:
         if hasattr(self._graph, "set_history_action_text"):
-            text = (
-                self._state.history_toggle_text()
-                if self._state.can_toggle_history()
-                else None
-            )
+            parts = self._state.history_toggle_parts()
+            text = None
+            if parts is not None:
+                direction, action_code = parts
+                text = self._text(
+                    "agents.history.redo"
+                    if direction == "redo"
+                    else "agents.history.undo",
+                    action=self._history_action_label(action_code),
+                )
             self._graph.set_history_action_text(text)
             return
         if hasattr(self._graph, "set_undo_action_label"):
+            action_code = self._state.last_action_code()
             label = (
-                self._state.last_action_label()
-                if self._state.can_undo()
+                self._history_action_label(action_code)
+                if action_code
                 else None
             )
             self._graph.set_undo_action_label(label)
@@ -264,12 +321,31 @@ class AgentsScreen(_LineageBaseAgentsScreen):
         if node is None or not self._state.is_custom_node(node_id):
             return
         dialog = QInputDialog(self)
-        dialog.setWindowTitle("Переименовать ветку")
-        dialog.setLabelText("Новое название:")
-        dialog.setTextValue(node.title)
-        dialog.setOkButtonText("Сохранить")
-        dialog.setCancelButtonText("Отмена")
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+
+        def refresh_dialog(_locale: str = "") -> None:
+            dialog.setWindowTitle(
+                self._text("agents.dialog.rename.title")
+            )
+            dialog.setLabelText(
+                self._text("agents.dialog.rename.label")
+            )
+            dialog.setOkButtonText(self._text("common.save"))
+            dialog.setCancelButtonText(self._text("common.cancel"))
+
+        refresh_dialog()
+        dialog.setTextValue(self._render_text(node.title))
+        localization = self._localization
+        if localization is not None:
+            localization.language_changed.connect(refresh_dialog)
+        try:
+            accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        finally:
+            if localization is not None:
+                try:
+                    localization.language_changed.disconnect(refresh_dialog)
+                except (RuntimeError, TypeError):
+                    pass
+        if not accepted:
             return
         title = dialog.textValue().strip()
         if not title:
@@ -300,14 +376,16 @@ class AgentsScreen(_LineageBaseAgentsScreen):
         if node is None or not removed_ids:
             return
         descendants = len(removed_ids) - 1
-        detail = "Ветку можно будет вернуть через защищённую историю действий."
+        detail = self._text("agents.dialog.delete.single")
         if descendants:
-            detail = (
-                "Будет удалена эта ветка и дочерние точки: "
-                f"{descendants}. "
-                "Удаление сохранится в защищённой истории."
+            detail = self._text(
+                "agents.dialog.delete.subtree",
+                count=descendants,
             )
-        if not self._confirm_branch_deletion(node.title, detail):
+        if not self._confirm_branch_deletion(
+            self._render_text(node.title),
+            detail,
+        ):
             return
         fallback_id = node.parent_id or self._graph.current_node_id()
         removed = self._state.delete_subtree(
@@ -321,23 +399,47 @@ class AgentsScreen(_LineageBaseAgentsScreen):
         self._selected_node_id = fallback_id
         self._refresh_lineage(center=True)
 
-    def _confirm_branch_deletion(self, title: str, detail: str) -> bool:
+    def _confirm_branch_deletion(
+        self,
+        title: str,
+        detail: str,
+    ) -> bool:
         dialog = QMessageBox(self)
         dialog.setIcon(QMessageBox.Icon.Warning)
-        dialog.setWindowTitle("Удалить локальную ветку?")
         dialog.setText(f"{title}\n\n{detail}")
         dialog.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
         )
         dialog.setDefaultButton(QMessageBox.StandardButton.No)
         yes_button = dialog.button(QMessageBox.StandardButton.Yes)
         no_button = dialog.button(QMessageBox.StandardButton.No)
-        if yes_button is not None:
-            yes_button.setText("Да")
-        if no_button is not None:
-            no_button.setText("Нет")
-        dialog.exec()
-        return yes_button is not None and dialog.clickedButton() is yes_button
+
+        def refresh_dialog(_locale: str = "") -> None:
+            dialog.setWindowTitle(
+                self._text("agents.dialog.delete.title")
+            )
+            if yes_button is not None:
+                yes_button.setText(self._text("common.yes"))
+            if no_button is not None:
+                no_button.setText(self._text("common.no"))
+
+        refresh_dialog()
+        localization = self._localization
+        if localization is not None:
+            localization.language_changed.connect(refresh_dialog)
+        try:
+            dialog.exec()
+        finally:
+            if localization is not None:
+                try:
+                    localization.language_changed.disconnect(refresh_dialog)
+                except (RuntimeError, TypeError):
+                    pass
+        return (
+            yes_button is not None
+            and dialog.clickedButton() is yes_button
+        )
 
     def _close_canvas_menu(self) -> None:
         if hasattr(self._graph, "close_node_menu"):
@@ -346,61 +448,64 @@ class AgentsScreen(_LineageBaseAgentsScreen):
     def _reset_node_layout(self, node_id: str) -> None:
         if hasattr(self._graph, "reset_node_layout"):
             self._graph.reset_node_layout(node_id)
-        QTimer.singleShot(0, lambda: self._center_on_node(node_id))
+        QTimer.singleShot(
+            0,
+            lambda: self._center_on_node(node_id),
+        )
 
     def _reset_subtree_layout(self, node_id: str) -> None:
         if hasattr(self._graph, "reset_subtree_layout"):
             self._graph.reset_subtree_layout(node_id)
-        QTimer.singleShot(0, lambda: self._center_on_node(node_id))
+        QTimer.singleShot(
+            0,
+            lambda: self._center_on_node(node_id),
+        )
 
     def _detail_for(self, node_id: str) -> AgentDetailView:
         node = self._node_by_id(node_id)
         if node is None:
             return self._vm.node_detail(node_id)
-        shortcut_help = (
-            "Del удаляет выбранную локальную ветку.",
-            "Ctrl+Z переключает последнее изменение: отменить / вернуть.",
-            "Ctrl+Shift+Z всегда уходит ещё на один шаг назад и поддерживает удержание.",
-        )
+        base = self._vm.node_detail(node_id)
         if self._state.is_custom_node(node_id):
-            archive_state = "Да" if self._state.is_archived(node_id) else "Нет"
             return AgentDetailView(
                 title=node.title,
-                body="\n".join(
-                    (
-                        f"Parent: {node.parent_id or '—'}",
-                        f"Статус: {node.status}",
-                        f"В архиве: {archive_state}",
-                        node.subtitle,
-                    )
+                body=UserMessage(
+                    "agents.custom.body",
+                    {
+                        "parent": node.parent_id or "—",
+                        "status": self._render_text(node.status),
+                        "archived": self._text(
+                            "common.yes"
+                            if self._state.is_archived(node_id)
+                            else "common.no"
+                        ),
+                        "subtitle": self._render_text(node.subtitle),
+                    },
                 ),
                 checks=(
-                    "Локальная ветка lineage",
-                    "Пока не связана с training run",
-                    "Перед запуском нужен snapshot/protocol record",
+                    UserMessage("agents.custom.check.local"),
+                    UserMessage("agents.custom.check.training"),
+                    UserMessage("agents.custom.check.snapshot"),
                 ),
-                actions=(
-                    "ЛКМ по точке открывает действия на графе.",
-                    "ПКМ двигает пространство/точку.",
-                    *shortcut_help,
+                actions=(),
+                action_codes=(
+                    "open_actions",
+                    "pan",
+                    "delete",
+                    "toggle",
+                    "undo",
                 ),
             )
-        base = self._vm.node_detail(node_id)
-        body = "\n".join(
-            (
-                base.body,
-                "",
-                f"Lineage state: {node.status}",
-                f"Parent: {node.parent_id or '—'}",
-            )
-        )
         return AgentDetailView(
-            base.title,
-            body,
-            base.checks,
-            (
-                "ЛКМ по точке открывает действия на графе.",
-                "ПКМ двигает пространство/точку.",
-                *shortcut_help[1:],
+            title=base.title,
+            body=base.body,
+            checks=base.checks,
+            actions=base.actions,
+            action_codes=(
+                *base.action_codes,
+                "open_actions",
+                "pan",
+                "toggle",
+                "undo",
             ),
         )
