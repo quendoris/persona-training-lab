@@ -350,6 +350,11 @@ def render_profile():
     source_visitor.visit(
         ast.parse(
             """
+_PROFILE_ACTION_KEYS = {
+    "known": "profiles.message.created",
+    "missing": "missing.profile.map.key",
+    "machine": "save_failed",
+}
 profile_text("profiles.message.created")
 profile_text("missing.profile.constructor")
 """,
@@ -358,5 +363,7 @@ profile_text("missing.profile.constructor")
     )
     assert source_visitor.translation_keys == {
         "profiles.message.created",
+        "missing.profile.map.key",
         "missing.profile.constructor",
     }
+    assert "save_failed" not in source_visitor.translation_keys
