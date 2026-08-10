@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "errors"
+  },
+  "messages": {
+    "error.python.main_thread": "Фоновая операция завершилась с ошибкой, но приложение осталось доступно.",
+    "error.python.worker_thread": "Фоновая задача остановлена безопасно; интерфейс продолжает работать."
+  }
+}
