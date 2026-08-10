@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
+from persona_training_lab.domain.persona.statuses import ProfileStatus
+
 
 class SQLiteProfilesRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
@@ -47,7 +49,7 @@ class SQLiteProfilesRepository:
                 payload.get("principles", ""),
                 payload.get("constraints", ""),
                 payload.get("notes", ""),
-                payload.get("status", "готов"),
+                payload.get("status", ProfileStatus.READY.value),
                 payload.get("created_at", ""),
                 payload.get("updated_at", ""),
             ),
@@ -77,7 +79,7 @@ class SQLiteProfilesRepository:
                 payload.get("principles", ""),
                 payload.get("constraints", ""),
                 payload.get("notes", ""),
-                payload.get("status", "готов"),
+                payload.get("status", ProfileStatus.READY.value),
                 payload.get("updated_at", ""),
                 profile_id,
             ),
