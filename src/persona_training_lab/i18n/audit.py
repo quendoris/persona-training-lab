@@ -48,6 +48,41 @@ _WIDGET_TEXT_METHODS = {
     "setWhatsThis": (0,),
     "setWindowTitle": (0,),
 }
+_STRUCTURED_TEXT_ARGUMENTS: dict[str, tuple[tuple[int, str], ...]] = {
+    "AgentView": (
+        (1, "title"),
+        (2, "subtitle"),
+        (3, "status"),
+    ),
+    "AgentRoleView": (
+        (1, "title"),
+        (2, "mission"),
+        (3, "next_action"),
+        (4, "status"),
+    ),
+    "VersionNodeView": (
+        (2, "title"),
+        (3, "subtitle"),
+        (4, "status"),
+    ),
+    "ProjectedVersionNode": (
+        (2, "title"),
+        (3, "subtitle"),
+        (4, "status"),
+    ),
+    "LineageVersionNode": (
+        (2, "title"),
+        (3, "subtitle"),
+        (4, "status"),
+    ),
+    "AgentDetailView": (
+        (0, "title"),
+        (1, "body"),
+        (2, "checks"),
+        (3, "actions"),
+    ),
+}
+_PAINTER_TEXT_CALLS = {"drawText", "drawStaticText"}
 _USER_VISIBLE_KEYWORDS = {"legacy_message", "user_message"}
 _DYNAMIC_PREFIX_NAMES = {"I18N_KEY_PREFIXES"}
 
@@ -139,6 +174,11 @@ class SourceAudit(ast.NodeVisitor):
                 call_name,
                 _WIDGET_TEXT_METHODS[call_name],
             )
+        structured = _STRUCTURED_TEXT_ARGUMENTS.get(call_name)
+        if structured is not None:
+            self._collect_structured_literals(node, call_name, structured)
+        if call_name in _PAINTER_TEXT_CALLS:
+            self._collect_all_argument_literals(node, call_name)
         self._collect_keyword_literals(
             node,
             call_name,
@@ -182,6 +222,40 @@ class SourceAudit(ast.NodeVisitor):
             if text is None or not _looks_user_visible(text):
                 continue
             self._append_literal(node, call_name, text)
+
+    def _collect_structured_literals(
+        self,
+        node: ast.Call,
+        call_name: str,
+        arguments: tuple[tuple[int, str], ...],
+    ) -> None:
+        for position, keyword in arguments:
+            value = _argument_expression(
+                node,
+                position,
+                keyword=keyword,
+            )
+            if value is None:
+                continue
+            for text in _literal_strings(value):
+                if not _looks_user_visible(text):
+                    continue
+                self._append_literal(
+                    node,
+                    f"{call_name} {keyword}",
+                    text,
+                )
+
+    def _collect_all_argument_literals(
+        self,
+        node: ast.Call,
+        call_name: str,
+    ) -> None:
+        for argument in node.args:
+            for text in _literal_strings(argument):
+                if not _looks_user_visible(text):
+                    continue
+                self._append_literal(node, call_name, text)
 
     def _collect_keyword_literals(
         self,
@@ -360,6 +434,31 @@ def _constant_argument(
         if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
             return item.value.value
     return None
+
+
+def _argument_expression(
+    node: ast.Call,
+    position: int,
+    *,
+    keyword: str,
+) -> ast.expr | None:
+    if position < len(node.args):
+        return node.args[position]
+    for item in node.keywords:
+        if item.arg == keyword:
+            return item.value
+    return None
+
+
+def _literal_strings(node: ast.expr) -> tuple[str, ...]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return (node.value,)
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        values: list[str] = []
+        for item in node.elts:
+            values.extend(_literal_strings(item))
+        return tuple(values)
+    return ()
 
 
 def _constant_string(args: list[ast.expr], index: int) -> str | None:
