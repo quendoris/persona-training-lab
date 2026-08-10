@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
+from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.profiles.service import (
     ProfileSummary,
     ProfilesService,
@@ -29,88 +30,17 @@ _STATUS_KEYS = {
     "draft": "profiles.status.draft",
     "archived": "profiles.status.archived",
 }
-_SERVICE_MESSAGE_KEYS = {
-    "Название профиля не должно быть пустым": (
-        "profiles.validation.title_required"
-    ),
-    "Описание личности не должно быть пустым": (
-        "profiles.validation.description_required"
-    ),
-    "Стиль общения не должен быть пустым": (
+_PROFILE_ACTION_KEYS = {
+    "title_required": "profiles.validation.title_required",
+    "description_required": "profiles.validation.description_required",
+    "communication_style_required": (
         "profiles.validation.communication_style_required"
     ),
-    "Принципы профиля не должны быть пустыми": (
-        "profiles.validation.principles_required"
-    ),
-    "Ограничения профиля не должны быть пустыми": (
-        "profiles.validation.constraints_required"
-    ),
-    "Не удалось сохранить профиль личности": (
-        "profiles.message.create_failed"
-    ),
-    "Профиль личности создан": "profiles.message.created",
-    "Профиль личности обновлён": "profiles.message.updated",
-}
-_LEGACY_TEMPLATES = {
-    "profiles.empty.title": "Профили пока не созданы",
-    "profiles.empty.summary": "Профили личности пока не созданы.",
-    "profiles.empty.constraint": (
-        "Создайте первый профиль, чтобы заполнить этот раздел."
-    ),
-    "profiles.empty.linked": "Нет связанных артефактов.",
-    "profiles.error.title": "Не удалось загрузить профили",
-    "profiles.error.summary": "Не удалось загрузить профили личности.",
-    "profiles.error.constraint": (
-        "Проверьте подключение к базе данных и повторите позже."
-    ),
-    "profiles.error.linked": "Данные временно недоступны.",
-    "profiles.trait.description": "Описание",
-    "profiles.trait.style": "Стиль",
-    "profiles.trait.principles": "Принципы",
-    "profiles.trait.constraints": "Ограничения",
-    "profiles.trait.required": "обязательное поле",
-    "profiles.trait.unavailable": "недоступно",
-    "profiles.readiness.percent": "Структура профиля: {percent}%",
-    "profiles.readiness.empty": "Структура профиля не заполнена",
-    "profiles.readiness.unavailable": "Структура профиля недоступна",
-    "profiles.value.not_specified": "не указано",
-    "profiles.value.not_specified_plural": "не указаны",
-    "profiles.link.style": "Стиль общения · {value}",
-    "profiles.link.principles": "Принципы · {value}",
-    "profiles.link.status": "Статус · {value}",
-    "profiles.status.ready": "готов",
-    "profiles.status.active": "активен",
-    "profiles.status.draft": "черновик",
-    "profiles.status.archived": "архивный",
-    "profiles.status.unknown": "{status}",
-    "profiles.next.empty": (
-        "Создайте профиль личности, затем подготовьте и одобрите датасет."
-    ),
-    "profiles.next.ready": (
-        "Профиль структурно заполнен. Следующий шаг — одобрить датасет "
-        "и создать запуск обучения."
-    ),
-    "profiles.message.create_failed": (
-        "Не удалось сохранить профиль личности"
-    ),
-    "profiles.message.created": "Профиль личности создан",
-    "profiles.message.updated": "Профиль личности обновлён",
-    "profiles.validation.title_required": (
-        "Название профиля не должно быть пустым"
-    ),
-    "profiles.validation.description_required": (
-        "Описание личности не должно быть пустым"
-    ),
-    "profiles.validation.communication_style_required": (
-        "Стиль общения не должен быть пустым"
-    ),
-    "profiles.validation.principles_required": (
-        "Принципы профиля не должны быть пустыми"
-    ),
-    "profiles.validation.constraints_required": (
-        "Ограничения профиля не должны быть пустыми"
-    ),
-    "profiles.raw": "{value}",
+    "principles_required": "profiles.validation.principles_required",
+    "constraints_required": "profiles.validation.constraints_required",
+    "save_failed": "profiles.message.create_failed",
+    "created": "profiles.message.created",
+    "updated": "profiles.message.updated",
 }
 
 
@@ -122,6 +52,38 @@ class ProfileText:
 
 def profile_text(key: str, **values: object) -> ProfileText:
     return ProfileText(key, MappingProxyType(dict(values)))
+
+
+def _base_profile_text(value: ProfileText | str | object) -> str:
+    """Render only the historical base-locale compatibility projection."""
+
+    if not isinstance(value, ProfileText):
+        return str(value)
+    from persona_training_lab.ui.i18n.text import text as localized_text
+
+    rendered_values = {
+        key: _base_profile_text(item) if isinstance(item, ProfileText) else item
+        for key, item in value.values.items()
+    }
+    count_value = rendered_values.pop("count", None)
+    count = count_value if isinstance(count_value, int) else None
+    return localized_text(
+        None,
+        value.key,
+        count=count,
+        **rendered_values,
+    )
+
+
+def _profile_action_text(
+    result: ActionResult,
+    *,
+    fallback: ProfileText,
+) -> ProfileText:
+    key = _PROFILE_ACTION_KEYS.get(result.code)
+    if key is None:
+        return fallback
+    return profile_text(key, **dict(result.values))
 
 
 @dataclass(slots=True, frozen=True)
@@ -379,9 +341,8 @@ class ProfilesViewModel:
             return self._set_action_result(
                 False,
                 profile_text("profiles.message.create_failed"),
-                "Не удалось сохранить профиль личности",
             )
-        ok, message, created = self.profiles_service.create_profile(
+        result, created = self.profiles_service.create_profile(
             title=title,
             description=description,
             communication_style=communication_style,
@@ -389,22 +350,22 @@ class ProfilesViewModel:
             constraints=constraints,
             notes=notes,
         )
-        semantic = self._service_message_text(
-            message,
-            fallback=(
+        semantic = _profile_action_text(
+            result,
+            fallback=profile_text(
                 "profiles.message.created"
-                if ok
+                if result.ok
                 else "profiles.message.create_failed"
             ),
         )
-        self._set_action_result(ok, semantic, message)
-        if ok:
+        ok, legacy = self._set_action_result(result.ok, semantic)
+        if result.ok:
             self.refresh(
                 select_profile_id=(
                     created.profile_id if created is not None else None
                 )
             )
-        return ok, message
+        return ok, legacy
 
     def update_current_profile(
         self,
@@ -421,16 +382,14 @@ class ProfilesViewModel:
             return self._set_action_result(
                 False,
                 profile_text("profiles.message.create_failed"),
-                "Не удалось сохранить профиль личности",
             )
         if self.profiles_service is None:
             return self._set_action_result(
                 False,
                 profile_text("profiles.message.create_failed"),
-                "Не удалось сохранить профиль личности",
             )
 
-        ok, message = self.profiles_service.update_profile(
+        result = self.profiles_service.update_profile(
             profile_id=current.profile_id,
             title=title,
             description=description,
@@ -439,41 +398,28 @@ class ProfilesViewModel:
             constraints=constraints,
             notes=notes,
         )
-        semantic = self._service_message_text(
-            message,
-            fallback=(
+        semantic = _profile_action_text(
+            result,
+            fallback=profile_text(
                 "profiles.message.updated"
-                if ok
+                if result.ok
                 else "profiles.message.create_failed"
             ),
         )
-        self._set_action_result(ok, semantic, message)
-        if ok:
+        ok, legacy = self._set_action_result(result.ok, semantic)
+        if result.ok:
             self.refresh(select_profile_id=current.profile_id)
-        return ok, message
+        return ok, legacy
 
     def _set_action_result(
         self,
         ok: bool,
         message: ProfileText,
-        legacy: str,
     ) -> tuple[bool, str]:
+        legacy = _base_profile_text(message)
         self._message = message
         self._legacy_message = legacy
         return ok, legacy
-
-    @staticmethod
-    def _service_message_text(
-        message: str,
-        *,
-        fallback: str,
-    ) -> ProfileText:
-        key = _SERVICE_MESSAGE_KEYS.get(message)
-        if key is not None:
-            return profile_text(key)
-        if message:
-            return profile_text("profiles.raw", value=message)
-        return profile_text(fallback)
 
     def profile_views(self) -> tuple[ProfileView, ...]:
         return self._profiles
@@ -482,8 +428,8 @@ class ProfilesViewModel:
         return [
             (
                 profile.profile_id,
-                self._legacy_render(profile.title),
-                self._legacy_render(profile.subtitle),
+                _base_profile_text(profile.title),
+                _base_profile_text(profile.subtitle),
             )
             for profile in self._profiles
         ]
@@ -507,7 +453,7 @@ class ProfilesViewModel:
 
     def header_summary(self) -> tuple[str, str]:
         title, subtitle = self.header_summary_model()
-        return self._legacy_render(title), self._legacy_render(subtitle)
+        return _base_profile_text(title), _base_profile_text(subtitle)
 
     def next_step_model(self) -> ProfileText:
         profile = self.current_profile()
@@ -558,16 +504,3 @@ class ProfilesViewModel:
     @staticmethod
     def _raw_text(value: str | ProfileText) -> str:
         return value if isinstance(value, str) else ""
-
-    @classmethod
-    def _legacy_render(cls, value: object) -> str:
-        if not isinstance(value, ProfileText):
-            return str(value)
-        rendered_values = {
-            key: cls._legacy_render(item)
-            for key, item in value.values.items()
-        }
-        template = _LEGACY_TEMPLATES.get(value.key)
-        if template is None:
-            return str(rendered_values.get("value", value.key))
-        return template.format_map(rendered_values)
