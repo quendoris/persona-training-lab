@@ -117,6 +117,7 @@
     "tests.message.storage_read_only": "Хранилище экспериментов не поддерживает запись результатов.",
     "tests.message.portrait_completed": "Портрет для {model_version_id} собран: {passed}/{total} валидных пунктов.",
     "tests.message.portrait_partial": "Портрет для {model_version_id} завершён с ошибками: {passed}/{total} валидных пунктов.",
-    "tests.message.service_unavailable": "Сервис тестов недоступен."
+    "tests.message.service_unavailable": "Сервис тестов недоступен.",
+    "tests.message.result_unavailable": "Не удалось интерпретировать результат тестирования."
   }
 }
