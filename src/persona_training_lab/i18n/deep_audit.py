@@ -91,10 +91,14 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
 )
 _UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset(
     {
+        "add_dataset_from_path",
+        "approve_current_dataset",
+        "compare_current_versions",
         "header_summary",
         "lineage",
         "next_step",
         "right_summary",
+        "validate_current_dataset",
     }
 )
 _PERSISTED_SEMANTIC_FIELDS = {
