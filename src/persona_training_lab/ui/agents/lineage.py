@@ -3,16 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from persona_training_lab.ui.viewmodels.agents import VersionNodeView
+from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.ui.viewmodels.agents_contracts import (
+    AgentText,
+    VersionNodeView,
+)
 
 
 @dataclass(slots=True, frozen=True)
 class LineageVersionNode:
     node_id: str
     parent_id: str | None
-    title: str
-    subtitle: str
-    status: str
+    title: AgentText
+    subtitle: AgentText
+    status: AgentText
     tone: str
     branch_note: str
     is_current: bool = False
@@ -35,7 +39,9 @@ ROOT_NODE_IDS = {"base"}
 MAINLINE_NOTES = {"main", "current"}
 
 
-def build_version_lineage(raw_nodes: Iterable[VersionNodeView]) -> tuple[LineageVersionNode, ...]:
+def build_version_lineage(
+    raw_nodes: Iterable[VersionNodeView],
+) -> tuple[LineageVersionNode, ...]:
     nodes = list(raw_nodes)
     by_id = {node.node_id: node for node in nodes}
     parent_by_id = {node.node_id: _parent_id(node) for node in nodes}
@@ -55,9 +61,9 @@ def build_version_lineage(raw_nodes: Iterable[VersionNodeView]) -> tuple[Lineage
         if _is_pending_delta(node):
             parent_id = "snapshot" if "snapshot" in by_id else parent_id
             branch_note = "side"
-            title = "Version · pending branch"
-            subtitle = "Боковая ветка: спорный результат, пока не продолжает зелёную mainline."
-            status = "не определена"
+            title = UserMessage("agents.node.pending_delta.title")
+            subtitle = UserMessage("agents.node.pending_delta.subtitle")
+            status = UserMessage("agents.status.undefined")
             tone = "pending"
             if "snapshot" in level_by_id:
                 level = level_by_id["snapshot"] + 1
@@ -81,9 +87,16 @@ def _visual_level_by_id(
     nodes: list[VersionNodeView],
     parent_by_id: dict[str, str | None],
 ) -> dict[str, int]:
-    explicit = {node.node_id: getattr(node, "depth") for node in nodes if hasattr(node, "depth")}
+    explicit = {
+        node.node_id: getattr(node, "depth")
+        for node in nodes
+        if hasattr(node, "depth")
+    }
     if explicit:
-        return {node.node_id: int(explicit.get(node.node_id, index)) for index, node in enumerate(nodes)}
+        return {
+            node.node_id: int(explicit.get(node.node_id, index))
+            for index, node in enumerate(nodes)
+        }
     by_id = {node.node_id: node for node in nodes}
     cache: dict[str, int] = {}
 
@@ -91,7 +104,11 @@ def _visual_level_by_id(
         if node_id in cache:
             return cache[node_id]
         parent_id = parent_by_id.get(node_id)
-        cache[node_id] = 0 if parent_id is None or parent_id not in by_id else level(parent_id) + 1
+        cache[node_id] = (
+            0
+            if parent_id is None or parent_id not in by_id
+            else level(parent_id) + 1
+        )
         return cache[node_id]
 
     for node in nodes:
