@@ -20,11 +20,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label
+from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.i18n.text import (
+    render_user_message,
+    text as localized_text,
+)
 from persona_training_lab.ui.keybindings.definitions import (
-    MOUSE_BUTTON_LABELS,
-    MOUSE_MODIFIER_LABELS,
+    MOUSE_BUTTON_IDS,
+    MOUSE_MODIFIER_IDS,
 )
 from persona_training_lab.ui.keybindings.draft_session import (
     DraftChangeResult,
@@ -33,6 +39,13 @@ from persona_training_lab.ui.keybindings.draft_session import (
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 from persona_training_lab.ui.themes.manager import _resolve
 
+
+I18N_KEY_PREFIXES = (
+    "keybindings.binding.",
+    "keybindings.mouse_binding.",
+    "keybindings.mouse.button.",
+    "keybindings.mouse.modifier.",
+)
 
 _MODIFIER_KEYS = {
     Qt.Key.Key_Shift,
@@ -56,7 +69,6 @@ class _BindingValueChip(QPushButton):
         self.setMinimumWidth(minimum_width)
         self.setMinimumHeight(30)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Нажмите, чтобы сразу перейти в режим назначения.")
         self._capturing = False
         self._pulse_on = False
         self._pulse_timer = QTimer(self)
@@ -149,26 +161,25 @@ class _ConflictPanelCard(PanelCard):
 class _ShortcutCaptureDialog(QDialog):
     def __init__(
         self,
-        title: str,
+        title_key: str,
         current_sequence: str,
+        localization: LocalizationManager | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Изменить сочетание")
+        self._title_key = title_key
+        self._localization = localization
         self.setMinimumWidth(520)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(12)
 
-        heading = QLabel(title)
-        heading.setObjectName("CardTitle")
-        root.addWidget(heading)
-        root.addWidget(
-            make_muted_label(
-                "Нажмите новое сочетание. Конфликт можно спокойно исправить после сохранения."
-            )
-        )
+        self._heading = QLabel()
+        self._heading.setObjectName("CardTitle")
+        root.addWidget(self._heading)
+        self._note = make_muted_label("")
+        root.addWidget(self._note)
 
         current = QKeySequence.fromString(
             current_sequence,
@@ -180,22 +191,34 @@ class _ShortcutCaptureDialog(QDialog):
         if hasattr(self._editor, "setClearButtonEnabled"):
             self._editor.setClearButtonEnabled(True)
         root.addWidget(self._editor)
-        root.addWidget(self._dialog_buttons())
 
-    def _dialog_buttons(self) -> QDialogButtonBox:
-        buttons = QDialogButtonBox(
+        self._buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
             | QDialogButtonBox.StandardButton.Cancel
         )
-        save = buttons.button(QDialogButtonBox.StandardButton.Save)
-        cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
-        if save is not None:
-            save.setText("Сохранить")
-        if cancel is not None:
-            cancel.setText("Отмена")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        return buttons
+        self._save = self._buttons.button(QDialogButtonBox.StandardButton.Save)
+        self._cancel = self._buttons.button(
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        self._buttons.accepted.connect(self.accept)
+        self._buttons.rejected.connect(self.reject)
+        root.addWidget(self._buttons)
+
+        self._apply_language()
+        if localization is not None:
+            localization.language_changed.connect(self._apply_language)
+
+    def _text(self, key: str, **values: object) -> str:
+        return localized_text(self._localization, key, **values)
+
+    def _apply_language(self, _locale: str = "") -> None:
+        self.setWindowTitle(self._text("keybindings.dialog.shortcut.title"))
+        self._heading.setText(self._text(self._title_key))
+        self._note.setText(self._text("keybindings.dialog.shortcut.note"))
+        if self._save is not None:
+            self._save.setText(self._text("keybindings.action.save"))
+        if self._cancel is not None:
+            self._cancel.setText(self._text("keybindings.action.cancel"))
 
     def sequence(self) -> str:
         return self._editor.keySequence().toString(
@@ -206,71 +229,106 @@ class _ShortcutCaptureDialog(QDialog):
 class _MouseGestureDialog(QDialog):
     def __init__(
         self,
-        title: str,
+        title_key: str,
         current_button: str,
         current_modifier: str,
         *,
         wheel_only: bool,
+        localization: LocalizationManager | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Изменить жест мыши")
+        self._title_key = title_key
+        self._localization = localization
         self.setMinimumWidth(520)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(12)
 
-        heading = QLabel(title)
-        heading.setObjectName("CardTitle")
-        root.addWidget(heading)
-        root.addWidget(
-            make_muted_label(
-                "Выберите кнопку и модификатор. Временный конфликт останется черновиком."
-            )
-        )
+        self._heading = QLabel()
+        self._heading.setObjectName("CardTitle")
+        root.addWidget(self._heading)
+        self._note = make_muted_label("")
+        root.addWidget(self._note)
 
-        root.addWidget(QLabel("Кнопка мыши"))
+        self._button_label = QLabel()
+        root.addWidget(self._button_label)
         self._button_box = QComboBox()
-        button_items = (
-            (("wheel", MOUSE_BUTTON_LABELS["wheel"]),)
+        button_ids = (
+            ("wheel",)
             if wheel_only
-            else tuple(
-                (key, label)
-                for key, label in MOUSE_BUTTON_LABELS.items()
-                if key != "wheel"
-            )
+            else tuple(key for key in MOUSE_BUTTON_IDS if key != "wheel")
         )
-        for key, label in button_items:
-            self._button_box.addItem(label, key)
+        for key in button_ids:
+            self._button_box.addItem("", key)
         self._button_box.setCurrentIndex(
             max(0, self._button_box.findData(current_button))
         )
         self._button_box.setEnabled(not wheel_only)
         root.addWidget(self._button_box)
 
-        root.addWidget(QLabel("Модификатор"))
+        self._modifier_label = QLabel()
+        root.addWidget(self._modifier_label)
         self._modifier_box = QComboBox()
-        for key, label in MOUSE_MODIFIER_LABELS.items():
-            self._modifier_box.addItem(label, key)
+        for key in MOUSE_MODIFIER_IDS:
+            self._modifier_box.addItem("", key)
         self._modifier_box.setCurrentIndex(
             max(0, self._modifier_box.findData(current_modifier))
         )
         root.addWidget(self._modifier_box)
 
-        buttons = QDialogButtonBox(
+        self._buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
             | QDialogButtonBox.StandardButton.Cancel
         )
-        save = buttons.button(QDialogButtonBox.StandardButton.Save)
-        cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
-        if save is not None:
-            save.setText("Сохранить")
-        if cancel is not None:
-            cancel.setText("Отмена")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
+        self._save = self._buttons.button(QDialogButtonBox.StandardButton.Save)
+        self._cancel = self._buttons.button(
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        self._buttons.accepted.connect(self.accept)
+        self._buttons.rejected.connect(self.reject)
+        root.addWidget(self._buttons)
+
+        self._apply_language()
+        if localization is not None:
+            localization.language_changed.connect(self._apply_language)
+
+    def _text(self, key: str, **values: object) -> str:
+        return localized_text(self._localization, key, **values)
+
+    def _apply_language(self, _locale: str = "") -> None:
+        self.setWindowTitle(self._text("keybindings.dialog.mouse.title"))
+        self._heading.setText(self._text(self._title_key))
+        self._note.setText(self._text("keybindings.dialog.mouse.note"))
+        self._button_label.setText(self._text("keybindings.dialog.mouse.button"))
+        self._modifier_label.setText(
+            self._text("keybindings.dialog.mouse.modifier")
+        )
+        current_button = self._button_box.currentData()
+        for index in range(self._button_box.count()):
+            key = str(self._button_box.itemData(index))
+            self._button_box.setItemText(
+                index,
+                self._text(f"keybindings.mouse.button.{key}"),
+            )
+        self._button_box.setCurrentIndex(
+            max(0, self._button_box.findData(current_button))
+        )
+        current_modifier = self._modifier_box.currentData()
+        for index in range(self._modifier_box.count()):
+            key = str(self._modifier_box.itemData(index))
+            self._modifier_box.setItemText(
+                index,
+                self._text(f"keybindings.mouse.modifier.{key}"),
+            )
+        self._modifier_box.setCurrentIndex(
+            max(0, self._modifier_box.findData(current_modifier))
+        )
+        if self._save is not None:
+            self._save.setText(self._text("keybindings.action.save"))
+        if self._cancel is not None:
+            self._cancel.setText(self._text("keybindings.action.cancel"))
 
     def button_name(self) -> str:
         return str(self._button_box.currentData())
@@ -280,9 +338,14 @@ class _MouseGestureDialog(QDialog):
 
 
 class KeyBindingsScreen(QWidget):
-    def __init__(self, manager: KeyBindingManager) -> None:
+    def __init__(
+        self,
+        manager: KeyBindingManager,
+        localization: LocalizationManager | None = None,
+    ) -> None:
         super().__init__()
         self._manager = manager
+        self._localization = localization
         self._draft = KeyBindingDraftSession(manager)
         self._sequence_chips: dict[str, _BindingValueChip] = {}
         self._mouse_chips: dict[str, _BindingValueChip] = {}
@@ -290,6 +353,10 @@ class KeyBindingsScreen(QWidget):
         self._mouse_cards: dict[str, _ConflictPanelCard] = {}
         self._keyboard_conflict_labels: dict[str, QLabel] = {}
         self._mouse_conflict_labels: dict[str, QLabel] = {}
+        self._keyboard_edit_buttons: dict[str, QPushButton] = {}
+        self._keyboard_reset_buttons: dict[str, QPushButton] = {}
+        self._mouse_edit_buttons: dict[str, QPushButton] = {}
+        self._mouse_reset_buttons: dict[str, QPushButton] = {}
         self._capture_kind: str | None = None
         self._capture_binding_id: str | None = None
         self._capture_filter_installed = False
@@ -298,10 +365,7 @@ class KeyBindingsScreen(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(14)
 
-        header = PanelCard(
-            "Назначения клавиш и мыши",
-            "Нажмите «Изменить» для обычного режима или кликните прямо по назначению для быстрого захвата. Валидные изменения применяются сразу; конфликты остаются черновиком.",
-        )
+        self._header = PanelCard("", "")
         header_actions = QWidget()
         header_actions.setProperty("transparentBg", True)
         header_actions_layout = QHBoxLayout(header_actions)
@@ -311,18 +375,19 @@ class KeyBindingsScreen(QWidget):
         path_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
-        reset_all = QPushButton("Вернуть все значения по умолчанию")
-        reset_all.setObjectName("SecondaryButton")
-        reset_all.clicked.connect(self._reset_all)
+        self._reset_all_button = QPushButton()
+        self._reset_all_button.setObjectName("SecondaryButton")
+        self._reset_all_button.clicked.connect(self._reset_all)
         header_actions_layout.addWidget(path_label, 1)
-        header_actions_layout.addWidget(reset_all, 0)
-        header.add_widget(header_actions)
-        if self._manager.last_error:
-            warning = QLabel(self._manager.last_error)
-            warning.setObjectName("MutedText")
-            warning.setWordWrap(True)
-            header.add_widget(warning)
-        root.addWidget(header)
+        header_actions_layout.addWidget(self._reset_all_button, 0)
+        self._header.add_widget(header_actions)
+        self._warning_label: QLabel | None = None
+        if self._manager.last_error_message is not None:
+            self._warning_label = QLabel()
+            self._warning_label.setObjectName("MutedText")
+            self._warning_label.setWordWrap(True)
+            self._header.add_widget(self._warning_label)
+        root.addWidget(self._header)
 
         scroll = QScrollArea()
         scroll.setObjectName("StableScrollArea")
@@ -348,15 +413,15 @@ class KeyBindingsScreen(QWidget):
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(12)
 
-        bindings_title = QLabel("Клавиатура")
-        bindings_title.setObjectName("SectionTitle")
-        content_layout.addWidget(bindings_title)
+        self._bindings_title = QLabel()
+        self._bindings_title.setObjectName("SectionTitle")
+        content_layout.addWidget(self._bindings_title)
         for definition in self._manager.definitions():
             content_layout.addWidget(self._binding_card(definition.binding_id))
 
-        mouse_title = QLabel("Мышь и canvas")
-        mouse_title.setObjectName("SectionTitle")
-        content_layout.addWidget(mouse_title)
+        self._mouse_title = QLabel()
+        self._mouse_title.setObjectName("SectionTitle")
+        content_layout.addWidget(self._mouse_title)
         for definition in self._manager.mouse_definitions():
             content_layout.addWidget(
                 self._mouse_binding_card(definition.binding_id)
@@ -367,11 +432,66 @@ class KeyBindingsScreen(QWidget):
         root.addWidget(scroll, 1)
 
         self._manager.bindings_changed.connect(self._on_manager_changed)
+        self._apply_language()
+        if localization is not None:
+            localization.language_changed.connect(self._apply_language)
+
+    def _text(self, key: str, **values: object) -> str:
+        return localized_text(self._localization, key, **values)
+
+    def _apply_language(self, _locale: str = "") -> None:
+        self._header.set_title(self._text("keybindings.header.title"))
+        self._header.set_subtitle(self._text("keybindings.header.subtitle"))
+        self._reset_all_button.setText(
+            self._text("keybindings.header.reset_all")
+        )
+        self._bindings_title.setText(self._text("keybindings.section.keyboard"))
+        self._mouse_title.setText(self._text("keybindings.section.mouse"))
+        if (
+            self._warning_label is not None
+            and self._manager.last_error_message is not None
+        ):
+            self._warning_label.setText(
+                render_user_message(
+                    self._localization,
+                    self._manager.last_error_message,
+                )
+            )
+
+        for definition in self._manager.definitions():
+            binding_id = definition.binding_id
+            card = self._keyboard_cards[binding_id]
+            card.set_title(self._text(definition.title_key))
+            card.set_subtitle(self._text(definition.description_key))
+            self._keyboard_edit_buttons[binding_id].setText(
+                self._text("keybindings.action.edit")
+            )
+            self._keyboard_reset_buttons[binding_id].setText(
+                self._text("keybindings.action.default")
+            )
+            self._sequence_chips[binding_id].setToolTip(
+                self._text("keybindings.chip.tooltip")
+            )
+
+        for definition in self._manager.mouse_definitions():
+            binding_id = definition.binding_id
+            card = self._mouse_cards[binding_id]
+            card.set_title(self._text(definition.title_key))
+            card.set_subtitle(self._text(definition.description_key))
+            self._mouse_edit_buttons[binding_id].setText(
+                self._text("keybindings.action.edit")
+            )
+            self._mouse_reset_buttons[binding_id].setText(
+                self._text("keybindings.action.default")
+            )
+            self._mouse_chips[binding_id].setToolTip(
+                self._text("keybindings.chip.tooltip")
+            )
+
         self._refresh_bindings()
 
     def _binding_card(self, binding_id: str) -> QWidget:
-        definition = self._manager.definition(binding_id)
-        card = _ConflictPanelCard(definition.title, definition.description)
+        card = _ConflictPanelCard("", "")
         self._keyboard_cards[binding_id] = card
 
         row = QWidget()
@@ -388,19 +508,21 @@ class KeyBindingsScreen(QWidget):
         )
         self._sequence_chips[binding_id] = sequence
 
-        edit = QPushButton("Изменить")
+        edit = QPushButton()
         edit.clicked.connect(
             lambda _checked=False, item_id=binding_id: self._edit_binding(
                 item_id
             )
         )
-        reset = QPushButton("По умолчанию")
+        self._keyboard_edit_buttons[binding_id] = edit
+        reset = QPushButton()
         reset.setObjectName("SecondaryButton")
         reset.clicked.connect(
             lambda _checked=False, item_id=binding_id: self._reset_binding(
                 item_id
             )
         )
+        self._keyboard_reset_buttons[binding_id] = reset
 
         layout.addWidget(sequence, 0)
         layout.addStretch(1)
@@ -417,8 +539,7 @@ class KeyBindingsScreen(QWidget):
         return card
 
     def _mouse_binding_card(self, binding_id: str) -> QWidget:
-        definition = self._manager.mouse_definition(binding_id)
-        card = _ConflictPanelCard(definition.title, definition.description)
+        card = _ConflictPanelCard("", "")
         self._mouse_cards[binding_id] = card
 
         row = QWidget()
@@ -435,19 +556,21 @@ class KeyBindingsScreen(QWidget):
         )
         self._mouse_chips[binding_id] = gesture
 
-        edit = QPushButton("Изменить")
+        edit = QPushButton()
         edit.clicked.connect(
             lambda _checked=False, item_id=binding_id: self._edit_mouse_binding(
                 item_id
             )
         )
-        reset = QPushButton("По умолчанию")
+        self._mouse_edit_buttons[binding_id] = edit
+        reset = QPushButton()
         reset.setObjectName("SecondaryButton")
         reset.clicked.connect(
             lambda _checked=False, item_id=binding_id: self._reset_mouse_binding(
                 item_id
             )
         )
+        self._mouse_reset_buttons[binding_id] = reset
 
         layout.addWidget(gesture, 0)
         layout.addStretch(1)
@@ -473,7 +596,9 @@ class KeyBindingsScreen(QWidget):
     def _start_capture(self, kind: str, binding_id: str) -> None:
         self._capture_kind = kind
         self._capture_binding_id = binding_id
-        chips = self._sequence_chips if kind == "keyboard" else self._mouse_chips
+        chips = (
+            self._sequence_chips if kind == "keyboard" else self._mouse_chips
+        )
         chips[binding_id].set_capturing(True)
         app = QApplication.instance()
         if app is not None and not self._capture_filter_installed:
@@ -525,8 +650,8 @@ class KeyBindingsScreen(QWidget):
                 self._cancel_capture()
                 if modifier is None:
                     self._show_message(
-                        "Не удалось изменить назначение",
-                        "Для жеста мыши поддерживается не более одного модификатора.",
+                        "keybindings.dialog.change_failed.title",
+                        UserMessage("keybindings.error.too_many_modifiers"),
                         QMessageBox.Icon.Warning,
                     )
                 else:
@@ -545,8 +670,8 @@ class KeyBindingsScreen(QWidget):
                 self._cancel_capture()
                 if modifier is None:
                     self._show_message(
-                        "Не удалось изменить назначение",
-                        "Для жеста мыши поддерживается не более одного модификатора.",
+                        "keybindings.dialog.change_failed.title",
+                        UserMessage("keybindings.error.too_many_modifiers"),
                         QMessageBox.Icon.Warning,
                     )
                 else:
@@ -579,8 +704,9 @@ class KeyBindingsScreen(QWidget):
         self._cancel_capture()
         definition = self._manager.definition(binding_id)
         dialog = _ShortcutCaptureDialog(
-            definition.title,
+            definition.title_key,
             self._draft.sequence(binding_id),
+            self._localization,
             self,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -595,10 +721,11 @@ class KeyBindingsScreen(QWidget):
         definition = self._manager.mouse_definition(binding_id)
         current = self._draft.mouse_binding(binding_id)
         dialog = _MouseGestureDialog(
-            definition.title,
+            definition.title_key,
             current.button,
             current.modifier,
             wheel_only=definition.trigger == "wheel",
+            localization=self._localization,
             parent=self,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -626,10 +753,8 @@ class KeyBindingsScreen(QWidget):
         self._cancel_capture()
         dialog = QMessageBox(self)
         dialog.setIcon(QMessageBox.Icon.Question)
-        dialog.setWindowTitle("Вернуть стандартные назначения?")
-        dialog.setText(
-            "Все изменённые клавиши и жесты мыши будут заменены значениями по умолчанию."
-        )
+        dialog.setWindowTitle(self._text("keybindings.dialog.reset.title"))
+        dialog.setText(self._text("keybindings.dialog.reset.text"))
         dialog.setStandardButtons(
             QMessageBox.StandardButton.Yes
             | QMessageBox.StandardButton.No
@@ -638,9 +763,9 @@ class KeyBindingsScreen(QWidget):
         yes = dialog.button(QMessageBox.StandardButton.Yes)
         no = dialog.button(QMessageBox.StandardButton.No)
         if yes is not None:
-            yes.setText("Вернуть")
+            yes.setText(self._text("keybindings.action.restore"))
         if no is not None:
-            no.setText("Отмена")
+            no.setText(self._text("keybindings.action.cancel"))
         dialog.exec()
         if yes is None or dialog.clickedButton() is not yes:
             return
@@ -654,16 +779,14 @@ class KeyBindingsScreen(QWidget):
 
         dialog = QMessageBox(self)
         dialog.setIcon(QMessageBox.Icon.Warning)
-        dialog.setWindowTitle("Остались конфликты назначений")
-        dialog.setText(
-            "Конфликтующие изменения пока не применены. Вернитесь к ним или отбросьте только конфликтующие черновики."
-        )
+        dialog.setWindowTitle(self._text("keybindings.dialog.conflicts.title"))
+        dialog.setText(self._text("keybindings.dialog.conflicts.text"))
         fix = dialog.addButton(
-            "Вернуться и исправить",
+            self._text("keybindings.action.fix_conflicts"),
             QMessageBox.ButtonRole.RejectRole,
         )
         discard = dialog.addButton(
-            "Отбросить конфликтующие изменения",
+            self._text("keybindings.action.discard_conflicts"),
             QMessageBox.ButtonRole.DestructiveRole,
         )
         dialog.setDefaultButton(fix)
@@ -677,56 +800,91 @@ class KeyBindingsScreen(QWidget):
         return result.accepted and not self._draft.has_conflicts
 
     def _handle_result(self, result: DraftChangeResult) -> None:
-        if result.accepted:
+        if result.accepted or result.message is None:
             return
         self._show_message(
-            "Не удалось изменить назначение",
-            result.error,
+            "keybindings.dialog.change_failed.title",
+            result.message,
             QMessageBox.Icon.Warning,
         )
 
     def _show_message(
         self,
-        title: str,
-        text: str,
+        title_key: str,
+        message: UserMessage,
         icon: QMessageBox.Icon,
     ) -> None:
         dialog = QMessageBox(self)
         dialog.setIcon(icon)
-        dialog.setWindowTitle(title)
-        dialog.setText(text)
+        dialog.setWindowTitle(self._text(title_key))
+        dialog.setText(render_user_message(self._localization, message))
         dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
         ok = dialog.button(QMessageBox.StandardButton.Ok)
         if ok is not None:
-            ok.setText("Понятно")
+            ok.setText(self._text("keybindings.action.understood"))
         dialog.exec()
 
     def _on_manager_changed(self) -> None:
         self._draft.rebase_if_clean()
         self._refresh_bindings()
 
+    def _mouse_binding_text(self, binding_id: str) -> str:
+        binding = self._draft.mouse_binding(binding_id)
+        button = self._text(f"keybindings.mouse.button.{binding.button}")
+        modifier = self._text(
+            f"keybindings.mouse.modifier.{binding.modifier}"
+        )
+        if binding.modifier == "none":
+            return button
+        return f"{modifier} + {button}"
+
+    def _conflict_text(self, binding_id: str, *, mouse: bool) -> str:
+        conflicts = (
+            self._draft.mouse_conflicts()
+            if mouse
+            else self._draft.keyboard_conflicts()
+        )
+        partner_ids = conflicts.get(binding_id, ())
+        if not partner_ids:
+            return ""
+        if mouse:
+            title_keys = [
+                self._manager.mouse_definition(item).title_key
+                for item in partner_ids
+            ]
+        else:
+            title_keys = [
+                self._manager.definition(item).title_key
+                for item in partner_ids
+            ]
+        titles = ", ".join(
+            f"«{self._text(title_key)}»" for title_key in title_keys
+        )
+        return self._text("keybindings.conflict.with", titles=titles)
+
     def _refresh_bindings(self) -> None:
         keyboard_conflicts = self._draft.keyboard_conflicts()
         mouse_conflicts = self._draft.mouse_conflicts()
 
         for binding_id, chip in self._sequence_chips.items():
-            chip.setText(self._draft.sequence(binding_id) or "Не назначено")
+            chip.setText(
+                self._draft.sequence(binding_id)
+                or self._text("keybindings.chip.unassigned")
+            )
             has_conflict = binding_id in keyboard_conflicts
             card = self._keyboard_cards[binding_id]
             label = self._keyboard_conflict_labels[binding_id]
             card.set_conflict(has_conflict)
-            label.setText(
-                self._draft.conflict_text(binding_id, mouse=False)
-            )
+            label.setText(self._conflict_text(binding_id, mouse=False))
             label.setVisible(has_conflict)
 
         for binding_id, chip in self._mouse_chips.items():
-            chip.setText(self._draft.mouse_binding_text(binding_id))
+            chip.setText(self._mouse_binding_text(binding_id))
             has_conflict = binding_id in mouse_conflicts
             card = self._mouse_cards[binding_id]
             label = self._mouse_conflict_labels[binding_id]
             card.set_conflict(has_conflict)
-            label.setText(self._draft.conflict_text(binding_id, mouse=True))
+            label.setText(self._conflict_text(binding_id, mouse=True))
             label.setVisible(has_conflict)
 
     def _refresh_sequences(self) -> None:
