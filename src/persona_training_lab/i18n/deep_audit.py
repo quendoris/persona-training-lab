@@ -270,6 +270,27 @@ class DeepSurfaceAudit(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         call_name = _call_name(node.func)
+        function_name = self._function_stack[-1] if self._function_stack else ""
+        persisted_fields = _PERSISTED_SEMANTIC_FIELDS.get(function_name)
+        if (
+            call_name == "get"
+            and persisted_fields is not None
+            and len(node.args) >= 2
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+            and node.args[0].value in persisted_fields
+        ):
+            field = node.args[0].value
+            fragments = tuple(
+                fragment
+                for fragment in self._resolved_fragments(node.args[1])
+                if not _looks_machine_code(fragment)
+            )
+            self._append_fragments(
+                node,
+                f"{function_name} persisted {field} default",
+                fragments,
+            )
         structured = _STRUCTURED_USER_TEXT.get(call_name)
         if structured is not None:
             for position, keyword in structured:
