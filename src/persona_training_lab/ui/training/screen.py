@@ -754,8 +754,7 @@ class TrainingScreen(QWidget):
         )
         self._training_thread.start()
 
-    def _on_training_started(self, success: bool, message: str) -> None:
-        self._vm.finish_training_run(success, message)
+    def _on_training_started(self, success: bool, _code: str) -> None:
         current_message = self._vm.current_message()
         self._create_message.setText(
             self._render(current_message)
