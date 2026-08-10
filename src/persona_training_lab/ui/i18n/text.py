@@ -43,9 +43,22 @@ def render_user_message(
     """Render semantic messages at the UI boundary; strings are transitional."""
 
     if isinstance(message, UserMessage):
+        values = {
+            key: _render_message_value(localization, value)
+            for key, value in message.values.items()
+        }
         return text(
             localization,
             message.key,
-            **dict(message.values),
+            **values,
         )
     return message
+
+
+def _render_message_value(
+    localization: LocalizationManager | None,
+    value: object,
+) -> object:
+    if isinstance(value, UserMessage):
+        return render_user_message(localization, value)
+    return value
