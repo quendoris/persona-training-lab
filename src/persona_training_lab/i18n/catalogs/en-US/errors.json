@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "fragment": "errors"
+  },
+  "messages": {
+    "error.python.main_thread": "A background operation failed, but the application remains available.",
+    "error.python.worker_thread": "A background task stopped safely; the interface remains available."
+  }
+}
