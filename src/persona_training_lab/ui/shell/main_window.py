@@ -163,7 +163,10 @@ class MainWindow(QMainWindow):
             "keybindings",
             KeyBindingsScreen(self._key_binding_manager),
         )
-        self._workspace.register("docs", DocsScreen(docs_vm))
+        self._workspace.register(
+            "docs",
+            DocsScreen(docs_vm, localization),
+        )
 
         body.addWidget(self._sidebar)
         body.addWidget(self._workspace, 1)
