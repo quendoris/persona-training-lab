@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Desktop-first research workstation for personality training and evaluation"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "NOTICE", "AUTHORS"]
 dependencies = [
     "pyside6>=6.8",
     "psutil>=6.0",
