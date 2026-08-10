@@ -4,23 +4,39 @@ import sqlite3
 
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.local_model.service import LocalModelService
-from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, ModelProbeResult
+from persona_training_lab.application.ports.local_model_probe import (
+    InferenceProbeResult,
+    ModelProbeResult,
+)
 from persona_training_lab.application.profiles.service import ProfilesService
 from persona_training_lab.application.training.service import TrainingService
-from persona_training_lab.infrastructure.persistence.repositories.datasets import SQLiteDatasetsRepository
-from persona_training_lab.infrastructure.persistence.repositories.profiles import SQLiteProfilesRepository
-from persona_training_lab.infrastructure.persistence.repositories.training import SQLiteTrainingRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
+from persona_training_lab.infrastructure.persistence.repositories.datasets import (
+    SQLiteDatasetsRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.profiles import (
+    SQLiteProfilesRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.training import (
+    SQLiteTrainingRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
 from persona_training_lab.ui.viewmodels.profiles import ProfilesViewModel
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
 
 class _ReadyProbe:
     def check_model_files(self, model_path: str) -> ModelProbeResult:
-        return ModelProbeResult(status="Модель найдена", details=f"ok: {model_path}")
+        return ModelProbeResult(
+            status="Модель найдена",
+            details=f"ok: {model_path}",
+        )
 
     def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
-        return InferenceProbeResult(message="Inference backend пока не подключён")
+        return InferenceProbeResult(
+            message="Inference backend пока не подключён"
+        )
 
 
 def _build_profiles_service(connection: sqlite3.Connection) -> ProfilesService:
@@ -33,7 +49,7 @@ def test_create_profile_success() -> None:
     create_minimal_schema(connection)
 
     service = _build_profiles_service(connection)
-    ok, message, created = service.create_profile(
+    result, created = service.create_profile(
         title="Mia v1",
         description="Основная цель личности",
         communication_style="Тёплый и спокойный",
@@ -42,12 +58,14 @@ def test_create_profile_success() -> None:
         notes="Черновик",
     )
 
-    assert ok is True
-    assert message == "Профиль личности создан"
+    assert result.ok is True
+    assert result.code == "created"
     assert created is not None
+    assert created.status == "ready"
     rows = service.list_profiles()
     assert len(rows) == 1
     assert rows[0].title == "Mia v1"
+    assert rows[0].status == "ready"
 
 
 def test_create_profile_with_empty_title_validation_error() -> None:
@@ -56,7 +74,7 @@ def test_create_profile_with_empty_title_validation_error() -> None:
     create_minimal_schema(connection)
 
     service = _build_profiles_service(connection)
-    ok, message, created = service.create_profile(
+    result, created = service.create_profile(
         title="   ",
         description="Основная цель личности",
         communication_style="Тёплый и спокойный",
@@ -65,8 +83,8 @@ def test_create_profile_with_empty_title_validation_error() -> None:
         notes="Черновик",
     )
 
-    assert ok is False
-    assert message == "Название профиля не должно быть пустым"
+    assert result.ok is False
+    assert result.code == "title_required"
     assert created is None
 
 
@@ -76,7 +94,7 @@ def test_update_profile_success() -> None:
     create_minimal_schema(connection)
 
     service = _build_profiles_service(connection)
-    ok, _message, created = service.create_profile(
+    created_result, created = service.create_profile(
         title="Mia v1",
         description="Основная цель личности",
         communication_style="Тёплый и спокойный",
@@ -84,10 +102,10 @@ def test_update_profile_success() -> None:
         constraints="Не уходить в холод",
         notes="Черновик",
     )
-    assert ok is True
+    assert created_result.ok is True
     assert created is not None
 
-    updated, update_message = service.update_profile(
+    update_result = service.update_profile(
         profile_id=created.profile_id,
         title="Mia v2",
         description="Обновлённая цель",
@@ -96,12 +114,13 @@ def test_update_profile_success() -> None:
         constraints="Не терять мягкость",
         notes="Обновлено",
     )
-    assert updated is True
-    assert update_message == "Профиль личности обновлён"
+    assert update_result.ok is True
+    assert update_result.code == "updated"
 
     rows = service.list_profiles()
     assert rows[0].title == "Mia v2"
     assert rows[0].description == "Обновлённая цель"
+    assert rows[0].status == "ready"
 
 
 def test_repository_persists_created_profile() -> None:
@@ -120,7 +139,6 @@ def test_repository_persists_created_profile() -> None:
             "principles": "Repo principles",
             "constraints": "Repo constraints",
             "notes": "Repo notes",
-            "status": "готов",
             "created_at": "2026-04-27T00:00:00Z",
             "updated_at": "2026-04-27T00:00:00Z",
         }
@@ -130,6 +148,7 @@ def test_repository_persists_created_profile() -> None:
     assert len(rows) == 1
     assert rows[0]["profile_id"] == "prf_repo_1"
     assert rows[0]["description"] == "Repo description"
+    assert rows[0]["status"] == "ready"
 
 
 def test_profiles_viewmodel_refresh_sees_created_profile() -> None:
@@ -141,7 +160,7 @@ def test_profiles_viewmodel_refresh_sees_created_profile() -> None:
     vm = ProfilesViewModel(profiles_service=service)
     assert vm.current_profile().profile_id == "profiles_empty"
 
-    ok, _message, created = service.create_profile(
+    result, created = service.create_profile(
         title="VM profile",
         description="Описание VM",
         communication_style="Тёплый",
@@ -149,7 +168,7 @@ def test_profiles_viewmodel_refresh_sees_created_profile() -> None:
         constraints="Не давить",
         notes="Заметка",
     )
-    assert ok is True
+    assert result.ok is True
     assert created is not None
 
     vm.refresh(select_profile_id=created.profile_id)
@@ -162,7 +181,9 @@ def test_training_viewmodel_profile_blocker_disappears_when_profile_exists() -> 
     create_minimal_schema(connection)
 
     profiles_service = _build_profiles_service(connection)
-    datasets_service = DatasetsService(datasets_repo=SQLiteDatasetsRepository(connection))
+    datasets_service = DatasetsService(
+        datasets_repo=SQLiteDatasetsRepository(connection)
+    )
     training_service = TrainingService(
         training_repo=SQLiteTrainingRepository(connection),
         profiles_service=profiles_service,
@@ -173,7 +194,7 @@ def test_training_viewmodel_profile_blocker_disappears_when_profile_exists() -> 
     vm_no_profiles = TrainingViewModel(training_service=training_service)
     assert vm_no_profiles.profile_choices == ()
 
-    ok, _message, created = profiles_service.create_profile(
+    result, created = profiles_service.create_profile(
         title="Train profile",
         description="Описание",
         communication_style="Тёплый",
@@ -181,7 +202,7 @@ def test_training_viewmodel_profile_blocker_disappears_when_profile_exists() -> 
         constraints="Не давить",
         notes="",
     )
-    assert ok is True
+    assert result.ok is True
     assert created is not None
 
     vm_with_profile = TrainingViewModel(training_service=training_service)
