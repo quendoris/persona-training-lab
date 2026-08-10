@@ -132,6 +132,7 @@ class MainWindow(QMainWindow):
                 agents_vm,
                 self._key_binding_manager,
                 lineage_runtime_safety,
+                localization=localization,
             ),
         )
         self._workspace.register(
