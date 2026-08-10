@@ -78,11 +78,20 @@ class MouseBindingDefinition:
         return localized_text(None, self.category_key)
 
 
-MOUSE_BUTTON_IDS = frozenset(
-    {"left", "right", "middle", "back", "forward", "wheel"}
+MOUSE_BUTTON_IDS = (
+    "left",
+    "right",
+    "middle",
+    "back",
+    "forward",
+    "wheel",
 )
-MOUSE_MODIFIER_IDS = frozenset(
-    {"none", "shift", "control", "alt", "meta"}
+MOUSE_MODIFIER_IDS = (
+    "none",
+    "shift",
+    "control",
+    "alt",
+    "meta",
 )
 
 # Compatibility maps for callers that still expect base-locale labels.
