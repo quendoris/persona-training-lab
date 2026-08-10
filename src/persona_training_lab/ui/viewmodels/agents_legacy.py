@@ -3,20 +3,8 @@ from __future__ import annotations
 from persona_training_lab.application.datasets.status_mapping import (
     normalize_dataset_status,
 )
-from persona_training_lab.application.experiments.status_mapping import (
-    normalize_evaluation_status,
-)
 from persona_training_lab.application.messages import UserMessage
-from persona_training_lab.application.model_versions.status_mapping import (
-    normalize_model_version_status,
-)
-from persona_training_lab.application.training.status_mapping import (
-    normalize_training_status,
-)
 from persona_training_lab.domain.datasets.statuses import DatasetVersionStatus
-from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
-from persona_training_lab.domain.models.statuses import ModelVersionStatus
-from persona_training_lab.domain.training.statuses import TrainingRunStatus
 from persona_training_lab.ui.viewmodels.agents_contracts import (
     AgentDetailView,
     AgentText,
@@ -26,9 +14,13 @@ from persona_training_lab.ui.viewmodels.agents_contracts import (
 from persona_training_lab.ui.viewmodels.agents_guidance import (
     AgentsGuidanceViewModel,
 )
-
-
-_MISSING = "—"
+from persona_training_lab.ui.viewmodels.agents_legacy_semantics import (
+    MISSING,
+    dataset_status_message,
+    messages,
+    training_status_message,
+    version_status_message,
+)
 
 
 class AgentsViewModel(AgentsGuidanceViewModel):
@@ -54,18 +46,18 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                     "agents.legacy.detail.base.body",
                     {
                         "model": (
-                            getattr(latest_run, "base_model", _MISSING)
+                            getattr(latest_run, "base_model", MISSING)
                             if latest_run
-                            else _MISSING
+                            else MISSING
                         )
                     },
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.base.check.files",
                     "agents.legacy.detail.base.check.compare",
                     "agents.legacy.detail.base.check.protocol",
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.base.action.model",
                     "agents.legacy.detail.base.action.dataset",
                 ),
@@ -76,31 +68,31 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                 UserMessage(
                     "agents.legacy.detail.dataset.body",
                     {
-                        "title": getattr(latest_dataset, "title", _MISSING),
-                        "status": _dataset_status_message(latest_dataset),
+                        "title": getattr(latest_dataset, "title", MISSING),
+                        "status": dataset_status_message(latest_dataset),
                         "records": getattr(
                             latest_dataset,
                             "record_count",
-                            _MISSING,
+                            MISSING,
                         ),
                         "valid": getattr(
                             latest_dataset,
                             "valid_count",
-                            _MISSING,
+                            MISSING,
                         ),
                         "errors": getattr(
                             latest_dataset,
                             "invalid_count",
-                            _MISSING,
+                            MISSING,
                         ),
                     },
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.dataset.check.structure",
                     "agents.legacy.detail.dataset.check.approved",
                     "agents.legacy.detail.dataset.check.meaning",
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.dataset.action.validate",
                     "agents.legacy.detail.dataset.action.approve",
                     "agents.legacy.detail.dataset.action.training",
@@ -112,28 +104,28 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                 UserMessage(
                     "agents.legacy.detail.training.body",
                     {
-                        "run": getattr(latest_run, "run_id", _MISSING),
-                        "title": getattr(latest_run, "title", _MISSING),
-                        "status": _training_status_message(latest_run),
+                        "run": getattr(latest_run, "run_id", MISSING),
+                        "title": getattr(latest_run, "title", MISSING),
+                        "status": training_status_message(latest_run),
                         "epoch": getattr(
                             latest_run,
                             "epoch_progress",
-                            _MISSING,
+                            MISSING,
                         ),
-                        "loss": getattr(latest_run, "loss", _MISSING),
+                        "loss": getattr(latest_run, "loss", MISSING),
                         "artifact": (
                             getattr(latest_run, "artifact_path", "")
-                            or _MISSING
+                            or MISSING
                         ),
                     },
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.training.check.completed",
                     "agents.legacy.detail.training.check.artifact",
                     "agents.legacy.detail.training.check.logs",
                     "agents.legacy.detail.training.check.ui",
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.training.action.logs",
                     "agents.legacy.detail.training.action.snapshot",
                     "agents.legacy.detail.training.action.retry",
@@ -143,13 +135,13 @@ class AgentsViewModel(AgentsGuidanceViewModel):
             return AgentDetailView(
                 UserMessage("agents.node.kind.model_version"),
                 self._current_version_body(latest_portrait),
-                _messages(
+                messages(
                     "agents.legacy.detail.version.check.registered",
                     "agents.legacy.detail.version.check.artifact",
                     "agents.legacy.detail.version.check.run",
                     "agents.legacy.detail.version.check.portrait",
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.version.action.current",
                     "agents.legacy.detail.version.action.compare",
                     "agents.legacy.detail.version.action.portrait",
@@ -166,7 +158,7 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                         "title": (
                             latest_portrait.title
                             if latest_portrait
-                            else _MISSING
+                            else MISSING
                         ),
                         "passed": (
                             latest_portrait.passed if latest_portrait else 0
@@ -177,21 +169,21 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                         "errors": (
                             latest_portrait.failures
                             if latest_portrait
-                            else _MISSING
+                            else MISSING
                         ),
                         "scores": (
                             self._score_line(latest_portrait.scores)
                             if latest_portrait
-                            else _MISSING
+                            else MISSING
                         ),
                     },
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.portrait.check.valid",
                     "agents.legacy.detail.portrait.check.kpi",
                     "agents.legacy.detail.portrait.check.protocol",
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.portrait.action.retry",
                     "agents.legacy.detail.portrait.action.analysis",
                     "agents.legacy.detail.portrait.action.export",
@@ -208,24 +200,24 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                     {
                         "delta": delta,
                         "latest": (
-                            getattr(portraits[0], "title", _MISSING)
+                            getattr(portraits[0], "title", MISSING)
                             if portraits
-                            else _MISSING
+                            else MISSING
                         ),
                         "previous": (
-                            getattr(portraits[1], "title", _MISSING)
+                            getattr(portraits[1], "title", MISSING)
                             if len(portraits) > 1
-                            else _MISSING
+                            else MISSING
                         ),
                     },
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.delta.check.two",
                     "agents.legacy.detail.delta.check.battery",
                     "agents.legacy.detail.delta.check.scoring",
                     "agents.legacy.detail.delta.check.order",
                 ),
-                _messages(
+                messages(
                     "agents.legacy.detail.delta.action.analysis",
                     "agents.legacy.detail.delta.action.portrait",
                     "agents.legacy.detail.delta.action.note",
@@ -249,9 +241,9 @@ class AgentsViewModel(AgentsGuidanceViewModel):
         return UserMessage(
             "agents.legacy.detail.version.body",
             {
-                "title": getattr(version, "title", _MISSING),
-                "status": _version_status_message(version),
-                "artifact": getattr(version, "artifact_path", "") or _MISSING,
+                "title": getattr(version, "title", MISSING),
+                "status": version_status_message(version),
+                "artifact": getattr(version, "artifact_path", "") or MISSING,
                 "scores": score_line,
                 "delta": delta,
             },
@@ -276,9 +268,9 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                     "agents.node.title.base_model",
                     {
                         "label": (
-                            getattr(latest_run, "base_model", _MISSING)
+                            getattr(latest_run, "base_model", MISSING)
                             if latest_run
-                            else _MISSING
+                            else MISSING
                         )
                     },
                 ),
@@ -295,12 +287,12 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                     {
                         "label": (
                             getattr(latest_run, "dataset_version", "")
-                            or getattr(latest_dataset, "title", _MISSING)
+                            or getattr(latest_dataset, "title", MISSING)
                         )
                     },
                 ),
                 self._dataset_note_message(),
-                _dataset_status_message(latest_dataset),
+                dataset_status_message(latest_dataset),
                 (
                     "good"
                     if latest_dataset
@@ -317,17 +309,17 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                 2,
                 UserMessage(
                     "agents.node.title.training_run",
-                    {"label": getattr(latest_run, "run_id", _MISSING)},
+                    {"label": getattr(latest_run, "run_id", MISSING)},
                 ),
                 (
                     UserMessage(
                         "agents.legacy.node.entity_title",
-                        {"title": getattr(latest_run, "title", _MISSING)},
+                        {"title": getattr(latest_run, "title", MISSING)},
                     )
                     if latest_run
                     else UserMessage("agents.legacy.node.training.empty")
                 ),
-                _training_status_message(latest_run),
+                training_status_message(latest_run),
                 (
                     "good"
                     if latest_run and getattr(latest_run, "artifact_path", "")
@@ -340,17 +332,17 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                 3,
                 UserMessage(
                     "agents.node.title.model_version",
-                    {"label": getattr(latest_version, "version_id", _MISSING)},
+                    {"label": getattr(latest_version, "version_id", MISSING)},
                 ),
                 (
                     UserMessage(
                         "agents.legacy.node.entity_title",
-                        {"title": getattr(latest_version, "title", _MISSING)},
+                        {"title": getattr(latest_version, "title", MISSING)},
                     )
                     if latest_version
                     else UserMessage("agents.legacy.node.version.empty")
                 ),
-                _version_status_message(latest_version),
+                version_status_message(latest_version),
                 "good" if latest_version else "pending",
                 "current",
             ),
@@ -363,7 +355,7 @@ class AgentsViewModel(AgentsGuidanceViewModel):
                         "label": (
                             latest_portrait.title
                             if latest_portrait
-                            else _MISSING
+                            else MISSING
                         )
                     },
                 ),
@@ -424,61 +416,6 @@ class AgentsViewModel(AgentsGuidanceViewModel):
         from persona_training_lab.ui.i18n.text import render_user_message
 
         return render_user_message(None, self._portrait_note_message(latest))
-
-
-def _messages(*keys: str) -> tuple[UserMessage, ...]:
-    return tuple(UserMessage(key) for key in keys)
-
-
-def _dataset_status_message(dataset: object | None) -> UserMessage:
-    status = normalize_dataset_status(getattr(dataset, "status", ""))
-    key = {
-        DatasetVersionStatus.DRAFT: "draft",
-        DatasetVersionStatus.IMPORTED: "imported",
-        DatasetVersionStatus.VALIDATED: "validated",
-        DatasetVersionStatus.APPROVED: "approved",
-        DatasetVersionStatus.ARCHIVED: "archived",
-        DatasetVersionStatus.UNKNOWN: "unknown",
-    }[status]
-    return UserMessage(f"agents.legacy.status.dataset.{key}")
-
-
-def _training_status_message(run: object | None) -> UserMessage:
-    status = normalize_training_status(getattr(run, "status", ""))
-    key = {
-        TrainingRunStatus.CREATED: "created",
-        TrainingRunStatus.READY: "ready",
-        TrainingRunStatus.RUNNING: "running",
-        TrainingRunStatus.FAILED: "failed",
-        TrainingRunStatus.COMPLETED: "completed",
-        TrainingRunStatus.UNKNOWN: "unknown",
-    }[status]
-    return UserMessage(f"agents.legacy.status.training.{key}")
-
-
-def _version_status_message(version: object | None) -> UserMessage:
-    status = normalize_model_version_status(getattr(version, "status", ""))
-    key = {
-        ModelVersionStatus.DRAFT: "draft",
-        ModelVersionStatus.READY: "ready",
-        ModelVersionStatus.ARCHIVED: "archived",
-        ModelVersionStatus.FAILED: "failed",
-        ModelVersionStatus.UNKNOWN: "unknown",
-    }[status]
-    return UserMessage(f"agents.legacy.status.version.{key}")
-
-
-def _portrait_status_message(experiment: object | None) -> UserMessage:
-    status = normalize_evaluation_status(getattr(experiment, "status", ""))
-    key = {
-        EvaluationRunStatus.CREATED: "created",
-        EvaluationRunStatus.RUNNING: "running",
-        EvaluationRunStatus.PARTIAL: "partial",
-        EvaluationRunStatus.FAILED: "failed",
-        EvaluationRunStatus.COMPLETED: "completed",
-        EvaluationRunStatus.UNKNOWN: "unknown",
-    }[status]
-    return UserMessage(f"agents.legacy.status.portrait.{key}")
 
 
 __all__ = ("AgentsViewModel",)
