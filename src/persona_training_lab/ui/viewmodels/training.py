@@ -11,6 +11,7 @@ from persona_training_lab.application.local_model.status_mapping import (
     LocalModelStatus,
     normalize_local_model_status,
 )
+from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
@@ -66,6 +67,19 @@ _ERROR_CODE_KEYS = {
     "start_failed": "training.message.start_failed",
     "configuration_error": "training.message.create_failed",
     "validation_error": "training.message.start_failed",
+}
+_ACTION_CODE_KEYS = {
+    "backend_unavailable": "training.message.backend_unavailable",
+    "model_missing": "training.message.model_missing",
+    "resource_busy": "training.message.resource_busy",
+    "completed": "training.message.completed",
+    "start_failed": "training.message.start_failed",
+    "safe_stop": "training.message.safe_stop",
+    "run_not_found": "training.message.run_not_found",
+    "already_running": "training.message.already_running",
+    "not_ready": "training.message.not_ready",
+    "started": "training.message.started",
+    "created": "training.message.created",
 }
 _LEGACY_MESSAGE_KEYS = {
     "Training backend не подключён": "training.message.backend_unavailable",
@@ -621,9 +635,7 @@ class TrainingViewModel:
         learning_rate: float,
     ) -> tuple[bool, str]:
         if self.training_service is None:
-            self.creation_message = (
-                "Не удалось создать запуск обучения"
-            )
+            self.creation_message = "create_failed"
             self._creation_message_model = training_text(
                 "training.message.create_failed"
             )
@@ -640,7 +652,7 @@ class TrainingViewModel:
                 learning_rate=learning_rate,
             )
         except (TrainingConfigurationError, TrainingValidationError) as exc:
-            self.creation_message = str(exc)
+            self.creation_message = exc.code
             self._creation_message_model = training_text(
                 _ERROR_CODE_KEYS.get(
                     exc.code,
@@ -649,15 +661,13 @@ class TrainingViewModel:
             )
             return False, self.creation_message
         except Exception:
-            self.creation_message = (
-                "Не удалось создать запуск обучения"
-            )
+            self.creation_message = "create_failed"
             self._creation_message_model = training_text(
                 "training.message.create_failed"
             )
             return False, self.creation_message
 
-        self.creation_message = "Запуск обучения создан"
+        self.creation_message = "created"
         self._creation_message_model = training_text(
             "training.message.created"
         )
@@ -786,17 +796,17 @@ class TrainingViewModel:
 
     def start_selected_training_run(self) -> tuple[bool, str]:
         if self.training_service is None or not self.current_run_id:
-            self.creation_message = "Запуск обучения не найден"
+            self.creation_message = "run_not_found"
             self._creation_message_model = training_text(
                 "training.message.run_not_found"
             )
             return False, self.creation_message
         try:
-            message = self.training_service.start_real_or_skeleton_run(
+            result = self.training_service.start_real_or_skeleton_run(
                 self.current_run_id
             )
         except TrainingValidationError as exc:
-            self.creation_message = str(exc)
+            self.creation_message = exc.code
             self._creation_message_model = training_text(
                 _ERROR_CODE_KEYS.get(
                     exc.code,
@@ -805,7 +815,7 @@ class TrainingViewModel:
             )
             return False, self.creation_message
         except Exception:
-            self.creation_message = "Не удалось запустить обучение"
+            self.creation_message = "start_failed"
             self._creation_message_model = training_text(
                 "training.message.start_failed"
             )
@@ -823,22 +833,10 @@ class TrainingViewModel:
         if self.status_code == TrainingRunStatus.COMPLETED.value:
             self._publish_latest_completed_run()
             self._apply_model_versions_connector()
-            self.creation_message = message
-            self._creation_message_model = training_text(
-                "training.message.completed",
-                artifact=self.artifact_path or message,
-            )
-            return True, message
-        if self.status_code == TrainingRunStatus.RUNNING.value:
-            self.creation_message = message or "Запуск обучения начат"
-            self._creation_message_model = training_text(
-                "training.message.started"
-            )
-            return True, self.creation_message
 
-        self.creation_message = message
-        self._creation_message_model = self._message_from_legacy(message)
-        return False, message
+        self.creation_message = result.code
+        self._creation_message_model = self._action_result_model(result)
+        return result.ok, result.code
 
     def begin_training_run(self) -> bool:
         if self.training_in_progress or not self.can_start_run:
@@ -848,7 +846,7 @@ class TrainingViewModel:
         self.status = "Выполняется"
         self.status_code = TrainingRunStatus.RUNNING.value
         self._status_model = training_text("training.status.running")
-        self.creation_message = "Запуск обучения начат"
+        self.creation_message = "started"
         self._creation_message_model = training_text(
             "training.message.started"
         )
@@ -1053,6 +1051,14 @@ class TrainingViewModel:
             "training.local_model.status.unknown",
             status=raw_status,
         )
+
+    @staticmethod
+    def _action_result_model(result: ActionResult) -> TrainingText:
+        key = _ACTION_CODE_KEYS.get(
+            result.code,
+            "training.message.start_failed",
+        )
+        return training_text(key, **dict(result.values))
 
     @staticmethod
     def _message_from_legacy(message: str) -> TrainingText:
