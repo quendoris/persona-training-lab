@@ -5,6 +5,7 @@ from types import MappingProxyType
 from typing import Mapping
 
 from persona_training_lab.application.datasets.service import DatasetsService
+from persona_training_lab.application.messages import ActionResult
 
 
 _STATUS_ALIASES = {
@@ -33,6 +34,12 @@ _STATUS_KEYS = {
     "unchecked": "datasets.status.unchecked",
     "empty": "datasets.status.empty",
 }
+_DATASET_ACTION_KEYS = {
+    "approved": "datasets.message.approved",
+    "approval_blocked": "datasets.message.approve_blocked",
+    "not_found": "datasets.error.not_found",
+    "version_compare_unavailable": "datasets.action.compare_unavailable",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +50,17 @@ class DatasetText:
 
 def dataset_text(key: str, **values: object) -> DatasetText:
     return DatasetText(key, MappingProxyType(dict(values)))
+
+
+def _dataset_action_text(
+    result: ActionResult,
+    *,
+    fallback_key: str,
+) -> DatasetText:
+    return dataset_text(
+        _DATASET_ACTION_KEYS.get(result.code, fallback_key),
+        **dict(result.values),
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -185,21 +203,21 @@ class DatasetsViewModel:
                 "Датасеты пока не добавлены",
             )
         try:
-            ok, message = self.datasets_service.approve_dataset(dataset_id)
+            result = self.datasets_service.approve_dataset(dataset_id)
         except Exception:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.approve_failed"),
                 "Не удалось одобрить датасет",
             )
-        semantic = dataset_text(
-            "datasets.message.approved"
-            if ok
-            else "datasets.message.approve_blocked"
+        semantic = _dataset_action_text(
+            result,
+            fallback_key="datasets.error.approve_failed",
         )
-        self._set_action_result(ok, semantic, message)
+        self._message = semantic
+        self._legacy_message = ""
         self._apply_datasets_connector(select_dataset_id=dataset_id)
-        return ok, message
+        return result.ok, result.code
 
     def compare_current_versions(self) -> tuple[bool, str]:
         if self.datasets_service is None:
@@ -216,20 +234,19 @@ class DatasetsViewModel:
                 "Датасеты пока не добавлены",
             )
         try:
-            ok, message = self.datasets_service.compare_dataset_versions(dataset_id)
+            result = self.datasets_service.compare_dataset_versions(dataset_id)
         except Exception:
             return self._set_action_result(
                 False,
                 dataset_text("datasets.error.compare_failed"),
                 "Не удалось сравнить версии",
             )
-        semantic = dataset_text(
-            "datasets.action.compare_unavailable"
-            if not ok
-            else "datasets.raw",
-            **({} if not ok else {"value": message}),
+        self._message = _dataset_action_text(
+            result,
+            fallback_key="datasets.error.compare_failed",
         )
-        return self._set_action_result(ok, semantic, message)
+        self._legacy_message = ""
+        return result.ok, result.code
 
     def current_message(self) -> DatasetText | None:
         return self._message
