@@ -14,11 +14,12 @@ from persona_training_lab.application.operations_center import (
     OperationsCenterItem,
     OperationsCenterService,
 )
-from persona_training_lab.application.runtime.operations import RuntimeOperation
-from persona_training_lab.application.telemetry.service import (
-    TelemetryProcessRow,
-    TelemetrySnapshot,
+from persona_training_lab.application.ports.telemetry import (
+    BaseTelemetryMetrics,
+    ProcessMetrics,
 )
+from persona_training_lab.application.runtime.operations import RuntimeOperation
+from persona_training_lab.application.telemetry.service import SystemTelemetryService
 from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.panels.activity_panel import ActivityPanel
@@ -28,6 +29,7 @@ from persona_training_lab.ui.panels.inspector_panel import (
 )
 from persona_training_lab.ui.panels.issues_panel import IssuesPanel
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
+from persona_training_lab.ui.viewmodels.telemetry import TelemetryViewModel
 
 
 CATALOGS = (
@@ -83,12 +85,23 @@ class _RuntimeOperations:
         return [self._operation]
 
 
-class _TelemetryViewModel:
-    def __init__(self, snapshot: TelemetrySnapshot) -> None:
-        self.snapshot = snapshot
-
-    def refresh(self) -> None:
-        return
+class _TelemetrySystemProvider:
+    def collect_base_metrics(self) -> BaseTelemetryMetrics:
+        return BaseTelemetryMetrics(
+            cpu_percent=91.5,
+            cpu_logical_cores=16,
+            ram_used_bytes=8 * 1024**3,
+            ram_total_bytes=32 * 1024**3,
+            ram_percent=25.0,
+            processes=(
+                ProcessMetrics(
+                    pid=100,
+                    name="python",
+                    cpu_percent=12.0,
+                    ram_percent=3.0,
+                ),
+            ),
+        )
 
 
 def _app() -> QApplication:
@@ -319,41 +332,31 @@ def test_telemetry_snapshot_switches_language_without_refresh(
 ) -> None:
     app = _app()
     manager = _manager(app)
-    snapshot = TelemetrySnapshot(
-        cpu_percent=91.5,
-        cpu_logical_cores=16,
-        cpu_status="legacy",
-        ram_used_bytes=8 * 1024**3,
-        ram_total_bytes=32 * 1024**3,
-        ram_percent=25.0,
-        gpu_status="legacy",
-        gpu_util_percent=None,
-        vram_used_mb=None,
-        vram_total_mb=None,
-        gpu_temperature_c=68.0,
-        processes=(
-            TelemetryProcessRow(
-                pid=100,
-                name="python",
-                cpu_percent=12.0,
-                ram_percent=3.0,
-            ),
-        ),
-        processes_status="legacy",
-        status="legacy",
-        last_updated_at="10:10:00",
-        error_message="",
-        cpu_status_code="high_load",
-        gpu_status_code="gpu_unavailable",
-        processes_status_code="normal",
-        status_code="active",
-        error_code="",
+    service = SystemTelemetryService(
+        system_provider=_TelemetrySystemProvider(),
+        gpu_provider=None,
     )
-    panel = TelemetryPanel(_TelemetryViewModel(snapshot), manager)  # type: ignore[arg-type]
+    vm = TelemetryViewModel(telemetry_service=service)
+    snapshot = vm.snapshot
+    assert snapshot is not None
+    assert snapshot.cpu_status == "high_load"
+    assert snapshot.cpu_status_code == "high_load"
+    assert snapshot.gpu_status == "gpu_unavailable"
+    assert snapshot.gpu_status_code == "gpu_unavailable"
+    assert snapshot.processes_status == "normal"
+    assert snapshot.processes_status_code == "normal"
+    assert snapshot.status == "active"
+    assert snapshot.status_code == "active"
+    assert snapshot.error_message == ""
+    assert snapshot.error_code == ""
+    assert vm.status_title == "Телеметрия активна"
+    assert vm.cpu_cores_text == "Логические ядра: 16"
+
+    panel = TelemetryPanel(vm, manager)
     title = panel._title
 
     assert title.text() == "Telemetry active"
-    assert panel._subtitle.text() == "Updated: 10:10:00"
+    assert panel._subtitle.text() == f"Updated: {snapshot.last_updated_at}"
     assert panel._refresh_btn.text() == "Refresh"
     assert panel._processes_header.text() == "Processes"
     assert "Temp" in _label_texts(panel)
@@ -362,8 +365,10 @@ def test_telemetry_snapshot_switches_language_without_refresh(
     manager.set_locale("ru-RU", persist=False)
 
     assert panel._title is title
+    assert snapshot.status == "active"
+    assert snapshot.cpu_status == "high_load"
     assert title.text() == "Телеметрия активна"
-    assert panel._subtitle.text() == "Обновлено: 10:10:00"
+    assert panel._subtitle.text() == f"Обновлено: {snapshot.last_updated_at}"
     assert panel._refresh_btn.text() == "Обновить"
     assert panel._processes_header.text() == "Процессы"
     assert "Темп" in _label_texts(panel)
