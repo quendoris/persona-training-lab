@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.ui.agents.screen_history_keyguard import (
     AgentsScreen as _HistoryKeyGuardAgentsScreen,
 )
@@ -21,9 +22,16 @@ from persona_training_lab.ui.agents.screen_lineage_base import (
     AgentsScreen as _LineageBaseAgentsScreen,
 )
 from persona_training_lab.ui.components.cards import PanelCard
-from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
+from persona_training_lab.ui.components.panels import (
+    make_muted_label,
+    make_status_label,
+)
+from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
-from persona_training_lab.ui.viewmodels.agents import AgentDetailView
+from persona_training_lab.ui.viewmodels.agents_contracts import (
+    AgentDetailView,
+    AgentText,
+)
 
 
 class AgentsScreen(_HistoryKeyGuardAgentsScreen):
@@ -38,8 +46,13 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         self,
         view_model,
         key_binding_manager: KeyBindingManager | None = None,
+        localization: LocalizationManager | None = None,
     ) -> None:
-        super().__init__(view_model, key_binding_manager)
+        super().__init__(
+            view_model,
+            key_binding_manager,
+            localization,
+        )
         self.setMinimumSize(0, 0)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -74,9 +87,10 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         layout.setSpacing(12)
 
         card = PanelCard(
-            "Карточка версии",
-            "Выбранная точка, её происхождение, состояние и безопасные действия.",
+            self._text("agents.details.version_title"),
+            self._text("agents.details.version_subtitle"),
         )
+        self._details_card = card
 
         heading = QHBoxLayout()
         heading.setSpacing(10)
@@ -85,18 +99,40 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         self._detail_title.setWordWrap(True)
         self._detail_status = make_status_label("—")
         heading.addWidget(self._detail_title, 1)
-        heading.addWidget(self._detail_status, 0, Qt.AlignmentFlag.AlignTop)
+        heading.addWidget(
+            self._detail_status,
+            0,
+            Qt.AlignmentFlag.AlignTop,
+        )
         card._layout.addLayout(heading)
 
         metadata = QGridLayout()
         metadata.setHorizontalSpacing(12)
         metadata.setVerticalSpacing(7)
-        self._detail_type_value = self._metadata_row(metadata, 0, "Тип")
-        self._detail_parent_value = self._metadata_row(metadata, 1, "Родитель")
-        self._detail_branch_value = self._metadata_row(metadata, 2, "Ветка")
+        self._metadata_labels: dict[str, QLabel] = {}
+        self._detail_type_value = self._metadata_row(
+            metadata,
+            0,
+            "type",
+            "agents.metadata.type",
+        )
+        self._detail_parent_value = self._metadata_row(
+            metadata,
+            1,
+            "parent",
+            "agents.metadata.parent",
+        )
+        self._detail_branch_value = self._metadata_row(
+            metadata,
+            2,
+            "branch",
+            "agents.metadata.branch",
+        )
         card._layout.addLayout(metadata)
 
-        self._detail_body = QLabel("Выберите точку дерева.")
+        self._detail_body = QLabel(
+            self._text("agents.details.select_node")
+        )
         self._detail_body.setWordWrap(True)
         self._detail_body.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -108,50 +144,63 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         dependency_layout = QVBoxLayout(dependency_frame)
         dependency_layout.setContentsMargins(12, 10, 12, 10)
         dependency_layout.setSpacing(4)
-        dependency_title = QLabel("Зависимости и безопасность")
-        dependency_title.setObjectName("CardTitle")
+        self._dependency_title = QLabel(
+            self._text("agents.details.dependencies")
+        )
+        self._dependency_title.setObjectName("CardTitle")
         self._detail_dependency = make_muted_label("—")
-        dependency_layout.addWidget(dependency_title)
+        dependency_layout.addWidget(self._dependency_title)
         dependency_layout.addWidget(self._detail_dependency)
         card.add_widget(dependency_frame)
 
-        checks_title = QLabel("Проверить перед действием")
-        checks_title.setObjectName("CardTitle")
-        card.add_widget(checks_title)
+        self._detail_checks_title = QLabel(
+            self._text("agents.details.preflight")
+        )
+        self._detail_checks_title.setObjectName("CardTitle")
+        card.add_widget(self._detail_checks_title)
         self._checks_layout = QGridLayout()
         self._checks_layout.setSpacing(8)
         card._layout.addLayout(self._checks_layout)
 
-        actions_title = QLabel("Действия с версией")
-        actions_title.setObjectName("CardTitle")
-        card.add_widget(actions_title)
+        self._version_actions_title = QLabel(
+            self._text("agents.details.version_actions")
+        )
+        self._version_actions_title.setObjectName("CardTitle")
+        card.add_widget(self._version_actions_title)
         self._workflow_actions_layout = QGridLayout()
         self._workflow_actions_layout.setSpacing(8)
         card._layout.addLayout(self._workflow_actions_layout)
 
         self._make_current_action = self._version_action_button(
-            "Сделать актуальной",
+            "agents.action.make_current",
             self._make_current_from_detail,
         )
         self._compare_action = self._version_action_button(
-            "Сравнить с текущей",
+            "agents.action.compare",
             lambda: self._open_workspace("analysis"),
             secondary=True,
         )
         self._portrait_action = self._version_action_button(
-            "Запустить портрет",
+            "agents.action.portrait",
             lambda: self._open_workspace("tests"),
         )
         self._branch_action = self._version_action_button(
-            "Создать ветку",
+            "agents.action.branch",
             self._create_branch_from_detail,
             secondary=True,
         )
         self._delete_action = self._version_action_button(
-            "Удалить ветку",
+            "agents.action.delete",
             self._delete_branch_from_detail,
             secondary=True,
         )
+        self._version_action_keys = {
+            self._make_current_action: "agents.action.make_current",
+            self._compare_action: "agents.action.compare",
+            self._portrait_action: "agents.action.portrait",
+            self._branch_action: "agents.action.branch",
+            self._delete_action: "agents.action.delete",
+        }
         for index, button in enumerate(
             (
                 self._make_current_action,
@@ -161,11 +210,17 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
                 self._delete_action,
             )
         ):
-            self._workflow_actions_layout.addWidget(button, index // 2, index % 2)
+            self._workflow_actions_layout.addWidget(
+                button,
+                index // 2,
+                index % 2,
+            )
 
-        help_title = QLabel("Контекст и управление")
-        help_title.setObjectName("CardTitle")
-        card.add_widget(help_title)
+        self._detail_help_title = QLabel(
+            self._text("agents.details.context")
+        )
+        self._detail_help_title.setObjectName("CardTitle")
+        card.add_widget(self._detail_help_title)
         self._actions_layout = QGridLayout()
         self._actions_layout.setSpacing(8)
         card._layout.addLayout(self._actions_layout)
@@ -181,26 +236,39 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             maximum_width=self._DETAILS_MAX_WIDTH,
         )
 
-    @staticmethod
-    def _metadata_row(layout: QGridLayout, row: int, title: str) -> QLabel:
-        title_label = QLabel(title)
+    def _metadata_row(
+        self,
+        layout: QGridLayout,
+        row: int,
+        metadata_id: str,
+        title_key: str,
+    ) -> QLabel:
+        title_label = QLabel(self._text(title_key))
         title_label.setObjectName("CardTitle")
+        self._metadata_labels[metadata_id] = title_label
         value = QLabel("—")
         value.setObjectName("MutedText")
         value.setWordWrap(True)
-        value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(title_label, row, 0, Qt.AlignmentFlag.AlignTop)
+        value.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout.addWidget(
+            title_label,
+            row,
+            0,
+            Qt.AlignmentFlag.AlignTop,
+        )
         layout.addWidget(value, row, 1)
         return value
 
-    @staticmethod
     def _version_action_button(
-        text: str,
+        self,
+        text_key: str,
         handler,
         *,
         secondary: bool = False,
     ) -> QPushButton:
-        button = QPushButton(text)
+        button = QPushButton(self._text(text_key))
         if secondary:
             button.setObjectName("SecondaryButton")
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -217,63 +285,106 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         )
         return panel
 
-    def _detail_for(self, node_id: str) -> AgentDetailView:
-        detail = super()._detail_for(node_id)
+    def _mouse_binding_text(self, binding_id: str) -> str:
+        binding = self._key_binding_manager.mouse_binding(binding_id)
+        button = self._text(
+            f"keybindings.mouse.button.{binding.button}"
+        )
+        if binding.modifier == "none":
+            return button
+        modifier = self._text(
+            f"keybindings.mouse.modifier.{binding.modifier}"
+        )
+        return f"{modifier} + {button}"
+
+    def _with_key_binding_help(
+        self,
+        detail: AgentDetailView,
+    ) -> AgentDetailView:
         current = {
-            "delete": self._key_binding_manager.sequence("delete_branch"),
-            "toggle": self._key_binding_manager.sequence("history_toggle"),
-            "undo": self._key_binding_manager.sequence("undo_only"),
-            "open": self._key_binding_manager.mouse_binding_text(
-                "open_node_menu"
+            "delete": self._key_binding_manager.sequence(
+                "delete_branch"
             ),
-            "pan_primary": self._key_binding_manager.mouse_binding_text(
+            "toggle": self._key_binding_manager.sequence(
+                "history_toggle"
+            ),
+            "undo": self._key_binding_manager.sequence("undo_only"),
+            "open": self._mouse_binding_text("open_node_menu"),
+            "pan_primary": self._mouse_binding_text(
                 "pan_canvas_primary"
             ),
-            "pan_secondary": self._key_binding_manager.mouse_binding_text(
+            "pan_secondary": self._mouse_binding_text(
                 "pan_canvas_secondary"
             ),
-            "move": self._key_binding_manager.mouse_binding_text("move_node"),
-            "subtree": self._key_binding_manager.mouse_binding_text(
-                "move_subtree"
-            ),
-            "zoom": self._key_binding_manager.mouse_binding_text(
-                "zoom_canvas"
-            ),
+            "move": self._mouse_binding_text("move_node"),
+            "subtree": self._mouse_binding_text("move_subtree"),
+            "zoom": self._mouse_binding_text("zoom_canvas"),
         }
-        actions: list[str] = []
-        for action in detail.actions:
-            if action.startswith("Del удаляет"):
+        actions: list[AgentText] = list(detail.actions)
+        for code in dict.fromkeys(detail.action_codes):
+            if code == "delete":
                 actions.append(
-                    f"{current['delete']} удаляет выбранную локальную ветку."
-                )
-            elif action.startswith("Ctrl+Z переключает"):
-                actions.append(
-                    f"{current['toggle']} переключает последнее изменение: отменить / вернуть."
-                )
-            elif action.startswith("Ctrl+Shift+Z всегда"):
-                actions.append(
-                    f"{current['undo']} всегда уходит ещё на один шаг назад и поддерживает удержание."
-                )
-            elif action.startswith("ЛКМ по точке"):
-                actions.append(
-                    f"{current['open']} по точке открывает действия на графе."
-                )
-            elif action.startswith("ПКМ двигает пространство/точку"):
-                actions.extend(
-                    (
-                        f"{current['pan_primary']} или {current['pan_secondary']} по пустому месту перемещает пространство.",
-                        f"{current['move']} по точке перемещает один узел.",
-                        f"{current['subtree']} по точке перемещает поддерево.",
-                        f"{current['zoom']} масштабирует граф.",
+                    UserMessage(
+                        "agents.help.delete",
+                        {"binding": current["delete"]},
                     )
                 )
-            else:
-                actions.append(action)
+            elif code == "toggle":
+                actions.append(
+                    UserMessage(
+                        "agents.help.toggle",
+                        {"binding": current["toggle"]},
+                    )
+                )
+            elif code == "undo":
+                actions.append(
+                    UserMessage(
+                        "agents.help.undo",
+                        {"binding": current["undo"]},
+                    )
+                )
+            elif code == "open_actions":
+                actions.append(
+                    UserMessage(
+                        "agents.help.open_actions",
+                        {"binding": current["open"]},
+                    )
+                )
+            elif code == "pan":
+                actions.extend(
+                    (
+                        UserMessage(
+                            "agents.help.pan",
+                            {
+                                "primary": current["pan_primary"],
+                                "secondary": current["pan_secondary"],
+                            },
+                        ),
+                        UserMessage(
+                            "agents.help.move_node",
+                            {"binding": current["move"]},
+                        ),
+                        UserMessage(
+                            "agents.help.move_subtree",
+                            {"binding": current["subtree"]},
+                        ),
+                        UserMessage(
+                            "agents.help.zoom",
+                            {"binding": current["zoom"]},
+                        ),
+                    )
+                )
         return AgentDetailView(
-            detail.title,
-            detail.body,
-            detail.checks,
-            tuple(actions),
+            title=detail.title,
+            body=detail.body,
+            checks=detail.checks,
+            actions=tuple(actions),
+            action_codes=detail.action_codes,
+        )
+
+    def _detail_for(self, node_id: str) -> AgentDetailView:
+        return self._with_key_binding_help(
+            super()._detail_for(node_id)
         )
 
     def _refresh_key_binding_help(self) -> None:
@@ -284,16 +395,21 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
     def _render_detail(self, detail: AgentDetailView) -> None:
         node_id = getattr(self, "_selected_node_id", "")
         node = self._node_by_id(node_id) if node_id else None
-        self._detail_title.setText(detail.title)
-        self._detail_body.setText(detail.body)
+        self._detail_title.setText(self._render_text(detail.title))
+        self._detail_body.setText(self._render_text(detail.body))
 
         if node is None:
-            self._set_status("не определена", warning=True)
-            self._detail_type_value.setText("Неизвестная точка")
+            self._set_status(
+                self._text("agents.status.undefined"),
+                warning=True,
+            )
+            self._detail_type_value.setText(
+                self._text("agents.node.kind.unknown")
+            )
             self._detail_parent_value.setText("—")
             self._detail_branch_value.setText("—")
             self._detail_dependency.setText(
-                "Точка отсутствует в текущем lineage; действия заблокированы."
+                self._text("agents.detail.unknown.body")
             )
             self._sync_detail_actions(
                 node_id,
@@ -304,7 +420,8 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         else:
             is_custom = self._state.is_custom_node(node.node_id)
             is_current = bool(
-                node.is_current or self._state.current_node_id() == node.node_id
+                node.is_current
+                or self._state.current_node_id() == node.node_id
             )
             is_archived = bool(
                 is_custom and self._state.is_archived(node.node_id)
@@ -317,9 +434,14 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             warning = is_archived or node.tone in {"pending", "bad"}
             self._set_status(status_text, warning=warning)
             self._detail_type_value.setText(
-                self._node_type_label(node.node_id, is_custom=is_custom)
+                self._node_type_label(
+                    node.node_id,
+                    is_custom=is_custom,
+                )
             )
-            self._detail_parent_value.setText(self._parent_title(node.parent_id))
+            self._detail_parent_value.setText(
+                self._parent_title(node.parent_id)
+            )
             self._detail_branch_value.setText(
                 self._branch_label(
                     node.branch_note,
@@ -342,8 +464,16 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
                 is_archived=is_archived,
             )
 
-        self._fill_information_rows(self._checks_layout, detail.checks, "✓")
-        self._fill_information_rows(self._actions_layout, detail.actions, "→")
+        self._fill_information_rows(
+            self._checks_layout,
+            detail.checks,
+            "✓",
+        )
+        self._fill_information_rows(
+            self._actions_layout,
+            detail.actions,
+            "→",
+        )
         content = getattr(self, "_details_content", None)
         if content is not None:
             self._constrain_text_widgets(content)
@@ -351,11 +481,14 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
     def _fill_information_rows(
         self,
         layout: QGridLayout,
-        values: tuple[str, ...],
+        values: tuple[AgentText, ...],
         prefix: str,
     ) -> None:
         self._clear_layout(layout)
-        for index, value in enumerate(values or ("Нет данных",)):
+        effective: tuple[AgentText, ...] = values or (
+            UserMessage("agents.details.no_data"),
+        )
+        for index, value in enumerate(effective):
             row = QFrame()
             row.setObjectName("PanelCardSoft")
             row_layout = QHBoxLayout(row)
@@ -363,8 +496,12 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             row_layout.setSpacing(8)
             marker = QLabel(prefix)
             marker.setObjectName("CardTitle")
-            text = make_muted_label(value)
-            row_layout.addWidget(marker, 0, Qt.AlignmentFlag.AlignTop)
+            text = make_muted_label(self._render_text(value))
+            row_layout.addWidget(
+                marker,
+                0,
+                Qt.AlignmentFlag.AlignTop,
+            )
             row_layout.addWidget(text, 1)
             layout.addWidget(row, index, 0)
 
@@ -380,14 +517,14 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
 
     def _parent_title(self, parent_id: str | None) -> str:
         if parent_id is None:
-            return "Корневая точка"
+            return self._text("agents.parent.root")
         parent = self._node_by_id(parent_id)
         if parent is None:
             return parent_id
         return self._display_node_title(parent.title)
 
-    @staticmethod
-    def _display_node_title(title: str) -> str:
+    def _display_node_title(self, title: AgentText) -> str:
+        rendered = self._render_text(title)
         for prefix in (
             "Base · ",
             "Dataset · ",
@@ -396,53 +533,59 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             "Portrait · ",
             "Delta · ",
         ):
-            if title.startswith(prefix):
-                return title.removeprefix(prefix)
-        return title
+            if rendered.startswith(prefix):
+                return rendered.removeprefix(prefix)
+        return rendered
 
-    @staticmethod
-    def _node_type_label(node_id: str, *, is_custom: bool) -> str:
+    def _node_type_label(
+        self,
+        node_id: str,
+        *,
+        is_custom: bool,
+    ) -> str:
         if is_custom:
-            return "Локальная версия / экспериментальная ветка"
-        return {
-            "base": "Базовая модель",
-            "dataset": "Набор данных",
-            "training": "Запуск обучения",
-            "snapshot": "Снимок весов / версия модели",
-            "portrait": "Психологический портрет",
-            "delta": "Сравнение портретов",
-        }.get(node_id, "Точка lineage")
+            return self._text("agents.node.kind.local_branch")
+        key = {
+            "base": "agents.node.kind.base_model",
+            "dataset": "agents.node.kind.dataset",
+            "training": "agents.node.kind.training_run",
+            "snapshot": "agents.node.kind.model_version",
+            "portrait": "agents.node.kind.evaluation_run",
+            "delta": "agents.node.kind.analysis_delta",
+        }.get(node_id, "agents.node.kind.lineage")
+        return self._text(key)
 
-    @staticmethod
     def _version_status_text(
-        status: str,
+        self,
+        status: AgentText,
         *,
         is_current: bool,
         is_archived: bool,
     ) -> str:
         if is_current:
-            return "актуальная"
+            return self._text("agents.status.current")
         if is_archived:
-            return "архивная"
-        return status or "без статуса"
+            return self._text("agents.status.archived")
+        rendered = self._render_text(status).strip()
+        return rendered or self._text("agents.status.no_status")
 
-    @staticmethod
     def _branch_label(
+        self,
         branch_note: str,
         *,
         is_current: bool,
         is_archived: bool,
     ) -> str:
         if is_current:
-            return "Текущая рабочая линия"
+            return self._text("agents.branch.current")
         if is_archived:
-            return "Архивная боковая ветка"
+            return self._text("agents.branch.archived")
         if branch_note == "side":
-            return "Боковая экспериментальная ветка"
-        return "Основная линия"
+            return self._text("agents.branch.side")
+        return self._text("agents.branch.main")
 
-    @staticmethod
     def _dependency_text(
+        self,
         node_id: str,
         *,
         is_custom: bool,
@@ -450,39 +593,20 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         is_archived: bool,
     ) -> str:
         if is_current:
-            return (
-                "Эта точка сейчас активна. Удаление заблокировано; перед заменой "
-                "нужно выбрать другую актуальную версию."
-            )
+            return self._text("agents.dependency.current")
         if is_archived:
-            return (
-                "Архивная ветка не участвует в новых продолжениях. Её всё ещё "
-                "можно сравнивать, но сначала нужно вернуть из архива для работы."
-            )
+            return self._text("agents.dependency.archived")
         if is_custom:
-            return (
-                "Локальная ветка пока существует только в lineage. Перед обучением "
-                "ей понадобятся snapshot, протокол и привязка к training run."
-            )
-        return {
-            "base": "Исходная модель является корнем lineage и не удаляется.",
-            "dataset": (
-                "Изменение датасета влияет на все последующие training run и версии."
-            ),
-            "training": (
-                "Запуск обучения нельзя считать версией до появления сохранённого artifact."
-            ),
-            "snapshot": (
-                "Снимок связан с training run и artifact; он пригоден для портрета "
-                "и сравнения только пока эти зависимости доступны."
-            ),
-            "portrait": (
-                "Портрет корректно сравнивать только при одинаковой батарее и scoring rules."
-            ),
-            "delta": (
-                "Delta зависит от двух портретов и не должна переживать удаление любого из них."
-            ),
-        }.get(node_id, "Проверьте связанные записи перед изменением этой точки.")
+            return self._text("agents.dependency.custom")
+        key = {
+            "base": "agents.dependency.base",
+            "dataset": "agents.dependency.dataset",
+            "training": "agents.dependency.training",
+            "snapshot": "agents.dependency.snapshot",
+            "portrait": "agents.dependency.portrait",
+            "delta": "agents.dependency.delta",
+        }.get(node_id, "agents.dependency.default")
+        return self._text(key)
 
     @staticmethod
     def _detail_capabilities(
@@ -494,7 +618,9 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
     ) -> dict[str, bool]:
         is_version = node_id == "snapshot" or is_custom
         return {
-            "make_current": is_version and not is_current and not is_archived,
+            "make_current": (
+                is_version and not is_current and not is_archived
+            ),
             "compare": is_version and not is_current,
             "portrait": is_version,
             "branch": bool(node_id) and not is_archived,
@@ -515,36 +641,44 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
             is_current=is_current,
             is_archived=is_archived,
         )
-        self._make_current_action.setEnabled(capabilities["make_current"])
+        self._make_current_action.setEnabled(
+            capabilities["make_current"]
+        )
         self._compare_action.setEnabled(capabilities["compare"])
         self._portrait_action.setEnabled(capabilities["portrait"])
         self._branch_action.setEnabled(capabilities["branch"])
         self._delete_action.setEnabled(capabilities["delete"])
 
         self._make_current_action.setToolTip(
-            "Уже является актуальной версией."
-            if is_current
-            else (
-                "Архивную ветку сначала нужно вернуть из архива."
-                if is_archived
-                else "Сделать выбранную версию рабочей точкой lineage."
+            self._text(
+                "agents.action.make_current.current"
+                if is_current
+                else (
+                    "agents.action.make_current.archived"
+                    if is_archived
+                    else "agents.action.make_current.ready"
+                )
             )
         )
         self._compare_action.setToolTip(
-            "Текущую версию нельзя сравнить саму с собой."
-            if is_current
-            else "Открыть анализ для сравнения с актуальной версией."
+            self._text(
+                "agents.action.compare.current"
+                if is_current
+                else "agents.action.compare.ready"
+            )
         )
         self._portrait_action.setToolTip(
-            "Открыть батареи тестирования для выбранной версии."
+            self._text("agents.action.portrait.tooltip")
         )
         self._branch_action.setToolTip(
-            "Архивная ветка не продолжается."
-            if is_archived
-            else "Создать локальное продолжение от выбранной точки."
+            self._text(
+                "agents.action.branch.archived"
+                if is_archived
+                else "agents.action.branch.ready"
+            )
         )
         self._delete_action.setToolTip(
-            "Удаляются только локальные неактуальные ветки."
+            self._text("agents.action.delete.tooltip")
         )
 
     def _make_current_from_detail(self) -> None:
@@ -563,6 +697,44 @@ class AgentsScreen(_HistoryKeyGuardAgentsScreen):
         navigator = getattr(window, "_go_to_screen", None)
         if callable(navigator):
             navigator(workspace_key)
+
+    def _refresh_presentation_language(self) -> None:
+        self._refresh_base_language()
+        card = getattr(self, "_details_card", None)
+        if card is not None:
+            card.set_title(
+                self._text("agents.details.version_title")
+            )
+            card.set_subtitle(
+                self._text("agents.details.version_subtitle")
+            )
+        for metadata_id, key in (
+            ("type", "agents.metadata.type"),
+            ("parent", "agents.metadata.parent"),
+            ("branch", "agents.metadata.branch"),
+        ):
+            label = self._metadata_labels.get(metadata_id)
+            if label is not None:
+                label.setText(self._text(key))
+        self._dependency_title.setText(
+            self._text("agents.details.dependencies")
+        )
+        self._detail_checks_title.setText(
+            self._text("agents.details.preflight")
+        )
+        self._version_actions_title.setText(
+            self._text("agents.details.version_actions")
+        )
+        self._detail_help_title.setText(
+            self._text("agents.details.context")
+        )
+        for button, key in self._version_action_keys.items():
+            button.setText(self._text(key))
+        self._sync_history_action()
+        node_id = getattr(self, "_selected_node_id", "")
+        if node_id:
+            self._select_node(node_id)
+        self._constrain_text_widgets(self._details_content)
 
     @staticmethod
     def _bounded_column_scroll(
