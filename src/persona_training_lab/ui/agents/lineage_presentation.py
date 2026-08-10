@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from persona_training_lab.application.runtime.operations import ResourceClaim
@@ -24,9 +25,9 @@ class ProjectedVersionNode:
 @dataclass(slots=True, frozen=True)
 class LineagePresentationProjection:
     nodes: tuple[ProjectedVersionNode, ...]
-    details: dict[str, AgentDetailView]
-    resources: dict[str, tuple[ResourceClaim, ...]]
-    entity_context: dict[str, dict[str, str]]
+    details: Mapping[str, AgentDetailView]
+    resources: Mapping[str, tuple[ResourceClaim, ...]]
+    entity_context: Mapping[str, Mapping[str, str]]
     signature: tuple[tuple[str, str, str, str], ...]
 
 
