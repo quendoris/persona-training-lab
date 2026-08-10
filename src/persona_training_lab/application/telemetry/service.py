@@ -57,20 +57,20 @@ class SystemTelemetryService:
             return TelemetrySnapshot(
                 cpu_percent=0.0,
                 cpu_logical_cores=0,
-                cpu_status="Норма",
+                cpu_status="normal",
                 ram_used_bytes=0,
                 ram_total_bytes=0,
                 ram_percent=0.0,
-                gpu_status="Источник GPU не подключён",
+                gpu_status="gpu_unavailable",
                 gpu_util_percent=None,
                 vram_used_mb=None,
                 vram_total_mb=None,
                 gpu_temperature_c=None,
                 processes=(),
-                processes_status="Данные процессов пока недоступны",
-                status="Телеметрия активна",
+                processes_status="processes_unavailable",
+                status="active",
                 last_updated_at=now,
-                error_message="Не удалось обновить телеметрию",
+                error_message="",
                 cpu_status_code="normal",
                 gpu_status_code="gpu_unavailable",
                 processes_status_code="processes_unavailable",
@@ -78,19 +78,16 @@ class SystemTelemetryService:
                 error_code="refresh_failed",
             )
 
-        gpu_status = "Источник GPU не подключён"
         gpu_status_code = "gpu_unavailable"
         gpu_util: float | None = None
         vram_used: float | None = None
         vram_total: float | None = None
         gpu_temp: float | None = None
-        error_message = ""
         error_code = ""
 
         if self.gpu_provider is not None:
             try:
                 gpu = self.gpu_provider.collect_gpu_metrics()
-                gpu_status = "Норма" if gpu.gpu_util_percent < 90 else "Высокая нагрузка"
                 gpu_status_code = (
                     "normal" if gpu.gpu_util_percent < 90 else "high_load"
                 )
@@ -99,28 +96,24 @@ class SystemTelemetryService:
                 vram_total = gpu.vram_total_mb
                 gpu_temp = gpu.temperature_c
             except Exception:
-                gpu_status = "Источник GPU не подключён"
                 gpu_status_code = "gpu_unavailable"
 
-        cpu_status = "Высокая нагрузка" if base.cpu_percent >= 85 else "Норма"
         cpu_status_code = "high_load" if base.cpu_percent >= 85 else "normal"
-        processes_status = "Норма" if base.processes else "Данные процессов пока недоступны"
         processes_status_code = (
             "normal" if base.processes else "processes_unavailable"
         )
         if not base.processes:
-            error_message = error_message or "Данные процессов пока недоступны"
             error_code = "processes_unavailable"
 
         now = datetime.now(timezone.utc).strftime("%H:%M:%S")
         return TelemetrySnapshot(
             cpu_percent=base.cpu_percent,
             cpu_logical_cores=base.cpu_logical_cores,
-            cpu_status=cpu_status,
+            cpu_status=cpu_status_code,
             ram_used_bytes=base.ram_used_bytes,
             ram_total_bytes=base.ram_total_bytes,
             ram_percent=base.ram_percent,
-            gpu_status=gpu_status,
+            gpu_status=gpu_status_code,
             gpu_util_percent=gpu_util,
             vram_used_mb=vram_used,
             vram_total_mb=vram_total,
@@ -134,10 +127,10 @@ class SystemTelemetryService:
                 )
                 for item in base.processes
             ),
-            processes_status=processes_status,
-            status="Телеметрия активна",
+            processes_status=processes_status_code,
+            status="active",
             last_updated_at=now,
-            error_message=error_message,
+            error_message="",
             cpu_status_code=cpu_status_code,
             gpu_status_code=gpu_status_code,
             processes_status_code=processes_status_code,
