@@ -60,14 +60,6 @@ def _manager(app: QApplication) -> LocalizationManager:
     )
 
 
-def _visible_texts(screen: TrainingScreen) -> set[str]:
-    return {
-        label.text()
-        for label in screen.findChildren(QLabel)
-        if label.isVisible()
-    }
-
-
 def _flush_deferred_deletes() -> None:
     QCoreApplication.sendPostedEvents(
         None,
@@ -322,7 +314,7 @@ def test_completed_worker_result_remains_completed_across_locale_switch(
         "_prepare_qt_translator",
         lambda _locale: None,
     )
-    vm = TrainingViewModel()
+    vm = TrainingViewModel(training_service=MutableTrainingService())
     vm.creation_message = "completed"
     vm._creation_message_model = training_text(
         "training.message.completed",
