@@ -20,6 +20,7 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (2, "note"),
     ),
     "CompareMetric": ((0, "title"), (2, "note")),
+    "_compare_metric": ((0, "title"), (2, "note")),
     "CompareSummary": (
         (0, "title"),
         (1, "subtitle"),
@@ -27,7 +28,19 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (3, "stability"),
         (4, "contradiction"),
     ),
+    "_compare_summary": (
+        (0, "title"),
+        (1, "subtitle"),
+        (2, "profile_match"),
+        (3, "stability"),
+        (4, "contradiction"),
+    ),
     "CompareSample": (
+        (0, "title"),
+        (1, "left_note"),
+        (2, "right_note"),
+    ),
+    "_compare_sample": (
         (0, "title"),
         (1, "left_note"),
         (2, "right_note"),
