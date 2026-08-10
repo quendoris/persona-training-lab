@@ -6,8 +6,16 @@ from pathlib import Path
 import pytest
 
 from persona_training_lab.application.datasets.service import DatasetsService
-from persona_training_lab.infrastructure.persistence.repositories.datasets import SQLiteDatasetsRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
+from persona_training_lab.domain.datasets.statuses import (
+    DatasetReadinessStatus,
+    DatasetVersionStatus,
+)
+from persona_training_lab.infrastructure.persistence.repositories.datasets import (
+    SQLiteDatasetsRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
 
 
 def _build_service(connection: sqlite3.Connection) -> DatasetsService:
@@ -39,7 +47,7 @@ def test_validate_messages_jsonl_ready(tmp_path: Path) -> None:
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
-    assert result.status == "Готов к обучению"
+    assert result.status == DatasetVersionStatus.VALIDATED.value
     assert result.total_rows == 1
     assert result.valid_rows == 1
     assert result.invalid_rows == 0
@@ -59,7 +67,7 @@ def test_validate_instruction_output_jsonl_ready(tmp_path: Path) -> None:
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
-    assert result.status == "Готов к обучению"
+    assert result.status == DatasetVersionStatus.VALIDATED.value
 
 
 def test_approve_valid_dataset_sets_approved_status(tmp_path: Path) -> None:
@@ -70,7 +78,10 @@ def test_approve_valid_dataset_sets_approved_status(tmp_path: Path) -> None:
     service = DatasetsService(datasets_repo=repo)
 
     dataset_file = tmp_path / "approved.jsonl"
-    dataset_file.write_text('{"prompt":"A","response":"B"}\n', encoding="utf-8")
+    dataset_file.write_text(
+        '{"prompt":"A","response":"B"}\n',
+        encoding="utf-8",
+    )
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.approve_dataset(created.dataset_id)
@@ -80,11 +91,14 @@ def test_approve_valid_dataset_sets_approved_status(tmp_path: Path) -> None:
     assert dict(result.values) == {}
     persisted = repo.get_dataset(created.dataset_id)
     assert persisted is not None
-    assert persisted["status"] == "Одобрен для обучения"
-    assert persisted["readiness"] == "Одобрен для обучения"
+    assert persisted["status"] == DatasetVersionStatus.APPROVED.value
+    assert persisted["readiness"] == DatasetReadinessStatus.APPROVED.value
+    assert persisted["quality_summary"] == ""
 
 
-def test_validate_invalid_message_role_sets_structure_error(tmp_path: Path) -> None:
+def test_validate_invalid_message_role_sets_structure_error(
+    tmp_path: Path,
+) -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
@@ -98,12 +112,16 @@ def test_validate_invalid_message_role_sets_structure_error(tmp_path: Path) -> N
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
-    assert result.status == "Ошибка структуры"
+    assert result.status == DatasetVersionStatus.STRUCTURE_ERROR.value
     assert result.invalid_rows == 1
-    assert "role должен быть system, user или assistant" in "\n".join(result.errors_preview)
+    assert "role должен быть system, user или assistant" in "\n".join(
+        result.errors_preview
+    )
 
 
-def test_validate_invalid_json_line_sets_structure_error(tmp_path: Path) -> None:
+def test_validate_invalid_json_line_sets_structure_error(
+    tmp_path: Path,
+) -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
@@ -117,7 +135,7 @@ def test_validate_invalid_json_line_sets_structure_error(tmp_path: Path) -> None
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
-    assert result.status == "Ошибка структуры"
+    assert result.status == DatasetVersionStatus.STRUCTURE_ERROR.value
     assert result.valid_rows == 1
     assert result.invalid_rows == 1
     assert "невалидный JSON" in "\n".join(result.errors_preview)
@@ -134,7 +152,7 @@ def test_validate_empty_file_sets_structure_error(tmp_path: Path) -> None:
 
     created = service.add_dataset_from_path(str(dataset_file))
     result = service.validate_dataset(created.dataset_id)
-    assert result.status == "Ошибка структуры"
+    assert result.status == DatasetVersionStatus.STRUCTURE_ERROR.value
     assert result.total_rows == 0
 
 
@@ -146,15 +164,32 @@ def test_repository_persists_validation_result(tmp_path: Path) -> None:
     service = DatasetsService(datasets_repo=repo)
 
     dataset_file = tmp_path / "persist.jsonl"
-    dataset_file.write_text('{"prompt":"A","response":"B"}\n', encoding="utf-8")
+    dataset_file.write_text(
+        '{"prompt":"A","response":"B"}\n',
+        encoding="utf-8",
+    )
 
     created = service.add_dataset_from_path(str(dataset_file))
+    imported = repo.get_dataset(created.dataset_id)
+    assert imported is not None
+    assert imported["subtitle"] == ""
+    assert imported["status"] == DatasetVersionStatus.IMPORTED.value
+    assert imported["quality_summary"] == ""
+    assert (
+        imported["readiness"]
+        == DatasetReadinessStatus.AWAITING_VALIDATION.value
+    )
+
     service.validate_dataset(created.dataset_id)
 
     persisted = repo.get_dataset(created.dataset_id)
     assert persisted is not None
-    assert persisted["status"] == "Готов к обучению"
+    assert persisted["status"] == DatasetVersionStatus.VALIDATED.value
     assert persisted["record_count"] == 1
     assert persisted["valid_count"] == 1
     assert persisted["invalid_count"] == 0
-    assert persisted["readiness"] == "Ожидает одобрение автора"
+    assert persisted["quality_summary"] == ""
+    assert (
+        persisted["readiness"]
+        == DatasetReadinessStatus.AWAITING_AUTHOR_APPROVAL.value
+    )
