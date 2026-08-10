@@ -52,6 +52,27 @@ def dataset_text(key: str, **values: object) -> DatasetText:
     return DatasetText(key, MappingProxyType(dict(values)))
 
 
+def _base_dataset_text(value: DatasetText | str | object) -> str:
+    """Render only the historical base-locale compatibility projection."""
+
+    if not isinstance(value, DatasetText):
+        return str(value)
+    from persona_training_lab.ui.i18n.text import text as localized_text
+
+    rendered_values = {
+        key: _base_dataset_text(item) if isinstance(item, DatasetText) else item
+        for key, item in value.values.items()
+    }
+    count_value = rendered_values.pop("count", None)
+    count = count_value if isinstance(count_value, int) else None
+    return localized_text(
+        None,
+        value.key,
+        count=count,
+        **rendered_values,
+    )
+
+
 def _dataset_action_text(
     result: ActionResult,
     *,
@@ -305,13 +326,15 @@ class DatasetsViewModel:
         message = dataset_text(message_key)
         return DatasetView(
             dataset_id="datasets_empty",
-            title="Datasets",
+            title=_base_dataset_text(dataset_text("datasets.title")),
             subtitle=message,
             versions=(
                 DatasetVersionView(
                     version_id="datasets_empty_v1",
                     label="v1",
-                    status="пусто",
+                    status=_base_dataset_text(
+                        dataset_text("datasets.status.empty")
+                    ),
                     status_code="empty",
                     record_count=0,
                     valid_count=0,
@@ -565,19 +588,8 @@ class DatasetsViewModel:
         )
 
     def header_summary(self) -> tuple[str, str]:
-        dataset = self.current_dataset()
-        version = self.current_version()
-        if self._legacy_message:
-            return dataset.title, self._legacy_message
-        subtitle = (
-            "Локальный JSONL датасет"
-            if dataset.subtitle.key == "datasets.subtitle.local_jsonl"
-            else str(dataset.subtitle.values.get("value", ""))
-        )
-        return (
-            dataset.title,
-            f"{subtitle} · {version.label} · {version.record_count} записей",
-        )
+        title, summary = self.header_summary_model()
+        return title, _base_dataset_text(summary)
 
     def right_summary_model(self) -> tuple[tuple[str, object], ...]:
         version = self.current_version()
@@ -590,13 +602,12 @@ class DatasetsViewModel:
         )
 
     def right_summary(self) -> list[tuple[str, str]]:
-        version = self.current_version()
         return [
-            ("Статус", version.status),
-            ("Записей", str(version.record_count)),
-            ("Валидных", str(version.valid_count)),
-            ("Ошибок", str(version.invalid_count)),
-            ("Формат", version.schema_name),
+            (
+                _base_dataset_text(dataset_text(key)),
+                _base_dataset_text(value),
+            )
+            for key, value in self.right_summary_model()
         ]
 
     def next_step_model(self) -> DatasetText:
@@ -610,25 +621,7 @@ class DatasetsViewModel:
         return dataset_text(key)
 
     def next_step(self) -> str:
-        version = self.current_version()
-        if version.status == "Одобрен для обучения":
-            return (
-                "Датасет одобрен автором и доступен для создания запуска "
-                "обучения."
-            )
-        if version.status == "Готов к обучению":
-            return (
-                "Структура валидна. Нажмите «Одобрить для обучения», "
-                "чтобы разрешить training run."
-            )
-        if version.status == "Ошибка структуры":
-            return (
-                "Исправьте JSONL-структуру и обязательные поля, затем "
-                "повторите проверку."
-            )
-        if version.status == "Не удалось проверить датасет":
-            return "Проверьте путь к файлу и повторите проверку."
-        return "Добавьте JSONL-файл и запустите структурную проверку."
+        return _base_dataset_text(self.next_step_model())
 
     @staticmethod
     def status_code(status: str) -> str:
