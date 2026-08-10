@@ -128,4 +128,7 @@ def _presentation_revision(projection: LineagePresentationProjection) -> str:
     if not projection.signature:
         return ""
     head = projection.signature[0]
-    return head[3] if len(head) > 3 else ""
+    revision = head[3] if len(head) > 3 else ""
+    if not isinstance(revision, str):
+        raise TypeError("Atomic presentation revision must be a machine string")
+    return revision
