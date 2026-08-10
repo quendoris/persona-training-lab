@@ -3,8 +3,13 @@ from __future__ import annotations
 import sqlite3
 
 from persona_training_lab.application.experiments.service import ExperimentsService
-from persona_training_lab.infrastructure.persistence.repositories.experiments import SQLiteExperimentsRepository
-from persona_training_lab.infrastructure.persistence.sqlite.schema import create_minimal_schema
+from persona_training_lab.infrastructure.persistence.repositories.experiments import (
+    SQLiteExperimentsRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.schema import (
+    create_minimal_schema,
+)
+from persona_training_lab.ui.viewmodels.evaluation import EvaluationText
 from persona_training_lab.ui.viewmodels.experiments import ExperimentsViewModel
 
 
@@ -13,7 +18,7 @@ def _build_service(connection: sqlite3.Connection) -> ExperimentsService:
     return ExperimentsService(experiments_repo=repo)
 
 
-def test_experiments_connector_empty_state() -> None:
+def test_experiments_connector_empty_state_is_semantic() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
@@ -24,11 +29,14 @@ def test_experiments_connector_empty_state() -> None:
 
     vm = ExperimentsViewModel(experiments_service=service)
     title, subtitle = vm.header_summary()
-    assert title == "Эксперименты пока не созданы"
-    assert subtitle == "Эксперименты пока не созданы"
+    assert title == EvaluationText("experiments.empty.title")
+    assert subtitle == EvaluationText("experiments.empty.subtitle")
+    assert vm.current_experiment().status == EvaluationText(
+        "experiments.empty.status"
+    )
 
 
-def test_experiments_connector_single_row() -> None:
+def test_experiments_connector_single_row_preserves_data_and_semantic_status() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
@@ -59,3 +67,4 @@ def test_experiments_connector_single_row() -> None:
     assert item.experiment_id == "exp_001"
     assert item.title == "Persona Stability Run"
     assert item.subtitle == "Реальный эксперимент из БД"
+    assert isinstance(item.status, EvaluationText)
