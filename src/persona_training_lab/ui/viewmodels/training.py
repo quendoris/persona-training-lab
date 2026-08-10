@@ -738,7 +738,10 @@ class TrainingViewModel:
         )
         checkpoint_rows = [
             _checkpoint_view(
-                f"chk_{idx + 1:03d}",
+                training_text(
+                    "training.raw",
+                    value=f"chk_{idx + 1:03d}",
+                ),
                 training_text("training.checkpoint.registry_note"),
                 highlighted=idx == checkpoints_count - 1,
             )
@@ -769,7 +772,10 @@ class TrainingViewModel:
                     ),
                     training_text(
                         "training.log.registry.status",
-                        value=current.status,
+                        value=self._status_text(
+                            current.status_code.value,
+                            current.status,
+                        ),
                     ),
                     training_text(
                         "training.log.registry.progress",
