@@ -11,6 +11,7 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QLabel
 
 from persona_training_lab.application.experiments.service import (
+    ExperimentRunResult,
     ExperimentSummary,
 )
 from persona_training_lab.domain.evaluation.statuses import (
@@ -123,6 +124,61 @@ def test_empty_tests_workspace_switches_live(
     assert screen._run_btn.text() == "Собрать портрет"
     assert screen._setup_card.title_label.text() == "Контекст проверки"
     assert "Портрет пока не собран" in _visible_texts(screen)
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
+
+
+def test_finished_tests_run_message_switches_live_from_semantic_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = _manager(app)
+    monkeypatch.setattr(
+        manager,
+        "_prepare_qt_translator",
+        lambda _locale: None,
+    )
+    vm = TestsViewModel(experiments_service=_Experiments())
+    vm.finish_run(
+        ExperimentRunResult(
+            ok=True,
+            message="This producer text must stay invisible",
+            message_code="portrait_completed",
+            message_values={
+                "model_version_id": "mdl_7",
+                "passed": 9,
+                "total": 10,
+            },
+        )
+    )
+    screen = _TestsScreen(vm, manager)
+    screen.show()
+    app.processEvents()
+
+    assert screen._subtitle.text() == (
+        "Portrait completed for mdl_7: 9/10 valid items."
+    )
+    assert "producer text" not in screen._subtitle.text()
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    assert screen._subtitle.text() == (
+        "Портрет для mdl_7 собран: 9/10 валидных пунктов."
+    )
+
+    manager.set_locale("en-US", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    assert screen._subtitle.text() == (
+        "Portrait completed for mdl_7: 9/10 valid items."
+    )
 
     screen.close()
     screen.deleteLater()
