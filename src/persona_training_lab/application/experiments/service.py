@@ -15,6 +15,10 @@ from persona_training_lab.application.errors.reporter import (
 from persona_training_lab.application.experiments.status_mapping import (
     normalize_evaluation_status,
 )
+from persona_training_lab.application.experiments.titles import (
+    ExperimentTitleKind,
+    encode_experiment_title,
+)
 from persona_training_lab.application.local_model.service import (
     LocalModelService,
 )
@@ -127,6 +131,7 @@ class ExperimentSummary:
     subtitle: str
     status: str
     status_code: EvaluationRunStatus = EvaluationRunStatus.UNKNOWN
+    updated_at: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -178,6 +183,7 @@ class ExperimentsService:
                 status_code=normalize_evaluation_status(
                     row.get("status", "")
                 ),
+                updated_at=row.get("updated_at", ""),
             )
             for row in rows
         ]
@@ -471,16 +477,16 @@ class ExperimentsService:
                 False,
                 message_code="storage_read_only",
             )
+        updated_at = datetime.now(timezone.utc).isoformat()
         creator(
             {
                 "id": experiment_id,
-                "title": (
-                    "Big Five portrait · "
-                    f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+                "title": encode_experiment_title(
+                    ExperimentTitleKind.PERSONALITY_PORTRAIT
                 ),
                 "subtitle": subtitle,
                 "status": status_code.value,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": updated_at,
             }
         )
         return experiment_result(
