@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
-from persona_training_lab.ui.i18n.text import text as localized_text
+
+def _base_text(key: str) -> str:
+    """Render a compatibility label lazily without catalog I/O at import time."""
+
+    from persona_training_lab.ui.i18n.text import text as localized_text
+
+    return localized_text(None, key)
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,17 +35,17 @@ class KeyBindingDefinition:
     @property
     def title(self) -> str:
         """Base-locale compatibility surface for legacy callers."""
-        return localized_text(None, self.title_key)
+        return _base_text(self.title_key)
 
     @property
     def description(self) -> str:
         """Base-locale compatibility surface for legacy callers."""
-        return localized_text(None, self.description_key)
+        return _base_text(self.description_key)
 
     @property
     def category(self) -> str:
         """Base-locale compatibility surface for legacy callers."""
-        return localized_text(None, self.category_key)
+        return _base_text(self.category_key)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,17 +72,17 @@ class MouseBindingDefinition:
     @property
     def title(self) -> str:
         """Base-locale compatibility surface for legacy callers."""
-        return localized_text(None, self.title_key)
+        return _base_text(self.title_key)
 
     @property
     def description(self) -> str:
         """Base-locale compatibility surface for legacy callers."""
-        return localized_text(None, self.description_key)
+        return _base_text(self.description_key)
 
     @property
     def category(self) -> str:
         """Base-locale compatibility surface for legacy callers."""
-        return localized_text(None, self.category_key)
+        return _base_text(self.category_key)
 
 
 MOUSE_BUTTON_IDS = (
@@ -94,15 +101,44 @@ MOUSE_MODIFIER_IDS = (
     "meta",
 )
 
+
+class _LocalizedLabelMap(dict[str, str]):
+    """Dict-compatible base-locale labels rendered only when actually read."""
+
+    def __init__(self, ids: tuple[str, ...], key_prefix: str) -> None:
+        super().__init__((item, "") for item in ids)
+        self._key_prefix = key_prefix
+
+    def __getitem__(self, key: str) -> str:
+        if key not in self:
+            raise KeyError(key)
+        return _base_text(f"{self._key_prefix}.{key}")
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        if key not in self:
+            return default
+        return self[key]
+
+    def items(self) -> Iterator[tuple[str, str]]:  # type: ignore[override]
+        for key in self.keys():
+            yield key, self[key]
+
+    def values(self) -> Iterator[str]:  # type: ignore[override]
+        for key in self.keys():
+            yield self[key]
+
+
 # Compatibility maps for callers that still expect base-locale labels.
-MOUSE_BUTTON_LABELS: dict[str, str] = {
-    key: localized_text(None, f"keybindings.mouse.button.{key}")
-    for key in MOUSE_BUTTON_IDS
-}
-MOUSE_MODIFIER_LABELS: dict[str, str] = {
-    key: localized_text(None, f"keybindings.mouse.modifier.{key}")
-    for key in MOUSE_MODIFIER_IDS
-}
+# Catalog access is deliberately lazy so importing the binding model cannot fail
+# merely because a presentation catalog is malformed.
+MOUSE_BUTTON_LABELS: dict[str, str] = _LocalizedLabelMap(
+    MOUSE_BUTTON_IDS,
+    "keybindings.mouse.button",
+)
+MOUSE_MODIFIER_LABELS: dict[str, str] = _LocalizedLabelMap(
+    MOUSE_MODIFIER_IDS,
+    "keybindings.mouse.modifier",
+)
 
 
 _GRAPH_BINDING_IDS = frozenset(
