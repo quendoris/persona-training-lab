@@ -63,10 +63,14 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (1, "left_note"),
         (2, "right_note"),
     ),
+    "DatasetPreviewRecord": ((1, "input_summary"),),
     "TrainingConfigurationError": ((0, "message"),),
     "TrainingValidationError": ((0, "message"),),
 }
 _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
+    "DatasetDiagnostic": ((0, "code"),),
+    "dataset_diagnostic": ((0, "code"),),
+    "DatasetPreviewRecord": ((3, "quality"),),
     "DatasetValidationResult": ((0, "status"),),
 }
 _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
@@ -106,11 +110,28 @@ _UI_VIEWMODEL_RESULT_FUNCTIONS = frozenset(
 )
 _PERSISTED_SEMANTIC_FIELDS = {
     "add_dataset_from_path": frozenset(
-        {"subtitle", "status", "quality_summary", "readiness"}
+        {
+            "subtitle",
+            "status",
+            "quality_summary",
+            "validation_errors_preview",
+            "readiness",
+        }
     ),
-    "add_dataset": frozenset({"status", "quality_summary", "readiness"}),
-    "update_dataset_validation": frozenset({"status", "quality_summary"}),
-    "_save_result": frozenset({"status", "quality_summary"}),
+    "add_dataset": frozenset(
+        {
+            "status",
+            "quality_summary",
+            "validation_errors_preview",
+            "readiness",
+        }
+    ),
+    "update_dataset_validation": frozenset(
+        {"status", "quality_summary", "validation_errors_preview"}
+    ),
+    "_save_result": frozenset(
+        {"status", "quality_summary", "validation_errors_preview"}
+    ),
     "create_training_run": frozenset({"status"}),
     "start_full_finetune_run": frozenset({"status"}),
     "_set_terminal_error": frozenset({"status"}),
@@ -128,6 +149,9 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
     {
         "ActionResult",
         "UserMessage",
+        "DatasetDiagnostic",
+        "dataset_diagnostic",
+        "encode_dataset_diagnostic",
         "DatasetText",
         "dataset_text",
         "TrainingText",
