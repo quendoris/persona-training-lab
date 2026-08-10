@@ -12,6 +12,8 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "ExperimentRunResult": ((1, "message"),),
     "EvaluationMetric": ((0, "title"), (2, "note")),
     "EvaluationCase": ((0, "title"), (1, "note")),
+    "_evaluation_metric": ((0, "title"), (2, "note")),
+    "_evaluation_case": ((0, "title"), (1, "note_models")),
     "TrainingMetric": ((0, "title"), (2, "note")),
     "CheckpointView": ((0, "name"), (1, "note")),
     "PersonalityVersionView": (
