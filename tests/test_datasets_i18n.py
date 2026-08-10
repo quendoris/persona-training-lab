@@ -15,6 +15,10 @@ from persona_training_lab.application.datasets.diagnostics import (
     dataset_diagnostic,
     encode_dataset_diagnostic,
 )
+from persona_training_lab.application.datasets.errors import (
+    DatasetServiceError,
+    DatasetServiceErrorCode,
+)
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import text as localized_text
@@ -126,6 +130,20 @@ class LegacyRussianDatasetsService:
     def preview_dataset(self, _dataset_id: str, limit: int = 25):
         assert limit == 25
         return ()
+
+
+class TypedErrorDatasetsService(LegacyRussianDatasetsService):
+    def __init__(self, add_error: DatasetServiceErrorCode) -> None:
+        self._add_error = add_error
+
+    def add_dataset_from_path(self, _file_path: str):
+        raise DatasetServiceError(self._add_error)
+
+    def validate_dataset(self, _dataset_id: str):
+        raise DatasetServiceError(DatasetServiceErrorCode.NOT_FOUND)
+
+    def approve_dataset(self, _dataset_id: str):
+        raise DatasetServiceError(DatasetServiceErrorCode.NOT_FOUND)
 
 
 class SemanticDiagnosticDatasetsService:
@@ -309,4 +327,34 @@ def test_datasets_compatibility_is_base_locale_projection() -> None:
         disconnected_vm,
         disconnected_vm.compare_current_versions(),
         expected_key="datasets.error.compare_failed",
+    )
+
+    for code, expected_key in (
+        (DatasetServiceErrorCode.FILE_NOT_FOUND, "datasets.error.file_not_found"),
+        (DatasetServiceErrorCode.ONLY_JSONL, "datasets.error.only_jsonl"),
+        (DatasetServiceErrorCode.SAVE_FAILED, "datasets.error.add_failed"),
+    ):
+        typed_vm = DatasetsViewModel(
+            datasets_service=TypedErrorDatasetsService(code)
+        )
+        _assert_action_projection(
+            typed_vm,
+            typed_vm.add_dataset_from_path("ignored.jsonl"),
+            expected_key=expected_key,
+        )
+
+    typed_vm = DatasetsViewModel(
+        datasets_service=TypedErrorDatasetsService(
+            DatasetServiceErrorCode.FILE_NOT_FOUND
+        )
+    )
+    _assert_action_projection(
+        typed_vm,
+        typed_vm.validate_current_dataset(),
+        expected_key="datasets.error.not_found",
+    )
+    _assert_action_projection(
+        typed_vm,
+        typed_vm.approve_current_dataset(),
+        expected_key="datasets.error.not_found",
     )
