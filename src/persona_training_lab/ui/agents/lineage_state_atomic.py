@@ -24,10 +24,15 @@ class AtomicLineageStateStore(LineageStateStore):
     def capture_transaction_state(self) -> dict[str, Any]:
         return deepcopy(self._payload)
 
-    def restore_transaction_state(self, snapshot: dict[str, Any]) -> None:
+    def restore_transaction_state(
+        self,
+        snapshot: dict[str, Any],
+    ) -> None:
         previous_payload = deepcopy(self._payload)
         previous_persisted = deepcopy(self._persisted_payload)
-        self._payload = deepcopy(snapshot)
+        self._payload = self._normalise_loaded_payload(
+            deepcopy(snapshot)
+        )
         try:
             self._save()
         except Exception:
@@ -55,18 +60,7 @@ class AtomicLineageStateStore(LineageStateStore):
             raise LineageStateLoadError(
                 f"Lineage state root must be an object: {self._path}"
             )
-
-        if "undo_stack" not in payload:
-            legacy_history = payload.pop("history", [])
-            payload["undo_stack"] = (
-                legacy_history if isinstance(legacy_history, list) else []
-            )
-        payload.setdefault("redo_stack", [])
-        payload.setdefault("quick_direction", "undo")
-        payload.setdefault("overrides", {})
-        payload.setdefault("custom_nodes", [])
-        payload["schema"] = 5
-        return payload
+        return self._normalise_loaded_payload(payload)
 
     def _save(self) -> None:
         payload = deepcopy(self._payload)
@@ -74,7 +68,11 @@ class AtomicLineageStateStore(LineageStateStore):
         temporary_path: Path | None = None
 
         try:
-            serialized = json.dumps(payload, ensure_ascii=False, indent=2)
+            serialized = json.dumps(
+                payload,
+                ensure_ascii=False,
+                indent=2,
+            )
             path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -102,17 +100,6 @@ class AtomicLineageStateStore(LineageStateStore):
 
         self._persisted_payload = payload
         self._fsync_directory(path.parent)
-
-    @staticmethod
-    def _default_payload() -> dict[str, Any]:
-        return {
-            "schema": 5,
-            "overrides": {},
-            "custom_nodes": [],
-            "undo_stack": [],
-            "redo_stack": [],
-            "quick_direction": "undo",
-        }
 
     @staticmethod
     def _fsync_directory(directory: Path) -> None:
