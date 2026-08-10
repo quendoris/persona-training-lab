@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 from persona_training_lab.application.experiments.portrait import (
@@ -25,7 +24,19 @@ from persona_training_lab.ui.viewmodels.evaluation import (
 
 
 EvaluationTextValue = str | EvaluationText
-_RESULT_MESSAGE_CODE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+_RESULT_MESSAGE_KEYS = {
+    "local_model_unavailable": "tests.message.local_model_unavailable",
+    "model_version_not_found": "tests.message.model_version_not_found",
+    "selected_weights_unavailable": "tests.message.selected_weights_unavailable",
+    "model_unavailable": "tests.message.model_unavailable",
+    "battery_load_failed": "tests.message.battery_load_failed",
+    "resource_busy": "tests.message.resource_busy",
+    "safe_stop": "tests.message.safe_stop",
+    "storage_read_only": "tests.message.storage_read_only",
+    "portrait_completed": "tests.message.portrait_completed",
+    "portrait_partial": "tests.message.portrait_partial",
+    "service_unavailable": "tests.message.service_unavailable",
+}
 
 
 @dataclass(slots=True, frozen=True)
@@ -546,11 +557,11 @@ class TestsViewModel:
     def _result_message(
         result: ExperimentRunResult,
     ) -> EvaluationTextValue:
-        message_code = result.message_code.strip()
-        if not _RESULT_MESSAGE_CODE_RE.fullmatch(message_code):
+        message_key = _RESULT_MESSAGE_KEYS.get(result.message_code.strip())
+        if message_key is None:
             return evaluation_text("tests.message.result_unavailable")
         return evaluation_text(
-            f"tests.message.{message_code}",
+            message_key,
             **dict(result.message_values),
         )
 
