@@ -222,7 +222,7 @@ class TrainingService:
                 f"{base_model.strip()} · epochs={epochs}, "
                 f"batch={batch_size}, lr={learning_rate:g}"
             ),
-            "status": "Готов к запуску",
+            "status": TrainingRunStatus.READY.value,
             "base_model": (
                 base_model.strip() or self.local_model_service.model_name
             ),
@@ -405,11 +405,11 @@ class TrainingService:
             self._set_runtime(
                 run_id,
                 {
-                    "status": "Выполняется",
+                    "status": TrainingRunStatus.RUNNING.value,
                     "epoch_progress": f"0 / {epochs}",
                     "progress": "0",
-                    "loss": "ожидание метрики",
-                    "speed": "ожидание метрики",
+                    "loss": "—",
+                    "speed": "—",
                     "checkpoints_count": "00",
                     "started_at": started_at,
                     "finished_at": "",
@@ -469,7 +469,11 @@ class TrainingService:
             self._set_runtime(
                 run_id,
                 {
-                    "status": "Завершено" if is_success else "Ошибка",
+                    "status": (
+                        TrainingRunStatus.COMPLETED.value
+                        if is_success
+                        else TrainingRunStatus.FAILED.value
+                    ),
                     "epoch_progress": (
                         f"{epochs} / {epochs}"
                         if is_success
@@ -536,7 +540,7 @@ class TrainingService:
             self._set_runtime(
                 run_id,
                 {
-                    "status": "Ошибка",
+                    "status": TrainingRunStatus.FAILED.value,
                     "epoch_progress": f"0 / {epochs}",
                     "progress": "0",
                     "loss": "—",
@@ -567,7 +571,7 @@ class TrainingService:
         self._set_runtime(
             run.get("run_id", ""),
             {
-                "status": "Ошибка",
+                "status": TrainingRunStatus.FAILED.value,
                 "epoch_progress": run.get("epoch_progress", "—"),
                 "progress": "0",
                 "loss": "—",
