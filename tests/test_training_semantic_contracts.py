@@ -101,9 +101,9 @@ def test_training_creation_accepts_semantic_english_dependency_states() -> None:
     )
 
     assert created.status_code is TrainingRunStatus.READY
-    assert created.status == "Готов к запуску"
+    assert created.status == TrainingRunStatus.READY.value
     assert repository.created is not None
-    assert repository.created["status"] == "Готов к запуску"
+    assert repository.created["status"] == TrainingRunStatus.READY.value
 
 
 def test_training_validation_error_exposes_only_stable_code() -> None:
