@@ -256,6 +256,31 @@ def update_dataset_validation(payload):
     )
     semantic = payload.get("status", "validated")
     return hidden, hidden_diagnostics, semantic
+
+
+def preview_surfaces():
+    hidden_diagnostic = DatasetDiagnostic("Human diagnostic code")
+    hidden_factory = dataset_diagnostic("Human diagnostic factory")
+    semantic_diagnostic = dataset_diagnostic("invalid_json")
+    hidden_preview = DatasetPreviewRecord(
+        "#001",
+        "Hidden preview summary",
+        "messages",
+        "Human preview quality",
+    )
+    semantic_preview = DatasetPreviewRecord(
+        "#002",
+        dataset_diagnostic("invalid_json", line=2),
+        "messages",
+        "structure_error",
+    )
+    return (
+        hidden_diagnostic,
+        hidden_factory,
+        semantic_diagnostic,
+        hidden_preview,
+        semantic_preview,
+    )
 """
     path = tmp_path / "infrastructure" / "persistence" / "datasets.py"
     visitor = DeepSurfaceAudit(path, display_root=tmp_path)
@@ -274,5 +299,23 @@ def update_dataset_validation(payload):
         "update_dataset_validation persisted validation_errors_preview default",
         "Generated diagnostic fallback",
     ) in findings
+    assert (
+        "DatasetDiagnostic code",
+        "Human diagnostic code",
+    ) in findings
+    assert (
+        "dataset_diagnostic code",
+        "Human diagnostic factory",
+    ) in findings
+    assert (
+        "DatasetPreviewRecord input_summary",
+        "Hidden preview summary",
+    ) in findings
+    assert (
+        "DatasetPreviewRecord quality",
+        "Human preview quality",
+    ) in findings
     assert not any(text == "awaiting_validation" for _, text in findings)
     assert not any(text == "validated" for _, text in findings)
+    assert not any(text == "invalid_json" for _, text in findings)
+    assert not any(text == "structure_error" for _, text in findings)
