@@ -137,7 +137,36 @@ class VM:
         self.semantic = training_text("training.header.title")
         metric = EvaluationMetric("Runs", "0", "no result")
         case = EvaluationCase("Missing portrait", "Run evaluation again")
-        return metric, case
+        hidden_metric = _compare_metric(
+            "Hidden metric",
+            "0",
+            "Hidden metric note",
+        )
+        hidden_summary = _compare_summary(
+            "Hidden summary",
+            "Hidden summary subtitle",
+            "Hidden coverage",
+            "Hidden stability",
+            "Hidden contradiction",
+        )
+        hidden_sample = _compare_sample(
+            "Hidden sample",
+            ("Hidden left",),
+            ("Hidden right",),
+        )
+        semantic_metric = _compare_metric(
+            evaluation_text("analysis.metric.kpi"),
+            "0",
+            evaluation_text("analysis.metric.note.kpi"),
+        )
+        return (
+            metric,
+            case,
+            hidden_metric,
+            hidden_summary,
+            hidden_sample,
+            semantic_metric,
+        )
 
 
 def execute():
@@ -181,6 +210,22 @@ def start_training():
     assert ("EvaluationMetric note", "no result") in findings
     assert ("EvaluationCase title", "Missing portrait") in findings
     assert ("EvaluationCase note", "Run evaluation again") in findings
+    assert ("_compare_metric title", "Hidden metric") in findings
+    assert ("_compare_metric note", "Hidden metric note") in findings
+    assert ("_compare_summary title", "Hidden summary") in findings
+    assert (
+        "_compare_summary subtitle",
+        "Hidden summary subtitle",
+    ) in findings
+    assert ("_compare_summary profile_match", "Hidden coverage") in findings
+    assert ("_compare_summary stability", "Hidden stability") in findings
+    assert (
+        "_compare_summary contradiction",
+        "Hidden contradiction",
+    ) in findings
+    assert ("_compare_sample title", "Hidden sample") in findings
+    assert ("_compare_sample left_note", "Hidden left") in findings
+    assert ("_compare_sample right_note", "Hidden right") in findings
     assert ("experiment_result message", "Resource is already in use") in findings
     assert ("compare_dataset_versions return", "Comparison unavailable") in findings
     assert ("TrainingValidationError message", "Training is not ready") in findings
@@ -189,6 +234,8 @@ def start_training():
     assert not any(text == "training.header.title" for _, text in findings)
     assert not any(text == "training.metric.epoch" for _, text in findings)
     assert not any(text == "training.metric.note.idle" for _, text in findings)
+    assert not any(text == "analysis.metric.kpi" for _, text in findings)
+    assert not any(text == "analysis.metric.note.kpi" for _, text in findings)
 
 
 def test_action_result_rejects_human_text_as_machine_code() -> None:
