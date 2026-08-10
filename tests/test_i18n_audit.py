@@ -137,6 +137,23 @@ class VM:
         self.semantic = training_text("training.header.title")
         metric = EvaluationMetric("Runs", "0", "no result")
         case = EvaluationCase("Missing portrait", "Run evaluation again")
+        hidden_evaluation_metric = _evaluation_metric(
+            "Hidden evaluation metric",
+            "completed",
+            "Hidden evaluation metric note",
+        )
+        hidden_evaluation_case = _evaluation_case(
+            "Hidden evaluation case",
+            (
+                "Hidden evaluation case note",
+                evaluation_text("tests.case.valid_score", score=4),
+            ),
+        )
+        semantic_evaluation_metric = _evaluation_metric(
+            evaluation_text("tests.metric.runs"),
+            "completed",
+            evaluation_text("tests.metric.note.runs"),
+        )
         hidden_metric = _compare_metric(
             "Hidden metric",
             "0",
@@ -162,6 +179,9 @@ class VM:
         return (
             metric,
             case,
+            hidden_evaluation_metric,
+            hidden_evaluation_case,
+            semantic_evaluation_metric,
             hidden_metric,
             hidden_summary,
             hidden_sample,
@@ -210,6 +230,22 @@ def start_training():
     assert ("EvaluationMetric note", "no result") in findings
     assert ("EvaluationCase title", "Missing portrait") in findings
     assert ("EvaluationCase note", "Run evaluation again") in findings
+    assert (
+        "_evaluation_metric title",
+        "Hidden evaluation metric",
+    ) in findings
+    assert (
+        "_evaluation_metric note",
+        "Hidden evaluation metric note",
+    ) in findings
+    assert (
+        "_evaluation_case title",
+        "Hidden evaluation case",
+    ) in findings
+    assert (
+        "_evaluation_case note_models",
+        "Hidden evaluation case note",
+    ) in findings
     assert ("_compare_metric title", "Hidden metric") in findings
     assert ("_compare_metric note", "Hidden metric note") in findings
     assert ("_compare_summary title", "Hidden summary") in findings
@@ -231,9 +267,13 @@ def start_training():
     assert ("TrainingValidationError message", "Training is not ready") in findings
     assert not any(call == "approve_dataset return" for call, _ in findings)
     assert not any(call == "start_full_finetune_run return" for call, _ in findings)
+    assert not any(text == "completed" for _, text in findings)
     assert not any(text == "training.header.title" for _, text in findings)
     assert not any(text == "training.metric.epoch" for _, text in findings)
     assert not any(text == "training.metric.note.idle" for _, text in findings)
+    assert not any(text == "tests.case.valid_score" for _, text in findings)
+    assert not any(text == "tests.metric.runs" for _, text in findings)
+    assert not any(text == "tests.metric.note.runs" for _, text in findings)
     assert not any(text == "analysis.metric.kpi" for _, text in findings)
     assert not any(text == "analysis.metric.note.kpi" for _, text in findings)
 
