@@ -77,6 +77,7 @@
     "analysis.sample.field.score": "Score: {value}",
     "analysis.sample.field.response": "Ответ: {value}",
     "analysis.sample.field.raw_response": "Сырой ответ: {value}",
+    "analysis.value.manual": "ручн.",
     "analysis.value.unavailable": "недоступно",
     "analysis.value.waiting": "ожидание",
     "analysis.value.portrait_missing": "портрет отсутствует"
