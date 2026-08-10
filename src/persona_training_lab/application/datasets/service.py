@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from persona_training_lab.application.datasets.diagnostics import (
+    DatasetDiagnostic,
+    dataset_diagnostic,
+    encode_dataset_diagnostic,
+)
 from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.ports.repositories import DatasetsReadRepositoryPort
 from persona_training_lab.domain.datasets.statuses import (
@@ -36,13 +41,13 @@ class DatasetValidationResult:
     valid_rows: int
     invalid_rows: int
     warning_count: int
-    errors_preview: tuple[str, ...]
+    errors_preview: tuple[DatasetDiagnostic, ...]
 
 
 @dataclass(slots=True, frozen=True)
 class DatasetPreviewRecord:
     row_id: str
-    input_summary: str
+    input_summary: str | DatasetDiagnostic
     traits: str
     quality: str
 
@@ -132,7 +137,10 @@ class DatasetsService:
                 "valid_count": result.valid_rows,
                 "invalid_count": result.invalid_rows,
                 "quality_summary": "",
-                "validation_errors_preview": "\n".join(result.errors_preview),
+                "validation_errors_preview": "\n".join(
+                    encode_dataset_diagnostic(item)
+                    for item in result.errors_preview
+                ),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -146,7 +154,7 @@ class DatasetsService:
                 0,
                 0,
                 0,
-                ("строка 0: файл датасета не найден",),
+                (dataset_diagnostic("file_not_found"),),
             )
         if path.suffix.lower() != ".jsonl":
             return DatasetValidationResult(
@@ -155,13 +163,13 @@ class DatasetsService:
                 0,
                 1,
                 0,
-                ("строка 0: поддерживается только формат .jsonl",),
+                (dataset_diagnostic("only_jsonl"),),
             )
 
         total_rows = 0
         valid_rows = 0
         invalid_rows = 0
-        errors: list[str] = []
+        errors: list[DatasetDiagnostic] = []
         with path.open("r", encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, start=1):
                 line = raw.strip()
@@ -173,73 +181,97 @@ class DatasetsService:
                 except json.JSONDecodeError:
                     invalid_rows += 1
                     if len(errors) < 8:
-                        errors.append(f"строка {line_number}: невалидный JSON")
+                        errors.append(
+                            dataset_diagnostic("invalid_json", line=line_number)
+                        )
                     continue
-                ok, message = self._validate_record(payload)
+                ok, diagnostic = self._validate_record(payload)
                 if ok:
                     valid_rows += 1
                 else:
                     invalid_rows += 1
-                    if len(errors) < 8:
-                        errors.append(f"строка {line_number}: {message}")
+                    if diagnostic is not None and len(errors) < 8:
+                        errors.append(
+                            DatasetDiagnostic(
+                                diagnostic.code,
+                                line_number,
+                                diagnostic.values,
+                            )
+                        )
 
         if total_rows == 0:
             status = DatasetVersionStatus.STRUCTURE_ERROR.value
-            errors.append("строка 0: файл не содержит записей")
+            errors.append(dataset_diagnostic("empty_file"))
         elif invalid_rows > 0:
             status = DatasetVersionStatus.STRUCTURE_ERROR.value
         else:
             status = DatasetVersionStatus.VALIDATED.value
         return DatasetValidationResult(status, total_rows, valid_rows, invalid_rows, 0, tuple(errors[:8]))
 
-    def _validate_record(self, payload: object) -> tuple[bool, str]:
+    def _validate_record(
+        self,
+        payload: object,
+    ) -> tuple[bool, DatasetDiagnostic | None]:
         if not isinstance(payload, dict):
-            return False, "запись должна быть объектом"
+            return False, dataset_diagnostic("record_not_object")
         if "messages" in payload:
             messages = payload.get("messages")
             if not isinstance(messages, list) or not messages:
-                return False, "поле messages должно быть непустым списком"
+                return False, dataset_diagnostic("messages_not_list")
             has_user = False
             has_assistant = False
             for item in messages:
                 if not isinstance(item, dict):
-                    return False, "элементы messages должны быть объектами"
+                    return False, dataset_diagnostic("message_not_object")
                 role = item.get("role")
                 content = item.get("content")
                 if role not in {"system", "user", "assistant"}:
-                    return False, "role должен быть system, user или assistant"
+                    return False, dataset_diagnostic(
+                        "invalid_role",
+                        role=str(role),
+                    )
                 if not isinstance(content, str) or not content.strip():
-                    return False, "content должен быть непустой строкой"
+                    return False, dataset_diagnostic(
+                        "content_empty",
+                        role=str(role),
+                    )
                 has_user = has_user or role == "user"
                 has_assistant = has_assistant or role == "assistant"
             if not has_user or not has_assistant:
-                return False, "messages должен содержать user и assistant"
-            return True, "ok"
+                return False, dataset_diagnostic("messages_missing_pair")
+            return True, None
         if "instruction" in payload or "output" in payload:
             instruction = payload.get("instruction")
             output = payload.get("output")
             if not isinstance(instruction, str) or not instruction.strip():
-                return False, "instruction должен быть непустой строкой"
+                return False, dataset_diagnostic("instruction_empty")
             if not isinstance(output, str) or not output.strip():
-                return False, "output должен быть непустой строкой"
+                return False, dataset_diagnostic("output_empty")
             input_field = payload.get("input", "")
             if not isinstance(input_field, str):
-                return False, "input должен быть строкой"
-            return True, "ok"
+                return False, dataset_diagnostic("input_not_string")
+            return True, None
         if "prompt" in payload or "response" in payload:
             prompt = payload.get("prompt")
             response = payload.get("response")
             if not isinstance(prompt, str) or not prompt.strip():
-                return False, "prompt должен быть непустой строкой"
+                return False, dataset_diagnostic("prompt_empty")
             if not isinstance(response, str) or not response.strip():
-                return False, "response должен быть непустой строкой"
-            return True, "ok"
-        return False, "поддерживаются схемы messages, instruction/output или prompt/response"
+                return False, dataset_diagnostic("response_empty")
+            return True, None
+        return False, dataset_diagnostic("unsupported_schema")
 
     def _preview_jsonl_path(self, file_path: str, limit: int) -> tuple[DatasetPreviewRecord, ...]:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
-            return (DatasetPreviewRecord("—", "Файл датасета не найден", "—", "ошибка структуры"),)
+            return (
+                DatasetPreviewRecord(
+                    "—",
+                    dataset_diagnostic("file_not_found"),
+                    "—",
+                    "structure_error",
+                ),
+            )
         rows: list[DatasetPreviewRecord] = []
         with path.open("r", encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, start=1):
@@ -251,14 +283,45 @@ class DatasetsService:
                 try:
                     payload = json.loads(line)
                 except json.JSONDecodeError:
-                    rows.append(DatasetPreviewRecord(f"#{line_number:03d}", "Невалидный JSON", "—", "ошибка структуры"))
+                    rows.append(
+                        DatasetPreviewRecord(
+                            f"#{line_number:03d}",
+                            dataset_diagnostic("invalid_json", line=line_number),
+                            "—",
+                            "structure_error",
+                        )
+                    )
                     continue
-                ok, message = self._validate_record(payload)
+                ok, diagnostic = self._validate_record(payload)
                 if not ok:
-                    rows.append(DatasetPreviewRecord(f"#{line_number:03d}", message, "—", "ошибка структуры"))
+                    rows.append(
+                        DatasetPreviewRecord(
+                            f"#{line_number:03d}",
+                            DatasetDiagnostic(
+                                diagnostic.code,
+                                line_number,
+                                diagnostic.values,
+                            )
+                            if diagnostic is not None
+                            else dataset_diagnostic("unknown", line=line_number),
+                            "—",
+                            "structure_error",
+                        )
+                    )
                     continue
                 rows.append(self._preview_record(line_number, payload))
-        return tuple(rows) if rows else (DatasetPreviewRecord("—", "Файл не содержит записей", "—", "ошибка структуры"),)
+        return (
+            tuple(rows)
+            if rows
+            else (
+                DatasetPreviewRecord(
+                    "—",
+                    dataset_diagnostic("empty_file"),
+                    "—",
+                    "structure_error",
+                ),
+            )
+        )
 
     def _preview_record(self, line_number: int, payload: dict[str, object]) -> DatasetPreviewRecord:
         if "messages" in payload:
@@ -275,14 +338,14 @@ class DatasetsService:
                         user_text = content
                     if role == "assistant":
                         assistant_text = content
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text or "messages"), "messages", "структура OK")
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text or "messages"), "messages", "structure_ok")
         if "instruction" in payload or "output" in payload:
             instruction = str(payload.get("instruction", "")).strip()
             input_text = str(payload.get("input", "")).strip()
             summary = instruction if not input_text else f"{instruction} · input: {input_text}"
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "структура OK")
+            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "structure_ok")
         prompt = str(payload.get("prompt", "")).strip()
-        return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "структура OK")
+        return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "structure_ok")
 
     def _short(self, value: str, limit: int = 140) -> str:
         compact = " ".join(value.split())
