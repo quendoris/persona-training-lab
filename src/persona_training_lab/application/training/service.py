@@ -20,7 +20,7 @@ from persona_training_lab.application.local_model.status_mapping import (
     LocalModelStatus,
     normalize_local_model_status,
 )
-from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.application.messages import ActionResult, UserMessage
 from persona_training_lab.application.ports.repositories import (
     TrainingReadRepositoryPort,
     TrainingWriteRepositoryPort,
@@ -81,22 +81,20 @@ class TrainingDatasetOption:
 class TrainingConfigurationError(ValueError):
     def __init__(
         self,
-        message: str,
         *,
         code: str = "configuration_error",
     ) -> None:
-        super().__init__(message)
+        super().__init__(code)
         self.code = code
 
 
 class TrainingValidationError(ValueError):
     def __init__(
         self,
-        message: str,
         *,
         code: str = "validation_error",
     ) -> None:
-        super().__init__(message)
+        super().__init__(code)
         self.code = code
 
 
@@ -183,11 +181,7 @@ class TrainingService:
         learning_rate: float,
     ) -> TrainingRunSummary:
         if epochs <= 0 or batch_size <= 0 or learning_rate <= 0:
-            raise TrainingValidationError(
-                "Проверьте гиперпараметры: epochs, batch size и learning "
-                "rate должны быть больше 0",
-                code="invalid_hyperparameters",
-            )
+            raise TrainingValidationError(code="invalid_hyperparameters")
 
         profiles = self.list_profile_options()
         selected_profile = next(
@@ -195,10 +189,7 @@ class TrainingService:
             None,
         )
         if selected_profile is None:
-            raise TrainingConfigurationError(
-                "Сначала создайте профиль личности",
-                code="profile_required",
-            )
+            raise TrainingConfigurationError(code="profile_required")
 
         datasets = self.list_dataset_options()
         selected_dataset = next(
@@ -210,25 +201,16 @@ class TrainingService:
             or selected_dataset.status_code
             is not DatasetVersionStatus.APPROVED
         ):
-            raise TrainingConfigurationError(
-                "Сначала добавьте, проверьте и одобрите датасет",
-                code="dataset_required",
-            )
+            raise TrainingConfigurationError(code="dataset_required")
 
         if self.local_model_service is None:
-            raise TrainingConfigurationError(
-                "Сначала проверьте локальную модель",
-                code="model_required",
-            )
+            raise TrainingConfigurationError(code="model_required")
         model_probe = self.local_model_service.probe_model_files()
         if (
             normalize_local_model_status(model_probe.status)
             is not LocalModelStatus.FOUND
         ):
-            raise TrainingConfigurationError(
-                "Сначала проверьте локальную модель",
-                code="model_required",
-            )
+            raise TrainingConfigurationError(code="model_required")
 
         run_id = f"trn_{uuid4().hex[:8]}"
         normalized_title = title.strip() or f"Training run {run_id}"
@@ -358,55 +340,44 @@ class TrainingService:
             ),
         )
 
-    def start_full_finetune_run(self, run_id: str) -> str:
+    def start_full_finetune_run(self, run_id: str) -> ActionResult:
         get_run = getattr(self.training_repo, "get_training_run", None)
         if get_run is None:
-            raise TrainingValidationError(
-                "Не удалось запустить обучение",
-                code="start_failed",
-            )
+            raise TrainingValidationError(code="start_failed")
         run = get_run(run_id)
         if run is None:
-            raise TrainingValidationError(
-                "Запуск обучения не найден",
-                code="run_not_found",
-            )
+            raise TrainingValidationError(code="run_not_found")
         status_code = normalize_training_status(run.get("status", ""))
         if status_code is TrainingRunStatus.RUNNING:
-            raise TrainingValidationError(
-                "Запуск обучения уже выполняется",
-                code="already_running",
-            )
+            raise TrainingValidationError(code="already_running")
         if status_code is not TrainingRunStatus.READY:
-            raise TrainingValidationError(
-                "Запуск обучения не готов к старту",
-                code="not_ready",
-            )
+            raise TrainingValidationError(code="not_ready")
         if self.full_backend is None:
-            self._set_terminal_error(
-                run,
-                "Training backend не подключён",
-            )
-            return "Training backend не подключён"
+            self._set_terminal_error(run, "backend_unavailable")
+            return ActionResult(False, "backend_unavailable")
         if self.local_model_service is None:
-            self._set_terminal_error(run, "Модель не найдена")
-            return "Модель не найдена"
+            self._set_terminal_error(run, "model_missing")
+            return ActionResult(False, "model_missing")
 
         lease: RuntimeOperationLease | None = None
         try:
             lease = self._begin_training_operation(run)
         except OperationConflictError as conflict:
             blocker = conflict.blockers[0] if conflict.blockers else None
-            message = (
-                "Запуск временно недоступен: нужная модель или "
-                "вычислительный ресурс уже используется"
+            blocker_kind = (
+                blocker.operation.operation_kind
+                if blocker is not None
+                else ""
             )
-            if blocker is not None:
-                message += f" ({blocker.operation.operation_kind})"
-            self._log(run_id, message, "WARNING")
+            technical_message = (
+                "resource_busy"
+                if not blocker_kind
+                else f"resource_busy:{blocker_kind}"
+            )
+            self._log(run_id, technical_message, "WARNING")
             if self.error_reporter is not None:
                 self.error_reporter.report_message(
-                    message,
+                    "training.resource_busy",
                     component="training.start",
                     level="WARNING",
                     entity_kind="training_run",
@@ -417,7 +388,11 @@ class TrainingService:
                         ]
                     },
                 )
-            return message
+            return ActionResult(
+                False,
+                "resource_busy",
+                {"blocker_kind": blocker_kind},
+            )
 
         epochs, batch_size, learning_rate = self._parse_hparams(
             run.get("subtitle", "")
@@ -514,7 +489,7 @@ class TrainingService:
                     "finished_at": datetime.now(timezone.utc).isoformat(),
                     "artifact_path": result.artifact_path,
                     "error_message": (
-                        "" if is_success else result.message
+                        "" if is_success else "backend_failed"
                     ),
                 },
             )
@@ -522,14 +497,20 @@ class TrainingService:
                 if is_success:
                     lease.succeed()
                 else:
-                    lease.fail(result.message)
-            return result.artifact_path if is_success else result.status
+                    lease.fail("backend_failed")
+            if is_success:
+                return ActionResult(
+                    True,
+                    "completed",
+                    {"artifact": result.artifact_path},
+                )
+            return ActionResult(
+                False,
+                "start_failed",
+                {"backend_status": result.status},
+            )
         except Exception as error:
             report = None
-            legacy_message = (
-                "Обучение остановлено безопасно. Интерфейс продолжает "
-                "работать; подробности записаны в журнал."
-            )
             if self.error_reporter is not None:
                 report = self.error_reporter.capture(
                     error,
@@ -547,14 +528,11 @@ class TrainingService:
                         "learning_rate": learning_rate,
                     },
                 )
-            message = legacy_message
-            error_suffix = (
-                f" Код: {report.error_id}."
-                if report is not None
-                else ""
+            error_id = report.error_id if report is not None else ""
+            technical_message = (
+                "safe_stop" if not error_id else f"safe_stop:{error_id}"
             )
-            full_message = message + error_suffix
-            self._log(run_id, full_message, "ERROR")
+            self._log(run_id, technical_message, "ERROR")
             self._set_runtime(
                 run_id,
                 {
@@ -567,15 +545,19 @@ class TrainingService:
                     "started_at": started_at,
                     "finished_at": datetime.now(timezone.utc).isoformat(),
                     "artifact_path": "",
-                    "error_message": full_message,
+                    "error_message": technical_message,
                 },
             )
             if lease is not None:
-                lease.fail(full_message)
-            return full_message
+                lease.fail(technical_message)
+            return ActionResult(
+                False,
+                "safe_stop",
+                {"error_id": error_id},
+            )
         finally:
             if lease is not None and not lease.closed:
-                lease.fail("Операция завершилась без терминального статуса")
+                lease.fail("operation_without_terminal_status")
 
     def _set_terminal_error(
         self,
@@ -598,7 +580,7 @@ class TrainingService:
             },
         )
 
-    def start_real_or_skeleton_run(self, run_id: str) -> str:
+    def start_real_or_skeleton_run(self, run_id: str) -> ActionResult:
         return self.start_full_finetune_run(run_id)
 
     def start_training_run(self, run_id: str) -> None:
