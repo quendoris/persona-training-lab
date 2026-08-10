@@ -3,16 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from persona_training_lab.application.runtime.operations import ResourceClaim
-from persona_training_lab.ui.viewmodels.agents import AgentDetailView
+from persona_training_lab.ui.viewmodels.agents_contracts import (
+    AgentDetailView,
+    AgentText,
+)
 
 
 @dataclass(slots=True, frozen=True)
 class ProjectedVersionNode:
     node_id: str
     depth: int
-    title: str
-    subtitle: str
-    status: str
+    title: AgentText
+    subtitle: AgentText
+    status: AgentText
     tone: str = "neutral"
     branch_note: str = "main"
     parent_id: str | None = None
