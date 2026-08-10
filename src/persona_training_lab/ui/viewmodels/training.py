@@ -12,6 +12,10 @@ from persona_training_lab.application.local_model.status_mapping import (
     normalize_local_model_status,
 )
 from persona_training_lab.application.messages import ActionResult
+from persona_training_lab.application.model_versions.quality import (
+    parse_model_version_quality,
+    training_completed_quality,
+)
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
@@ -826,10 +830,14 @@ class TrainingViewModel:
         self._set_versions_status_model(None)
         rows: list[PersonalityVersionView] = []
         for item in versions:
-            note = (
-                f"{item.base_model} · {item.profile_title} · "
-                f"{item.dataset_title} · {item.training_run_id}\n"
-                f"{item.quality_summary}\n{item.artifact_path}"
+            note_model = training_text(
+                "training.version.note",
+                base_model=item.base_model,
+                profile=item.profile_title,
+                dataset=item.dataset_title,
+                run_id=item.training_run_id,
+                quality=self._version_quality_text(item.quality_summary),
+                artifact=item.artifact_path,
             )
             rows.append(
                 _personality_version(
@@ -841,11 +849,10 @@ class TrainingViewModel:
                         item.status_code,
                         item.status,
                     ),
-                    note,
+                    note_model,
                     status_code=item.status_code.value,
                     raw_title=item.title,
                     raw_status=item.status,
-                    raw_note=note,
                 )
             )
         self.personality_versions = tuple(rows)
@@ -1043,10 +1050,9 @@ class TrainingViewModel:
                 profile_title=current.profile,
                 dataset_title=current.dataset_version,
                 artifact_path=current.artifact_path,
-                quality_summary=(
-                    "Full fine-tune завершён · "
-                    f"loss {current.loss} · checkpoints "
-                    f"{current.checkpoints_count}"
+                quality_summary=training_completed_quality(
+                    loss=current.loss,
+                    checkpoints=current.checkpoints_count,
                 ),
             )
             if created is not None:
@@ -1300,6 +1306,24 @@ class TrainingViewModel:
             "training.status.unknown",
             status=raw_status,
         )
+
+    @staticmethod
+    def _version_quality_text(quality_summary: str) -> TrainingTextValue:
+        parsed = parse_model_version_quality(quality_summary)
+        if parsed is None:
+            normalized = quality_summary.strip()
+            return normalized or training_text(
+                "training.version.quality.missing"
+            )
+        if parsed.code == "training_completed":
+            return training_text(
+                "training.version.quality.training_completed",
+                loss=parsed.values.get("loss", "—"),
+                checkpoints=parsed.values.get("checkpoints", "—"),
+            )
+        if parsed.code == "artifact_saved":
+            return training_text("training.version.quality.artifact_saved")
+        return training_text("training.version.quality.missing")
 
     @staticmethod
     def _version_status_text(
