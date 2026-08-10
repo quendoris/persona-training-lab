@@ -632,10 +632,7 @@ def _is_ui_viewmodel_path(path: Path) -> bool:
 def _is_operations_center_service_path(path: Path) -> bool:
     parts = path.parts
     return (
-        len(parts) >= 3
-        and parts[-3:] == ("operations_center", "service.py")
-        if False
-        else path.name == "service.py"
+        path.name == "service.py"
         and "operations_center" in parts
         and "application" in parts
     )
