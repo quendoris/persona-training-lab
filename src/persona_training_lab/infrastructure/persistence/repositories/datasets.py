@@ -2,6 +2,14 @@ from __future__ import annotations
 
 import sqlite3
 
+from persona_training_lab.application.datasets.status_mapping import (
+    normalize_dataset_status,
+)
+from persona_training_lab.domain.datasets.statuses import (
+    DatasetReadinessStatus,
+    DatasetVersionStatus,
+)
+
 
 class SQLiteDatasetsRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
@@ -50,14 +58,17 @@ class SQLiteDatasetsRepository:
                 payload.get("subtitle", ""),
                 payload.get("path", ""),
                 payload.get("format", "jsonl"),
-                payload.get("status", "Не проверен"),
+                payload.get("status", DatasetVersionStatus.IMPORTED.value),
                 int(payload.get("record_count", 0)),
                 int(payload.get("valid_count", 0)),
                 int(payload.get("invalid_count", 0)),
                 payload.get("quality_summary", ""),
                 payload.get("validation_errors_preview", ""),
                 payload.get("linked_profile", "—"),
-                payload.get("readiness", "Ожидает проверку"),
+                payload.get(
+                    "readiness",
+                    DatasetReadinessStatus.AWAITING_VALIDATION.value,
+                ),
                 payload.get("schema_name", "jsonl_finetune_v1"),
                 payload.get("created_at", ""),
                 payload.get("updated_at", ""),
@@ -65,7 +76,11 @@ class SQLiteDatasetsRepository:
         )
         self._connection.commit()
 
-    def update_dataset_validation(self, dataset_id: str, payload: dict[str, str | int]) -> None:
+    def update_dataset_validation(
+        self,
+        dataset_id: str,
+        payload: dict[str, str | int],
+    ) -> None:
         self._connection.execute(
             """
             UPDATE datasets
@@ -80,13 +95,20 @@ class SQLiteDatasetsRepository:
             WHERE id = ?
             """,
             (
-                payload.get("status", "Не проверен"),
+                payload.get("status", DatasetVersionStatus.IMPORTED.value),
                 int(payload.get("record_count", 0)),
                 int(payload.get("valid_count", 0)),
                 int(payload.get("invalid_count", 0)),
                 payload.get("quality_summary", ""),
                 payload.get("validation_errors_preview", ""),
-                self._readiness_from_status(str(payload.get("status", "Не проверен"))),
+                self._readiness_from_status(
+                    str(
+                        payload.get(
+                            "status",
+                            DatasetVersionStatus.IMPORTED.value,
+                        )
+                    )
+                ),
                 payload.get("updated_at", ""),
                 dataset_id,
             ),
@@ -112,12 +134,13 @@ class SQLiteDatasetsRepository:
         }
 
     def _readiness_from_status(self, status: str) -> str:
-        if status == "Одобрен для обучения":
-            return "Одобрен для обучения"
-        if status == "Готов к обучению":
-            return "Ожидает одобрение автора"
-        if status == "Ошибка структуры":
-            return "Требуется исправление"
-        if status == "Не удалось проверить датасет":
-            return "Проверка не выполнена"
-        return "Ожидает проверку"
+        status_code = normalize_dataset_status(status)
+        if status_code is DatasetVersionStatus.APPROVED:
+            return DatasetReadinessStatus.APPROVED.value
+        if status_code is DatasetVersionStatus.VALIDATED:
+            return DatasetReadinessStatus.AWAITING_AUTHOR_APPROVAL.value
+        if status_code is DatasetVersionStatus.STRUCTURE_ERROR:
+            return DatasetReadinessStatus.REQUIRES_FIX.value
+        if status_code is DatasetVersionStatus.VALIDATION_FAILED:
+            return DatasetReadinessStatus.VALIDATION_FAILED.value
+        return DatasetReadinessStatus.AWAITING_VALIDATION.value
