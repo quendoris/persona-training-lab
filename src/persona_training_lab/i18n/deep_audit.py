@@ -28,6 +28,7 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (1, "status"),
         (2, "note"),
     ),
+    "create_from_training_run": ((5, "quality_summary"),),
     "CompareMetric": ((0, "title"), (2, "note")),
     "_compare_metric": ((0, "title"), (2, "note")),
     "CompareSummary": (
