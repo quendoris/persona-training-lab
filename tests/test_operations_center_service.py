@@ -90,10 +90,16 @@ def test_active_training_is_mapped_to_training_workspace() -> None:
 
     item = service.active_items()[0]
 
-    assert item.title.startswith("Обучение")
-    assert item.status == "выполняется"
+    assert item.title == "training · mdl_001"
+    assert item.summary == "mdl_001 · running"
+    assert item.status == "running"
     assert item.severity == "active"
     assert item.target_screen == "training"
+    assert item.focus_text == ""
+    assert item.focus_key == "focus.training.start"
+    assert item.operation_kind == "training"
+    assert item.operation_state == "running"
+    assert item.operation_subject == "mdl_001"
 
 
 def test_warning_and_error_events_appear_in_problems() -> None:
@@ -126,7 +132,12 @@ def test_warning_and_error_events_appear_in_problems() -> None:
     issues = service.issue_items()
 
     assert [item.severity for item in issues] == ["warning", "error"]
+    assert [item.status for item in issues] == ["warning", "error"]
     assert all(item.target_screen == "training" for item in issues)
+    assert issues[0].title == "WARNING · training.backend"
+    assert issues[0].summary == "diagnostic · corr_evt_warning"
+    assert issues[1].title == "application.error · training.backend"
+    assert all(item.focus_text == "" for item in issues)
 
 
 def test_recent_activity_is_sorted_and_deduplicated() -> None:
@@ -156,3 +167,6 @@ def test_recent_activity_is_sorted_and_deduplicated() -> None:
     assert sum(item.item_id == "operation:op_1" for item in items) == 1
     portrait = next(item for item in items if item.item_id == "operation:op_1")
     assert portrait.target_screen == "tests"
+    assert portrait.focus_key == "focus.tests.build_portrait"
+    assert portrait.title == "personality_test · mdl_001"
+    assert portrait.status == "succeeded"
