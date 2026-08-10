@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "fragment": "experiments"
+  },
+  "messages": {
+    "experiments.header.title": "Experiments · {title}",
+    "experiments.registry.title": "Experiment registry",
+    "experiments.registry.subtitle": "Project, agent, and parameters in one read-only view.",
+    "experiments.empty.title": "No experiments yet",
+    "experiments.empty.subtitle": "No experiments have been created yet.",
+    "experiments.empty.status": "empty",
+    "experiments.error.title": "Could not load experiments",
+    "experiments.error.subtitle": "The experiment registry could not be loaded.",
+    "experiments.error.status": "error"
+  }
+}
