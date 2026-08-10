@@ -77,6 +77,7 @@
     "analysis.sample.field.score": "Score: {value}",
     "analysis.sample.field.response": "Response: {value}",
     "analysis.sample.field.raw_response": "Raw response: {value}",
+    "analysis.value.manual": "manual",
     "analysis.value.unavailable": "unavailable",
     "analysis.value.waiting": "waiting",
     "analysis.value.portrait_missing": "portrait missing"
