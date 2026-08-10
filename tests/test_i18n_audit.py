@@ -18,12 +18,14 @@ I18N_KEY_PREFIXES = (
 )
 
 
-def configure(localization, widget, menu, self):
+def configure(localization, widget, menu, reporter, self):
     localization.bind_text(widget, "app.name")
     localization.bind_title(menu, "shell.panels")
     localization.bind_tooltip(widget, key="nav.open_tooltip")
     self._text("shell.panels.decorated", "──── panels ────")
     localization.text("missing.translation.key")
+    reporter.capture(RuntimeError(), user_message="Visible failure")
+    reporter.capture(RuntimeError(), user_message=UserMessage("error.semantic"))
 """
     path = tmp_path / "sample.py"
     visitor = SourceAudit(
@@ -31,6 +33,7 @@ def configure(localization, widget, menu, self):
         known_keys=frozenset(
             {
                 "app.name",
+                "error.semantic",
                 "nav.agents",
                 "nav.open_tooltip",
                 "shell.panels",
@@ -43,6 +46,7 @@ def configure(localization, widget, menu, self):
 
     assert visitor.translation_keys == {
         "app.name",
+        "error.semantic",
         "missing.translation.key",
         "nav.agents",
         "nav.open_tooltip",
@@ -51,6 +55,8 @@ def configure(localization, widget, menu, self):
     }
     assert visitor.translation_prefixes == {"inspector.context."}
     assert [finding.text for finding in visitor.literals] == [
-        "──── panels ────"
+        "──── panels ────",
+        "Visible failure",
     ]
     assert visitor.literals[0].call == "_text fallback"
+    assert visitor.literals[1].call == "capture user_message"
