@@ -39,7 +39,9 @@ def _base_nodes() -> tuple[LineageVersionNode, ...]:
 
 
 def _node_ids(store: AtomicLineageStateStore) -> set[str]:
-    return {node.node_id for node in store.apply(_base_nodes())}
+    return {
+        node.node_id for node in store.apply(_base_nodes())
+    }
 
 
 def test_atomic_store_persists_complete_state_and_reloads_it(tmp_path) -> None:
@@ -50,9 +52,14 @@ def test_atomic_store_persists_complete_state_and_reloads_it(tmp_path) -> None:
     store.rename_node(branch_id, "durable branch")
 
     reloaded = AtomicLineageStateStore(path)
-    nodes = {node.node_id: node for node in reloaded.apply(_base_nodes())}
+    nodes = {
+        node.node_id: node for node in reloaded.apply(_base_nodes())
+    }
     assert nodes[branch_id].title == "durable branch"
-    assert json.loads(path.read_text(encoding="utf-8"))["schema"] == 5
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["schema"] == 6
+    assert payload["custom_nodes"][0]["status_code"] == "draft"
+    assert "subtitle" not in payload["custom_nodes"][0]
 
 
 def test_atomic_store_restores_memory_and_file_when_replace_fails(
