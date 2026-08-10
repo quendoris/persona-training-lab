@@ -20,6 +20,7 @@ from persona_training_lab.application.local_model.status_mapping import (
     LocalModelStatus,
     normalize_local_model_status,
 )
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.ports.repositories import (
     TrainingReadRepositoryPort,
     TrainingWriteRepositoryPort,
@@ -525,13 +526,16 @@ class TrainingService:
             return result.artifact_path if is_success else result.status
         except Exception as error:
             report = None
+            legacy_message = (
+                "Обучение остановлено безопасно. Интерфейс продолжает "
+                "работать; подробности записаны в журнал."
+            )
             if self.error_reporter is not None:
                 report = self.error_reporter.capture(
                     error,
                     component="training.full_finetune",
-                    user_message=(
-                        "Обучение остановлено безопасно. Интерфейс "
-                        "продолжает работать; подробности записаны в журнал."
+                    user_message=UserMessage(
+                        "error.training.full_finetune.safe_stop"
                     ),
                     entity_kind="training_run",
                     entity_id=run_id,
@@ -543,11 +547,7 @@ class TrainingService:
                         "learning_rate": learning_rate,
                     },
                 )
-            message = (
-                report.user_message
-                if report is not None
-                else "Обучение остановлено безопасно"
-            )
+            message = legacy_message
             error_suffix = (
                 f" Код: {report.error_id}."
                 if report is not None
