@@ -56,16 +56,17 @@ def test_duplicate_error_does_not_flood_event_storage() -> None:
         duplicate_window_seconds=60,
     )
     error = RuntimeError("same failure")
+    message = UserMessage("error.python.main_thread")
 
     reporter.capture(
         error,
         component="ui.refresh",
-        user_message="Не удалось обновить",
+        user_message=message,
     )
     reporter.capture(
         error,
         component="ui.refresh",
-        user_message="Не удалось обновить",
+        user_message=message,
     )
 
     assert len(events.records) == 1
@@ -76,12 +77,13 @@ def test_reporting_failure_never_escapes_to_application(caplog) -> None:
         _BrokenEventLog(),
         logger=logging.getLogger("test.error_reporter"),
     )
+    message = UserMessage("error.ui.event_dispatch")
 
     with caplog.at_level(logging.DEBUG):
         result = reporter.capture(
             ValueError("bad input"),
             component="ui.action",
-            user_message="Действие не выполнено",
+            user_message=message,
         )
 
-    assert result.user_message == "Действие не выполнено"
+    assert result.user_message == message
