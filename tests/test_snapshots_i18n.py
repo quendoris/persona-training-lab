@@ -18,8 +18,13 @@ from persona_training_lab.application.model_versions.service import (
 )
 from persona_training_lab.domain.models.statuses import ModelVersionStatus
 from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.i18n.text import text as localized_text
 from persona_training_lab.ui.snapshots.screen import SnapshotsScreen
-from persona_training_lab.ui.viewmodels.snapshots import SnapshotsViewModel
+from persona_training_lab.ui.viewmodels.snapshots import (
+    SnapshotText,
+    SnapshotValue,
+    SnapshotsViewModel,
+)
 
 
 CATALOGS = (
@@ -56,6 +61,39 @@ def _visible_texts(screen: SnapshotsScreen) -> set[str]:
         for label in screen.findChildren(QLabel)
         if label.text()
     }
+
+
+def _render_base(value: SnapshotValue) -> str:
+    if isinstance(value, str):
+        return value
+    rendered_values = {
+        key: _render_base(item) if isinstance(item, SnapshotText) else item
+        for key, item in value.values.items()
+    }
+    return localized_text(None, value.key, **rendered_values)
+
+
+def _assert_base_projection(vm: SnapshotsViewModel) -> None:
+    for compat, model in zip(vm.metrics, vm.metric_models(), strict=True):
+        assert compat.title == _render_base(model.title)
+        assert compat.value == _render_base(model.value)
+        assert compat.note == _render_base(model.note)
+
+    for compat, model in zip(vm.timeline, vm.timeline_models(), strict=True):
+        assert compat.title == _render_base(model.title)
+        assert compat.note == _render_base(model.note)
+
+    assert vm.lineage == tuple(
+        _render_base(item) for item in vm.lineage_models()
+    )
+    assert vm.next_step() == _render_base(vm.next_step_model())
+
+    row = vm.current_snapshot()
+    if row.snapshot_id == "snapshots_empty":
+        assert row.title == _render_base(vm.row_title_model(row))
+        assert row.status == _render_base(vm.status_model(row))
+        assert row.subtitle == _render_base(vm.header_subtitle_model())
+        assert row.quality_summary == row.subtitle
 
 
 class MutableModelVersionsService:
@@ -223,6 +261,22 @@ def test_machine_quality_payload_uses_current_locale_without_rewrite(
     screen.close()
     screen.deleteLater()
     app.processEvents()
+
+
+def test_snapshots_compatibility_is_base_locale_projection() -> None:
+    service = MutableModelVersionsService()
+    vm = SnapshotsViewModel(model_versions_service=service)
+
+    _assert_base_projection(vm)
+
+    version = _machine_quality_version()
+    stored_quality = version.quality_summary
+    service.versions = [version]
+    vm.refresh()
+
+    _assert_base_projection(vm)
+    assert vm.current_snapshot().quality_summary == stored_quality
+    assert service.versions[0].quality_summary == stored_quality
 
 
 def test_refresh_rebuilds_snapshot_views_without_recreating_screen(
