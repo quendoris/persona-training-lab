@@ -9,6 +9,10 @@ import pytest
 from persona_training_lab.application.datasets.diagnostics import (
     decode_dataset_diagnostic,
 )
+from persona_training_lab.application.datasets.errors import (
+    DatasetServiceError,
+    DatasetServiceErrorCode,
+)
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.domain.datasets.statuses import (
     DatasetReadinessStatus,
@@ -29,14 +33,26 @@ def _build_service(connection: sqlite3.Connection) -> DatasetsService:
     return DatasetsService(datasets_repo=repo)
 
 
-def test_register_missing_file_returns_controlled_error() -> None:
+def test_register_missing_file_returns_controlled_error(tmp_path: Path) -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     create_minimal_schema(connection)
     service = _build_service(connection)
 
-    with pytest.raises(ValueError, match="Файл датасета не найден"):
+    with pytest.raises(DatasetServiceError) as missing_path:
         service.add_dataset_from_path("missing.jsonl")
+    assert missing_path.value.code is DatasetServiceErrorCode.FILE_NOT_FOUND
+    assert str(missing_path.value) == "file_not_found"
+
+    wrong_format = tmp_path / "dataset.txt"
+    wrong_format.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(DatasetServiceError) as invalid_format:
+        service.add_dataset_from_path(str(wrong_format))
+    assert invalid_format.value.code is DatasetServiceErrorCode.ONLY_JSONL
+
+    with pytest.raises(DatasetServiceError) as missing_dataset:
+        service.validate_dataset("ds_missing")
+    assert missing_dataset.value.code is DatasetServiceErrorCode.NOT_FOUND
 
 
 def test_validate_messages_jsonl_ready(tmp_path: Path) -> None:
@@ -258,6 +274,22 @@ def update_dataset_validation(payload):
     return hidden, hidden_diagnostics, semantic
 
 
+class DatasetServiceErrorCode:
+    MACHINE = "file_not_found"
+    HUMAN = "Human service code"
+
+
+class DatasetsService:
+    def add_dataset_from_path(self):
+        raise ValueError("file_not_found")
+
+    def validate_dataset(self):
+        raise DatasetServiceError("Human service error")
+
+    def approve_dataset(self):
+        raise DatasetServiceError("not_found")
+
+
 def preview_surfaces():
     hidden_diagnostic = DatasetDiagnostic("Human diagnostic code")
     hidden_factory = dataset_diagnostic("Human diagnostic factory")
@@ -300,6 +332,18 @@ def preview_surfaces():
         "Generated diagnostic fallback",
     ) in findings
     assert (
+        "DatasetServiceErrorCode code",
+        "Human service code",
+    ) in findings
+    assert (
+        "add_dataset_from_path exception protocol",
+        "ValueError",
+    ) in findings
+    assert (
+        "DatasetServiceError code",
+        "Human service error",
+    ) in findings
+    assert (
         "DatasetDiagnostic code",
         "Human diagnostic code",
     ) in findings
@@ -317,5 +361,7 @@ def preview_surfaces():
     ) in findings
     assert not any(text == "awaiting_validation" for _, text in findings)
     assert not any(text == "validated" for _, text in findings)
+    assert not any(text == "file_not_found" for _, text in findings)
+    assert not any(text == "not_found" for _, text in findings)
     assert not any(text == "invalid_json" for _, text in findings)
     assert not any(text == "structure_error" for _, text in findings)
