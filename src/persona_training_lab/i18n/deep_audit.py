@@ -40,6 +40,7 @@ _UI_VIEWMODEL_TEXT_ATTRIBUTES = frozenset(
         "title",
         "subtitle",
         "status",
+        "status_message",
         "selected_objects",
         "versions_status_message",
         "logs",
