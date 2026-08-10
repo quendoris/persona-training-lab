@@ -10,6 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QDialogButtonBox
 
+from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.profiles.service import ProfileSummary
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.profiles.screen import (
@@ -71,7 +72,7 @@ class LegacyRussianProfileService:
 
 class ValidationFailureProfilesService(EmptyProfilesService):
     def create_profile(self, **_payload):
-        return False, "Стиль общения не должен быть пустым", None
+        return ActionResult(False, "communication_style_required"), None
 
 
 def test_profiles_empty_workspace_switches_live(
