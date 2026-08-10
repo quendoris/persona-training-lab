@@ -23,14 +23,14 @@ def telemetry_status_key(code: str) -> str | None:
     return TELEMETRY_STATUS_KEYS.get(code)
 
 
-def _base_text(key: str, **values: object) -> str:
+def _base_telemetry_text(key: str, **values: object) -> str:
     return localized_text(None, key, **values)
 
 
-def _base_status_text(code: str, *, raw: str = "") -> str:
+def _base_telemetry_status_text(code: str, *, raw: str = "") -> str:
     key = telemetry_status_key(code)
     if key is not None:
-        return _base_text(key)
+        return _base_telemetry_text(key)
     if raw and raw != code:
         return raw
     return code.replace("_", " ").title()
@@ -65,30 +65,30 @@ class TelemetryViewModel:
     def refresh(self) -> None:
         snapshot = self.telemetry_service.collect_snapshot()
         self._snapshot = snapshot
-        self.status_title = _base_status_text(
+        self.status_title = _base_telemetry_status_text(
             snapshot.status_code,
             raw=snapshot.status,
         )
-        self.status_subtitle = _base_text(
+        self.status_subtitle = _base_telemetry_text(
             "panel.telemetry.updated_at",
             time=snapshot.last_updated_at,
         )
         self.status_error = (
-            _base_status_text(
+            _base_telemetry_status_text(
                 snapshot.error_code,
                 raw=snapshot.error_message,
             )
             if snapshot.error_code
             else snapshot.error_message
         )
-        self.cpu_cores_text = _base_text(
+        self.cpu_cores_text = _base_telemetry_text(
             "panel.telemetry.logical_cores",
             cores=snapshot.cpu_logical_cores,
         )
 
         if snapshot.processes:
             self.processes_rows = tuple(
-                _base_text(
+                _base_telemetry_text(
                     "panel.telemetry.process_row",
                     pid=item.pid,
                     name=item.name,
@@ -99,7 +99,7 @@ class TelemetryViewModel:
             )
         else:
             self.processes_rows = (
-                _base_status_text(
+                _base_telemetry_status_text(
                     snapshot.processes_status_code,
                     raw=snapshot.processes_status,
                 ),
@@ -133,7 +133,7 @@ class TelemetryViewModel:
             )
         else:
             vram_percent = 0
-            vram_text = _base_status_text(snapshot.gpu_status_code)
+            vram_text = _base_telemetry_status_text(snapshot.gpu_status_code)
 
         if snapshot.gpu_temperature_c is None:
             temp_percent = 0
@@ -156,7 +156,7 @@ class TelemetryViewModel:
                 full_label="CPU",
                 value_percent=int(round(snapshot.cpu_percent)),
                 tooltip=(
-                    f"{_base_status_text(snapshot.cpu_status_code, raw=snapshot.cpu_status)}"
+                    f"{_base_telemetry_status_text(snapshot.cpu_status_code, raw=snapshot.cpu_status)}"
                     f" · {snapshot.cpu_percent:.1f}%"
                 ),
                 value_text=f"{snapshot.cpu_percent:.1f}%",
@@ -172,7 +172,7 @@ class TelemetryViewModel:
                 short_label="GPU",
                 full_label="GPU",
                 value_percent=int(round(snapshot.gpu_util_percent or 0.0)),
-                tooltip=_base_status_text(
+                tooltip=_base_telemetry_status_text(
                     snapshot.gpu_status_code,
                     raw=snapshot.gpu_status,
                 ),
@@ -190,10 +190,10 @@ class TelemetryViewModel:
                 value_text=vram_text,
             ),
             TelemetryMetricView(
-                short_label=_base_text(
+                short_label=_base_telemetry_text(
                     "panel.telemetry.metric.temperature.short"
                 ),
-                full_label=_base_text(
+                full_label=_base_telemetry_text(
                     "panel.telemetry.metric.temperature.full"
                 ),
                 value_percent=temp_percent,
@@ -201,14 +201,14 @@ class TelemetryViewModel:
                 value_text=temp_text,
             ),
             TelemetryMetricView(
-                short_label=_base_text(
+                short_label=_base_telemetry_text(
                     "panel.telemetry.metric.process.short"
                 ),
-                full_label=_base_text(
+                full_label=_base_telemetry_text(
                     "panel.telemetry.metric.process.full"
                 ),
                 value_percent=proc_value,
-                tooltip=_base_status_text(
+                tooltip=_base_telemetry_status_text(
                     snapshot.processes_status_code,
                     raw=snapshot.processes_status,
                 ),
