@@ -9,7 +9,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QLabel
 
-from persona_training_lab.application.operations_center import OperationsCenterItem
+from persona_training_lab.application.operations_center import (
+    OperationsCenterItem,
+    OperationsCenterService,
+)
+from persona_training_lab.application.runtime.operations import RuntimeOperation
 from persona_training_lab.application.telemetry.service import (
     TelemetryProcessRow,
     TelemetrySnapshot,
@@ -59,6 +63,22 @@ class _OperationsCenter:
         _limit: int = 24,
     ) -> tuple[OperationsCenterItem, ...]:
         return self._issues
+
+
+class _EmptyEventLog:
+    def list_recent(self, _limit: int = 50):
+        return []
+
+
+class _RuntimeOperations:
+    def __init__(self, operation: RuntimeOperation) -> None:
+        self._operation = operation
+
+    def list_active_operations(self):
+        return [self._operation]
+
+    def list_recent_operations(self, _limit: int = 50):
+        return [self._operation]
 
 
 class _TelemetryViewModel:
@@ -120,20 +140,30 @@ def test_semantic_operation_row_switches_language(
 ) -> None:
     app = _app()
     manager = _manager(app)
-    operation = OperationsCenterItem(
-        item_id="operation:1",
-        title="legacy title",
-        summary="legacy summary",
-        status="legacy status",
-        severity="active",
-        occurred_at="2026-08-06T10:00:00Z",
-        target_screen="training",
+    runtime_operation = RuntimeOperation(
+        operation_id="op-1",
         operation_kind="training",
-        operation_state="running",
-        operation_subject="trn-1",
-        focus_key="focus.training.start",
+        subject_kind="training_run",
+        subject_id="trn-1",
+        state="running",
+        correlation_id="corr-op-1",
+        owner_pid=1,
+        started_at="2026-08-06T10:00:00Z",
+        heartbeat_at="2026-08-06T10:00:00Z",
+        finished_at="",
+        error_message="",
     )
-    service = _OperationsCenter(active=(operation,), recent=(operation,))
+    service = OperationsCenterService(
+        event_log=_EmptyEventLog(),
+        runtime_operations=_RuntimeOperations(runtime_operation),
+    )
+    operation = service.active_items()[0]
+    assert operation.title == "training · trn-1"
+    assert operation.summary == "trn-1 · running"
+    assert operation.status == "running"
+    assert operation.focus_text == ""
+    assert operation.focus_key == "focus.training.start"
+
     panel = ActivityPanel(service, manager)
 
     assert "Training · trn-1" in _label_texts(panel)
@@ -142,6 +172,8 @@ def test_semantic_operation_row_switches_language(
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     manager.set_locale("ru-RU", persist=False)
 
+    assert operation.title == "training · trn-1"
+    assert operation.status == "running"
     assert "Обучение · trn-1" in _label_texts(panel)
     assert "trn-1 · выполняется" in _label_texts(panel)
 
