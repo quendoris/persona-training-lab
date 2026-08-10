@@ -182,6 +182,36 @@ class VM:
             training_text("training.version.empty.status"),
             training_text("training.version.empty.note"),
         )
+        hidden_snapshot_metric = SnapshotMetric(
+            "Hidden snapshot metric",
+            "ready",
+            "Hidden snapshot metric note",
+        )
+        hidden_snapshot_row = SnapshotRow(
+            "snapshot",
+            "Hidden snapshot title",
+            "Hidden snapshot status",
+            "Hidden snapshot subtitle",
+            quality_summary="Hidden snapshot quality",
+        )
+        hidden_timeline = TimelineItem(
+            "Hidden snapshot timeline",
+            "Hidden snapshot timeline note",
+        )
+        semantic_snapshot_metric = SnapshotMetric(
+            snapshot_text("snapshots.metric.lifecycle"),
+            "ready",
+            snapshot_text("snapshots.metric.note.version.registered"),
+        )
+        semantic_snapshot_row = SnapshotRow(
+            "snapshot",
+            _base_snapshot_text(snapshot_text("snapshots.screen.title")),
+            _base_snapshot_text(snapshot_text("snapshots.status.ready")),
+            _base_snapshot_text(snapshot_text("snapshots.state.empty")),
+            quality_summary=_base_snapshot_text(
+                snapshot_text("snapshots.quality.missing")
+            ),
+        )
         hidden_metric = _compare_metric(
             "Hidden metric",
             "0",
@@ -216,11 +246,23 @@ class VM:
             semantic_training_metric,
             semantic_checkpoint,
             semantic_version,
+            hidden_snapshot_metric,
+            hidden_snapshot_row,
+            hidden_timeline,
+            semantic_snapshot_metric,
+            semantic_snapshot_row,
             hidden_metric,
             hidden_summary,
             hidden_sample,
             semantic_metric,
         )
+
+    @property
+    def lineage(self):
+        return ("Hidden snapshot lineage",)
+
+    def next_step(self):
+        return "Hidden snapshot next step"
 
 
 def execute():
@@ -340,6 +382,25 @@ def start_training():
         "_personality_version note",
         "Hidden version note",
     ) in findings
+    assert ("SnapshotMetric title", "Hidden snapshot metric") in findings
+    assert (
+        "SnapshotMetric note",
+        "Hidden snapshot metric note",
+    ) in findings
+    assert ("SnapshotRow title", "Hidden snapshot title") in findings
+    assert ("SnapshotRow status", "Hidden snapshot status") in findings
+    assert ("SnapshotRow subtitle", "Hidden snapshot subtitle") in findings
+    assert (
+        "SnapshotRow quality_summary",
+        "Hidden snapshot quality",
+    ) in findings
+    assert ("TimelineItem title", "Hidden snapshot timeline") in findings
+    assert (
+        "TimelineItem note",
+        "Hidden snapshot timeline note",
+    ) in findings
+    assert ("lineage return", "Hidden snapshot lineage") in findings
+    assert ("next_step return", "Hidden snapshot next step") in findings
     assert ("_compare_metric title", "Hidden metric") in findings
     assert ("_compare_metric note", "Hidden metric note") in findings
     assert ("_compare_summary title", "Hidden summary") in findings
@@ -392,6 +453,10 @@ def start_training():
     assert not any(text == "training.version.empty.title" for _, text in findings)
     assert not any(text == "training.version.empty.status" for _, text in findings)
     assert not any(text == "training.version.empty.note" for _, text in findings)
+    assert not any(text == "snapshots.screen.title" for _, text in findings)
+    assert not any(text == "snapshots.status.ready" for _, text in findings)
+    assert not any(text == "snapshots.state.empty" for _, text in findings)
+    assert not any(text == "snapshots.quality.missing" for _, text in findings)
     assert not any(text == "tests.case.valid_score" for _, text in findings)
     assert not any(text == "tests.metric.runs" for _, text in findings)
     assert not any(text == "tests.metric.note.runs" for _, text in findings)
