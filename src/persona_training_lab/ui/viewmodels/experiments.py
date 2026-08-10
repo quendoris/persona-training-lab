@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from persona_training_lab.application.experiments.service import (
     ExperimentSummary,
     ExperimentsService,
+)
+from persona_training_lab.application.experiments.titles import (
+    ExperimentTitleKind,
+    decode_experiment_title,
+    is_experiment_title_protocol,
+    is_legacy_generated_experiment_title,
 )
 from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
 from persona_training_lab.ui.viewmodels.evaluation import (
@@ -14,6 +21,14 @@ from persona_training_lab.ui.viewmodels.evaluation import (
 )
 
 
+_GENERATED_TITLE_KEYS: dict[ExperimentTitleKind, str] = {
+    ExperimentTitleKind.PERSONALITY_PORTRAIT: (
+        "experiments.generated.title.personality_portrait"
+    ),
+}
+_UNKNOWN_GENERATED_TITLE_KEY = "experiments.generated.title.unknown"
+
+
 @dataclass(slots=True, frozen=True)
 class ExperimentView:
     experiment_id: str
@@ -21,6 +36,37 @@ class ExperimentView:
     subtitle: str | EvaluationText
     status: str | EvaluationText
     status_code: EvaluationRunStatus = EvaluationRunStatus.UNKNOWN
+
+
+def _display_timestamp(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "—"
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    return parsed.strftime("%Y-%m-%d %H:%M")
+
+
+def _experiment_title(summary: ExperimentSummary) -> str | EvaluationText:
+    kind = decode_experiment_title(summary.title)
+    if (
+        kind is None
+        and is_legacy_generated_experiment_title(summary.title)
+    ):
+        kind = ExperimentTitleKind.PERSONALITY_PORTRAIT
+    if kind is not None:
+        key = _GENERATED_TITLE_KEYS.get(kind)
+        if key is not None:
+            return evaluation_text(
+                key,
+                time=_display_timestamp(summary.updated_at),
+            )
+        return evaluation_text(_UNKNOWN_GENERATED_TITLE_KEY)
+    if is_experiment_title_protocol(summary.title):
+        return evaluation_text(_UNKNOWN_GENERATED_TITLE_KEY)
+    return summary.title
 
 
 @dataclass(slots=True)
@@ -57,7 +103,7 @@ class ExperimentsViewModel:
     def _map_summary(summary: ExperimentSummary) -> ExperimentView:
         return ExperimentView(
             experiment_id=summary.experiment_id,
-            title=summary.title,
+            title=_experiment_title(summary),
             subtitle=summary.subtitle,
             status=evaluation_status_text(
                 summary.status_code,
