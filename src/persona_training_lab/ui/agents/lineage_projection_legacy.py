@@ -3,12 +3,28 @@ from __future__ import annotations
 from hashlib import sha1
 import re
 
+from persona_training_lab.application.messages import UserMessage
+from persona_training_lab.application.model_versions.status_mapping import (
+    normalize_model_version_status,
+)
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.application.training.status_mapping import (
+    normalize_training_status,
+)
+from persona_training_lab.domain.models.statuses import ModelVersionStatus
+from persona_training_lab.domain.training.statuses import TrainingRunStatus
 from persona_training_lab.ui.agents.lineage_presentation import (
     LineagePresentationProjection,
     ProjectedVersionNode,
 )
 from persona_training_lab.ui.viewmodels.agents import AgentDetailView
+from persona_training_lab.ui.viewmodels.agents_legacy_semantics import (
+    MISSING,
+    messages,
+    portrait_status_message,
+    training_status_message,
+    version_status_message,
+)
 
 
 _MODEL_VERSION_RE = re.compile(r"\bmodel_version=([^\s·]+)")
@@ -83,32 +99,44 @@ def build_legacy_lineage(view_model) -> LineagePresentationProjection:
         run_id = _value(run, "run_id")
         if not run_id:
             continue
-        base_model = _value(run, "base_model") or "не указана"
-        dataset_title = _value(run, "dataset_version") or "не указан"
-        base_node_id = base_nodes.get(base_model)
+        base_model = _value(run, "base_model")
+        dataset_title = _value(run, "dataset_version")
+        base_key = base_model or "<unspecified>"
+        dataset_key_value = dataset_title or "<unspecified>"
+        base_label = base_model or UserMessage("agents.legacy.value.unspecified")
+        dataset_label = dataset_title or UserMessage(
+            "agents.legacy.value.unspecified"
+        )
+        base_node_id = base_nodes.get(base_key)
         if base_node_id is None:
-            base_node_id = f"base:{_stable_id(base_model)}"
-            base_nodes[base_model] = base_node_id
+            base_node_id = f"base:{_stable_id(base_key)}"
+            base_nodes[base_key] = base_node_id
             nodes.append(
                 ProjectedVersionNode(
                     base_node_id,
                     0,
-                    f"Base · {base_model}",
-                    "Историческая базовая модель реального training run.",
-                    "source",
+                    UserMessage(
+                        "agents.node.title.base_model",
+                        {"label": base_label},
+                    ),
+                    UserMessage("agents.legacy.history.base.subtitle"),
+                    UserMessage("agents.status.source"),
                     "neutral",
                     "side",
                     None,
                 )
             )
             details[base_node_id] = AgentDetailView(
-                "Base model",
-                f"Модель: {base_model}\nСвязанные training run сохранены в lineage.",
-                (
-                    "Локальные файлы доступны",
-                    "Модель зафиксирована в протоколе",
+                UserMessage("agents.node.kind.base_model"),
+                UserMessage(
+                    "agents.legacy.history.base.body",
+                    {"model": base_label},
                 ),
-                ("Исходная модель исторической ветки",),
+                messages(
+                    "agents.legacy.history.base.check.files",
+                    "agents.legacy.history.base.check.protocol",
+                ),
+                messages("agents.legacy.history.base.action.source"),
             )
             resources[base_node_id] = _claims(("model_definition", base_model))
             context[base_node_id] = {
@@ -116,31 +144,40 @@ def build_legacy_lineage(view_model) -> LineagePresentationProjection:
                 "base_model": base_model,
             }
 
-        dataset_key = (base_model, dataset_title)
+        dataset_key = (base_key, dataset_key_value)
         dataset_node_id = dataset_nodes.get(dataset_key)
         if dataset_node_id is None:
-            dataset_node_id = f"dataset:{_stable_id(base_model + '|' + dataset_title)}"
+            dataset_node_id = f"dataset:{_stable_id(base_key + '|' + dataset_key_value)}"
             dataset_nodes[dataset_key] = dataset_node_id
             nodes.append(
                 ProjectedVersionNode(
                     dataset_node_id,
                     1,
-                    f"Dataset · {dataset_title}",
-                    "Набор данных, реально использованный историческим запуском.",
-                    "зафиксирован",
+                    UserMessage(
+                        "agents.node.title.dataset",
+                        {"label": dataset_label},
+                    ),
+                    UserMessage("agents.legacy.history.dataset.subtitle"),
+                    UserMessage("agents.legacy.status.recorded"),
                     "neutral",
                     "side",
                     base_node_id,
                 )
             )
             details[dataset_node_id] = AgentDetailView(
-                "Dataset",
-                f"Название: {dataset_title}\nBase model: {base_model}",
-                (
-                    "Версия датасета записана в training run",
-                    "Смысл и структура проверяются отдельно",
+                UserMessage("agents.node.kind.dataset"),
+                UserMessage(
+                    "agents.legacy.history.dataset.body",
+                    {
+                        "dataset": dataset_label,
+                        "model": base_label,
+                    },
                 ),
-                ("Реальная зависимость обучения",),
+                messages(
+                    "agents.legacy.history.dataset.check.recorded",
+                    "agents.legacy.history.dataset.check.separate",
+                ),
+                messages("agents.legacy.history.dataset.action.dependency"),
             )
             resources[dataset_node_id] = _claims(
                 ("dataset", dataset_title),
@@ -164,9 +201,12 @@ def build_legacy_lineage(view_model) -> LineagePresentationProjection:
             ProjectedVersionNode(
                 node_id,
                 2 + run_index,
-                f"Train · {run_id}",
+                UserMessage(
+                    "agents.node.title.training_run",
+                    {"label": run_id},
+                ),
                 _training_subtitle(run),
-                _value(run, "status") or "без статуса",
+                training_status_message(run),
                 _training_tone(run),
                 "side",
                 dataset_node_id,
@@ -192,9 +232,12 @@ def build_legacy_lineage(view_model) -> LineagePresentationProjection:
                 ProjectedVersionNode(
                     node_id,
                     3 + version_index,
-                    f"Version · {version_id}",
+                    UserMessage(
+                        "agents.node.title.model_version",
+                        {"label": version_id},
+                    ),
                     _version_subtitle(version),
-                    _value(version, "status") or "без статуса",
+                    version_status_message(version),
                     _version_tone(version),
                     "side",
                     parent_id,
@@ -223,9 +266,17 @@ def build_legacy_lineage(view_model) -> LineagePresentationProjection:
                 ProjectedVersionNode(
                     node_id,
                     4 + experiment_index,
-                    f"Portrait · {_value(experiment, 'title') or experiment_id}",
+                    UserMessage(
+                        "agents.node.title.evaluation_run",
+                        {
+                            "label": (
+                                _value(experiment, "title")
+                                or experiment_id
+                            )
+                        },
+                    ),
                     _portrait_subtitle(view_model, experiment),
-                    _value(experiment, "status") or "без статуса",
+                    portrait_status_message(experiment),
                     _portrait_tone(view_model, experiment),
                     "side",
                     parent_id,
@@ -335,40 +386,51 @@ def _bind_canonical_resources(
     }
 
 
-def _training_subtitle(run) -> str:
-    artifact = _value(run, "artifact_path") or "artifact не создан"
-    return (
-        f"{_value(run, 'title')} · progress={_value(run, 'progress') or '0'} · "
-        f"epoch={_value(run, 'epoch_progress') or '—'} · "
-        f"loss={_value(run, 'loss') or '—'} · {artifact}"
+def _training_subtitle(run) -> UserMessage:
+    artifact: object = _value(run, "artifact_path") or UserMessage(
+        "agents.legacy.value.artifact_missing"
+    )
+    return UserMessage(
+        "agents.legacy.history.training.subtitle",
+        {
+            "title": _value(run, "title") or MISSING,
+            "progress": _value(run, "progress") or "0",
+            "epoch": _value(run, "epoch_progress") or MISSING,
+            "loss": _value(run, "loss") or MISSING,
+            "artifact": artifact,
+        },
     )
 
 
 def _training_detail(run) -> AgentDetailView:
     return AgentDetailView(
-        "Training run",
-        "\n".join(
-            (
-                f"Run: {_value(run, 'run_id') or '—'}",
-                f"Название: {_value(run, 'title') or '—'}",
-                f"Статус: {_value(run, 'status') or '—'}",
-                f"Base model: {_value(run, 'base_model') or '—'}",
-                f"Profile: {_value(run, 'profile') or '—'}",
-                f"Dataset: {_value(run, 'dataset_version') or '—'}",
-                f"Epoch: {_value(run, 'epoch_progress') or '—'}",
-                f"Loss: {_value(run, 'loss') or '—'}",
-                f"Artifact: {_value(run, 'artifact_path') or '—'}",
-                f"Ошибка: {_value(run, 'error_message') or 'нет'}",
-            )
+        UserMessage("agents.node.kind.training_run"),
+        UserMessage(
+            "agents.legacy.history.training.body",
+            {
+                "run": _value(run, "run_id") or MISSING,
+                "title": _value(run, "title") or MISSING,
+                "status": training_status_message(run),
+                "model": _value(run, "base_model") or MISSING,
+                "profile": _value(run, "profile") or MISSING,
+                "dataset": _value(run, "dataset_version") or MISSING,
+                "epoch": _value(run, "epoch_progress") or MISSING,
+                "loss": _value(run, "loss") or MISSING,
+                "artifact": _value(run, "artifact_path") or MISSING,
+                "error": (
+                    _value(run, "error_message")
+                    or UserMessage("agents.legacy.value.none")
+                ),
+            },
         ),
-        (
-            "Статус операции согласован с runtime registry",
-            "Artifact регистрируется только после успешной записи",
-            "Логи запуска доступны",
+        messages(
+            "agents.legacy.history.training.check.runtime",
+            "agents.legacy.history.training.check.artifact",
+            "agents.legacy.history.training.check.logs",
         ),
-        (
-            "Открыть обучение и логи",
-            "Создать snapshot из artifact",
+        messages(
+            "agents.legacy.history.training.action.logs",
+            "agents.legacy.history.training.action.snapshot",
         ),
     )
 
@@ -394,38 +456,43 @@ def _training_context(run) -> dict[str, str]:
     }
 
 
-def _version_subtitle(version) -> str:
-    return (
-        f"{_value(version, 'title')} · run={_value(version, 'training_run_id') or '—'} · "
-        f"artifact={_value(version, 'artifact_path') or '—'}"
+def _version_subtitle(version) -> UserMessage:
+    return UserMessage(
+        "agents.legacy.history.version.subtitle",
+        {
+            "title": _value(version, "title") or MISSING,
+            "run": _value(version, "training_run_id") or MISSING,
+            "artifact": _value(version, "artifact_path") or MISSING,
+        },
     )
 
 
 def _version_detail(version) -> AgentDetailView:
     return AgentDetailView(
-        "Model version",
-        "\n".join(
-            (
-                f"Версия: {_value(version, 'version_id') or '—'}",
-                f"Название: {_value(version, 'title') or '—'}",
-                f"Статус: {_value(version, 'status') or '—'}",
-                f"Training run: {_value(version, 'training_run_id') or '—'}",
-                f"Base model: {_value(version, 'base_model') or '—'}",
-                f"Profile: {_value(version, 'profile_title') or '—'}",
-                f"Dataset: {_value(version, 'dataset_title') or '—'}",
-                f"Artifact: {_value(version, 'artifact_path') or '—'}",
-                f"Quality: {_value(version, 'quality_summary') or '—'}",
-            )
+        UserMessage("agents.node.kind.model_version"),
+        UserMessage(
+            "agents.legacy.history.version.body",
+            {
+                "version": _value(version, "version_id") or MISSING,
+                "title": _value(version, "title") or MISSING,
+                "status": version_status_message(version),
+                "run": _value(version, "training_run_id") or MISSING,
+                "model": _value(version, "base_model") or MISSING,
+                "profile": _value(version, "profile_title") or MISSING,
+                "dataset": _value(version, "dataset_title") or MISSING,
+                "artifact": _value(version, "artifact_path") or MISSING,
+                "quality": _value(version, "quality_summary") or MISSING,
+            },
         ),
-        (
-            "Snapshot зарегистрирован в SQLite",
-            "Artifact path связан с этой версией",
-            "Training run известен",
+        messages(
+            "agents.legacy.history.version.check.registered",
+            "agents.legacy.history.version.check.artifact",
+            "agents.legacy.history.version.check.run",
         ),
-        (
-            "Сравнить с актуальной",
-            "Запустить психологический портрет",
-            "Создать продолжение",
+        messages(
+            "agents.legacy.history.version.action.compare",
+            "agents.legacy.history.version.action.portrait",
+            "agents.legacy.history.version.action.branch",
         ),
     )
 
@@ -453,12 +520,21 @@ def _version_context(version) -> dict[str, str]:
     }
 
 
-def _portrait_subtitle(view_model, experiment) -> str:
+def _portrait_subtitle(view_model, experiment) -> UserMessage:
     stats = view_model._portrait_stats(experiment)  # noqa: SLF001
     scores = view_model._score_line(stats.scores)  # noqa: SLF001
-    return (
-        f"{stats.passed}/{stats.total} valid · ошибок {stats.failures} · "
-        f"{scores or 'нет KPI'}"
+    return UserMessage(
+        "agents.legacy.history.portrait.subtitle",
+        {
+            "passed": stats.passed,
+            "total": stats.total,
+            "failures": stats.failures,
+            "scores": (
+                scores
+                if scores
+                else UserMessage("agents.legacy.value.no_kpi")
+            ),
+        },
     )
 
 
@@ -467,26 +543,31 @@ def _portrait_detail(view_model, experiment) -> AgentDetailView:
     scores = view_model._score_line(stats.scores)  # noqa: SLF001
     linked_version = _linked_version_id(experiment)
     return AgentDetailView(
-        "Personality portrait",
-        "\n".join(
-            (
-                f"Experiment: {_value(experiment, 'experiment_id') or '—'}",
-                f"Портрет: {_value(experiment, 'title') or '—'}",
-                f"Статус: {_value(experiment, 'status') or '—'}",
-                f"Model version: {linked_version or 'legacy / не указана'}",
-                f"VALID: {stats.passed}/{stats.total}",
-                f"Ошибок: {stats.failures}",
-                f"Big Five KPI: {scores or '—'}",
-            )
+        UserMessage("agents.legacy.kind.portrait"),
+        UserMessage(
+            "agents.legacy.history.portrait.body",
+            {
+                "experiment": _value(experiment, "experiment_id") or MISSING,
+                "title": _value(experiment, "title") or MISSING,
+                "status": portrait_status_message(experiment),
+                "version": (
+                    linked_version
+                    or UserMessage("agents.legacy.value.legacy_unspecified")
+                ),
+                "passed": stats.passed,
+                "total": stats.total,
+                "failures": stats.failures,
+                "scores": scores or MISSING,
+            },
         ),
-        (
-            "Батарея и scoring записаны",
-            "Raw responses сохранены",
-            "Model version явно связана для новых запусков",
+        messages(
+            "agents.legacy.history.portrait.check.protocol",
+            "agents.legacy.history.portrait.check.raw",
+            "agents.legacy.history.portrait.check.version",
         ),
-        (
-            "Открыть тесты",
-            "Сравнить с другим портретом",
+        messages(
+            "agents.legacy.history.portrait.action.tests",
+            "agents.legacy.history.portrait.action.compare",
         ),
     )
 
@@ -524,27 +605,33 @@ def _linked_artifact(experiment) -> str:
     if match is None:
         return ""
     value = match.group(1).strip()
-    return "" if value == "—" else value
+    return "" if value == MISSING else value
 
 
 def _training_tone(run) -> str:
-    status = _value(run, "status").casefold()
-    if "ошиб" in status or _value(run, "error_message"):
+    status = normalize_training_status(_value(run, "status"))
+    if status is TrainingRunStatus.FAILED or _value(run, "error_message"):
         return "bad"
-    if "выполня" in status or "готов" in status:
+    if status in {
+        TrainingRunStatus.CREATED,
+        TrainingRunStatus.READY,
+        TrainingRunStatus.RUNNING,
+    }:
         return "pending"
-    if _value(run, "artifact_path"):
+    if status is TrainingRunStatus.COMPLETED or _value(run, "artifact_path"):
         return "good"
     return "neutral"
 
 
 def _version_tone(version) -> str:
-    status = _value(version, "status").casefold()
-    if "ошиб" in status or "неуда" in status:
+    status = normalize_model_version_status(_value(version, "status"))
+    if status is ModelVersionStatus.FAILED:
         return "bad"
-    if _value(version, "artifact_path"):
+    if status is ModelVersionStatus.READY or _value(version, "artifact_path"):
         return "good"
-    return "pending"
+    if status in {ModelVersionStatus.DRAFT, ModelVersionStatus.ARCHIVED}:
+        return "pending"
+    return "neutral"
 
 
 def _portrait_tone(view_model, experiment) -> str:
