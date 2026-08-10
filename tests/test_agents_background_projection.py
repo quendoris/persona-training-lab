@@ -167,8 +167,12 @@ def test_atomic_agents_vm_excludes_legacy_graph_and_detail_api() -> None:
     } & wired_keywords
 
     legacy_vm = LegacyAgentsViewModel()
-    assert legacy_vm.selected_detail().title == "Model version"
-    assert legacy_vm.node_detail("dataset").title == "Dataset"
+    selected_title = legacy_vm.selected_detail().title
+    dataset_title = legacy_vm.node_detail("dataset").title
+    assert isinstance(selected_title, UserMessage)
+    assert selected_title.key == "agents.node.kind.model_version"
+    assert isinstance(dataset_title, UserMessage)
+    assert dataset_title.key == "agents.node.kind.dataset"
 
 
 def test_agents_guidance_uses_canonical_portrait_parser() -> None:
