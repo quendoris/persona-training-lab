@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
         )
         self._workspace.register(
             "style",
-            StyleScreen(style_vm, self._apply_style),
+            StyleScreen(style_vm, self._apply_style, localization),
         )
         self._workspace.register(
             "keybindings",
