@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from PySide6.QtWidgets import QApplication, QDialogButtonBox
 
 from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.profiles.service import ProfileSummary
+from persona_training_lab.i18n.audit import SourceAudit
+from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.profiles.screen import (
     ProfileEditorDialog,
@@ -211,7 +214,7 @@ def test_profile_editor_switches_title_fields_and_buttons_live(
     app.processEvents()
 
 
-def test_profile_validation_message_has_semantic_key() -> None:
+def test_profile_validation_message_has_semantic_key(tmp_path: Path) -> None:
     vm = ProfilesViewModel(
         profiles_service=ValidationFailureProfilesService()
     )
@@ -230,3 +233,130 @@ def test_profile_validation_message_has_semantic_key() -> None:
     assert legacy == "Стиль общения не должен быть пустым"
     assert message is not None
     assert message.key == "profiles.validation.communication_style_required"
+
+    profile_source = """
+_LEGACY_TEMPLATES = {
+    "profiles.message.created": "Duplicated profile presentation copy",
+}
+
+
+class ProfileStatus:
+    READY = "готов"
+
+
+def create_profile():
+    hidden = {"status": "готов"}
+    semantic = {"status": "ready"}
+    return False, "Hidden profile create result", hidden, semantic
+
+
+def update_profile():
+    status = "готов"
+    hidden = {"status": status}
+    semantic = {"status": "ready"}
+    return False, "Hidden profile update result", hidden, semantic
+
+
+def render_profile():
+    hidden_trait = TraitView(
+        "Hidden profile trait",
+        0,
+        "Hidden profile trait note",
+    )
+    semantic_trait = TraitView(
+        profile_text("profiles.trait.description"),
+        0,
+        profile_text("profiles.trait.required"),
+    )
+    hidden_profile = ProfileView(
+        profile_id="profile",
+        title="Raw profile title",
+        subtitle="Raw profile subtitle",
+        summary="Raw profile summary",
+        communication_style="Raw user style",
+        principles_text="Raw user principle",
+        constraints_text="Raw user constraint",
+        notes="Raw user note",
+        constraints=("Raw user constraint",),
+        linked_artifacts=("Hidden profile linked artifact",),
+        traits=(semantic_trait,),
+        readiness="Hidden profile readiness",
+        readiness_code="ready",
+        completeness=100,
+        status_code="ready",
+    )
+    semantic_profile = ProfileView(
+        profile_id="profile",
+        title="Raw profile title",
+        subtitle="Raw profile subtitle",
+        summary="Raw profile summary",
+        communication_style="Raw user style",
+        principles_text="Raw user principle",
+        constraints_text="Raw user constraint",
+        notes="Raw user note",
+        constraints=("Raw user constraint",),
+        linked_artifacts=(profile_text("profiles.link.status"),),
+        traits=(semantic_trait,),
+        readiness=profile_text("profiles.readiness.percent"),
+        readiness_code="ready",
+        completeness=100,
+        status_code="ready",
+    )
+    return hidden_trait, hidden_profile, semantic_profile
+"""
+    path = tmp_path / "ui" / "viewmodels" / "profiles_sample.py"
+    path.parent.mkdir(parents=True)
+    deep_visitor = DeepSurfaceAudit(path, display_root=tmp_path)
+    deep_visitor.visit(ast.parse(profile_source, filename=str(path)))
+    findings = {(item.call, item.text) for item in deep_visitor.literals}
+
+    assert (
+        "forbidden presentation catalog",
+        "_LEGACY_TEMPLATES",
+    ) in findings
+    assert ("ProfileStatus code", "готов") in findings
+    assert ("create_profile persisted status", "готов") in findings
+    assert (
+        "create_profile return",
+        "Hidden profile create result",
+    ) in findings
+    assert ("update_profile persisted status", "готов") in findings
+    assert (
+        "update_profile return",
+        "Hidden profile update result",
+    ) in findings
+    assert ("TraitView name", "Hidden profile trait") in findings
+    assert ("TraitView note", "Hidden profile trait note") in findings
+    assert (
+        "ProfileView linked_artifacts",
+        "Hidden profile linked artifact",
+    ) in findings
+    assert (
+        "ProfileView readiness",
+        "Hidden profile readiness",
+    ) in findings
+    assert not any(text == "ready" for _, text in findings)
+    assert not any(text == "Raw user style" for _, text in findings)
+    assert not any(text == "Raw user constraint" for _, text in findings)
+    assert not any(
+        text == "profiles.trait.description" for _, text in findings
+    )
+    assert not any(text == "profiles.link.status" for _, text in findings)
+
+    source_visitor = SourceAudit(
+        path,
+        known_keys=frozenset({"profiles.message.created"}),
+    )
+    source_visitor.visit(
+        ast.parse(
+            """
+profile_text("profiles.message.created")
+profile_text("missing.profile.constructor")
+""",
+            filename=str(path),
+        )
+    )
+    assert source_visitor.translation_keys == {
+        "profiles.message.created",
+        "missing.profile.constructor",
+    }
