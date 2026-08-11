@@ -64,6 +64,9 @@ class HistoryTransitionOrchestrator:
         if not self.repeat_is_allowed():
             self.repeat.stop()
             return
+        self.perform_repeated_undo()
+
+    def perform_repeated_undo(self) -> None:
         self.block_flip()
         self.undo()
 
