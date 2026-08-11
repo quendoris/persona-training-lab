@@ -7,6 +7,9 @@ from pathlib import Path
 from persona_training_lab.i18n.audit import AuditReport, LiteralFinding
 
 
+_STRUCTURED_DIRECT_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
+    "AutomationRecipe": ((2, "title"), (3, "description")),
+}
 _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "experiment_result": ((1, "message"),),
     "ExperimentRunResult": ((1, "message"),),
@@ -15,7 +18,6 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "PortraitDashboardStats": ((0, "title"),),
     "DashboardActivity": ((1, "title"),),
     "DashboardLineage": ((1, "value"),),
-    "AutomationRecipe": ((2, "title"), (3, "description")),
     "EvaluationMetric": ((0, "title"), (2, "note")),
     "EvaluationCase": ((0, "title"), (1, "note")),
     "_evaluation_metric": ((0, "title"), (2, "note")),
@@ -488,6 +490,21 @@ class DeepSurfaceAudit(ast.NodeVisitor):
                 f"{function_name} persisted {field} default",
                 fragments,
             )
+        direct_structured = _STRUCTURED_DIRECT_USER_TEXT.get(call_name)
+        if direct_structured is not None:
+            for position, keyword in direct_structured:
+                expression = _argument_expression(
+                    node,
+                    position,
+                    keyword=keyword,
+                )
+                if expression is None:
+                    continue
+                self._append_fragments(
+                    node,
+                    f"{call_name} {keyword}",
+                    _string_fragments(expression),
+                )
         structured = _STRUCTURED_USER_TEXT.get(call_name)
         if structured is not None:
             for position, keyword in structured:
