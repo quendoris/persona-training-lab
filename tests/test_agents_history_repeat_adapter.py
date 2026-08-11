@@ -103,19 +103,28 @@ def test_repeated_undo_effect_blocks_flip_before_mutating_history() -> None:
     assert calls == ["block", "undo"]
 
 
-def test_binding_reset_waits_until_transition_orchestrator_exists() -> None:
+def test_binding_change_resets_gesture_before_applying_new_ownership() -> None:
     calls: list[str] = []
+    sequences = {"history_toggle": "Ctrl+Z"}
+
+    def sync_shortcuts() -> dict[str, str]:
+        calls.append("shortcuts")
+        return sequences
+
+    def sync_ownership(snapshot: dict[str, str]) -> None:
+        assert snapshot is sequences
+        calls.append("ownership")
+
     screen = SimpleNamespace(
         _reset_history_gesture=lambda: calls.append("reset"),
+        _shortcut_bindings=SimpleNamespace(sync=sync_shortcuts),
+        _history_binding_ownership=SimpleNamespace(sync=sync_ownership),
+        _sync_modifier_polling=lambda: calls.append("poll"),
     )
 
-    AgentsScreen._reset_history_gesture_if_ready(screen)  # type: ignore[arg-type]
-    assert calls == []
+    AgentsScreen._apply_key_binding_sequences(screen)  # type: ignore[arg-type]
 
-    screen._history_transition = object()
-    AgentsScreen._reset_history_gesture_if_ready(screen)  # type: ignore[arg-type]
-
-    assert calls == ["reset"]
+    assert calls == ["reset", "shortcuts", "ownership", "poll"]
 
 
 def test_transition_stops_repeat_before_dispatching_actions() -> None:
