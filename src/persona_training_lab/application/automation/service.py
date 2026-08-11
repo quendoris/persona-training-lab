@@ -56,8 +56,6 @@ class AutomationRecipe:
     source_path: str = ""
     working_directory: str = ""
     timeout_seconds: int = 0
-    title_key: str = ""
-    description_key: str = ""
 
 
 @dataclass(frozen=True, slots=True)
