@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -42,6 +45,21 @@ _STATUS_KEYS = {
     EvaluationRunStatus.FAILED: "evaluation.status.failed",
     EvaluationRunStatus.COMPLETED: "evaluation.status.completed",
 }
+_LOCAL_MODEL_STATUS_KEYS = {
+    LocalModelStatus.UNCHECKED: "tests.model_status.unchecked",
+    LocalModelStatus.CHECKING: "tests.model_status.checking",
+    LocalModelStatus.FOUND: "tests.model_status.found",
+    LocalModelStatus.MISSING: "tests.model_status.missing",
+    LocalModelStatus.CHECK_FAILED: "tests.model_status.check_failed",
+    LocalModelStatus.NOT_LOADED: "tests.model_status.not_loaded",
+    LocalModelStatus.RESPONDING: "tests.model_status.responding",
+    LocalModelStatus.INFERENCE_UNAVAILABLE: "tests.model_status.inference_unavailable",
+    LocalModelStatus.GENERATING: "tests.model_status.generating",
+    LocalModelStatus.EMPTY_RESPONSE: "tests.model_status.empty_response",
+    LocalModelStatus.RESOURCE_EXHAUSTED: "tests.model_status.resource_exhausted",
+    LocalModelStatus.GENERATION_FAILED: "tests.model_status.generation_failed",
+    LocalModelStatus.UNKNOWN: "tests.model_status.unknown",
+}
 
 
 def evaluation_status_text(
@@ -55,3 +73,7 @@ def evaluation_status_text(
         "evaluation.status.unknown",
         status=raw_status,
     )
+
+
+def local_model_status_text(status: LocalModelStatus) -> EvaluationText:
+    return evaluation_text(_LOCAL_MODEL_STATUS_KEYS[status])
