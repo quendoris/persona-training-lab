@@ -10,7 +10,7 @@ import time
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Iterable
 
 from PySide6.QtCore import QEventLoop, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
