@@ -11,6 +11,7 @@ from persona_training_lab.application.ports.local_model_probe import (
     LocalInferenceResult,
     LocalModelProbeProvider,
     ModelProbeResult,
+    local_model_diagnostic,
 )
 
 
@@ -58,8 +59,9 @@ class LocalModelService:
             is not LocalModelStatus.FOUND
         ):
             return LocalInferenceResult(
-                status="Модель не загружена",
+                status=LocalModelStatus.NOT_LOADED.value,
                 message=model_probe.details,
+                diagnostic=local_model_diagnostic("model_not_loaded"),
             )
         return self.probe_provider.generate(
             model_path,
