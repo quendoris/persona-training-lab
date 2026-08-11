@@ -105,6 +105,8 @@
     "tests.model_status.responding": "модель ответила",
     "tests.model_status.inference_unavailable": "inference недоступен",
     "tests.model_status.generating": "генерация",
+    "tests.model_status.empty_response": "пустой ответ",
+    "tests.model_status.resource_exhausted": "недостаточно ресурсов",
     "tests.model_status.generation_failed": "ошибка генерации",
     "tests.model_status.unknown": "неизвестно",
     "tests.message.local_model_unavailable": "Сервис локальной модели недоступен.",
