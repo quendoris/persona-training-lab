@@ -5,6 +5,10 @@ from types import SimpleNamespace
 from persona_training_lab.application.experiments.service import (
     ExperimentsService,
 )
+from persona_training_lab.application.experiments.titles import (
+    ExperimentTitleKind,
+    encode_experiment_title,
+)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -79,10 +83,17 @@ def test_portrait_runs_against_requested_weight_artifact() -> None:
     assert model.probed == ["/models/old"]
     assert model.generated
     assert set(model.generated) == {"/models/old"}
-    assert "model_version=mdl_old" in repo.created[0]["subtitle"]
-    assert "artifact=/models/old" in repo.created[0]["subtitle"]
-    assert repo.created[0]["status"] == EvaluationRunStatus.COMPLETED.value
+    created = repo.created[0]
+    assert created["title"] == encode_experiment_title(
+        ExperimentTitleKind.PERSONALITY_PORTRAIT
+    )
+    assert "Big Five portrait" not in created["title"]
+    assert "model_version=mdl_old" in created["subtitle"]
+    assert "artifact=/models/old" in created["subtitle"]
+    assert created["status"] == EvaluationRunStatus.COMPLETED.value
     summary = service.list_experiments()[0]
+    assert summary.title == created["title"]
+    assert summary.updated_at == created["updated_at"]
     assert summary.status_code is EvaluationRunStatus.COMPLETED
 
 
