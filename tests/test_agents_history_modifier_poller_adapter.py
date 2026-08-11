@@ -3,6 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from persona_training_lab.ui.agents.history_gesture_core import HistoryGestureCore
+from persona_training_lab.ui.agents.history_shortcut_routing import (
+    HistoryShortcutRouting,
+)
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
 
 
@@ -59,12 +62,12 @@ def test_modifier_polling_sync_is_safe_before_transport_construction() -> None:
 
 def test_shortcut_routing_resyncs_modifier_poller_after_ownership_changes() -> None:
     calls: list[str] = []
-    sequences = dict(AgentsScreen._DEFAULT_GUARDED_SEQUENCES)
+    sequences = dict(HistoryShortcutRouting.default_sequences)
     manager = SimpleNamespace(sequence=lambda binding_id: sequences[binding_id])
     ownership = _OwnershipProbe()
     screen = SimpleNamespace(
         _key_binding_manager=manager,
-        _HISTORY_BINDING_IDS=AgentsScreen._HISTORY_BINDING_IDS,
+        _HISTORY_BINDING_IDS=HistoryShortcutRouting.binding_ids,
         _history_binding_ownership=ownership,
         _sync_modifier_polling=lambda: calls.append("sync"),
     )
