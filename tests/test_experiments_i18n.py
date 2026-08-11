@@ -65,7 +65,7 @@ class _ExperimentsService:
             ExperimentSummary(
                 experiment_id="evr_collision",
                 title="Big Five portrait · Operator label",
-                subtitle="Operator-authored experiment",
+                subtitle="PORTRAIT: operator-authored payload",
                 status="completed",
                 status_code=EvaluationRunStatus.COMPLETED,
                 updated_at="2026-08-08T09:00:00+00:00",
@@ -142,7 +142,7 @@ def test_experiments_workspace_switches_language_without_rebuilding_rows(
         "PORTRAIT: 1/1 · model_version=mdl_1",
         "PORTRAIT: 2/2 · model_version=mdl_legacy",
         "Реальный эксперимент из БД",
-        "Operator-authored experiment",
+        "PORTRAIT: operator-authored payload",
         "FUTURE RAW PAYLOAD",
     )
 
