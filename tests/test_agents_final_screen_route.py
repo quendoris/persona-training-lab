@@ -68,6 +68,12 @@ _RETIRED_HISTORY_ATTRIBUTES = frozenset(
         "_history_lifecycle",
         "_guarded_history_bindings",
         "_effective_modifiers",
+        "_HISTORY_BINDING_IDS",
+        "_DEFAULT_GUARDED_SEQUENCES",
+        "_HISTORY_SEQUENCES",
+        "_disable_conflicting_history_bindings",
+        "_normalized_sequence",
+        "_sequence_is_history",
     }
 )
 _RETIRED_SCREEN_IMPLEMENTATIONS = frozenset(
@@ -138,6 +144,15 @@ def _retired_architecture_seams(path: Path) -> list[tuple[int, str]]:
 
         if isinstance(node, ast.keyword) and node.arg in _RETIRED_HISTORY_ATTRIBUTES:
             violations.append((node.lineno, node.arg))
+            continue
+
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name in _RETIRED_HISTORY_ATTRIBUTES:
+                violations.append((node.lineno, node.name))
+            continue
+
+        if isinstance(node, ast.Name) and node.id in _RETIRED_HISTORY_ATTRIBUTES:
+            violations.append((node.lineno, node.id))
 
     return violations
 
