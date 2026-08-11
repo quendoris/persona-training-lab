@@ -24,6 +24,9 @@ from persona_training_lab.ui.viewmodels.evaluation import (
     evaluation_text,
     render_base_evaluation_text,
 )
+from persona_training_lab.ui.viewmodels.experiment_semantics import (
+    experiment_title_text,
+)
 
 
 EvaluationTextValue = str | EvaluationText
@@ -214,7 +217,7 @@ class TestsViewModel:
         )
         self._title_model = evaluation_text(
             "tests.header.title.run",
-            title=latest.title,
+            title=experiment_title_text(latest),
         )
         self._subtitle_model = self._summary_model(portrait)
         self._sync_header_compat()
