@@ -11,7 +11,7 @@ from persona_training_lab.ui.agents.history_input_environment import (
 from persona_training_lab.ui.agents.history_modifier_snapshot import (
     HistoryModifierSnapshot,
 )
-from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
+from persona_training_lab.ui.agents.screen_history_transport import AgentsScreen
 from persona_training_lab.ui.agents.screen_lineage_interactions import (
     AgentsScreen as _LineageInteractionAgentsScreen,
 )
