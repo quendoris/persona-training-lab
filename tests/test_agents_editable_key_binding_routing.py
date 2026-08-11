@@ -13,6 +13,12 @@ from persona_training_lab.ui.agents.history_gesture_core import (
     HISTORY_UNDO,
     HistoryGestureCore,
 )
+from persona_training_lab.ui.agents.history_input_environment import (
+    HistoryInputEnvironmentSnapshot,
+)
+from persona_training_lab.ui.agents.history_modifier_snapshot import (
+    HistoryModifierSnapshot,
+)
 from persona_training_lab.ui.agents.history_shortcut_routing import (
     HistoryShortcutRouting,
 )
@@ -70,6 +76,13 @@ def _binding_stack(
     )
 
 
+def _environment() -> HistoryInputEnvironmentSnapshot:
+    return HistoryInputEnvironmentSnapshot(
+        modifiers=HistoryModifierSnapshot(),
+        input_active=True,
+    )
+
+
 def test_default_history_bindings_use_physical_guard(tmp_path) -> None:
     manager = KeyBindingManager(storage_path=tmp_path / "key_bindings.json")
     synchronizer, ownership, core, shortcuts = _binding_stack(manager)
@@ -109,10 +122,14 @@ def test_custom_history_binding_switches_to_qshortcut_live(tmp_path) -> None:
 def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
     modifiers = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Z, modifiers, "\x1a")
+    environment = _environment()
     core = HistoryGestureCore()
     core.set_guarded_bindings(("history_toggle",))
 
-    def unexpected_observation(_event: QKeyEvent) -> tuple[bool, bool]:
+    def unexpected_observation(
+        _event: QKeyEvent,
+        _environment: HistoryInputEnvironmentSnapshot,
+    ) -> tuple[bool, bool]:
         raise AssertionError("extra-modifier Z must bypass modifier observation")
 
     screen = SimpleNamespace(
@@ -128,11 +145,13 @@ def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
         screen,
         event,
         "z",
+        environment,
     ) is False
     assert HistoryKeyGuardAgentsScreen._handle_history_key_press(
         screen,
         event,
         "z",
+        environment,
     ) is False
     assert core.z_down is False
     assert core.control_down is False
@@ -145,9 +164,13 @@ def test_unowned_history_transport_never_observes_or_mutates_key_state() -> None
         Qt.KeyboardModifier.ControlModifier,
         "\x1a",
     )
+    environment = _environment()
     core = HistoryGestureCore()
 
-    def unexpected_observation(_event: QKeyEvent) -> tuple[bool, bool]:
+    def unexpected_observation(
+        _event: QKeyEvent,
+        _environment: HistoryInputEnvironmentSnapshot,
+    ) -> tuple[bool, bool]:
         raise AssertionError("unowned history transport must stay completely inert")
 
     screen = SimpleNamespace(
@@ -163,11 +186,13 @@ def test_unowned_history_transport_never_observes_or_mutates_key_state() -> None
         screen,
         event,
         "z",
+        environment,
     ) is False
     assert HistoryKeyGuardAgentsScreen._handle_history_key_press(
         screen,
         event,
         "z",
+        environment,
     ) is False
     assert core.control_down is False
     assert core.z_down is False
