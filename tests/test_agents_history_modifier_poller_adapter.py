@@ -12,7 +12,7 @@ from persona_training_lab.ui.agents.history_modifier_snapshot import (
 from persona_training_lab.ui.agents.history_shortcut_routing import (
     HistoryShortcutRouting,
 )
-from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
+from persona_training_lab.ui.agents.screen_history_transport import AgentsScreen
 
 
 class _ModifierPollTransport:
