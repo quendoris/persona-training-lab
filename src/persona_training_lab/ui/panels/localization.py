@@ -11,6 +11,7 @@ _OPERATION_KIND_KEYS: dict[str, str] = {
     "analysis": "operations.kind.analysis",
     "inference": "operations.kind.inference",
     "lineage_delete": "operations.kind.lineage_delete",
+    "automation_recipe": "operations.kind.automation",
 }
 
 _OPERATION_STATE_KEYS: dict[str, str] = {
