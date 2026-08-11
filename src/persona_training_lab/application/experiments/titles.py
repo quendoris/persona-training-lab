@@ -7,7 +7,7 @@ import re
 EXPERIMENT_TITLE_NAMESPACE_PREFIX = "ptl:experiment-title:"
 EXPERIMENT_TITLE_PREFIX = f"{EXPERIMENT_TITLE_NAMESPACE_PREFIX}v1:"
 _LEGACY_PORTRAIT_TITLE_RE = re.compile(
-    r"^Big Five portrait\s*·\s*(?P<time>.+?)\s*$"
+    r"^Big Five portrait\s*·\s*(?P<time>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\s*$"
 )
 
 
