@@ -94,12 +94,12 @@ def _manager(app: QApplication) -> LocalizationManager:
     )
 
 
-def _visible_texts(screen: DashboardScreen) -> set[str]:
-    return {
+def _visible_texts(screen: DashboardScreen) -> list[str]:
+    return [
         label.text()
         for label in screen.findChildren(QLabel)
         if label.isVisible()
-    }
+    ]
 
 
 def _flush_deferred_deletes() -> None:
