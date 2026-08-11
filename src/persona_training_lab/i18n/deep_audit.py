@@ -15,6 +15,7 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "PortraitDashboardStats": ((0, "title"),),
     "DashboardActivity": ((1, "title"),),
     "DashboardLineage": ((1, "value"),),
+    "AutomationRecipe": ((2, "title"), (3, "description")),
     "EvaluationMetric": ((0, "title"), (2, "note")),
     "EvaluationCase": ((0, "title"), (1, "note")),
     "_evaluation_metric": ((0, "title"), (2, "note")),
@@ -84,6 +85,9 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "TrainingValidationError": ((0, "message"),),
 }
 _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
+    "AutomationDiscoveryIssue": ((1, "code"),),
+    "AutomationResourceClaim": ((2, "access_mode"),),
+    "AutomationRunResult": ((1, "code"),),
     "DatasetDiagnostic": ((0, "code"),),
     "dataset_diagnostic": ((0, "code"),),
     "DatasetPreviewRecord": ((3, "quality"),),
@@ -223,6 +227,8 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
     {
         "ActionResult",
         "UserMessage",
+        "AutomationText",
+        "automation_text",
         "DatasetDiagnostic",
         "dataset_diagnostic",
         "encode_dataset_diagnostic",
