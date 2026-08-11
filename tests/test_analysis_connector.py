@@ -129,7 +129,12 @@ def test_analysis_connector_single_row() -> None:
     _assert_header_is_base_projection(vm)
     assert vm.header_title_model() == EvaluationText(
         "analysis.header.title.run",
-        {"title": "Big Five portrait · 2026-04-26 16:00"},
+        {
+            "title": EvaluationText(
+                "experiments.generated.title.personality_portrait",
+                {"time": "2026-04-26 16:00"},
+            )
+        },
     )
     assert isinstance(vm.header_subtitle_model(), EvaluationText)
     assert vm.right.profile_match == "10/10"
