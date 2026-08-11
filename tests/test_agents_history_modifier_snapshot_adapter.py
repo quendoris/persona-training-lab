@@ -54,8 +54,7 @@ def _environment_snapshot(
 
 
 def test_observed_modifiers_are_transport_facts_without_core_feedback() -> None:
-    environment = _EnvironmentProbe(_environment_snapshot(shift=True))
-    screen = SimpleNamespace(_history_environment=environment)
+    environment = _environment_snapshot(shift=True)
     event = QKeyEvent(
         QEvent.Type.KeyPress,
         Qt.Key.Key_Z,
@@ -63,10 +62,9 @@ def test_observed_modifiers_are_transport_facts_without_core_feedback() -> None:
         "z",
     )
 
-    observed = AgentsScreen._observed_modifiers(screen, event)  # type: ignore[arg-type]
+    observed = AgentsScreen._observed_modifiers(event, environment)
 
     assert observed == (True, True)
-    assert environment.capture_calls == 1
 
 
 def test_graph_flip_guard_uses_one_coherent_environment_snapshot() -> None:
