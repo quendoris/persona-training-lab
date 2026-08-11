@@ -12,9 +12,6 @@ from persona_training_lab.application.experiments.service import (
     ExperimentsService,
     experiment_result,
 )
-from persona_training_lab.application.local_model.status_mapping import (
-    LocalModelStatus,
-)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -22,6 +19,7 @@ from persona_training_lab.ui.viewmodels.evaluation import (
     EvaluationText,
     evaluation_status_text,
     evaluation_text,
+    local_model_status_text,
     render_base_evaluation_text,
 )
 from persona_training_lab.ui.viewmodels.experiment_semantics import (
@@ -68,19 +66,6 @@ _EMPTY_METRIC_NOTE_KEYS = {
         "tests.metric.note.target_empty.items",
         "tests.metric.note.target_empty.errors",
     ),
-}
-_MODEL_STATUS_KEYS = {
-    LocalModelStatus.UNCHECKED: "tests.model_status.unchecked",
-    LocalModelStatus.CHECKING: "tests.model_status.checking",
-    LocalModelStatus.FOUND: "tests.model_status.found",
-    LocalModelStatus.MISSING: "tests.model_status.missing",
-    LocalModelStatus.CHECK_FAILED: "tests.model_status.check_failed",
-    LocalModelStatus.NOT_LOADED: "tests.model_status.not_loaded",
-    LocalModelStatus.RESPONDING: "tests.model_status.responding",
-    LocalModelStatus.INFERENCE_UNAVAILABLE: "tests.model_status.inference_unavailable",
-    LocalModelStatus.GENERATING: "tests.model_status.generating",
-    LocalModelStatus.GENERATION_FAILED: "tests.model_status.generation_failed",
-    LocalModelStatus.UNKNOWN: "tests.model_status.unknown",
 }
 
 
@@ -538,9 +523,7 @@ class TestsViewModel:
             models.append(
                 evaluation_text(
                     "tests.case.field.status",
-                    status=evaluation_text(
-                        _MODEL_STATUS_KEYS[case.status_code]
-                    ),
+                    status=local_model_status_text(case.status_code),
                 )
             )
         models.append(
