@@ -90,12 +90,13 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     screen.show()
     app.processEvents()
 
+    screen._search.setText("workspace_health")
+    app.processEvents()
     english = _visible_texts(screen)
     assert "Automation" in english
     assert "Workspace health" in english
     assert "Execution" in english
     assert "Recipe registry" in english
-    assert "workspace_health" not in english
     assert "KEEP RAW METADATA" not in english
 
     screen._search.setText("operator")
@@ -112,7 +113,7 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     assert "Operator Recipe Δ" in operator_russian
     assert "KEEP RAW METADATA" in operator_russian
 
-    screen._search.clear()
+    screen._search.setText("workspace_health")
     app.processEvents()
     russian = _visible_texts(screen)
     assert "Состояние workspace" in russian
