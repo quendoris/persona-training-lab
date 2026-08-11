@@ -8,8 +8,6 @@ from persona_training_lab.ui.agents.history_event_orchestrator import (
     HistoryEventOrchestrator,
 )
 from persona_training_lab.ui.agents.history_gesture_core import (
-    HISTORY_TOGGLE,
-    HISTORY_UNDO,
     HistoryGestureCore,
     HistoryTransition,
 )
@@ -21,6 +19,9 @@ from persona_training_lab.ui.agents.history_modifier_snapshot import (
 from persona_training_lab.ui.agents.history_repeat_timers import HistoryRepeatTimers
 from persona_training_lab.ui.agents.history_shortcut_routing import (
     HistoryShortcutRouting,
+)
+from persona_training_lab.ui.agents.history_transition_orchestrator import (
+    HistoryTransitionOrchestrator,
 )
 from persona_training_lab.ui.agents.screen_lineage_interactions import (
     AgentsScreen as _LineageInteractionAgentsScreen,
@@ -67,11 +68,19 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             interval_ms=self._REPEAT_INTERVAL_MS,
             parent=self,
         )
+        self._history_transition = HistoryTransitionOrchestrator(
+            gesture=self._history_gesture,
+            repeat=self._history_repeat,
+            can_undo=self._state.can_undo,
+            block_flip=self._block_graph_flip,
+            undo=self._undo_history_only,
+            toggle=self._toggle_last_history_action,
+        )
         self._history_repeat.delay_elapsed.connect(
-            self._start_undo_repeat
+            self._history_transition.start_repeat
         )
         self._history_repeat.repeat_elapsed.connect(
-            self._repeat_undo_history
+            self._history_transition.repeat_tick
         )
 
         # Polling is a positive-only fallback for modifier events consumed by the
@@ -169,18 +178,10 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self,
         transition: HistoryTransition,
     ) -> None:
-        if transition.stop_repeat:
-            self._stop_undo_repeat()
-        self._dispatch_history_actions(transition.actions)
+        self._history_transition.apply(transition)
 
     def _dispatch_history_actions(self, actions) -> None:
-        for action in actions:
-            if action == HISTORY_TOGGLE:
-                self._stop_undo_repeat()
-                self._toggle_last_history_action()
-            elif action == HISTORY_UNDO:
-                self._undo_history_only()
-                self._arm_undo_repeat()
+        self._history_transition.dispatch(actions)
 
     def _guarded_actions(self, actions) -> tuple[str, ...]:
         return self._history_gesture.allowed_actions(actions)
@@ -222,38 +223,25 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         )
 
     def _repeat_is_allowed(self) -> bool:
-        return self._history_gesture.repeat_is_allowed(
-            can_undo=self._state.can_undo()
-        )
+        return self._history_transition.repeat_is_allowed()
 
     def _arm_undo_repeat(self) -> None:
-        if not self._repeat_is_allowed():
-            self._history_repeat.stop()
-            return
-        self._history_repeat.arm()
+        self._history_transition.arm_repeat()
 
     def _start_undo_repeat(self) -> None:
-        if not self._repeat_is_allowed():
-            self._history_repeat.stop()
-            return
-        self._history_repeat.start_repeat()
+        self._history_transition.start_repeat()
 
     def _repeat_undo_history(self) -> None:
-        if not self._repeat_is_allowed():
-            self._history_repeat.stop()
-            return
-        self._perform_repeated_undo()
+        self._history_transition.repeat_tick()
 
     def _perform_repeated_undo(self) -> None:
-        self._block_graph_flip()
-        self._undo_history_only()
+        self._history_transition.perform_repeated_undo()
 
     def _stop_undo_repeat(self) -> None:
-        self._history_repeat.stop()
+        self._history_transition.stop_repeat()
 
     def _reset_history_gesture(self) -> None:
-        self._stop_undo_repeat()
-        self._history_gesture.reset()
+        self._history_transition.reset()
 
     def _claims_history_override(
         self,
@@ -298,7 +286,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self._sync_history_shortcut_routing()
 
     def _reset_history_gesture_if_ready(self) -> None:
-        if hasattr(self, "_history_repeat"):
+        if hasattr(self, "_history_transition"):
             self._reset_history_gesture()
 
     def _sync_history_shortcut_routing(self) -> None:
