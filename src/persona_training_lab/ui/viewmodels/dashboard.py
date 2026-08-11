@@ -11,6 +11,9 @@ from persona_training_lab.application.experiments.service import ExperimentsServ
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.application.training.service import TrainingService
+from persona_training_lab.ui.viewmodels.experiment_semantics import (
+    experiment_title_semantic,
+)
 
 
 SCORE_RE = re.compile(r"\bSCORE\s*:\s*([1-5])\b", re.IGNORECASE)
@@ -73,6 +76,9 @@ class DashboardText:
     values: Mapping[str, object] = field(default_factory=dict)
 
 
+DashboardTextValue = str | DashboardText
+
+
 @dataclass(frozen=True, slots=True)
 class DashboardRoute:
     screen: str
@@ -97,7 +103,7 @@ class DashboardAction:
 @dataclass(frozen=True, slots=True)
 class DashboardActivity:
     kind_key: str
-    title: str
+    title: DashboardTextValue
     detail: DashboardText
     route: DashboardRoute
     state_key: str
@@ -120,7 +126,7 @@ class DashboardAttention:
 @dataclass(frozen=True, slots=True)
 class DashboardLineage:
     label_key: str
-    value: str
+    value: DashboardTextValue
     route: DashboardRoute
 
 
@@ -132,7 +138,7 @@ class DashboardStep:
 
 @dataclass(slots=True, frozen=True)
 class PortraitDashboardStats:
-    title: str
+    title: DashboardTextValue
     status: str
     passed: int
     total: int
@@ -142,6 +148,13 @@ class PortraitDashboardStats:
 
 def dashboard_text(key: str, **values: object) -> DashboardText:
     return DashboardText(key, MappingProxyType(dict(values)))
+
+
+def _dashboard_experiment_title(experiment: object) -> DashboardTextValue:
+    semantic = experiment_title_semantic(experiment)
+    if semantic.key:
+        return dashboard_text(semantic.key, **dict(semantic.values))
+    return semantic.raw
 
 
 @dataclass(slots=True)
@@ -626,13 +639,12 @@ class DashboardViewModel:
 
     def _portrait_stats(self, experiment: object) -> PortraitDashboardStats:
         subtitle = getattr(experiment, "subtitle", "")
-        title = getattr(experiment, "title", "")
         status = getattr(experiment, "status", "")
         passed, total = self._parse_passed_total(subtitle)
         values, invalid = self._parse_scores(subtitle)
         failures = max(invalid, max(0, total - passed)) if total else invalid
         return PortraitDashboardStats(
-            title=title,
+            title=_dashboard_experiment_title(experiment),
             status=status,
             passed=passed,
             total=total,
