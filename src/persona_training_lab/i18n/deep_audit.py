@@ -75,6 +75,9 @@ _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
         (7, "focus_text"),
     ),
     "TelemetrySnapshot": ((15, "error_message"),),
+    "ModelProbeResult": ((1, "details"),),
+    "InferenceProbeResult": ((0, "message"),),
+    "LocalInferenceResult": ((1, "message"),),
     "TraitView": ((0, "name"), (2, "note")),
     "ProfileView": ((9, "linked_artifacts"), (11, "readiness")),
     "TrainingConfigurationError": ((0, "message"),),
@@ -86,6 +89,10 @@ _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "DatasetPreviewRecord": ((3, "quality"),),
     "DatasetServiceError": ((0, "code"),),
     "DatasetValidationResult": ((0, "status"),),
+    "LocalModelDiagnostic": ((0, "code"),),
+    "local_model_diagnostic": ((0, "code"),),
+    "ModelProbeResult": ((0, "status"),),
+    "LocalInferenceResult": ((0, "status"),),
     "OperationsCenterItem": (
         (3, "status"),
         (4, "severity"),
@@ -109,6 +116,7 @@ _MACHINE_CODE_CLASSES = frozenset(
     {
         "DatasetServiceErrorCode",
         "ExperimentTitleKind",
+        "LocalModelStatus",
         "ProfileStatus",
     }
 )
