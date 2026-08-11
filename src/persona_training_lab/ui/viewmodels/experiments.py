@@ -21,12 +21,12 @@ from persona_training_lab.ui.viewmodels.evaluation import (
 )
 
 
-_GENERATED_TITLE_KEYS: dict[ExperimentTitleKind, str] = {
-    ExperimentTitleKind.PERSONALITY_PORTRAIT: (
+_GENERATED_TITLE_KEYS: dict[str, str] = {
+    ExperimentTitleKind.PERSONALITY_PORTRAIT.value: (
         "experiments.generated.title.personality_portrait"
     ),
+    "unknown": "experiments.generated.title.unknown",
 }
-_UNKNOWN_GENERATED_TITLE_KEY = "experiments.generated.title.unknown"
 
 
 @dataclass(slots=True, frozen=True)
@@ -57,15 +57,15 @@ def _experiment_title(summary: ExperimentSummary) -> str | EvaluationText:
     ):
         kind = ExperimentTitleKind.PERSONALITY_PORTRAIT
     if kind is not None:
-        key = _GENERATED_TITLE_KEYS.get(kind)
+        key = _GENERATED_TITLE_KEYS.get(kind.value)
         if key is not None:
             return evaluation_text(
                 key,
                 time=_display_timestamp(summary.updated_at),
             )
-        return evaluation_text(_UNKNOWN_GENERATED_TITLE_KEY)
+        return evaluation_text(_GENERATED_TITLE_KEYS["unknown"])
     if is_experiment_title_protocol(summary.title):
-        return evaluation_text(_UNKNOWN_GENERATED_TITLE_KEY)
+        return evaluation_text(_GENERATED_TITLE_KEYS["unknown"])
     return summary.title
 
 
