@@ -28,8 +28,8 @@ from persona_training_lab.ui.themes.manager import apply_theme
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "artifacts" / "visual-audit"
-DEFAULT_WIDTH = 1440
-DEFAULT_HEIGHT = 900
+DEFAULT_WIDTH = 0
+DEFAULT_HEIGHT = 0
 DEFAULT_SCALE = "0.90"
 DEFAULT_THEME = "velvet"
 DEFAULT_ACCENT = "cyan"
@@ -197,6 +197,11 @@ def _new_manifest(
     accent: str,
     settle_ms: int,
 ) -> dict[str, object]:
+    window_geometry: dict[str, object]
+    if width > 0 and height > 0:
+        window_geometry = {"width": width, "height": height}
+    else:
+        window_geometry = {"mode": "maximized"}
     return {
         "schema": "ptl:visual-audit:v1",
         "mode": mode,
@@ -206,7 +211,7 @@ def _new_manifest(
         "captured_at": datetime.now(UTC).isoformat(),
         "routes": list(routes),
         "locales": list(locales),
-        "window": {"width": width, "height": height},
+        "window": window_geometry,
         "ui_scale": scale,
         "theme": theme,
         "accent": accent,
@@ -242,6 +247,11 @@ def _stabilize_window_geometry(
     height: int,
     settle_ms: int,
 ) -> None:
+    if width <= 0 or height <= 0:
+        window.showMaximized()
+        _settle(settle_ms)
+        return
+
     expected = (width, height)
     window.resize(width, height)
     _settle(settle_ms)
@@ -553,8 +563,11 @@ def run_interactive_visual_audit(
                     initial_locale=initial_locale,
                 )
                 manifest["available_locales"] = list(localization.available_locales())
-                window.resize(width, height)
-                window.show()
+                if width > 0 and height > 0:
+                    window.resize(width, height)
+                    window.show()
+                else:
+                    window.showMaximized()
                 _settle(settle_ms)
 
                 session = _InteractiveCaptureSession(
@@ -605,8 +618,18 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--locale", action="append", dest="locales")
-    parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
-    parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=DEFAULT_WIDTH,
+        help="Optional fixed window width; omit with --height to use maximized mode.",
+    )
+    parser.add_argument(
+        "--height",
+        type=int,
+        default=DEFAULT_HEIGHT,
+        help="Optional fixed window height; omit with --width to use maximized mode.",
+    )
     parser.add_argument("--scale", default=DEFAULT_SCALE)
     parser.add_argument("--theme", default=DEFAULT_THEME)
     parser.add_argument("--accent", default=DEFAULT_ACCENT)
@@ -636,16 +659,21 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    args = _parser().parse_args()
+    parser = _parser()
+    args = parser.parse_args()
     locales = args.locales or ["ru-RU", "en-US"]
+    width = max(960, args.width) if args.width > 0 else 0
+    height = max(620, args.height) if args.height > 0 else 0
+    if bool(width) != bool(height):
+        parser.error("--width and --height must be supplied together")
     started = time.monotonic()
     try:
         if args.interactive:
             bundle, failed = run_interactive_visual_audit(
                 output_root=args.output,
                 initial_locale=locales[0],
-                width=max(960, args.width),
-                height=max(620, args.height),
+                width=width,
+                height=height,
                 scale=str(args.scale),
                 theme=str(args.theme),
                 accent=str(args.accent),
@@ -658,8 +686,8 @@ def main() -> int:
             bundle = run_visual_audit(
                 output_root=args.output,
                 locales=locales,
-                width=max(960, args.width),
-                height=max(620, args.height),
+                width=width,
+                height=height,
                 scale=str(args.scale),
                 theme=str(args.theme),
                 accent=str(args.accent),
