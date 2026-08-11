@@ -123,8 +123,8 @@ class FilesystemAutomationRecipeProvider:
             AutomationRecipe(
                 recipe_id="workspace_health",
                 version="1.0.0",
-                title="Workspace health",
-                description="Inspect the active Persona Training Lab workspace.",
+                title="workspace_health",
+                description="",
                 command=(
                     "{python}",
                     "-m",
