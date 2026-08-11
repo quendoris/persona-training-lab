@@ -27,6 +27,7 @@ _GENERATED_TITLE_KEYS: dict[str, str] = {
     ),
     "unknown": "experiments.generated.title.unknown",
 }
+_PORTRAIT_PAYLOAD_PREFIXES = ("PORTRAIT:", "SUMMARY:")
 
 
 @dataclass(slots=True, frozen=True)
@@ -49,11 +50,17 @@ def _display_timestamp(value: str) -> str:
     return parsed.strftime("%Y-%m-%d %H:%M")
 
 
+def _looks_portrait_payload(value: str) -> bool:
+    text = str(value or "").lstrip().upper()
+    return text.startswith(_PORTRAIT_PAYLOAD_PREFIXES)
+
+
 def _experiment_title(summary: ExperimentSummary) -> str | EvaluationText:
     kind = decode_experiment_title(summary.title)
     if (
         kind is None
         and is_legacy_generated_experiment_title(summary.title)
+        and _looks_portrait_payload(summary.subtitle)
     ):
         kind = ExperimentTitleKind.PERSONALITY_PORTRAIT
     if kind is not None:
