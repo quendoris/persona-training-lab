@@ -95,7 +95,7 @@ def test_repeated_undo_effect_blocks_flip_before_mutating_history() -> None:
     calls: list[str] = []
     orchestrator = _orchestrator(transport, [True], calls)
 
-    orchestrator.repeat_tick()
+    orchestrator.perform_repeated_undo()
 
     assert calls == ["block", "undo"]
 
