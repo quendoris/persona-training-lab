@@ -127,7 +127,7 @@ class FilesystemLocalModelProbeProvider:
             text = self._clean_response(text)
             if not text:
                 return LocalInferenceResult(
-                    status=LocalModelStatus.RESPONDING.value,
+                    status=LocalModelStatus.EMPTY_RESPONSE.value,
                     diagnostic=local_model_diagnostic("empty_response"),
                 )
             return LocalInferenceResult(
@@ -136,7 +136,7 @@ class FilesystemLocalModelProbeProvider:
             )
         except RuntimeError:
             return LocalInferenceResult(
-                status=LocalModelStatus.GENERATION_FAILED.value,
+                status=LocalModelStatus.RESOURCE_EXHAUSTED.value,
                 diagnostic=local_model_diagnostic("insufficient_resources"),
             )
         except Exception:
