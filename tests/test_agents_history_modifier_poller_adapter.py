@@ -67,7 +67,6 @@ def test_shortcut_routing_resyncs_modifier_poller_after_ownership_changes() -> N
     ownership = _OwnershipProbe()
     screen = SimpleNamespace(
         _key_binding_manager=manager,
-        _HISTORY_BINDING_IDS=HistoryShortcutRouting.binding_ids,
         _history_binding_ownership=ownership,
         _sync_modifier_polling=lambda: calls.append("sync"),
     )
