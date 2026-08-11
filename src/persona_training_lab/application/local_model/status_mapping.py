@@ -40,9 +40,14 @@ _STATUS_ALIASES = {
     "generating": LocalModelStatus.GENERATING,
     "ошибка генерации": LocalModelStatus.GENERATION_FAILED,
     "generation failed": LocalModelStatus.GENERATION_FAILED,
+    "недостаточно ресурсов для генерации": LocalModelStatus.GENERATION_FAILED,
+    "not enough resources for generation": LocalModelStatus.GENERATION_FAILED,
 }
 
 
 def normalize_local_model_status(value: object) -> LocalModelStatus:
     normalized = " ".join(str(value or "").strip().casefold().split())
-    return _STATUS_ALIASES.get(normalized, LocalModelStatus.UNKNOWN)
+    try:
+        return LocalModelStatus(normalized)
+    except ValueError:
+        return _STATUS_ALIASES.get(normalized, LocalModelStatus.UNKNOWN)
