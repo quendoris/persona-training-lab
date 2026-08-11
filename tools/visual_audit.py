@@ -1,0 +1,311 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Iterable
+
+from PySide6.QtCore import QEventLoop, QTimer
+
+from persona_training_lab import __version__
+from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.ui.density import apply_density, apply_scaled_styles
+from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.safe_application import SafeApplication
+from persona_training_lab.ui.shell.app_sidebar import NAVIGATION_KEYS
+from persona_training_lab.ui.shell.main_window_background import MainWindow
+from persona_training_lab.ui.themes.manager import apply_theme
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT = ROOT / "artifacts" / "visual-audit"
+DEFAULT_WIDTH = 1440
+DEFAULT_HEIGHT = 900
+DEFAULT_SCALE = "0.90"
+DEFAULT_THEME = "velvet"
+DEFAULT_ACCENT = "cyan"
+DEFAULT_SETTLE_MS = 250
+
+
+def _git(*args: str) -> str:
+    try:
+        completed = subprocess.run(
+            ("git", *args),
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return completed.stdout.strip() or "unknown"
+
+
+def _settle(milliseconds: int) -> None:
+    app = SafeApplication.instance()
+    if app is None:
+        return
+    app.processEvents()
+    if milliseconds <= 0:
+        return
+    loop = QEventLoop()
+    QTimer.singleShot(milliseconds, loop.quit)
+    loop.exec()
+    app.processEvents()
+
+
+def _build_window(
+    *,
+    scale: str,
+    theme: str,
+    accent: str,
+    initial_locale: str,
+) -> tuple[SafeApplication, MainWindow, LocalizationManager]:
+    app = SafeApplication(sys.argv[:1])
+    app.setOrganizationName("Persona Training Lab")
+    app.setOrganizationDomain("persona-training-lab.local")
+    app.setApplicationName("Persona Training Lab Visual Audit")
+    app.setApplicationVersion(__version__)
+
+    container = build_container()
+    app.set_error_reporter(container.error_reporter)
+    container.style_vm.save(theme, accent, "soft_glow")
+    container.style_vm.save_ui_scale(scale)
+    container.style_vm.save_language(initial_locale)
+
+    prefs = container.style_vm.load()
+    localization = LocalizationManager(
+        app,
+        initial_locale=initial_locale,
+        persist_locale=container.style_vm.save_language,
+    )
+    density = apply_density(app, prefs.get("ui_scale"))
+    apply_theme(
+        app,
+        prefs.get("theme") or theme,
+        prefs.get("accent_palette") or accent,
+    )
+    apply_scaled_styles(app, density.scale, immediate=True)
+
+    window = MainWindow(
+        shell_vm=container.shell_vm,
+        dashboard_vm=container.dashboard_vm,
+        docs_vm=container.docs_vm,
+        style_vm=container.style_vm,
+        agents_vm=container.agents_vm,
+        datasets_vm=container.datasets_vm,
+        profiles_vm=container.profiles_vm,
+        training_vm=container.training_vm,
+        snapshots_vm=container.snapshots_vm,
+        tests_vm=container.tests_vm,
+        analysis_vm=container.analysis_vm,
+        telemetry_vm=container.telemetry_vm,
+        lineage_runtime_safety=container.lineage_runtime_safety,
+        operations_center=container.operations_center,
+        localization=localization,
+    )
+    app.aboutToQuit.connect(window.shutdown_background_work)
+    window.setProperty("ptl_density_name", density.name)
+    return app, window, localization
+
+
+def _capture_window(window: MainWindow, target: Path) -> None:
+    pixmap = window.grab()
+    if pixmap.isNull():
+        raise RuntimeError(f"Qt returned a null pixmap for {target.name}")
+    if not pixmap.save(str(target), "PNG"):
+        raise RuntimeError(f"Qt could not save {target}")
+
+
+def _write_bundle(session_dir: Path, manifest: dict[str, object]) -> Path:
+    manifest_path = session_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    captures = manifest.get("captures")
+    failures = manifest.get("failures")
+    summary_lines = [
+        "Persona Training Lab visual audit",
+        f"Commit: {manifest['commit']}",
+        f"Branch: {manifest['branch']}",
+        f"Routes: {len(manifest['routes'])}",
+        f"Locales: {', '.join(manifest['locales'])}",
+        f"Captures: {len(captures) if isinstance(captures, list) else 0}",
+        f"Failures: {len(failures) if isinstance(failures, list) else 0}",
+    ]
+    (session_dir / "summary.txt").write_text(
+        "\n".join(summary_lines) + "\n",
+        encoding="utf-8",
+    )
+
+    bundle = session_dir / "visual-audit.zip"
+    with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(session_dir.rglob("*")):
+            if path.is_file() and path != bundle:
+                archive.write(path, path.relative_to(session_dir))
+    return bundle
+
+
+def run_visual_audit(
+    *,
+    output_root: Path,
+    locales: Iterable[str],
+    width: int,
+    height: int,
+    scale: str,
+    theme: str,
+    accent: str,
+    settle_ms: int,
+) -> Path:
+    locale_list = tuple(dict.fromkeys(locales))
+    if not locale_list:
+        raise ValueError("At least one locale is required")
+
+    commit = _git("rev-parse", "HEAD")
+    branch = _git("branch", "--show-current")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    session_dir = output_root / f"{stamp}-{commit[:12]}"
+    session_dir.mkdir(parents=True, exist_ok=False)
+    capture_dir = session_dir / "screenshots"
+    capture_dir.mkdir()
+
+    routes = tuple(NAVIGATION_KEYS)
+    manifest: dict[str, object] = {
+        "schema": "ptl:visual-audit:v1",
+        "commit": commit,
+        "branch": branch,
+        "dirty": _git("status", "--porcelain") != "unknown" and bool(_git("status", "--porcelain")),
+        "captured_at": datetime.now(UTC).isoformat(),
+        "routes": list(routes),
+        "locales": list(locale_list),
+        "window": {"width": width, "height": height},
+        "ui_scale": scale,
+        "theme": theme,
+        "accent": accent,
+        "qt_qpa_platform": os.environ.get("QT_QPA_PLATFORM", ""),
+        "settle_ms": settle_ms,
+        "captures": [],
+        "failures": [],
+    }
+
+    previous_cwd = Path.cwd()
+    app: SafeApplication | None = None
+    window: MainWindow | None = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="ptl-visual-audit-") as workspace:
+            os.chdir(workspace)
+            app, window, localization = _build_window(
+                scale=scale,
+                theme=theme,
+                accent=accent,
+                initial_locale=locale_list[0],
+            )
+            available = set(localization.available_locales())
+            unknown = [locale for locale in locale_list if locale not in available]
+            if unknown:
+                raise RuntimeError(
+                    "Unsupported visual-audit locales: " + ", ".join(unknown)
+                )
+
+            window.resize(width, height)
+            window.show()
+            _settle(settle_ms)
+
+            captures = manifest["captures"]
+            assert isinstance(captures, list)
+            for locale in locale_list:
+                localization.set_locale(locale, persist=False)
+                _settle(settle_ms)
+                for route in routes:
+                    window._go_to_screen(route)
+                    _settle(settle_ms)
+                    active_route = window._workspace.current_workspace_key()
+                    if active_route != route:
+                        raise RuntimeError(
+                            f"Route {route!r} did not activate; current={active_route!r}"
+                        )
+                    filename = f"{locale}__{route}.png"
+                    target = capture_dir / filename
+                    _capture_window(window, target)
+                    captures.append(
+                        {
+                            "locale": locale,
+                            "route": route,
+                            "file": str(target.relative_to(session_dir)),
+                            "captured_at": datetime.now(UTC).isoformat(),
+                            "width": window.width(),
+                            "height": window.height(),
+                        }
+                    )
+    except Exception as exc:
+        failures = manifest["failures"]
+        assert isinstance(failures, list)
+        failures.append(
+            {
+                "type": type(exc).__name__,
+                "message": str(exc),
+                "captured_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        _write_bundle(session_dir, manifest)
+        raise
+    finally:
+        if window is not None:
+            window.shutdown_background_work()
+            window.close()
+        if app is not None:
+            app.processEvents()
+        os.chdir(previous_cwd)
+
+    return _write_bundle(session_dir, manifest)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Capture every Persona Training Lab workspace through Qt.",
+    )
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--locale", action="append", dest="locales")
+    parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
+    parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT)
+    parser.add_argument("--scale", default=DEFAULT_SCALE)
+    parser.add_argument("--theme", default=DEFAULT_THEME)
+    parser.add_argument("--accent", default=DEFAULT_ACCENT)
+    parser.add_argument("--settle-ms", type=int, default=DEFAULT_SETTLE_MS)
+    return parser
+
+
+def main() -> int:
+    args = _parser().parse_args()
+    locales = args.locales or ["ru-RU", "en-US"]
+    started = time.monotonic()
+    try:
+        bundle = run_visual_audit(
+            output_root=args.output.resolve(),
+            locales=locales,
+            width=max(960, args.width),
+            height=max(620, args.height),
+            scale=str(args.scale),
+            theme=str(args.theme),
+            accent=str(args.accent),
+            settle_ms=max(0, args.settle_ms),
+        )
+    except Exception as exc:
+        print(f"Visual audit failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Visual audit bundle: {bundle}")
+    print(f"Completed in {time.monotonic() - started:.2f}s")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
