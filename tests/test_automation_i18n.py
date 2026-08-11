@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,8 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 from persona_training_lab.application.automation import AutomationService
 from persona_training_lab.application.operations_center import OperationsCenterItem
+from persona_training_lab.i18n.audit import SourceAudit
+from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.infrastructure.automation import (
     FilesystemAutomationRecipeProvider,
 )
@@ -159,6 +162,54 @@ def test_automation_inspector_and_runtime_operation_localize_live(tmp_path: Path
         "Ресурсные claims" in text for text in _visible_texts(inspector)
     )
     assert item_title(operation, manager) == "Автоматизация · workspace_health"
+
+    source = """
+def build_automation_surfaces():
+    recipe = AutomationRecipe(
+        "demo",
+        "1",
+        "Generated recipe title",
+        "Generated recipe description",
+        ("tool",),
+    )
+    run = AutomationRunResult(
+        False,
+        "Ошибка",
+        "demo",
+        stdout="raw stdout",
+        stderr="raw stderr",
+    )
+    issue = AutomationDiscoveryIssue(
+        "manifest.json",
+        "Ошибка",
+        "raw detail",
+    )
+    claim = AutomationResourceClaim("workspace", "id", "запись")
+    semantic = automation_text("automation.synthetic_missing")
+    return recipe, run, issue, claim, semantic
+"""
+    path = tmp_path / "ui" / "viewmodels" / "automation_sample.py"
+    path.parent.mkdir(parents=True)
+    tree = ast.parse(source, filename=str(path))
+
+    deep = DeepSurfaceAudit(path, display_root=tmp_path)
+    deep.visit(tree)
+    findings = {(item.call, item.text) for item in deep.literals}
+    assert findings == {
+        ("AutomationRecipe title", "Generated recipe title"),
+        ("AutomationRecipe description", "Generated recipe description"),
+        ("AutomationRunResult code", "Ошибка"),
+        ("AutomationDiscoveryIssue code", "Ошибка"),
+        ("AutomationResourceClaim access_mode", "запись"),
+    }
+    assert not any(
+        text in {"raw stdout", "raw stderr", "raw detail"}
+        for _, text in findings
+    )
+
+    ordinary = SourceAudit(path, display_root=tmp_path)
+    ordinary.visit(tree)
+    assert "automation.synthetic_missing" in ordinary.translation_keys
 
     inspector.close()
     inspector.deleteLater()
