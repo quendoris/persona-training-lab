@@ -17,7 +17,9 @@ from persona_training_lab.application.automation.service import (
 
 
 _RECIPE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+_INPUT_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _RECIPE_GLOB = "*.ptl-recipe.json"
+_VALID_ACCESS_MODES = frozenset({"read", "write"})
 
 
 class FilesystemAutomationRecipeProvider:
@@ -113,8 +115,6 @@ class FilesystemAutomationRecipeProvider:
             source_path=str(path.resolve()),
             working_directory=str(payload.get("working_directory") or "").strip(),
             timeout_seconds=timeout,
-            title_key=str(payload.get("title_key") or "").strip(),
-            description_key=str(payload.get("description_key") or "").strip(),
         )
 
     @staticmethod
@@ -131,15 +131,11 @@ class FilesystemAutomationRecipeProvider:
                     "persona_training_lab.automation_recipes.workspace_health",
                 ),
                 tags=("diagnostic", "workspace"),
-                outputs=(
-                    AutomationOutput("stdout_json", "Workspace health report"),
-                ),
+                outputs=(AutomationOutput("stdout_json"),),
                 resource_claims=(
                     AutomationResourceClaim("workspace", "{workspace}", "read"),
                 ),
                 source="builtin",
-                title_key="automation.recipe.workspace_health.title",
-                description_key="automation.recipe.workspace_health.description",
             ),
         )
 
@@ -175,6 +171,10 @@ class FilesystemAutomationRecipeProvider:
             if not isinstance(raw, dict):
                 raise ValueError("recipe input must be an object")
             name = cls._required_text(raw, "name")
+            if _INPUT_NAME_RE.fullmatch(name) is None:
+                raise ValueError(
+                    "recipe input name must match [A-Za-z_][A-Za-z0-9_]*"
+                )
             if name in {"python", "workspace"}:
                 raise ValueError(f"reserved recipe input name: {name}")
             if name in names:
@@ -196,14 +196,17 @@ class FilesystemAutomationRecipeProvider:
             return ()
         if not isinstance(value, list):
             raise ValueError("recipe outputs must be an array")
-        return tuple(
-            AutomationOutput(
-                name=cls._required_text(raw, "name"),
-                description=str(raw.get("description") or "").strip(),
+        outputs: list[AutomationOutput] = []
+        for raw in value:
+            if not isinstance(raw, dict):
+                raise ValueError("recipe output must be an object")
+            outputs.append(
+                AutomationOutput(
+                    name=cls._required_text(raw, "name"),
+                    description=str(raw.get("description") or "").strip(),
+                )
             )
-            for raw in value
-            if isinstance(raw, dict)
-        )
+        return tuple(outputs)
 
     @classmethod
     def _claims(cls, value: Any) -> tuple[AutomationResourceClaim, ...]:
@@ -215,11 +218,14 @@ class FilesystemAutomationRecipeProvider:
         for raw in value:
             if not isinstance(raw, dict):
                 raise ValueError("recipe resource must be an object")
+            access = str(raw.get("access") or "read").strip().casefold()
+            if access not in _VALID_ACCESS_MODES:
+                raise ValueError(f"unsupported recipe resource access mode: {access}")
             claims.append(
                 AutomationResourceClaim(
                     resource_kind=cls._required_text(raw, "kind"),
                     resource_id=cls._required_text(raw, "id"),
-                    access_mode=str(raw.get("access") or "read"),
+                    access_mode=access,
                 )
             )
         return tuple(claims)
