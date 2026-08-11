@@ -207,6 +207,27 @@ def _execute_portrait():
         "status": "completed",
     }
     return hidden, semantic
+
+
+def build_view():
+    return ExperimentView(
+        experiment_id="evr_bad",
+        title="Generated experiment title",
+        subtitle="PORTRAIT: scientific DTO payload",
+        status="готово",
+    )
+
+
+def build_stats():
+    return PortraitStats(
+        title="Generated analysis title",
+        raw_status="completed",
+        status_code=EvaluationRunStatus.COMPLETED,
+        record=None,
+        failures=0,
+        scores={},
+        samples=(),
+    )
 """
     path = tmp_path / "application" / "experiments" / "service.py"
     path.parent.mkdir(parents=True)
@@ -220,6 +241,10 @@ def _execute_portrait():
         "Big Five portrait · 2026-08-10 23:58",
     ) in findings
     assert ("_execute_portrait persisted status", "завершено") in findings
+    assert ("ExperimentView title", "Generated experiment title") in findings
+    assert ("ExperimentView status", "готово") in findings
+    assert ("PortraitStats title", "Generated analysis title") in findings
     assert not any("scientific payload" in text for _, text in findings)
+    assert not any("scientific DTO payload" in text for _, text in findings)
     assert not any(text == "personality_portrait" for _, text in findings)
     assert not any(text == "completed" for _, text in findings)
