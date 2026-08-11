@@ -32,6 +32,8 @@ _TRANSLATION_KEY_POSITIONS = {
     "dashboard_text": 0,
     "SnapshotText": 0,
     "snapshot_text": 0,
+    "AutomationText": 0,
+    "automation_text": 0,
 }
 _TRANSLATION_FALLBACK_POSITIONS = {
     "_text": (1,),
