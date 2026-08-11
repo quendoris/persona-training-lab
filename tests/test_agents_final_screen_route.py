@@ -74,6 +74,8 @@ _RETIRED_HISTORY_ATTRIBUTES = frozenset(
         "_disable_conflicting_history_bindings",
         "_normalized_sequence",
         "_sequence_is_history",
+        "_reset_history_gesture_if_ready",
+        "_sync_history_shortcut_routing",
     }
 )
 _RETIRED_SCREEN_IMPLEMENTATIONS = frozenset(
