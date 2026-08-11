@@ -11,6 +11,9 @@ from persona_training_lab.application.experiments.service import (
     ExperimentSummary,
     ExperimentsService,
 )
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -19,6 +22,9 @@ from persona_training_lab.ui.viewmodels.evaluation import (
     evaluation_status_text,
     evaluation_text,
     render_base_evaluation_text,
+)
+from persona_training_lab.ui.viewmodels.experiment_semantics import (
+    experiment_title_text,
 )
 
 
@@ -35,6 +41,24 @@ TRAIT_LABELS = {
     "Conscientiousness": "C",
     "Emotional Stability": "S",
     "Openness": "O",
+}
+_MODEL_STATUS_KEYS: dict[LocalModelStatus, str] = {
+    LocalModelStatus.UNCHECKED: "tests.model_status.unchecked",
+    LocalModelStatus.CHECKING: "tests.model_status.checking",
+    LocalModelStatus.FOUND: "tests.model_status.found",
+    LocalModelStatus.MISSING: "tests.model_status.missing",
+    LocalModelStatus.CHECK_FAILED: "tests.model_status.check_failed",
+    LocalModelStatus.NOT_LOADED: "tests.model_status.not_loaded",
+    LocalModelStatus.RESPONDING: "tests.model_status.responding",
+    LocalModelStatus.INFERENCE_UNAVAILABLE: "tests.model_status.inference_unavailable",
+    LocalModelStatus.GENERATING: "tests.model_status.generating",
+    LocalModelStatus.GENERATION_FAILED: "tests.model_status.generation_failed",
+    LocalModelStatus.UNKNOWN: "tests.model_status.unknown",
+}
+_PAIR_REASON_KEYS: dict[str, str] = {
+    "service_unavailable": "analysis.pair.reason.service_unavailable",
+    "load_failed": "analysis.pair.reason.load_failed",
+    "portrait_missing": "analysis.pair.reason.portrait_missing",
 }
 
 EvaluationTextValue = str | EvaluationText
@@ -147,7 +171,7 @@ def _waiting_summary() -> CompareSummary:
 
 @dataclass(slots=True, frozen=True)
 class PortraitStats:
-    title: str
+    title: EvaluationTextValue
     raw_status: str
     status_code: EvaluationRunStatus
     record: PortraitRunRecord
@@ -435,7 +459,7 @@ class AnalysisViewModel:
         }:
             failures = max(1, failures)
         return PortraitStats(
-            title=experiment.title,
+            title=experiment_title_text(experiment),
             raw_status=experiment.status,
             status_code=experiment.status_code,
             record=record,
@@ -477,7 +501,10 @@ class AnalysisViewModel:
                 evaluation_text(
                     "analysis.sample.field.status",
                     status=evaluation_text(
-                        f"tests.model_status.{case.status_code.value}"
+                        _MODEL_STATUS_KEYS.get(
+                            case.status_code,
+                            _MODEL_STATUS_KEYS[LocalModelStatus.UNKNOWN],
+                        )
                     ),
                 ),
                 evaluation_text(
@@ -741,7 +768,7 @@ class AnalysisViewModel:
             current_id=current_id,
         )
         reason = evaluation_text(
-            f"analysis.pair.reason.{reason_code}",
+            _PAIR_REASON_KEYS[reason_code],
             **values,
         )
         self._subtitle_model = evaluation_text(
