@@ -6,7 +6,7 @@ from PySide6.QtGui import QKeyEvent, QKeySequence
 from persona_training_lab.ui.agents.history_shortcut_routing import (
     HistoryShortcutRouting,
 )
-from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
+from persona_training_lab.ui.agents.screen_history_transport import AgentsScreen
 
 
 def _press(key: int, text: str = "", modifiers=Qt.KeyboardModifier.NoModifier) -> QKeyEvent:
