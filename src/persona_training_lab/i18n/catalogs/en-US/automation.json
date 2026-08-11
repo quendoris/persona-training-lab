@@ -76,6 +76,7 @@
     "inspector.context.automation.risk": "Do not bypass declared resource claims with ad-hoc shell commands.",
     "inspector.context.automation.status": "Reproducible recipe registry and execution.",
     "inspector.context.automation.title": "Automation",
-    "nav.automation": "Automation"
+    "nav.automation": "Automation",
+    "operations.kind.automation": "Automation"
   }
 }
