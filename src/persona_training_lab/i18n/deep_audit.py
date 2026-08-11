@@ -103,6 +103,7 @@ _STRUCTURED_MACHINE_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
 _MACHINE_CODE_CLASSES = frozenset(
     {
         "DatasetServiceErrorCode",
+        "ExperimentTitleKind",
         "ProfileStatus",
     }
 )
@@ -193,6 +194,7 @@ _PERSISTED_SEMANTIC_FIELDS = {
     "start_full_finetune_run": frozenset({"status"}),
     "_set_terminal_error": frozenset({"status"}),
     "create_from_training_run": frozenset({"status", "quality_summary"}),
+    "_execute_portrait": frozenset({"title", "status"}),
 }
 _MACHINE_RESULT_FUNCTIONS = frozenset({"_readiness_from_status"})
 _USER_RESULT_FUNCTIONS = frozenset(
