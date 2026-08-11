@@ -38,6 +38,7 @@ _STATUS_ALIASES = {
     "approved for training": "approved",
     "завершён": "completed",
     "завершен": "completed",
+    "завершено": "completed",
     "completed": "completed",
     "готово": "ready",
     "готова": "ready",
