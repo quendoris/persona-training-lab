@@ -13,6 +13,9 @@ from PySide6.QtWidgets import QApplication, QLabel
 from persona_training_lab.application.local_model.service import (
     LocalModelService,
 )
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
 from persona_training_lab.application.model_versions.quality import (
     training_completed_quality,
 )
@@ -22,6 +25,7 @@ from persona_training_lab.application.model_versions.service import (
 from persona_training_lab.application.ports.local_model_probe import (
     InferenceProbeResult,
     ModelProbeResult,
+    local_model_diagnostic,
 )
 from persona_training_lab.application.training.service import (
     TrainingDatasetOption,
@@ -141,8 +145,8 @@ class MutableModelVersionsService:
 class FoundModelProbe:
     def check_model_files(self, model_path: str) -> ModelProbeResult:
         return ModelProbeResult(
-            status="Модель найдена",
-            details=f"ok: {model_path}",
+            status=LocalModelStatus.FOUND.value,
+            diagnostic=local_model_diagnostic("model_files_ready"),
         )
 
     def check_inference_backend(
@@ -384,16 +388,31 @@ def test_model_probe_and_open_logs_dialog_switch_live(
     app.processEvents()
 
     assert screen._local_model_status.text() == "Model found"
-    assert screen._local_model_note.text().startswith("ok:")
+    assert screen._local_model_note.text() == (
+        "Model file structure looks correct."
+    )
     assert dialog.windowTitle() == "Training logs"
     assert dialog._header.text() == "Live training logs"
     assert dialog._close_btn.text() == "Close"
     assert dialog._box.toPlainText() == "raw runtime payload"
 
+    vm.finish_local_inference(LocalModelStatus.RESOURCE_EXHAUSTED.value, "")
+    screen._refresh_local_model_block()
+    app.processEvents()
+    assert screen._local_inference_note.text() == (
+        "Not enough resources for generation"
+    )
+
     manager.set_locale("ru-RU", persist=False)
     app.processEvents()
 
     assert screen._local_model_status.text() == "Модель найдена"
+    assert screen._local_model_note.text() == (
+        "Структура файлов модели выглядит корректно."
+    )
+    assert screen._local_inference_note.text() == (
+        "Недостаточно ресурсов для генерации"
+    )
     assert dialog.windowTitle() == "Логи обучения"
     assert dialog._header.text() == "Живые логи обучения"
     assert dialog._close_btn.text() == "Закрыть"
