@@ -295,7 +295,7 @@ class DashboardScreen(QWidget):
                 title_text = self._text(
                     "dashboard.activity.item.title",
                     kind=self._text(item.kind_key),
-                    title=item.title,
+                    title=self._render_value(item.title),
                 )
             title = QLabel(title_text)
             title.setWordWrap(True)
@@ -414,7 +414,7 @@ class DashboardScreen(QWidget):
                 self._text(
                     "dashboard.lineage.item",
                     label=self._text(item.label_key),
-                    value=item.value,
+                    value=self._render_value(item.value),
                 )
             )
             label.setWordWrap(True)
@@ -428,6 +428,9 @@ class DashboardScreen(QWidget):
     def _emit_route(self, route: DashboardRoute) -> None:
         focus = self._text(route.focus_key) if route.focus_key else ""
         self.navigate_requested.emit(route.screen, focus)
+
+    def _render_value(self, value: str | DashboardText) -> str:
+        return self._render(value) if isinstance(value, DashboardText) else value
 
     def _render(self, message: DashboardText) -> str:
         values = {
