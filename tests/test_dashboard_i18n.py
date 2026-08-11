@@ -12,6 +12,12 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QLabel
 
 from persona_training_lab.application.docs.service import DocsService
+from persona_training_lab.application.experiments.service import ExperimentSummary
+from persona_training_lab.application.experiments.titles import (
+    ExperimentTitleKind,
+    encode_experiment_title,
+)
+from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
@@ -53,6 +59,26 @@ class LegacyRussianTrainingService:
                 epoch_progress="1 / 1",
                 loss="0.01",
                 artifact_path="artifacts/model",
+            )
+        ]
+
+
+class SemanticExperimentsService:
+    def list_experiments(self):
+        return [
+            ExperimentSummary(
+                experiment_id="evr_semantic",
+                title=encode_experiment_title(
+                    ExperimentTitleKind.PERSONALITY_PORTRAIT
+                ),
+                subtitle=(
+                    "PORTRAIT: 1/1 Big Five items · model_version=mdl_1\n\n"
+                    "CASE 1\nTRAIT: Openness\nREVERSE: 0\n"
+                    "VALID_SCORE: 1\nRESPONSE: SCORE: 4"
+                ),
+                status="completed",
+                status_code=EvaluationRunStatus.COMPLETED,
+                updated_at="2026-08-10T23:58:00+00:00",
             )
         ]
 
@@ -111,6 +137,37 @@ def test_dashboard_switches_static_and_dynamic_content_live(
 
     screen.close()
     screen.deleteLater()
+    app.processEvents()
+
+    manager.set_locale("en-US", persist=False)
+    semantic_screen = DashboardScreen(
+        DashboardViewModel(
+            docs_service=DocsService(),
+            projects_service=FakeProjectsService(),
+            experiments_service=SemanticExperimentsService(),  # type: ignore[arg-type]
+        ),
+        manager,
+    )
+    semantic_screen.show()
+    app.processEvents()
+
+    english = _visible_texts(semantic_screen)
+    english_title = "Big Five portrait · 2026-08-10 23:58"
+    assert sum(english_title in text for text in english) >= 2
+    assert all("ptl:experiment-title:" not in text for text in english)
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    russian = _visible_texts(semantic_screen)
+    russian_title = "Портрет Big Five · 2026-08-10 23:58"
+    assert sum(russian_title in text for text in russian) >= 2
+    assert all("ptl:experiment-title:" not in text for text in russian)
+
+    semantic_screen.close()
+    semantic_screen.deleteLater()
     app.processEvents()
 
 
