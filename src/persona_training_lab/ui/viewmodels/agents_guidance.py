@@ -20,7 +20,7 @@ from persona_training_lab.ui.i18n.text import render_user_message
 from persona_training_lab.ui.viewmodels.agents_contracts import (
     AgentRoleView,
     AgentText,
-    PortraitStats,
+    GuidancePortraitStats,
 )
 from persona_training_lab.ui.viewmodels.agents_overview import AgentsOverviewViewModel
 
@@ -182,11 +182,11 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
         except Exception:
             return []
 
-    def _latest_portrait(self) -> PortraitStats | None:
+    def _latest_portrait(self) -> GuidancePortraitStats | None:
         portraits = self._portraits()
         return self._portrait_stats(portraits[0]) if portraits else None
 
-    def _portrait_stats(self, experiment: object) -> PortraitStats:
+    def _portrait_stats(self, experiment: object) -> GuidancePortraitStats:
         portrait = parse_portrait_payload(getattr(experiment, "subtitle", ""))
         invalid = sum(
             1
@@ -198,7 +198,7 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
             if portrait.total
             else invalid
         )
-        return PortraitStats(
+        return GuidancePortraitStats(
             title=getattr(experiment, "title", ""),
             passed=portrait.passed,
             total=portrait.total,
@@ -242,7 +242,10 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
 
         return render_user_message(None, self._dataset_note_message())
 
-    def _labeler_step_message(self, latest: PortraitStats | None) -> UserMessage:
+    def _labeler_step_message(
+        self,
+        latest: GuidancePortraitStats | None,
+    ) -> UserMessage:
         if latest is None:
             return UserMessage("agents.legacy.labeler.no_portrait")
         if latest.failures > 0:
@@ -259,7 +262,7 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
             {"trait": weakest[0], "score": f"{weakest[1]:.2f}"},
         )
 
-    def _labeler_step(self, latest: PortraitStats | None) -> str:
+    def _labeler_step(self, latest: GuidancePortraitStats | None) -> str:
         """Base-locale compatibility surface for historical callers."""
 
         return render_user_message(None, self._labeler_step_message(latest))
