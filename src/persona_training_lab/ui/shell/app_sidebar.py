@@ -17,6 +17,7 @@ from persona_training_lab.ui.shell.sidebar import (
 
 
 APPLICATION_NAV_ITEMS: tuple[tuple[str, str, str], ...] = (
+    ("automation", ">_", "nav.automation"),
     ("keybindings", "КЛ", "nav.keybindings"),
 )
 
@@ -30,6 +31,7 @@ NAVIGATION_KEYS: dict[str, str] = {
     "tests": "nav.tests",
     "analysis": "nav.analysis",
     "style": "nav.style",
+    "automation": "nav.automation",
     "docs": "nav.docs",
     "keybindings": "nav.keybindings",
 }
