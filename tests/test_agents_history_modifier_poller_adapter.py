@@ -14,6 +14,15 @@ class _ModifierPollTransport:
         self.active_requests.append(bool(active))
 
 
+class _OwnershipProbe:
+    def __init__(self) -> None:
+        self.snapshots: list[dict[str, str]] = []
+
+    def sync(self, sequences: dict[str, str]) -> frozenset[str]:
+        self.snapshots.append(dict(sequences))
+        return frozenset(sequences)
+
+
 def test_modifier_polling_tracks_screen_readiness_and_binding_ownership() -> None:
     transport = _ModifierPollTransport()
     active = [True]
@@ -52,16 +61,15 @@ def test_shortcut_routing_resyncs_modifier_poller_after_ownership_changes() -> N
     calls: list[str] = []
     sequences = dict(AgentsScreen._DEFAULT_GUARDED_SEQUENCES)
     manager = SimpleNamespace(sequence=lambda binding_id: sequences[binding_id])
-    core = HistoryGestureCore()
+    ownership = _OwnershipProbe()
     screen = SimpleNamespace(
         _key_binding_manager=manager,
         _HISTORY_BINDING_IDS=AgentsScreen._HISTORY_BINDING_IDS,
-        _history_gesture=core,
-        _shortcuts={},
+        _history_binding_ownership=ownership,
         _sync_modifier_polling=lambda: calls.append("sync"),
     )
 
     AgentsScreen._sync_history_shortcut_routing(screen)  # type: ignore[arg-type]
 
-    assert core.guarded_bindings == set(AgentsScreen._HISTORY_BINDING_IDS)
+    assert ownership.snapshots == [sequences]
     assert calls == ["sync"]
