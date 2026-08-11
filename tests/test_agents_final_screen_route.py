@@ -11,6 +11,12 @@ from persona_training_lab.ui.agents.history_gesture_core import (
     HISTORY_UNDO,
     HistoryGestureCore,
 )
+from persona_training_lab.ui.agents.history_input_environment import (
+    HistoryInputEnvironmentSnapshot,
+)
+from persona_training_lab.ui.agents.history_modifier_snapshot import (
+    HistoryModifierSnapshot,
+)
 from persona_training_lab.ui.agents.screen_agents_final import (
     AgentsScreen as FinalCompatibilityAgentsScreen,
 )
@@ -76,6 +82,8 @@ _RETIRED_HISTORY_ATTRIBUTES = frozenset(
         "_sequence_is_history",
         "_reset_history_gesture_if_ready",
         "_sync_history_shortcut_routing",
+        "_queried_modifiers",
+        "_queried_extra_history_modifiers",
     }
 )
 _RETIRED_SCREEN_IMPLEMENTATIONS = frozenset(
@@ -317,10 +325,15 @@ def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
     _press(core, "shift")
 
     transitions = []
+    environment = SimpleNamespace(
+        capture=lambda _owner: HistoryInputEnvironmentSnapshot(
+            modifiers=HistoryModifierSnapshot(),
+            input_active=True,
+        )
+    )
     screen = SimpleNamespace(
         _history_gesture=core,
-        _history_keys_are_active=lambda: True,
-        _queried_modifiers=lambda: (False, False),
+        _history_environment=environment,
         _apply_history_gesture_transition=transitions.append,
     )
 
