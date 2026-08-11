@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QEvent
 
+from persona_training_lab.ui.agents.history_gesture_core import HistoryTransition
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
 
 
@@ -26,10 +27,10 @@ class _ModifierPollProbe:
 
 class _TransitionProbe:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, ...]] = []
+        self.calls: list[HistoryTransition] = []
 
-    def dispatch(self, actions) -> None:
-        self.calls.append(tuple(actions))
+    def apply(self, transition: HistoryTransition) -> None:
+        self.calls.append(transition)
 
 
 def test_event_filter_delegates_owner_identity_and_returns_orchestrator_decision() -> None:
@@ -52,14 +53,14 @@ def test_stop_modifier_polling_remains_a_thin_transport_adapter() -> None:
     assert poller.stop_calls == 1
 
 
-def test_dispatch_remains_a_thin_transition_adapter() -> None:
-    transition = _TransitionProbe()
-    screen = SimpleNamespace(_history_transition=transition)
-    actions = ("toggle", "undo", "toggle")
+def test_transition_application_remains_a_thin_screen_adapter() -> None:
+    orchestrator = _TransitionProbe()
+    screen = SimpleNamespace(_history_transition=orchestrator)
+    transition = HistoryTransition(actions=("toggle",))
 
-    AgentsScreen._dispatch_history_actions(
+    AgentsScreen._apply_history_transition(
         screen,
-        actions,
+        transition,
     )  # type: ignore[arg-type]
 
-    assert transition.calls == [actions]
+    assert orchestrator.calls == [transition]
