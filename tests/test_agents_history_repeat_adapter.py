@@ -7,7 +7,7 @@ from persona_training_lab.ui.agents.history_gesture_core import HistoryTransitio
 from persona_training_lab.ui.agents.history_transition_orchestrator import (
     HistoryTransitionOrchestrator,
 )
-from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
+from persona_training_lab.ui.agents.screen_history_transport import AgentsScreen
 
 
 class _RepeatTransport:
