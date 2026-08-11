@@ -76,6 +76,7 @@
     "inspector.context.automation.risk": "Не обходите объявленные resource claims произвольными shell-командами.",
     "inspector.context.automation.status": "Реестр и выполнение воспроизводимых recipes.",
     "inspector.context.automation.title": "Автоматизация",
-    "nav.automation": "Автоматизация"
+    "nav.automation": "Автоматизация",
+    "operations.kind.automation": "Автоматизация"
   }
 }
