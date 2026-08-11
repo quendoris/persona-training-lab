@@ -16,6 +16,7 @@ from persona_training_lab.application.lineage.runtime_safety import (
 )
 from persona_training_lab.ui.agents import AgentsScreen
 from persona_training_lab.ui.analysis.screen import AnalysisScreen
+from persona_training_lab.ui.automation import AutomationScreen
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.datasets.screen import DatasetsScreen
 from persona_training_lab.ui.density import screen_density, scaled
@@ -38,6 +39,7 @@ from persona_training_lab.ui.themes.manager import apply_theme
 from persona_training_lab.ui.training.screen import TrainingScreen
 from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
 from persona_training_lab.ui.viewmodels.analysis import AnalysisViewModel
+from persona_training_lab.ui.viewmodels.automation import AutomationViewModel
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 from persona_training_lab.ui.viewmodels.docs import DocsViewModel
@@ -72,6 +74,7 @@ class MainWindow(QMainWindow):
         snapshots_vm: SnapshotsViewModel,
         tests_vm: TestsViewModel,
         analysis_vm: AnalysisViewModel,
+        automation_vm: AutomationViewModel,
         telemetry_vm: TelemetryViewModel,
         lineage_runtime_safety: LineageRuntimeSafety | None = None,
         localization: LocalizationManager | None = None,
@@ -159,6 +162,10 @@ class MainWindow(QMainWindow):
         self._workspace.register(
             "style",
             StyleScreen(style_vm, self._apply_style, localization),
+        )
+        self._workspace.register(
+            "automation",
+            AutomationScreen(automation_vm, localization),
         )
         self._workspace.register(
             "keybindings",
