@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QKeyEvent, QKeySequence
 
 from persona_training_lab.ui.agents.history_binding_ownership import (
     HistoryBindingOwnership,
@@ -20,19 +20,31 @@ from persona_training_lab.ui.agents.screen_history_keyguard import (
     AgentsScreen as HistoryKeyGuardAgentsScreen,
 )
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
+from persona_training_lab.ui.keybindings.shortcut_sync import (
+    ShortcutBindingSynchronizer,
+)
 
 
 class _FakeShortcut:
     def __init__(self) -> None:
         self.enabled: bool | None = None
+        self.sequence = ""
+        self.auto_repeat: bool | None = None
 
     def setEnabled(self, enabled: bool) -> None:  # noqa: N802
         self.enabled = enabled
 
+    def setKey(self, key: QKeySequence) -> None:  # noqa: N802
+        self.sequence = key.toString(QKeySequence.SequenceFormat.PortableText)
 
-def _ownership(
+    def setAutoRepeat(self, enabled: bool) -> None:  # noqa: N802
+        self.auto_repeat = enabled
+
+
+def _binding_stack(
     manager: KeyBindingManager,
 ) -> tuple[
+    ShortcutBindingSynchronizer,
     HistoryBindingOwnership,
     HistoryGestureCore,
     dict[str, _FakeShortcut],
@@ -40,10 +52,14 @@ def _ownership(
     routing = HistoryShortcutRouting()
     core = HistoryGestureCore()
     shortcuts = {
-        binding_id: _FakeShortcut()
-        for binding_id in routing.binding_ids
+        definition.binding_id: _FakeShortcut()
+        for definition in manager.definitions()
     }
     return (
+        ShortcutBindingSynchronizer(
+            manager=manager,
+            shortcuts=shortcuts,
+        ),
         HistoryBindingOwnership(
             routing=routing,
             gesture=core,
@@ -54,32 +70,33 @@ def _ownership(
     )
 
 
-def _sequences(manager: KeyBindingManager) -> dict[str, str]:
-    return {
-        binding_id: manager.sequence(binding_id)
-        for binding_id in HistoryShortcutRouting.binding_ids
-    }
-
-
 def test_default_history_bindings_use_physical_guard(tmp_path) -> None:
     manager = KeyBindingManager(storage_path=tmp_path / "key_bindings.json")
-    ownership, core, shortcuts = _ownership(manager)
+    synchronizer, ownership, core, shortcuts = _binding_stack(manager)
 
-    guarded = ownership.sync(_sequences(manager))
+    sequences = synchronizer.sync()
+    guarded = ownership.sync(sequences)
 
     assert guarded == {"history_toggle", "undo_only"}
     assert core.guarded_bindings == {"history_toggle", "undo_only"}
+    assert sequences["history_toggle"] == "Ctrl+Z"
+    assert shortcuts["history_toggle"].sequence == "Ctrl+Z"
+    assert shortcuts["history_toggle"].auto_repeat is False
     assert shortcuts["history_toggle"].enabled is False
+    assert shortcuts["undo_only"].auto_repeat is True
     assert shortcuts["undo_only"].enabled is False
 
 
 def test_custom_history_binding_switches_to_qshortcut_live(tmp_path) -> None:
     manager = KeyBindingManager(storage_path=tmp_path / "key_bindings.json")
-    ownership, core, shortcuts = _ownership(manager)
+    synchronizer, ownership, core, shortcuts = _binding_stack(manager)
     assert manager.set_sequence("history_toggle", "Ctrl+Y").accepted
 
-    guarded = ownership.sync(_sequences(manager))
+    sequences = synchronizer.sync()
+    guarded = ownership.sync(sequences)
 
+    assert sequences["history_toggle"] == "Ctrl+Y"
+    assert shortcuts["history_toggle"].sequence == "Ctrl+Y"
     assert guarded == {"undo_only"}
     assert core.guarded_bindings == {"undo_only"}
     assert shortcuts["history_toggle"].enabled is True
@@ -159,13 +176,18 @@ def test_unowned_history_transport_never_observes_or_mutates_key_state() -> None
 
 def test_reset_to_default_restores_physical_guard(tmp_path) -> None:
     manager = KeyBindingManager(storage_path=tmp_path / "key_bindings.json")
-    ownership, core, shortcuts = _ownership(manager)
+    synchronizer, ownership, core, shortcuts = _binding_stack(manager)
     assert manager.set_sequence("undo_only", "Ctrl+Alt+Z").accepted
-    ownership.sync(_sequences(manager))
+
+    ownership.sync(synchronizer.sync())
+    assert shortcuts["undo_only"].sequence == "Ctrl+Alt+Z"
     assert shortcuts["undo_only"].enabled is True
 
     assert manager.reset_binding("undo_only").accepted
-    ownership.sync(_sequences(manager))
+    sequences = synchronizer.sync()
+    ownership.sync(sequences)
 
+    assert sequences["undo_only"] == "Ctrl+Shift+Z"
+    assert shortcuts["undo_only"].sequence == "Ctrl+Shift+Z"
     assert "undo_only" in core.guarded_bindings
     assert shortcuts["undo_only"].enabled is False
