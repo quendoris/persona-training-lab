@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import weakref
 
 from persona_training_lab.ui.agents.history_gesture_core import HistoryTransition
 from persona_training_lab.ui.agents.history_transition_orchestrator import (
@@ -56,6 +57,8 @@ def test_arm_repeat_checks_live_permission_before_transport() -> None:
     transport = _RepeatTransport()
     allowed = [True]
     orchestrator = _orchestrator(transport, allowed)
+
+    assert weakref.ref(orchestrator)() is orchestrator
 
     orchestrator.arm_repeat()
     allowed[0] = False
