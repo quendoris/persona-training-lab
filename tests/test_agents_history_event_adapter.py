@@ -53,12 +53,12 @@ def test_stop_modifier_polling_remains_a_thin_transport_adapter() -> None:
     assert poller.stop_calls == 1
 
 
-def test_transition_application_remains_a_thin_screen_adapter() -> None:
+def test_gesture_transition_application_remains_a_thin_screen_adapter() -> None:
     orchestrator = _TransitionProbe()
     screen = SimpleNamespace(_history_transition=orchestrator)
     transition = HistoryTransition(actions=("toggle",))
 
-    AgentsScreen._apply_history_transition(
+    AgentsScreen._apply_history_gesture_transition(
         screen,
         transition,
     )  # type: ignore[arg-type]
