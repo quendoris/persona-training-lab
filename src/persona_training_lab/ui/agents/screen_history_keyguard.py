@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence
-from PySide6.QtWidgets import QApplication
 
 from persona_training_lab.ui.agents.history_binding_ownership import (
     HistoryBindingOwnership,
@@ -13,6 +12,9 @@ from persona_training_lab.ui.agents.history_event_orchestrator import (
 from persona_training_lab.ui.agents.history_gesture_core import (
     HistoryGestureCore,
     HistoryTransition as HistoryGestureTransition,
+)
+from persona_training_lab.ui.agents.history_input_environment import (
+    HistoryInputEnvironment,
 )
 from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
@@ -65,6 +67,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             flip_guard_seconds=self._FLIP_GUARD_SECONDS,
         )
         super().__init__(view_model, localization)
+        self._history_environment = HistoryInputEnvironment()
         self._shortcut_bindings = ShortcutBindingSynchronizer(
             manager=self._key_binding_manager,
             shortcuts=self._shortcuts,
@@ -121,9 +124,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             flip_button.setAutoDefault(False)
             flip_button.setDefault(False)
 
-        app = QApplication.instance()
-        if app is not None:
-            app.installEventFilter(self)
+        self._history_environment.install_event_filter(self)
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
         decision = self._history_events.route(
@@ -166,23 +167,23 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     def _handle_keyboard_layout_change(self) -> None:
         if not self._history_gesture.undo_binding_owned:
             return
-        control, _shift = self._queried_modifiers()
+        environment = self._history_environment.capture(self)
         transition = self._history_gesture.layout_changed(
-            observed_control=control
+            observed_control=environment.modifiers.control
         )
         self._apply_history_gesture_transition(transition)
 
     def _poll_physical_modifiers(self) -> None:
+        environment = self._history_environment.capture(self)
         if (
-            not self._history_keys_are_active()
+            not environment.input_active
             or not self._history_gesture.has_guarded_bindings
         ):
             return
 
-        control, shift = self._queried_modifiers()
         transition = self._history_gesture.poll_modifiers(
-            observed_control=control,
-            observed_shift=shift,
+            observed_control=environment.modifiers.control,
+            observed_shift=environment.modifiers.shift,
         )
         self._apply_history_gesture_transition(transition)
 
@@ -204,13 +205,13 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     ) -> tuple[bool, bool]:
         """Return only transport observations, never core-derived latch state."""
 
-        queried_control, queried_shift = self._queried_modifiers()
+        environment_modifiers = self._history_environment.capture(self).modifiers
         event_modifiers = HistoryModifierSnapshot.from_qt(
             event.modifiers()
         )
         return (
-            queried_control or event_modifiers.control,
-            queried_shift or event_modifiers.shift,
+            environment_modifiers.control or event_modifiers.control,
+            environment_modifiers.shift or event_modifiers.shift,
         )
 
     @staticmethod
@@ -218,18 +219,6 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         return HistoryModifierSnapshot.from_qt(
             event.modifiers()
         ).has_extra_history_modifiers
-
-    @staticmethod
-    def _queried_modifiers() -> tuple[bool, bool]:
-        modifiers = HistoryModifierSnapshot.current()
-        return modifiers.control, modifiers.shift
-
-    @staticmethod
-    def _queried_extra_history_modifiers() -> bool:
-        return (
-            HistoryModifierSnapshot.current()
-            .has_extra_history_modifiers
-        )
 
     def _reset_history_gesture(self) -> None:
         self._history_transition.reset()
@@ -263,9 +252,10 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     def _sync_modifier_polling(self) -> None:
         if not hasattr(self, "_modifier_poll"):
             return
+        environment = self._history_environment.capture(self)
         self._modifier_poll.set_active(
             self._history_gesture.has_guarded_bindings
-            and self._history_keys_are_active()
+            and environment.input_active
         )
 
     def _stop_modifier_polling(self) -> None:
@@ -280,13 +270,14 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self._history_gesture.block_flip()
 
     def _graph_flip_is_blocked(self) -> bool:
-        control, shift = self._queried_modifiers()
-        has_extra_modifiers = (
-            self._queried_extra_history_modifiers()
+        modifiers = self._history_environment.capture(self).modifiers
+        modifier_guarded = (
+            modifiers.control
+            or modifiers.shift
+            or modifiers.has_extra_history_modifiers
         )
-        guarded = control or shift or has_extra_modifiers
         return self._history_gesture.flip_is_blocked(
-            modifier_guarded=guarded
+            modifier_guarded=modifier_guarded
         )
 
     @staticmethod
@@ -294,14 +285,4 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         return HistoryKeyResolver.key_name(event)
 
     def _history_keys_are_active(self) -> bool:
-        app = QApplication.instance()
-        if (
-            app is None
-            or not self.isVisible()
-            or not self.window().isActiveWindow()
-        ):
-            return False
-        if app.activeModalWidget() is not None:
-            return False
-        focus = app.focusWidget()
-        return focus is None or focus.window() is self.window()
+        return self._history_environment.capture(self).input_active
