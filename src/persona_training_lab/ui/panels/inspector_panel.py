@@ -19,6 +19,7 @@ _CONTEXT_CHECK_COUNTS: dict[str, int] = {
     "profiles": 3,
     "agents": 4,
     "style": 3,
+    "automation": 4,
     "keybindings": 4,
     "docs": 3,
     "default": 3,
