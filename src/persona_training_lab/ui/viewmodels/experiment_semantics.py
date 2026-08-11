@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime
+from types import MappingProxyType
+from typing import Mapping
 
-from persona_training_lab.application.experiments.service import ExperimentSummary
 from persona_training_lab.application.experiments.titles import (
     ExperimentTitleKind,
     decode_experiment_title,
@@ -24,25 +26,46 @@ EXPERIMENT_TITLE_KEYS: dict[str, str] = {
 _PORTRAIT_PAYLOAD_PREFIXES = ("PORTRAIT:", "SUMMARY:")
 
 
-def experiment_title_text(summary: ExperimentSummary) -> str | EvaluationText:
-    kind = decode_experiment_title(summary.title)
+@dataclass(slots=True, frozen=True)
+class ExperimentTitleSemantic:
+    key: str = ""
+    values: Mapping[str, object] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+    raw: str = ""
+
+
+def experiment_title_semantic(summary: object) -> ExperimentTitleSemantic:
+    title = str(getattr(summary, "title", "") or "")
+    subtitle = str(getattr(summary, "subtitle", "") or "")
+    updated_at = str(getattr(summary, "updated_at", "") or "")
+    kind = decode_experiment_title(title)
     if (
         kind is None
-        and is_legacy_generated_experiment_title(summary.title)
-        and _looks_portrait_payload(summary.subtitle)
+        and is_legacy_generated_experiment_title(title)
+        and _looks_portrait_payload(subtitle)
     ):
         kind = ExperimentTitleKind.PERSONALITY_PORTRAIT
     if kind is not None:
         key = EXPERIMENT_TITLE_KEYS.get(kind.value)
         if key is not None:
-            return evaluation_text(
-                key,
-                time=_display_timestamp(summary.updated_at),
+            return ExperimentTitleSemantic(
+                key=key,
+                values=MappingProxyType(
+                    {"time": _display_timestamp(updated_at)}
+                ),
             )
-        return evaluation_text(EXPERIMENT_TITLE_KEYS["unknown"])
-    if is_experiment_title_protocol(summary.title):
-        return evaluation_text(EXPERIMENT_TITLE_KEYS["unknown"])
-    return summary.title
+        return ExperimentTitleSemantic(key=EXPERIMENT_TITLE_KEYS["unknown"])
+    if is_experiment_title_protocol(title):
+        return ExperimentTitleSemantic(key=EXPERIMENT_TITLE_KEYS["unknown"])
+    return ExperimentTitleSemantic(raw=title)
+
+
+def experiment_title_text(summary: object) -> str | EvaluationText:
+    semantic = experiment_title_semantic(summary)
+    if semantic.key:
+        return evaluation_text(semantic.key, **dict(semantic.values))
+    return semantic.raw
 
 
 def _display_timestamp(value: str) -> str:
@@ -61,4 +84,9 @@ def _looks_portrait_payload(value: str) -> bool:
     return text.startswith(_PORTRAIT_PAYLOAD_PREFIXES)
 
 
-__all__ = ("EXPERIMENT_TITLE_KEYS", "experiment_title_text")
+__all__ = (
+    "EXPERIMENT_TITLE_KEYS",
+    "ExperimentTitleSemantic",
+    "experiment_title_semantic",
+    "experiment_title_text",
+)
