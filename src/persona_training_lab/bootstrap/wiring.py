@@ -5,6 +5,7 @@ from functools import partial
 
 from persona_training_lab.application.agents.service import AgentsService
 from persona_training_lab.application.analysis.service import AnalysisService
+from persona_training_lab.application.automation import AutomationService
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
@@ -32,6 +33,7 @@ from persona_training_lab.config.paths import (
     ensure_workspace_dirs,
 )
 from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactManager
+from persona_training_lab.infrastructure.automation import FilesystemAutomationRecipeProvider
 from persona_training_lab.infrastructure.local_model.probe_provider import (
     FilesystemLocalModelProbeProvider,
 )
@@ -85,6 +87,7 @@ from persona_training_lab.infrastructure.telemetry.collector import (
 )
 from persona_training_lab.ui.viewmodels.agents_lineage import AgentsViewModel
 from persona_training_lab.ui.viewmodels.analysis_lineage import AnalysisViewModel
+from persona_training_lab.ui.viewmodels.automation import AutomationViewModel
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 from persona_training_lab.ui.viewmodels.datasets import DatasetsViewModel
 from persona_training_lab.ui.viewmodels.docs import DocsViewModel
@@ -111,6 +114,7 @@ class AppContainer:
     snapshots_vm: SnapshotsViewModel
     tests_vm: TestsViewModel
     analysis_vm: AnalysisViewModel
+    automation_vm: AutomationViewModel
     telemetry_vm: TelemetryViewModel
     runtime_operations: RuntimeOperationCoordinator
     lineage_loader_factory: LineageLoaderFactory
@@ -200,6 +204,13 @@ def build_container() -> AppContainer:
         operation_coordinator=runtime_operations,
         error_reporter=error_reporter,
     )
+    automation_service = AutomationService(
+        recipe_provider=FilesystemAutomationRecipeProvider(
+            paths.root / "automation" / "recipes"
+        ),
+        operation_coordinator=runtime_operations,
+        workspace_root=paths.root,
+    )
     telemetry_service = SystemTelemetryService(
         system_provider=PsutilTelemetryProvider(),
         gpu_provider=NvidiaSmiTelemetryProvider(),
@@ -236,6 +247,7 @@ def build_container() -> AppContainer:
         analysis_service=analysis_service,
         experiments_service=experiments_service,
     )
+    automation_vm = AutomationViewModel(automation_service=automation_service)
     telemetry_vm = TelemetryViewModel(telemetry_service=telemetry_service)
 
     return AppContainer(
@@ -251,6 +263,7 @@ def build_container() -> AppContainer:
         snapshots_vm=snapshots_vm,
         tests_vm=tests_vm,
         analysis_vm=analysis_vm,
+        automation_vm=automation_vm,
         telemetry_vm=telemetry_vm,
         runtime_operations=runtime_operations,
         lineage_loader_factory=lineage_loader_factory,
