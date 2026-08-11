@@ -180,9 +180,6 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     ) -> None:
         self._history_transition.apply(transition)
 
-    def _dispatch_history_actions(self, actions) -> None:
-        self._history_transition.dispatch(actions)
-
     def _guarded_actions(self, actions) -> tuple[str, ...]:
         return self._history_gesture.allowed_actions(actions)
 
@@ -221,24 +218,6 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             HistoryModifierSnapshot.current()
             .has_extra_history_modifiers
         )
-
-    def _repeat_is_allowed(self) -> bool:
-        return self._history_transition.repeat_is_allowed()
-
-    def _arm_undo_repeat(self) -> None:
-        self._history_transition.arm_repeat()
-
-    def _start_undo_repeat(self) -> None:
-        self._history_transition.start_repeat()
-
-    def _repeat_undo_history(self) -> None:
-        self._history_transition.repeat_tick()
-
-    def _perform_repeated_undo(self) -> None:
-        self._history_transition.perform_repeated_undo()
-
-    def _stop_undo_repeat(self) -> None:
-        self._history_transition.stop_repeat()
 
     def _reset_history_gesture(self) -> None:
         self._history_transition.reset()
