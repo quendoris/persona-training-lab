@@ -19,7 +19,9 @@ from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
 from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.ui.experiments.screen import ExperimentsScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.tests.screen import TestsScreen as _TestsScreen
 from persona_training_lab.ui.viewmodels.experiments import ExperimentsViewModel
+from persona_training_lab.ui.viewmodels.tests_lineage import TestsViewModel
 
 
 CATALOGS = (
@@ -159,6 +161,30 @@ def test_experiments_workspace_switches_language_without_rebuilding_rows(
     assert tuple(row[1].text() for row in live_screen._rows) == raw_subtitles
 
     live_screen.deleteLater()
+    app.processEvents()
+
+    manager.set_locale("en-US", persist=False)
+    tests_screen = _TestsScreen(
+        TestsViewModel(experiments_service=_ExperimentsService()),  # type: ignore[arg-type]
+        manager,
+    )
+    tests_screen.show()
+    app.processEvents()
+
+    assert tests_screen._title.text() == (
+        "Tests · Big Five portrait · 2026-08-10 23:58"
+    )
+    assert "ptl:experiment-title:" not in tests_screen._title.text()
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+
+    assert tests_screen._title.text() == (
+        "Тесты · Портрет Big Five · 2026-08-10 23:58"
+    )
+
+    tests_screen.close()
+    tests_screen.deleteLater()
     app.processEvents()
 
     source = """
