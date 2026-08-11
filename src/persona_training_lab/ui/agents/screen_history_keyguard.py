@@ -4,6 +4,9 @@ from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QApplication
 
+from persona_training_lab.ui.agents.history_binding_ownership import (
+    HistoryBindingOwnership,
+)
 from persona_training_lab.ui.agents.history_event_orchestrator import (
     HistoryEventOrchestrator,
 )
@@ -62,6 +65,11 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             flip_guard_seconds=self._FLIP_GUARD_SECONDS,
         )
         super().__init__(view_model, localization)
+        self._history_binding_ownership = HistoryBindingOwnership(
+            routing=_HISTORY_ROUTING,
+            gesture=self._history_gesture,
+            shortcuts=self._shortcuts,
+        )
 
         self._history_repeat = HistoryRepeatTimers(
             delay_ms=self._REPEAT_DELAY_MS,
@@ -273,14 +281,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             binding_id: self._key_binding_manager.sequence(binding_id)
             for binding_id in self._HISTORY_BINDING_IDS
         }
-        guarded = _HISTORY_ROUTING.guarded_bindings(sequences)
-        self._history_gesture.set_guarded_bindings(guarded)
-
-        for binding_id in self._HISTORY_BINDING_IDS:
-            shortcut = getattr(self, "_shortcuts", {}).get(binding_id)
-            if shortcut is not None:
-                shortcut.setEnabled(binding_id not in guarded)
-
+        self._history_binding_ownership.sync(sequences)
         self._sync_modifier_polling()
 
     def _sync_modifier_polling(self) -> None:
