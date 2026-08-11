@@ -3,6 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from persona_training_lab.ui.agents.history_gesture_core import HistoryTransition
+from persona_training_lab.ui.agents.history_transition_orchestrator import (
+    HistoryTransitionOrchestrator,
+)
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
 
 
@@ -20,17 +23,43 @@ class _RepeatTransport:
         self.calls.append("stop")
 
 
+class _GestureProbe:
+    def __init__(self, allowed: list[bool], calls: list[str] | None = None) -> None:
+        self._allowed = allowed
+        self._calls = calls
+
+    def repeat_is_allowed(self, *, can_undo: bool) -> bool:
+        return self._allowed[0] and can_undo
+
+    def reset(self) -> None:
+        if self._calls is not None:
+            self._calls.append("reset")
+
+
+def _orchestrator(
+    transport: _RepeatTransport,
+    allowed: list[bool],
+    calls: list[str] | None = None,
+) -> HistoryTransitionOrchestrator:
+    effects = calls if calls is not None else []
+    return HistoryTransitionOrchestrator(
+        gesture=_GestureProbe(allowed, effects),  # type: ignore[arg-type]
+        repeat=transport,
+        can_undo=lambda: True,
+        block_flip=lambda: effects.append("block"),
+        undo=lambda: effects.append("undo"),
+        toggle=lambda: effects.append("toggle"),
+    )
+
+
 def test_arm_repeat_checks_live_permission_before_transport() -> None:
     transport = _RepeatTransport()
     allowed = [True]
-    screen = SimpleNamespace(
-        _history_repeat=transport,
-        _repeat_is_allowed=lambda: allowed[0],
-    )
+    orchestrator = _orchestrator(transport, allowed)
 
-    AgentsScreen._arm_undo_repeat(screen)  # type: ignore[arg-type]
+    orchestrator.arm_repeat()
     allowed[0] = False
-    AgentsScreen._arm_undo_repeat(screen)  # type: ignore[arg-type]
+    orchestrator.arm_repeat()
 
     assert transport.calls == ["arm", "stop"]
 
@@ -38,14 +67,11 @@ def test_arm_repeat_checks_live_permission_before_transport() -> None:
 def test_delay_expiry_rechecks_permission_before_repeat_phase() -> None:
     transport = _RepeatTransport()
     allowed = [True]
-    screen = SimpleNamespace(
-        _history_repeat=transport,
-        _repeat_is_allowed=lambda: allowed[0],
-    )
+    orchestrator = _orchestrator(transport, allowed)
 
-    AgentsScreen._start_undo_repeat(screen)  # type: ignore[arg-type]
+    orchestrator.start_repeat()
     allowed[0] = False
-    AgentsScreen._start_undo_repeat(screen)  # type: ignore[arg-type]
+    orchestrator.start_repeat()
 
     assert transport.calls == ["start", "stop"]
 
@@ -54,28 +80,22 @@ def test_repeat_tick_rechecks_permission_before_undo_effect() -> None:
     transport = _RepeatTransport()
     allowed = [True]
     calls: list[str] = []
-    screen = SimpleNamespace(
-        _history_repeat=transport,
-        _repeat_is_allowed=lambda: allowed[0],
-        _perform_repeated_undo=lambda: calls.append("undo"),
-    )
+    orchestrator = _orchestrator(transport, allowed, calls)
 
-    AgentsScreen._repeat_undo_history(screen)  # type: ignore[arg-type]
+    orchestrator.repeat_tick()
     allowed[0] = False
-    AgentsScreen._repeat_undo_history(screen)  # type: ignore[arg-type]
+    orchestrator.repeat_tick()
 
-    assert calls == ["undo"]
+    assert calls == ["block", "undo"]
     assert transport.calls == ["stop"]
 
 
 def test_repeated_undo_effect_blocks_flip_before_mutating_history() -> None:
+    transport = _RepeatTransport()
     calls: list[str] = []
-    screen = SimpleNamespace(
-        _block_graph_flip=lambda: calls.append("block"),
-        _undo_history_only=lambda: calls.append("undo"),
-    )
+    orchestrator = _orchestrator(transport, [True], calls)
 
-    AgentsScreen._perform_repeated_undo(screen)  # type: ignore[arg-type]
+    orchestrator.repeat_tick()
 
     assert calls == ["block", "undo"]
 
@@ -96,29 +116,26 @@ def test_binding_reset_waits_until_repeat_transport_exists() -> None:
 
 
 def test_transition_stops_repeat_before_dispatching_actions() -> None:
-    calls: list[object] = []
-    screen = SimpleNamespace(
-        _stop_undo_repeat=lambda: calls.append("stop"),
-        _dispatch_history_actions=lambda actions: calls.append(("dispatch", actions)),
-    )
+    transport = _RepeatTransport()
+    calls: list[str] = []
+    orchestrator = _orchestrator(transport, [True], calls)
     transition = HistoryTransition(
         actions=("undo",),
         stop_repeat=True,
     )
 
-    AgentsScreen._apply_history_transition(screen, transition)  # type: ignore[arg-type]
+    orchestrator.apply(transition)
 
-    assert calls == ["stop", ("dispatch", ("undo",))]
+    assert transport.calls == ["stop", "arm"]
+    assert calls == ["undo"]
 
 
 def test_gesture_reset_stops_repeat_before_resetting_core() -> None:
+    transport = _RepeatTransport()
     calls: list[str] = []
-    gesture = SimpleNamespace(reset=lambda: calls.append("reset"))
-    screen = SimpleNamespace(
-        _history_gesture=gesture,
-        _stop_undo_repeat=lambda: calls.append("stop"),
-    )
+    orchestrator = _orchestrator(transport, [True], calls)
 
-    AgentsScreen._reset_history_gesture(screen)  # type: ignore[arg-type]
+    orchestrator.reset()
 
-    assert calls == ["stop", "reset"]
+    assert transport.calls == ["stop"]
+    assert calls == ["reset"]
