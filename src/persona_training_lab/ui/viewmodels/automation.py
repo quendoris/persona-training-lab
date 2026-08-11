@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -22,6 +23,7 @@ AUTOMATION_RECIPE_DESCRIPTION_KEYS = {
 AUTOMATION_RUN_STATUS_KEYS = {
     "succeeded": "automation.run.status.succeeded",
     "failed": "automation.run.status.failed",
+    "cancelled": "automation.run.status.cancelled",
     "timeout": "automation.run.status.timeout",
     "launch_failed": "automation.run.status.launch_failed",
     "operation_blocked": "automation.run.status.operation_blocked",
@@ -108,9 +110,15 @@ class AutomationViewModel:
         self,
         recipe_id: str,
         inputs: Mapping[str, str] | None = None,
+        *,
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> AutomationRunView:
         return self._run_view(
-            self.automation_service.run_recipe(recipe_id, inputs)
+            self.automation_service.run_recipe(
+                recipe_id,
+                inputs,
+                cancel_requested=cancel_requested,
+            )
         )
 
     @staticmethod
