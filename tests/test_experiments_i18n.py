@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from persona_training_lab.application.experiments.titles import (
     encode_experiment_title,
 )
 from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
+from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.ui.experiments.screen import ExperimentsScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.viewmodels.experiments import ExperimentsViewModel
@@ -83,6 +85,7 @@ def _app() -> QApplication:
 
 def test_experiments_workspace_switches_language_without_rebuilding_rows(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     app = _app()
     manager = LocalizationManager(
@@ -157,3 +160,40 @@ def test_experiments_workspace_switches_language_without_rebuilding_rows(
 
     live_screen.deleteLater()
     app.processEvents()
+
+    source = """
+class ExperimentTitleKind:
+    PERSONALITY_PORTRAIT = "personality_portrait"
+    BAD = "Big Five portrait"
+
+
+def _execute_portrait():
+    hidden = {
+        "title": "Big Five portrait · 2026-08-10 23:58",
+        "subtitle": "PORTRAIT: 1/1 · scientific payload",
+        "status": "завершено",
+    }
+    semantic = {
+        "title": encode_experiment_title(
+            ExperimentTitleKind.PERSONALITY_PORTRAIT
+        ),
+        "subtitle": "PORTRAIT: 1/1 · scientific payload",
+        "status": "completed",
+    }
+    return hidden, semantic
+"""
+    path = tmp_path / "application" / "experiments" / "service.py"
+    path.parent.mkdir(parents=True)
+    visitor = DeepSurfaceAudit(path, display_root=tmp_path)
+    visitor.visit(ast.parse(source, filename=str(path)))
+    findings = {(item.call, item.text) for item in visitor.literals}
+
+    assert ("ExperimentTitleKind code", "Big Five portrait") in findings
+    assert (
+        "_execute_portrait persisted title",
+        "Big Five portrait · 2026-08-10 23:58",
+    ) in findings
+    assert ("_execute_portrait persisted status", "завершено") in findings
+    assert not any("scientific payload" in text for _, text in findings)
+    assert not any(text == "personality_portrait" for _, text in findings)
+    assert not any(text == "completed" for _, text in findings)
