@@ -41,6 +41,9 @@ from persona_training_lab.ui.agents.screen_history_keyguard import (
 from persona_training_lab.ui.agents.screen_history_keyguard_sticky import (
     AgentsScreen as StickyHistoryAgentsScreen,
 )
+from persona_training_lab.ui.agents.screen_history_transport import (
+    AgentsScreen as HistoryTransportAgentsScreen,
+)
 from persona_training_lab.ui.agents.screen_lineage_base import (
     AgentsScreen as LineageBaseAgentsScreen,
 )
@@ -181,14 +184,15 @@ def test_public_agents_screen_uses_semantic_composition_layers() -> None:
         WorkspacePresentationAgentsScreen,
     )
     assert WorkspacePresentationAgentsScreen.__bases__ == (
-        HistoryKeyGuardAgentsScreen,
+        HistoryTransportAgentsScreen,
     )
-    assert HistoryKeyGuardAgentsScreen.__bases__ == (
+    assert HistoryTransportAgentsScreen.__bases__ == (
         LineageInteractionAgentsScreen,
     )
     assert LineageInteractionAgentsScreen.__bases__ == (LineageBaseAgentsScreen,)
 
-    assert StickyHistoryAgentsScreen is HistoryKeyGuardAgentsScreen
+    assert HistoryKeyGuardAgentsScreen is HistoryTransportAgentsScreen
+    assert StickyHistoryAgentsScreen is HistoryTransportAgentsScreen
     assert FinalCompatibilityAgentsScreen is WorkspacePresentationAgentsScreen
     assert (
         StatefulFixedCompatibilityAgentsScreen
@@ -338,7 +342,7 @@ def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
         _apply_history_gesture_transition=transitions.append,
     )
 
-    HistoryKeyGuardAgentsScreen._poll_physical_modifiers(screen)
+    HistoryTransportAgentsScreen._poll_physical_modifiers(screen)
 
     assert core.control_down is True
     assert core.shift_down is True
