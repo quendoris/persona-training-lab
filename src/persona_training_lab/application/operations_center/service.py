@@ -173,6 +173,7 @@ def _operation_target(kind: str) -> tuple[str, str]:
         "analysis": ("analysis", ""),
         "inference": ("training", "focus.training.check_model"),
         "lineage_delete": ("agents", "focus.agents.delete_branch"),
+        "automation_recipe": ("automation", ""),
     }.get(kind, ("dashboard", ""))
 
 
