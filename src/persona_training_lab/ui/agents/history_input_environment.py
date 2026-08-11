@@ -18,7 +18,13 @@ class HistoryInputEnvironmentSnapshot:
 
 
 class HistoryInputEnvironment:
-    """Capture physical modifiers and owner readiness as one Qt observation."""
+    """Own global Qt attachment and history-relevant environment observations."""
+
+    @staticmethod
+    def install_event_filter(owner: QWidget) -> None:
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            app.installEventFilter(owner)
 
     @classmethod
     def capture(cls, owner: QWidget) -> HistoryInputEnvironmentSnapshot:
