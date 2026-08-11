@@ -227,6 +227,8 @@ _OPAQUE_VALIDATED_CALLS = frozenset(
         "training_text",
         "EvaluationText",
         "evaluation_text",
+        "DashboardText",
+        "dashboard_text",
         "SnapshotText",
         "snapshot_text",
     }
