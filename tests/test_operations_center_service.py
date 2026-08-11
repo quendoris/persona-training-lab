@@ -101,6 +101,23 @@ def test_active_training_is_mapped_to_training_workspace() -> None:
     assert item.operation_state == "running"
     assert item.operation_subject == "mdl_001"
 
+    automation = OperationsCenterService(
+        event_log=_EventLog(),
+        runtime_operations=_Operations(
+            active=(
+                _operation(
+                    "op_automation",
+                    "automation_recipe",
+                    "running",
+                    "2026-08-04T10:01:00+00:00",
+                ),
+            )
+        ),
+    ).active_items()[0]
+    assert automation.target_screen == "automation"
+    assert automation.focus_key == ""
+    assert automation.operation_kind == "automation_recipe"
+
 
 def test_warning_and_error_events_appear_in_problems() -> None:
     service = OperationsCenterService(
