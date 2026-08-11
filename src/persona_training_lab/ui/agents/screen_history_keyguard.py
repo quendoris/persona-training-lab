@@ -39,9 +39,6 @@ _HISTORY_ROUTING = HistoryShortcutRouting()
 class AgentsScreen(_LineageInteractionAgentsScreen):
     """Own Qt transport for the graph history gesture core."""
 
-    _HISTORY_BINDING_IDS = _HISTORY_ROUTING.binding_ids
-    _DEFAULT_GUARDED_SEQUENCES = _HISTORY_ROUTING.default_sequences
-    _HISTORY_SEQUENCES = _HISTORY_ROUTING.history_sequences
     _REPEAT_DELAY_MS = 330
     _REPEAT_INTERVAL_MS = 85
     _MODIFIER_POLL_MS = 16
@@ -279,7 +276,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     def _sync_history_shortcut_routing(self) -> None:
         sequences = {
             binding_id: self._key_binding_manager.sequence(binding_id)
-            for binding_id in self._HISTORY_BINDING_IDS
+            for binding_id in _HISTORY_ROUTING.binding_ids
         }
         self._history_binding_ownership.sync(sequences)
         self._sync_modifier_polling()
@@ -294,18 +291,6 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
 
     def _stop_modifier_polling(self) -> None:
         self._modifier_poll.stop()
-
-    def _disable_conflicting_history_bindings(self) -> None:
-        # Compatibility for older callers and tests.
-        self._sync_history_shortcut_routing()
-
-    @staticmethod
-    def _normalized_sequence(sequence: str) -> str:
-        return _HISTORY_ROUTING.normalized_sequence(sequence)
-
-    @staticmethod
-    def _sequence_is_history(sequence: QKeySequence) -> bool:
-        return _HISTORY_ROUTING.sequence_is_history(sequence)
 
     def _toggle_graph_flip(self) -> None:
         if self._graph_flip_is_blocked():
