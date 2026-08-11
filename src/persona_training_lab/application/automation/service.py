@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 import os
 import subprocess
 import sys
+import time
 from types import MappingProxyType
 from typing import Mapping, Protocol, Sequence
 
 from persona_training_lab.application.runtime.operations import (
+    OperationConflictError,
     ResourceClaim,
     RuntimeOperationCoordinator,
 )
@@ -65,6 +68,15 @@ class AutomationDiscoveryIssue:
 
 
 @dataclass(frozen=True, slots=True)
+class AutomationProcessResult:
+    return_code: int
+    stdout: str = ""
+    stderr: str = ""
+    cancelled: bool = False
+    timed_out: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class AutomationRunResult:
     ok: bool
     code: str
@@ -95,7 +107,8 @@ class AutomationProcessRunner(Protocol):
         cwd: Path,
         env: Mapping[str, str],
         timeout: float | None,
-    ) -> subprocess.CompletedProcess[str]: ...
+        cancel_requested: Callable[[], bool] | None,
+    ) -> AutomationProcessResult: ...
 
 
 def _default_runner(
@@ -104,16 +117,52 @@ def _default_runner(
     cwd: Path,
     env: Mapping[str, str],
     timeout: float | None,
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    cancel_requested: Callable[[], bool] | None,
+) -> AutomationProcessResult:
+    process = subprocess.Popen(
         tuple(command),
         cwd=cwd,
         env=dict(env),
-        timeout=timeout,
-        check=False,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
     )
+    started = time.monotonic()
+    while True:
+        try:
+            stdout, stderr = process.communicate(timeout=0.1)
+            return AutomationProcessResult(
+                process.returncode,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        except subprocess.TimeoutExpired:
+            if cancel_requested is not None and cancel_requested():
+                process.terminate()
+                try:
+                    stdout, stderr = process.communicate(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                return AutomationProcessResult(
+                    process.returncode,
+                    stdout=stdout,
+                    stderr=stderr,
+                    cancelled=True,
+                )
+            if timeout is not None and time.monotonic() - started >= timeout:
+                process.terminate()
+                try:
+                    stdout, stderr = process.communicate(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                return AutomationProcessResult(
+                    process.returncode,
+                    stdout=stdout,
+                    stderr=stderr,
+                    timed_out=True,
+                )
 
 
 @dataclass(slots=True)
@@ -164,6 +213,8 @@ class AutomationService:
         self,
         recipe_id: str,
         inputs: Mapping[str, str] | None = None,
+        *,
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> AutomationRunResult:
         recipe = self.get_recipe(recipe_id)
         if recipe is None:
@@ -240,66 +291,66 @@ class AutomationService:
         timeout = float(recipe.timeout_seconds) if recipe.timeout_seconds > 0 else None
 
         try:
-            with self.operation_coordinator.begin(
+            lease = self.operation_coordinator.begin(
                 operation_kind="automation_recipe",
                 subject_kind="automation_recipe",
                 subject_id=recipe.recipe_id,
                 claims=claims,
-            ) as lease:
-                try:
-                    completed = self.process_runner(
-                        command,
-                        cwd=cwd,
-                        env=environment,
-                        timeout=timeout,
-                    )
-                except subprocess.TimeoutExpired as exc:
-                    lease.fail("timeout")
-                    return AutomationRunResult(
-                        False,
-                        "timeout",
-                        recipe.recipe_id,
-                        operation_id=lease.operation_id,
-                        command=command,
-                        stdout=self._text(exc.stdout),
-                        stderr=self._text(exc.stderr),
-                    )
-                except OSError as exc:
-                    lease.fail(str(exc))
-                    return AutomationRunResult(
-                        False,
-                        "launch_failed",
-                        recipe.recipe_id,
-                        operation_id=lease.operation_id,
-                        command=command,
-                        stderr=str(exc),
-                    )
-
-                if completed.returncode == 0:
-                    lease.succeed()
-                    code = "succeeded"
-                    ok = True
-                else:
-                    lease.fail(completed.stderr or f"exit {completed.returncode}")
-                    code = "failed"
-                    ok = False
-                return AutomationRunResult(
-                    ok,
-                    code,
-                    recipe.recipe_id,
-                    operation_id=lease.operation_id,
-                    return_code=completed.returncode,
-                    command=command,
-                    stdout=completed.stdout,
-                    stderr=completed.stderr,
-                )
-        except Exception as exc:
+            )
+        except OperationConflictError as exc:
             return AutomationRunResult(
                 False,
                 "operation_blocked",
                 recipe.recipe_id,
                 command=command,
                 stderr=str(exc),
+            )
+
+        with lease:
+            try:
+                completed = self.process_runner(
+                    command,
+                    cwd=cwd,
+                    env=environment,
+                    timeout=timeout,
+                    cancel_requested=cancel_requested,
+                )
+            except OSError as exc:
+                lease.fail(str(exc))
+                return AutomationRunResult(
+                    False,
+                    "launch_failed",
+                    recipe.recipe_id,
+                    operation_id=lease.operation_id,
+                    command=command,
+                    stderr=str(exc),
+                )
+
+            if completed.cancelled:
+                lease.cancel("cancelled")
+                code = "cancelled"
+                ok = False
+            elif completed.timed_out:
+                lease.fail("timeout")
+                code = "timeout"
+                ok = False
+            elif completed.return_code == 0:
+                lease.succeed()
+                code = "succeeded"
+                ok = True
+            else:
+                lease.fail(completed.stderr or f"exit {completed.return_code}")
+                code = "failed"
+                ok = False
+            return AutomationRunResult(
+                ok,
+                code,
+                recipe.recipe_id,
+                operation_id=lease.operation_id,
+                return_code=completed.return_code,
+                command=command,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
             )
 
     def _working_directory(
@@ -326,11 +377,3 @@ class AutomationService:
             return token.format_map(substitutions)
         except KeyError as exc:
             raise KeyError(f"unknown recipe placeholder: {exc.args[0]}") from exc
-
-    @staticmethod
-    def _text(value: object) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, bytes):
-            return value.decode("utf-8", errors="replace")
-        return str(value)
