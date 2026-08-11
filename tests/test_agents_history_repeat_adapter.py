@@ -100,7 +100,7 @@ def test_repeated_undo_effect_blocks_flip_before_mutating_history() -> None:
     assert calls == ["block", "undo"]
 
 
-def test_binding_reset_waits_until_repeat_transport_exists() -> None:
+def test_binding_reset_waits_until_transition_orchestrator_exists() -> None:
     calls: list[str] = []
     screen = SimpleNamespace(
         _reset_history_gesture=lambda: calls.append("reset"),
@@ -109,7 +109,7 @@ def test_binding_reset_waits_until_repeat_transport_exists() -> None:
     AgentsScreen._reset_history_gesture_if_ready(screen)  # type: ignore[arg-type]
     assert calls == []
 
-    screen._history_repeat = object()
+    screen._history_transition = object()
     AgentsScreen._reset_history_gesture_if_ready(screen)  # type: ignore[arg-type]
 
     assert calls == ["reset"]
