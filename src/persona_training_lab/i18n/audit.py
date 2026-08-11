@@ -30,6 +30,8 @@ _TRANSLATION_KEY_POSITIONS = {
     "evaluation_text": 0,
     "DashboardText": 0,
     "dashboard_text": 0,
+    "SnapshotText": 0,
+    "snapshot_text": 0,
 }
 _TRANSLATION_FALLBACK_POSITIONS = {
     "_text": (1,),
