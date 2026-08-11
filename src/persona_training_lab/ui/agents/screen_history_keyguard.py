@@ -9,7 +9,7 @@ from persona_training_lab.ui.agents.history_event_orchestrator import (
 )
 from persona_training_lab.ui.agents.history_gesture_core import (
     HistoryGestureCore,
-    HistoryTransition,
+    HistoryTransition as HistoryGestureTransition,
 )
 from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
@@ -143,12 +143,12 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             has_extra_modifiers=has_extra_modifiers,
             auto_repeat=event.isAutoRepeat(),
         )
-        self._apply_history_transition(transition)
+        self._apply_history_gesture_transition(transition)
         return transition.claimed
 
     def _handle_history_key_release(self, key_name: str) -> bool:
         transition = self._history_gesture.release(key_name)
-        self._apply_history_transition(transition)
+        self._apply_history_gesture_transition(transition)
         return transition.claimed
 
     def _handle_keyboard_layout_change(self) -> None:
@@ -158,7 +158,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         transition = self._history_gesture.layout_changed(
             observed_control=control
         )
-        self._apply_history_transition(transition)
+        self._apply_history_gesture_transition(transition)
 
     def _poll_physical_modifiers(self) -> None:
         if (
@@ -172,11 +172,11 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             observed_control=control,
             observed_shift=shift,
         )
-        self._apply_history_transition(transition)
+        self._apply_history_gesture_transition(transition)
 
-    def _apply_history_transition(
+    def _apply_history_gesture_transition(
         self,
-        transition: HistoryTransition,
+        transition: HistoryGestureTransition,
     ) -> None:
         self._history_transition.apply(transition)
 
