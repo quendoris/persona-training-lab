@@ -90,7 +90,7 @@ def _manifest(path: Path, **overrides: object) -> None:
         "inputs": [
             {
                 "name": "message",
-                "required": true,
+                "required": True,
                 "description": "Operator payload",
             }
         ],
