@@ -59,6 +59,7 @@ def main() -> int:
         snapshots_vm=container.snapshots_vm,
         tests_vm=container.tests_vm,
         analysis_vm=container.analysis_vm,
+        automation_vm=container.automation_vm,
         telemetry_vm=container.telemetry_vm,
         lineage_runtime_safety=container.lineage_runtime_safety,
         operations_center=container.operations_center,
