@@ -6,6 +6,9 @@ from PySide6.QtCore import QEvent
 
 from persona_training_lab.ui.agents.history_gesture_core import HistoryTransition
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
+from persona_training_lab.ui.agents.screen_lineage_interactions import (
+    AgentsScreen as _LineageInteractionAgentsScreen,
+)
 
 
 class _EventRouterProbe:
@@ -54,6 +57,11 @@ def test_stop_modifier_polling_remains_a_thin_transport_adapter() -> None:
 
 
 def test_gesture_transition_application_remains_a_thin_screen_adapter() -> None:
+    assert (
+        AgentsScreen._apply_history_transition
+        is _LineageInteractionAgentsScreen._apply_history_transition
+    )
+
     orchestrator = _TransitionProbe()
     screen = SimpleNamespace(_history_transition=orchestrator)
     transition = HistoryTransition(actions=("toggle",))
