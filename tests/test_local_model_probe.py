@@ -11,6 +11,7 @@ from persona_training_lab.application.ports.local_model_probe import (
     LocalInferenceResult,
     ModelProbeResult,
 )
+from persona_training_lab.i18n.deep_audit import collect_deep_literals
 from persona_training_lab.infrastructure.local_model.probe_provider import (
     FilesystemLocalModelProbeProvider,
 )
@@ -99,6 +100,53 @@ def test_local_model_probe_found_with_minimal_files(tmp_path: Path) -> None:
     assert vm.local_model_status_code is LocalModelStatus.FOUND
     assert vm.local_model_status == "Модель найдена"
     assert vm.local_model_note == "Структура файлов модели выглядит корректно."
+
+    audit_root = tmp_path / "audit-source"
+    audit_root.mkdir()
+    (audit_root / "local_model_contract.py").write_text(
+        '''
+class LocalModelStatus:
+    FOUND = "found"
+    BAD = "Модель найдена"
+
+
+def build(raw_details):
+    ModelProbeResult(
+        status="Модель найдена",
+        details="Структура готова",
+    )
+    InferenceProbeResult(message="Проверка готова")
+    LocalInferenceResult(
+        status="Ошибка генерации",
+        message="Не удалось",
+        response="raw model output",
+    )
+    LocalModelDiagnostic("Красивый код")
+    local_model_diagnostic("Плохой код")
+    ModelProbeResult(
+        status="found",
+        details=raw_details,
+        diagnostic=local_model_diagnostic("model_files_ready"),
+    )
+    LocalInferenceResult(
+        status="responding",
+        response="raw model output",
+    )
+''',
+        encoding="utf-8",
+    )
+    findings = collect_deep_literals(audit_root, display_root=audit_root)
+    reported = {(item.call, item.text) for item in findings}
+    assert reported == {
+        ("LocalModelStatus code", "Модель найдена"),
+        ("ModelProbeResult status", "Модель найдена"),
+        ("ModelProbeResult details", "Структура готова"),
+        ("InferenceProbeResult message", "Проверка готова"),
+        ("LocalInferenceResult status", "Ошибка генерации"),
+        ("LocalInferenceResult message", "Не удалось"),
+        ("LocalModelDiagnostic code", "Красивый код"),
+        ("local_model_diagnostic code", "Плохой код"),
+    }
 
 
 def test_local_model_inference_backend_missing() -> None:
