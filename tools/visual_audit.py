@@ -133,12 +133,14 @@ def _write_bundle(session_dir: Path, manifest: dict[str, object]) -> Path:
 
     captures = manifest.get("captures")
     failures = manifest.get("failures")
+    routes = manifest.get("routes")
+    locales = manifest.get("locales")
     summary_lines = [
         "Persona Training Lab visual audit",
         f"Commit: {manifest['commit']}",
         f"Branch: {manifest['branch']}",
-        f"Routes: {len(manifest['routes'])}",
-        f"Locales: {', '.join(manifest['locales'])}",
+        f"Routes: {len(routes) if isinstance(routes, list) else 0}",
+        "Locales: " + ", ".join(locales if isinstance(locales, list) else []),
         f"Captures: {len(captures) if isinstance(captures, list) else 0}",
         f"Failures: {len(failures) if isinstance(failures, list) else 0}",
     ]
@@ -170,8 +172,10 @@ def run_visual_audit(
     if not locale_list:
         raise ValueError("At least one locale is required")
 
+    output_root = output_root.resolve()
     commit = _git("rev-parse", "HEAD")
     branch = _git("branch", "--show-current")
+    status = _git("status", "--porcelain")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     session_dir = output_root / f"{stamp}-{commit[:12]}"
     session_dir.mkdir(parents=True, exist_ok=False)
@@ -183,7 +187,7 @@ def run_visual_audit(
         "schema": "ptl:visual-audit:v1",
         "commit": commit,
         "branch": branch,
-        "dirty": _git("status", "--porcelain") != "unknown" and bool(_git("status", "--porcelain")),
+        "dirty": status not in {"", "unknown"},
         "captured_at": datetime.now(UTC).isoformat(),
         "routes": list(routes),
         "locales": list(locale_list),
@@ -290,7 +294,7 @@ def main() -> int:
     started = time.monotonic()
     try:
         bundle = run_visual_audit(
-            output_root=args.output.resolve(),
+            output_root=args.output,
             locales=locales,
             width=max(960, args.width),
             height=max(620, args.height),
