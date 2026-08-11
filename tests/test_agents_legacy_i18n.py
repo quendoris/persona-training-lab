@@ -15,6 +15,10 @@ from persona_training_lab.ui.agents.real_lineage import build_real_lineage
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import render_user_message
 from persona_training_lab.ui.viewmodels.agents import AgentsViewModel
+from persona_training_lab.ui.viewmodels.agents_contracts import (
+    GuidancePortraitStats,
+    PortraitStats,
+)
 
 
 CATALOGS = (
@@ -155,6 +159,11 @@ def _view_model() -> AgentsViewModel:
 
 def test_legacy_agents_contract_is_semantic_before_rendering() -> None:
     vm = _view_model()
+
+    assert PortraitStats is GuidancePortraitStats
+    latest = vm._latest_portrait()
+    assert isinstance(latest, GuidancePortraitStats)
+    assert latest.title == "New portrait"
 
     assert all(isinstance(role.title, UserMessage) for role in vm.roles())
     assert all(isinstance(role.mission, UserMessage) for role in vm.roles())
