@@ -15,6 +15,7 @@ from persona_training_lab.ui.agents.history_gesture_core import (
 )
 from persona_training_lab.ui.agents.history_input_environment import (
     HistoryInputEnvironment,
+    HistoryInputEnvironmentSnapshot,
 )
 from persona_training_lab.ui.agents.history_key_resolver import HistoryKeyResolver
 from persona_training_lab.ui.agents.history_modifier_poller import HistoryModifierPoller
@@ -127,10 +128,12 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self._history_environment.install_event_filter(self)
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802
+        environment = self._history_environment.capture(self)
         decision = self._history_events.route(
             self,
             watched_is_owner=watched is self,
             event=event,
+            environment=environment,
         )
         if decision is not None:
             return decision
@@ -140,6 +143,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self,
         event: QKeyEvent,
         key_name: str,
+        environment: HistoryInputEnvironmentSnapshot,
     ) -> bool:
         if not self._history_gesture.has_guarded_bindings:
             return False
@@ -148,7 +152,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         if key_name == "z" and has_extra_modifiers:
             return False
 
-        control, shift = self._observed_modifiers(event)
+        control, shift = self._observed_modifiers(event, environment)
         transition = self._history_gesture.press(
             key_name,
             observed_control=control,
@@ -164,10 +168,12 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self._apply_history_gesture_transition(transition)
         return transition.claimed
 
-    def _handle_keyboard_layout_change(self) -> None:
+    def _handle_keyboard_layout_change(
+        self,
+        environment: HistoryInputEnvironmentSnapshot,
+    ) -> None:
         if not self._history_gesture.undo_binding_owned:
             return
-        environment = self._history_environment.capture(self)
         transition = self._history_gesture.layout_changed(
             observed_control=environment.modifiers.control
         )
@@ -199,19 +205,19 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     def _guarded_history_gesture_active(self) -> bool:
         return self._history_gesture.gesture_is_guarded()
 
+    @staticmethod
     def _observed_modifiers(
-        self,
         event: QKeyEvent,
+        environment: HistoryInputEnvironmentSnapshot,
     ) -> tuple[bool, bool]:
-        """Return only transport observations, never core-derived latch state."""
+        """Merge one captured environment with event-local modifier facts."""
 
-        environment_modifiers = self._history_environment.capture(self).modifiers
         event_modifiers = HistoryModifierSnapshot.from_qt(
             event.modifiers()
         )
         return (
-            environment_modifiers.control or event_modifiers.control,
-            environment_modifiers.shift or event_modifiers.shift,
+            environment.modifiers.control or event_modifiers.control,
+            environment.modifiers.shift or event_modifiers.shift,
         )
 
     @staticmethod
@@ -227,6 +233,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self,
         event: QKeyEvent,
         key_name: str | None,
+        environment: HistoryInputEnvironmentSnapshot,
     ) -> bool:
         if not self._history_gesture.has_guarded_bindings:
             return False
@@ -235,7 +242,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         if key_name == "z" and has_extra_modifiers:
             return False
 
-        control, shift = self._observed_modifiers(event)
+        control, shift = self._observed_modifiers(event, environment)
         return self._history_gesture.claims_override(
             key_name=key_name,
             observed_control=control,
@@ -249,13 +256,16 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         self._history_binding_ownership.sync(sequences)
         self._sync_modifier_polling()
 
-    def _sync_modifier_polling(self) -> None:
+    def _sync_modifier_polling(
+        self,
+        environment: HistoryInputEnvironmentSnapshot | None = None,
+    ) -> None:
         if not hasattr(self, "_modifier_poll"):
             return
-        environment = self._history_environment.capture(self)
+        snapshot = environment or self._history_environment.capture(self)
         self._modifier_poll.set_active(
             self._history_gesture.has_guarded_bindings
-            and environment.input_active
+            and snapshot.input_active
         )
 
     def _stop_modifier_polling(self) -> None:
@@ -283,6 +293,3 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
     @staticmethod
     def _history_key_name(event: QKeyEvent) -> str | None:
         return HistoryKeyResolver.key_name(event)
-
-    def _history_keys_are_active(self) -> bool:
-        return self._history_environment.capture(self).input_active
