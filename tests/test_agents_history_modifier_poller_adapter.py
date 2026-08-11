@@ -60,18 +60,18 @@ def test_modifier_polling_sync_is_safe_before_transport_construction() -> None:
     AgentsScreen._sync_modifier_polling(screen)  # type: ignore[arg-type]
 
 
-def test_shortcut_routing_resyncs_modifier_poller_after_ownership_changes() -> None:
+def test_binding_changes_resync_modifier_poller_after_ownership() -> None:
     calls: list[str] = []
     sequences = dict(HistoryShortcutRouting.default_sequences)
-    manager = SimpleNamespace(sequence=lambda binding_id: sequences[binding_id])
     ownership = _OwnershipProbe()
     screen = SimpleNamespace(
-        _key_binding_manager=manager,
+        _reset_history_gesture=lambda: None,
+        _shortcut_bindings=SimpleNamespace(sync=lambda: sequences),
         _history_binding_ownership=ownership,
         _sync_modifier_polling=lambda: calls.append("sync"),
     )
 
-    AgentsScreen._sync_history_shortcut_routing(screen)  # type: ignore[arg-type]
+    AgentsScreen._apply_key_binding_sequences(screen)  # type: ignore[arg-type]
 
     assert ownership.snapshots == [sequences]
     assert calls == ["sync"]
