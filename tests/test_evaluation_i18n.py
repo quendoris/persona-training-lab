@@ -18,6 +18,9 @@ from persona_training_lab.application.experiments.titles import (
     ExperimentTitleKind,
     encode_experiment_title,
 )
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -25,6 +28,7 @@ from persona_training_lab.ui.analysis.screen import AnalysisScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.tests.screen import TestsScreen as _TestsScreen
 from persona_training_lab.ui.viewmodels.analysis_lineage import AnalysisViewModel
+from persona_training_lab.ui.viewmodels.evaluation import local_model_status_text
 from persona_training_lab.ui.viewmodels.tests_lineage import TestsViewModel
 
 
@@ -71,6 +75,7 @@ def _portrait(
     score: int,
     *,
     status: str = "Портрет собран",
+    case_status: str = "Модель отвечает",
     updated_at: str = "",
 ) -> ExperimentSummary:
     return ExperimentSummary(
@@ -83,7 +88,7 @@ def _portrait(
             f"snapshot={title} · model_version={version_id} · "
             f"artifact=/models/{version_id} · battery=v1 · scoring=s1\n\n"
             "CASE 1\nTRAIT: Openness\nKEY: O1\nREVERSE: 0\n"
-            "ITEM: I explore unfamiliar ideas.\nSTATUS: Модель отвечает\n"
+            f"ITEM: I explore unfamiliar ideas.\nSTATUS: {case_status}\n"
             "VALID_SCORE: 1\n"
             f"RAW_RESPONSE: SCORE: {score}\nRESPONSE: SCORE: {score}"
         ),
@@ -229,6 +234,57 @@ def test_legacy_portrait_status_and_case_status_use_current_locale(
 
     screen.close()
     screen.deleteLater()
+    app.processEvents()
+
+    assert all(local_model_status_text(status).key for status in LocalModelStatus)
+
+    terminal = _portrait(
+        "evr_resource",
+        "Resource portrait",
+        "mdl_resource",
+        3,
+        case_status=LocalModelStatus.RESOURCE_EXHAUSTED.value,
+    )
+    manager.set_locale("en-US", persist=False)
+    terminal_tests = _TestsScreen(
+        TestsViewModel(experiments_service=_Experiments([terminal])),
+        manager,
+    )
+    terminal_analysis = AnalysisScreen(
+        AnalysisViewModel(experiments_service=_Experiments([terminal])),
+        manager,
+    )
+    terminal_tests.show()
+    terminal_analysis.show()
+    app.processEvents()
+
+    assert any(
+        "Status: not enough resources" in text
+        for text in _visible_texts(terminal_tests)
+    )
+    assert any(
+        "Status: not enough resources" in text
+        for text in _visible_texts(terminal_analysis)
+    )
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    assert any(
+        "Статус: недостаточно ресурсов" in text
+        for text in _visible_texts(terminal_tests)
+    )
+    assert any(
+        "Статус: недостаточно ресурсов" in text
+        for text in _visible_texts(terminal_analysis)
+    )
+
+    terminal_tests.close()
+    terminal_analysis.close()
+    terminal_tests.deleteLater()
+    terminal_analysis.deleteLater()
     app.processEvents()
 
 
