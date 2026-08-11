@@ -45,7 +45,7 @@ class _ExperimentsService:
             ExperimentSummary(
                 experiment_id="evr_legacy",
                 title="Big Five portrait · 2026-08-09 12:34",
-                subtitle="LEGACY RAW PAYLOAD",
+                subtitle="PORTRAIT: 2/2 · model_version=mdl_legacy",
                 status="completed",
                 status_code=EvaluationRunStatus.COMPLETED,
                 updated_at="2026-08-09T12:34:00+00:00",
@@ -57,6 +57,14 @@ class _ExperimentsService:
                 status="completed",
                 status_code=EvaluationRunStatus.COMPLETED,
                 updated_at="2026-08-08T10:00:00+00:00",
+            ),
+            ExperimentSummary(
+                experiment_id="evr_collision",
+                title="Big Five portrait · Operator label",
+                subtitle="Operator-authored experiment",
+                status="completed",
+                status_code=EvaluationRunStatus.COMPLETED,
+                updated_at="2026-08-08T09:00:00+00:00",
             ),
             ExperimentSummary(
                 experiment_id="evr_future",
@@ -116,17 +124,20 @@ def test_experiments_workspace_switches_language_without_rebuilding_rows(
     semantic_title = live_screen._rows[0][0]
     legacy_title = live_screen._rows[1][0]
     operator_title = live_screen._rows[2][0]
-    future_title = live_screen._rows[3][0]
+    collision_title = live_screen._rows[3][0]
+    future_title = live_screen._rows[4][0]
     raw_subtitles = tuple(row[1].text() for row in live_screen._rows)
 
     assert semantic_title.text() == "Big Five portrait · 2026-08-10 23:58"
     assert legacy_title.text() == "Big Five portrait · 2026-08-09 12:34"
     assert operator_title.text() == "Persona Stability Run"
+    assert collision_title.text() == "Big Five portrait · Operator label"
     assert future_title.text() == "Experiment"
     assert raw_subtitles == (
         "PORTRAIT: 1/1 · model_version=mdl_1",
-        "LEGACY RAW PAYLOAD",
+        "PORTRAIT: 2/2 · model_version=mdl_legacy",
         "Реальный эксперимент из БД",
+        "Operator-authored experiment",
         "FUTURE RAW PAYLOAD",
     )
 
@@ -135,10 +146,12 @@ def test_experiments_workspace_switches_language_without_rebuilding_rows(
     assert live_screen._rows[0][0] is semantic_title
     assert live_screen._rows[1][0] is legacy_title
     assert live_screen._rows[2][0] is operator_title
-    assert live_screen._rows[3][0] is future_title
+    assert live_screen._rows[3][0] is collision_title
+    assert live_screen._rows[4][0] is future_title
     assert semantic_title.text() == "Портрет Big Five · 2026-08-10 23:58"
     assert legacy_title.text() == "Портрет Big Five · 2026-08-09 12:34"
     assert operator_title.text() == "Persona Stability Run"
+    assert collision_title.text() == "Big Five portrait · Operator label"
     assert future_title.text() == "Эксперимент"
     assert tuple(row[1].text() for row in live_screen._rows) == raw_subtitles
 
