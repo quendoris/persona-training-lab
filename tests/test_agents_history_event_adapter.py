@@ -4,10 +4,6 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QEvent
 
-from persona_training_lab.ui.agents.history_gesture_core import (
-    HISTORY_TOGGLE,
-    HISTORY_UNDO,
-)
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
 
 
@@ -28,9 +24,12 @@ class _ModifierPollProbe:
         self.stop_calls += 1
 
 
-class _NoPolicyProbe:
-    def allowed_actions(self, _actions):
-        raise AssertionError("adapter must not re-evaluate core action policy")
+class _TransitionProbe:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, ...]] = []
+
+    def dispatch(self, actions) -> None:
+        self.calls.append(tuple(actions))
 
 
 def test_event_filter_delegates_owner_identity_and_returns_orchestrator_decision() -> None:
@@ -53,19 +52,14 @@ def test_stop_modifier_polling_remains_a_thin_transport_adapter() -> None:
     assert poller.stop_calls == 1
 
 
-def test_dispatch_executes_transition_actions_without_rechecking_policy() -> None:
-    calls: list[str] = []
-    screen = SimpleNamespace(
-        _history_gesture=_NoPolicyProbe(),
-        _stop_undo_repeat=lambda: calls.append("stop"),
-        _toggle_last_history_action=lambda: calls.append("toggle"),
-        _undo_history_only=lambda: calls.append("undo"),
-        _arm_undo_repeat=lambda: calls.append("arm"),
-    )
+def test_dispatch_remains_a_thin_transition_adapter() -> None:
+    transition = _TransitionProbe()
+    screen = SimpleNamespace(_history_transition=transition)
+    actions = ("toggle", "undo", "toggle")
 
     AgentsScreen._dispatch_history_actions(
         screen,
-        (HISTORY_TOGGLE, HISTORY_UNDO, HISTORY_TOGGLE),
+        actions,
     )  # type: ignore[arg-type]
 
-    assert calls == ["stop", "toggle", "undo", "arm", "stop", "toggle"]
+    assert transition.calls == [actions]
