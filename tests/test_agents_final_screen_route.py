@@ -280,7 +280,7 @@ def test_history_keyguard_accepts_physical_shift_release_before_next_ctrl_z() ->
     transitions = []
     screen = SimpleNamespace(
         _history_gesture=core,
-        _apply_history_transition=transitions.append,
+        _apply_history_gesture_transition=transitions.append,
     )
 
     assert HistoryKeyGuardAgentsScreen._handle_history_key_release(
@@ -304,7 +304,7 @@ def test_modifier_polling_never_releases_observed_ctrl_shift() -> None:
         _history_gesture=core,
         _history_keys_are_active=lambda: True,
         _queried_modifiers=lambda: (False, False),
-        _apply_history_transition=transitions.append,
+        _apply_history_gesture_transition=transitions.append,
     )
 
     HistoryKeyGuardAgentsScreen._poll_physical_modifiers(screen)
