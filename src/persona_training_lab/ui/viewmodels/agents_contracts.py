@@ -47,7 +47,7 @@ class AgentDetailView:
 
 
 @dataclass(slots=True, frozen=True)
-class PortraitStats:
+class GuidancePortraitStats:
     title: str
     passed: int
     total: int
@@ -55,11 +55,16 @@ class PortraitStats:
     scores: dict[str, float]
 
 
+# Historical public name retained for compatibility callers.
+PortraitStats = GuidancePortraitStats
+
+
 __all__ = (
     "AgentDetailView",
     "AgentRoleView",
     "AgentText",
     "AgentView",
+    "GuidancePortraitStats",
     "PortraitStats",
     "VersionNodeView",
 )
