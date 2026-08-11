@@ -31,6 +31,9 @@ from persona_training_lab.ui.agents.screen_lineage_interactions import (
 )
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
+from persona_training_lab.ui.keybindings.shortcut_sync import (
+    ShortcutBindingSynchronizer,
+)
 
 
 _HISTORY_ROUTING = HistoryShortcutRouting()
@@ -62,6 +65,10 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             flip_guard_seconds=self._FLIP_GUARD_SECONDS,
         )
         super().__init__(view_model, localization)
+        self._shortcut_bindings = ShortcutBindingSynchronizer(
+            manager=self._key_binding_manager,
+            shortcuts=self._shortcuts,
+        )
         self._history_binding_ownership = HistoryBindingOwnership(
             routing=_HISTORY_ROUTING,
             gesture=self._history_gesture,
@@ -105,7 +112,7 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
             self._apply_key_binding_sequences
         )
         self._apply_key_binding_sequences()
-        QTimer.singleShot(0, self._sync_history_shortcut_routing)
+        QTimer.singleShot(0, self._sync_modifier_polling)
 
         flip_button = getattr(self, "_flip_button", None)
         if flip_button is not None:
@@ -248,36 +255,8 @@ class AgentsScreen(_LineageInteractionAgentsScreen):
         )
 
     def _apply_key_binding_sequences(self) -> None:
-        self._reset_history_gesture_if_ready()
-        definitions = {
-            item.binding_id: item
-            for item in self._key_binding_manager.definitions()
-        }
-        for binding_id, shortcut in getattr(
-            self,
-            "_shortcuts",
-            {},
-        ).items():
-            sequence_text = self._key_binding_manager.sequence(binding_id)
-            sequence = QKeySequence.fromString(
-                sequence_text,
-                QKeySequence.SequenceFormat.PortableText,
-            )
-            shortcut.setKey(sequence)
-            definition = definitions.get(binding_id)
-            if definition is not None:
-                shortcut.setAutoRepeat(definition.auto_repeat)
-        self._sync_history_shortcut_routing()
-
-    def _reset_history_gesture_if_ready(self) -> None:
-        if hasattr(self, "_history_transition"):
-            self._reset_history_gesture()
-
-    def _sync_history_shortcut_routing(self) -> None:
-        sequences = {
-            binding_id: self._key_binding_manager.sequence(binding_id)
-            for binding_id in _HISTORY_ROUTING.binding_ids
-        }
+        self._reset_history_gesture()
+        sequences = self._shortcut_bindings.sync()
         self._history_binding_ownership.sync(sequences)
         self._sync_modifier_polling()
 
