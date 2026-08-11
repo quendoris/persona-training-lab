@@ -3,10 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from persona_training_lab.application.local_model.service import LocalModelService
-from persona_training_lab.infrastructure.local_model.probe_provider import FilesystemLocalModelProbeProvider
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
+from persona_training_lab.application.ports.local_model_probe import (
+    InferenceProbeResult,
+    LocalInferenceResult,
+    ModelProbeResult,
+)
+from persona_training_lab.infrastructure.local_model.probe_provider import (
+    FilesystemLocalModelProbeProvider,
+)
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
-
-from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, LocalInferenceResult, ModelProbeResult
 
 
 class StubLocalModelProbeProvider:
@@ -22,7 +30,10 @@ class StubLocalModelProbeProvider:
         prompt: str,
         instruction_prompt: str | None = None,
     ) -> LocalInferenceResult:
-        return LocalInferenceResult(status="Inference backend не подключён", message="Inference backend не подключён")
+        return LocalInferenceResult(
+            status="Inference backend не подключён",
+            message="Inference backend не подключён",
+        )
 
 
 class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
@@ -32,7 +43,11 @@ class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
         prompt: str,
         instruction_prompt: str | None = None,
     ) -> LocalInferenceResult:
-        return LocalInferenceResult(status="Модель отвечает", message="Smoke test выполнен", response="ok")
+        return LocalInferenceResult(
+            status="Модель отвечает",
+            message="Smoke test выполнен",
+            response="ok",
+        )
 
 
 def test_local_model_probe_missing_path() -> None:
@@ -43,9 +58,20 @@ def test_local_model_probe_missing_path() -> None:
         model_path="models/does-not-exist",
     )
 
+    result = service.probe_model_files()
+    assert result.status == LocalModelStatus.MISSING.value
+    assert result.details == ""
+    assert result.diagnostic is not None
+    assert result.diagnostic.code == "model_directory_missing"
+    assert result.diagnostic.values["path"] == "models/does-not-exist"
+
     vm = TrainingViewModel(local_model_service=service)
     vm.check_local_model()
+    assert vm.local_model_status_code is LocalModelStatus.MISSING
     assert vm.local_model_status == "Модель не найдена"
+    assert vm.local_model_note == (
+        "Директория модели не найдена: models/does-not-exist."
+    )
 
 
 def test_local_model_probe_found_with_minimal_files(tmp_path: Path) -> None:
@@ -62,9 +88,17 @@ def test_local_model_probe_found_with_minimal_files(tmp_path: Path) -> None:
         model_path=str(model_dir),
     )
 
+    result = service.probe_model_files()
+    assert result.status == LocalModelStatus.FOUND.value
+    assert result.details == ""
+    assert result.diagnostic is not None
+    assert result.diagnostic.code == "model_files_ready"
+
     vm = TrainingViewModel(local_model_service=service)
     vm.check_local_model()
+    assert vm.local_model_status_code is LocalModelStatus.FOUND
     assert vm.local_model_status == "Модель найдена"
+    assert vm.local_model_note == "Структура файлов модели выглядит корректно."
 
 
 def test_local_model_inference_backend_missing() -> None:
@@ -77,24 +111,32 @@ def test_local_model_inference_backend_missing() -> None:
     assert vm.local_inference_status == "Генерация…"
     status, response = vm.run_local_inference_sync(prompt)
     vm.finish_local_inference(status, response)
+    assert vm.local_inference_status_code is LocalModelStatus.INFERENCE_UNAVAILABLE
     assert vm.local_inference_status == "Inference backend не подключён"
 
 
 def test_local_model_smoke_prompt_marker_and_missing_model() -> None:
     provider = FilesystemLocalModelProbeProvider()
-    service = LocalModelService(probe_provider=provider, model_path="models/does-not-exist")
+    service = LocalModelService(
+        probe_provider=provider,
+        model_path="models/does-not-exist",
+    )
     vm = TrainingViewModel(local_model_service=service)
     ok, prompt = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")
     assert ok
     status, response = vm.run_local_inference_sync(prompt)
     vm.finish_local_inference(status, response)
     assert vm.inference_prompt == "MIA_SENTINEL_FT_TEST_001"
+    assert vm.local_inference_status_code is LocalModelStatus.NOT_LOADED
     assert vm.local_inference_status == "Модель не загружена"
+    assert vm.inference_response == ""
 
 
 def test_cannot_start_second_inference_while_running() -> None:
     provider = FilesystemLocalModelProbeProvider()
-    vm = TrainingViewModel(local_model_service=LocalModelService(probe_provider=provider))
+    vm = TrainingViewModel(
+        local_model_service=LocalModelService(probe_provider=provider)
+    )
     ok, _ = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")
     assert ok
     ok2, _ = vm.begin_local_inference("another")
@@ -102,10 +144,14 @@ def test_cannot_start_second_inference_while_running() -> None:
 
 
 def test_local_model_inference_success_with_stub_provider() -> None:
-    service = LocalModelService(probe_provider=StubSuccessLocalModelProbeProvider())
+    service = LocalModelService(
+        probe_provider=StubSuccessLocalModelProbeProvider()
+    )
     vm = TrainingViewModel(local_model_service=service)
     ok, prompt = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")
     assert ok
     status, response = vm.run_local_inference_sync(prompt)
     vm.finish_local_inference(status, response)
+    assert vm.local_inference_status_code is LocalModelStatus.RESPONDING
     assert vm.local_inference_status == "Модель отвечает"
+    assert vm.inference_response == "ok"
