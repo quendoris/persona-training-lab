@@ -14,23 +14,16 @@ ROOT = Path(__file__).resolve().parents[1]
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
-def test_visual_audit_captures_every_route_in_real_offscreen_app(tmp_path: Path) -> None:
+def _run_visual_audit(tmp_path: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     environment = dict(os.environ)
     environment["QT_QPA_PLATFORM"] = "offscreen"
-    completed = subprocess.run(
+    return subprocess.run(
         (
             sys.executable,
             "tools/visual_audit.py",
             "--output",
             str(tmp_path),
-            "--locale",
-            "ru-RU",
-            "--width",
-            "960",
-            "--height",
-            "620",
-            "--settle-ms",
-            "0",
+            *arguments,
         ),
         cwd=ROOT,
         env=environment,
@@ -40,13 +33,32 @@ def test_visual_audit_captures_every_route_in_real_offscreen_app(tmp_path: Path)
         check=False,
     )
 
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+def _single_session(tmp_path: Path) -> Path:
     sessions = [path for path in tmp_path.iterdir() if path.is_dir()]
     assert len(sessions) == 1
-    session = sessions[0]
+    return sessions[0]
+
+
+def test_visual_audit_captures_every_route_in_real_offscreen_app(tmp_path: Path) -> None:
+    completed = _run_visual_audit(
+        tmp_path,
+        "--locale",
+        "ru-RU",
+        "--width",
+        "960",
+        "--height",
+        "620",
+        "--settle-ms",
+        "0",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    session = _single_session(tmp_path)
 
     manifest = json.loads((session / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["schema"] == "ptl:visual-audit:v1"
+    assert manifest["mode"] == "automatic"
     assert manifest["locales"] == ["ru-RU"]
     assert manifest["routes"] == list(NAVIGATION_KEYS)
     assert manifest["failures"] == []
@@ -61,6 +73,57 @@ def test_visual_audit_captures_every_route_in_real_offscreen_app(tmp_path: Path)
     for relative_path in expected_files:
         image = session / relative_path
         assert image.read_bytes().startswith(PNG_SIGNATURE)
+
+    bundle = session / "visual-audit.zip"
+    assert bundle.is_file()
+    with zipfile.ZipFile(bundle) as archive:
+        names = set(archive.namelist())
+    assert {"manifest.json", "summary.txt", *expected_files}.issubset(names)
+
+
+def test_interactive_visual_audit_records_current_top_level_state(tmp_path: Path) -> None:
+    completed = _run_visual_audit(
+        tmp_path,
+        "--interactive",
+        "--capture-on-start",
+        "--exit-after-captures",
+        "1",
+        "--locale",
+        "ru-RU",
+        "--width",
+        "960",
+        "--height",
+        "620",
+        "--settle-ms",
+        "0",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    session = _single_session(tmp_path)
+    manifest = json.loads((session / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["schema"] == "ptl:visual-audit:v1"
+    assert manifest["mode"] == "interactive"
+    assert manifest["capture_hotkey"] == "F12"
+    assert manifest["failures"] == []
+    assert len(manifest["captures"]) == 1
+
+    capture = manifest["captures"][0]
+    assert capture["locale"] == "ru-RU"
+    assert capture["route"] in NAVIGATION_KEYS
+    assert capture["width"] >= 960
+    assert capture["height"] >= 620
+    assert capture["windows"]
+
+    expected_files = {capture["state_file"]}
+    for window in capture["windows"]:
+        expected_files.add(window["file"])
+        image = session / window["file"]
+        assert image.read_bytes().startswith(PNG_SIGNATURE)
+        assert window["width"] > 0
+        assert window["height"] > 0
+
+    for relative_path in expected_files:
+        assert (session / relative_path).is_file()
 
     bundle = session / "visual-audit.zip"
     assert bundle.is_file()
