@@ -123,7 +123,7 @@ class FilesystemAutomationRecipeProvider:
             AutomationRecipe(
                 recipe_id="workspace_health",
                 version="1.0.0",
-                title="workspace_health",
+                title="",
                 description="",
                 command=(
                     "{python}",
