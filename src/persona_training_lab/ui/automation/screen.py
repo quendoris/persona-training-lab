@@ -47,6 +47,7 @@ AUTOMATION_ACCESS_KEYS = {
 
 class _AutomationRunWorker(QObject):
     finished = Signal(object)
+    failed = Signal(str)
 
     def __init__(
         self,
@@ -64,11 +65,15 @@ class _AutomationRunWorker(QObject):
         self._cancelled.set()
 
     def run(self) -> None:
-        result = self._vm.run_recipe(
-            self._recipe_id,
-            self._inputs,
-            cancel_requested=self._cancelled.is_set,
-        )
+        try:
+            result = self._vm.run_recipe(
+                self._recipe_id,
+                self._inputs,
+                cancel_requested=self._cancelled.is_set,
+            )
+        except Exception as exc:
+            self.failed.emit(repr(exc))
+            return
         self.finished.emit(result)
 
 
@@ -426,8 +431,11 @@ class AutomationScreen(QWidget):
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._on_run_finished)
+        self._worker.failed.connect(self._on_run_failed)
         self._worker.finished.connect(self._thread.quit)
+        self._worker.failed.connect(self._thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.failed.connect(self._worker.deleteLater)
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
 
@@ -440,10 +448,9 @@ class AutomationScreen(QWidget):
 
     def _on_run_finished(self, result: object) -> None:
         if not isinstance(result, AutomationRunView):
+            self._on_run_failed(repr(result))
             return
-        self._running = False
-        self._run_btn.setEnabled(bool(self._selected_recipe_id))
-        self._cancel_btn.setEnabled(False)
+        self._finish_run_state()
         self._run_status.setText(self._render(result.status))
         self._operation.setText(
             self._text(
@@ -468,6 +475,19 @@ class AutomationScreen(QWidget):
                 self._text("automation.run.stderr") + "\n" + result.stderr.rstrip()
             )
         self._output.setPlainText("\n\n".join(sections))
+
+    def _on_run_failed(self, detail: str) -> None:
+        self._finish_run_state()
+        self._run_status.setText(self._text("automation.run.status.internal_error"))
+        self._operation.clear()
+        self._output.setPlainText(
+            self._text("automation.run.stderr") + "\n" + detail
+        )
+
+    def _finish_run_state(self) -> None:
+        self._running = False
+        self._run_btn.setEnabled(bool(self._selected_recipe_id))
+        self._cancel_btn.setEnabled(False)
 
     def _apply_language(self, _locale: str = "") -> None:
         self._title.setText(self._text("automation.title"))
