@@ -50,12 +50,15 @@ class EmptyDatasetsService:
 
 
 class LegacyRussianTrainingService:
+    def __init__(self, status: str = "Завершён") -> None:
+        self._status = status
+
     def list_training_runs(self):
         return [
             SimpleNamespace(
                 run_id="run_1",
                 title="Legacy run",
-                status="Завершён",
+                status=self._status,
                 base_model="Qwen",
                 dataset_version="dataset_1",
                 progress="100",
@@ -234,8 +237,10 @@ def build_dashboard_projection():
     assert "dashboard.synthetic_missing" in source_visitor.translation_keys
 
 
+@pytest.mark.parametrize("legacy_status", ("Завершён", "Завершено"))
 def test_legacy_russian_status_is_rendered_in_current_locale(
     monkeypatch: pytest.MonkeyPatch,
+    legacy_status: str,
 ) -> None:
     app = _app()
     manager = _manager(app)
@@ -243,14 +248,14 @@ def test_legacy_russian_status_is_rendered_in_current_locale(
     vm = DashboardViewModel(
         docs_service=DocsService(),
         projects_service=FakeProjectsService(),
-        training_service=LegacyRussianTrainingService(),
+        training_service=LegacyRussianTrainingService(legacy_status),
     )
     screen = DashboardScreen(vm, manager)
     screen.show()
     app.processEvents()
 
     assert "completed" in _visible_texts(screen)
-    assert "Завершён" not in _visible_texts(screen)
+    assert legacy_status not in _visible_texts(screen)
 
     manager.set_locale("ru-RU", persist=False)
     app.processEvents()
