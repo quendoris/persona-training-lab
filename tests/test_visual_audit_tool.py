@@ -61,8 +61,11 @@ def test_visual_audit_captures_every_route_in_real_offscreen_app(tmp_path: Path)
     assert manifest["mode"] == "automatic"
     assert manifest["locales"] == ["ru-RU"]
     assert manifest["routes"] == list(NAVIGATION_KEYS)
+    assert manifest["window"] == {"width": 960, "height": 620}
     assert manifest["failures"] == []
     assert len(manifest["captures"]) == len(NAVIGATION_KEYS)
+    assert all(item["width"] == 960 for item in manifest["captures"])
+    assert all(item["height"] == 620 for item in manifest["captures"])
 
     expected_files = {
         f"screenshots/ru-RU__{route}.png"
