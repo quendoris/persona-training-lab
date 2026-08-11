@@ -105,6 +105,8 @@
     "tests.model_status.responding": "model responded",
     "tests.model_status.inference_unavailable": "inference unavailable",
     "tests.model_status.generating": "generating",
+    "tests.model_status.empty_response": "empty response",
+    "tests.model_status.resource_exhausted": "not enough resources",
     "tests.model_status.generation_failed": "generation failed",
     "tests.model_status.unknown": "unknown",
     "tests.message.local_model_unavailable": "The local model service is unavailable.",
