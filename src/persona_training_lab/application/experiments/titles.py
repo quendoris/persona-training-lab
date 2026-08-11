@@ -4,7 +4,8 @@ from enum import StrEnum
 import re
 
 
-EXPERIMENT_TITLE_PREFIX = "ptl:experiment-title:v1:"
+EXPERIMENT_TITLE_NAMESPACE_PREFIX = "ptl:experiment-title:"
+EXPERIMENT_TITLE_PREFIX = f"{EXPERIMENT_TITLE_NAMESPACE_PREFIX}v1:"
 _LEGACY_PORTRAIT_TITLE_RE = re.compile(
     r"^Big Five portrait\s*·\s*(?P<time>.+?)\s*$"
 )
@@ -30,7 +31,9 @@ def decode_experiment_title(value: str) -> ExperimentTitleKind | None:
 
 
 def is_experiment_title_protocol(value: str) -> bool:
-    return str(value or "").strip().startswith(EXPERIMENT_TITLE_PREFIX)
+    return str(value or "").strip().startswith(
+        EXPERIMENT_TITLE_NAMESPACE_PREFIX
+    )
 
 
 def is_legacy_generated_experiment_title(value: str) -> bool:
@@ -38,6 +41,7 @@ def is_legacy_generated_experiment_title(value: str) -> bool:
 
 
 __all__ = (
+    "EXPERIMENT_TITLE_NAMESPACE_PREFIX",
     "EXPERIMENT_TITLE_PREFIX",
     "ExperimentTitleKind",
     "decode_experiment_title",
