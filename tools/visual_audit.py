@@ -235,6 +235,28 @@ def _shutdown_window(app: SafeApplication | None, window: MainWindow | None) -> 
         app.processEvents()
 
 
+def _stabilize_window_geometry(
+    window: MainWindow,
+    *,
+    width: int,
+    height: int,
+    settle_ms: int,
+) -> None:
+    expected = (width, height)
+    window.resize(width, height)
+    _settle(settle_ms)
+    actual = (window.width(), window.height())
+    if actual != expected:
+        window.resize(width, height)
+        _settle(0)
+        actual = (window.width(), window.height())
+    if actual != expected:
+        raise RuntimeError(
+            "Automatic visual-audit geometry drift: "
+            f"expected={width}x{height}, actual={actual[0]}x{actual[1]}"
+        )
+
+
 def run_visual_audit(
     *,
     output_root: Path,
@@ -293,15 +315,24 @@ def run_visual_audit(
                         "Unsupported visual-audit locales: " + ", ".join(unknown)
                     )
 
-                window.resize(width, height)
                 window.show()
-                _settle(settle_ms)
+                _stabilize_window_geometry(
+                    window,
+                    width=width,
+                    height=height,
+                    settle_ms=settle_ms,
+                )
 
                 captures = manifest["captures"]
                 assert isinstance(captures, list)
                 for locale in locale_list:
                     localization.set_locale(locale, persist=False)
-                    _settle(settle_ms)
+                    _stabilize_window_geometry(
+                        window,
+                        width=width,
+                        height=height,
+                        settle_ms=settle_ms,
+                    )
                     for route in routes:
                         window._go_to_screen(route)
                         _settle(settle_ms)
@@ -310,6 +341,12 @@ def run_visual_audit(
                             raise RuntimeError(
                                 f"Route {route!r} did not activate; current={active_route!r}"
                             )
+                        _stabilize_window_geometry(
+                            window,
+                            width=width,
+                            height=height,
+                            settle_ms=settle_ms,
+                        )
                         filename = f"{locale}__{route}.png"
                         target = capture_dir / filename
                         _capture_window(window, target)
