@@ -10,6 +10,8 @@ from persona_training_lab.i18n.audit import AuditReport, LiteralFinding
 _STRUCTURED_USER_TEXT: dict[str, tuple[tuple[int, str], ...]] = {
     "experiment_result": ((1, "message"),),
     "ExperimentRunResult": ((1, "message"),),
+    "ExperimentView": ((1, "title"), (3, "status")),
+    "PortraitStats": ((0, "title"),),
     "EvaluationMetric": ((0, "title"), (2, "note")),
     "EvaluationCase": ((0, "title"), (1, "note")),
     "_evaluation_metric": ((0, "title"), (2, "note")),
