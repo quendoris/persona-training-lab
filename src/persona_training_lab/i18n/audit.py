@@ -28,6 +28,8 @@ _TRANSLATION_KEY_POSITIONS = {
     "training_text": 0,
     "EvaluationText": 0,
     "evaluation_text": 0,
+    "DashboardText": 0,
+    "dashboard_text": 0,
 }
 _TRANSLATION_FALLBACK_POSITIONS = {
     "_text": (1,),
