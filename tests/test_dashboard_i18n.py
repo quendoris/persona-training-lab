@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,8 @@ from persona_training_lab.application.experiments.titles import (
     encode_experiment_title,
 )
 from persona_training_lab.domain.evaluation.statuses import EvaluationRunStatus
+from persona_training_lab.i18n.audit import SourceAudit
+from persona_training_lab.i18n.deep_audit import DeepSurfaceAudit
 from persona_training_lab.ui.dashboard.screen import DashboardScreen
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
@@ -108,6 +111,7 @@ def _flush_deferred_deletes() -> None:
 
 def test_dashboard_switches_static_and_dynamic_content_live(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     app = _app()
     manager = _manager(app)
@@ -169,6 +173,65 @@ def test_dashboard_switches_static_and_dynamic_content_live(
     semantic_screen.close()
     semantic_screen.deleteLater()
     app.processEvents()
+
+    source = """
+def build_dashboard_projection():
+    stats = PortraitDashboardStats(
+        title="Generated dashboard portrait",
+        status="completed",
+        passed=1,
+        total=1,
+        failures=0,
+        scores={},
+    )
+    activity = DashboardActivity(
+        "dashboard.kind.portrait",
+        "Generated dashboard activity",
+        dashboard_text("dashboard.raw", value="semantic detail"),
+        DashboardRoute("tests"),
+        "dashboard.state.ready",
+    )
+    lineage = DashboardLineage(
+        "dashboard.lineage.portrait",
+        "Generated dashboard lineage",
+        DashboardRoute("tests"),
+    )
+    semantic = DashboardActivity(
+        "dashboard.kind.portrait",
+        dashboard_text("dashboard.raw", value="Raw operator title"),
+        dashboard_text("dashboard.raw", value="Raw operator detail"),
+        DashboardRoute("tests"),
+        "dashboard.state.ready",
+    )
+    missing = dashboard_text("dashboard.synthetic_missing")
+    return stats, activity, lineage, semantic, missing
+"""
+    path = tmp_path / "ui" / "viewmodels" / "dashboard_sample.py"
+    path.parent.mkdir(parents=True)
+    tree = ast.parse(source, filename=str(path))
+
+    deep_visitor = DeepSurfaceAudit(path, display_root=tmp_path)
+    deep_visitor.visit(tree)
+    findings = {(item.call, item.text) for item in deep_visitor.literals}
+    assert (
+        "PortraitDashboardStats title",
+        "Generated dashboard portrait",
+    ) in findings
+    assert (
+        "DashboardActivity title",
+        "Generated dashboard activity",
+    ) in findings
+    assert (
+        "DashboardLineage value",
+        "Generated dashboard lineage",
+    ) in findings
+    assert not any(text == "Raw operator title" for _, text in findings)
+    assert not any(text == "Raw operator detail" for _, text in findings)
+
+    source_visitor = SourceAudit(path, display_root=tmp_path)
+    source_visitor.visit(tree)
+    assert "dashboard.raw" in source_visitor.translation_keys
+    assert "dashboard.synthetic_missing" in source_visitor.translation_keys
 
 
 def test_legacy_russian_status_is_rendered_in_current_locale(
