@@ -22,8 +22,8 @@ from persona_training_lab.ui.agents.history_modifier_snapshot import (
 from persona_training_lab.ui.agents.history_shortcut_routing import (
     HistoryShortcutRouting,
 )
-from persona_training_lab.ui.agents.screen_history_keyguard import (
-    AgentsScreen as HistoryKeyGuardAgentsScreen,
+from persona_training_lab.ui.agents.screen_history_transport import (
+    AgentsScreen as HistoryTransportAgentsScreen,
 )
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 from persona_training_lab.ui.keybindings.shortcut_sync import (
@@ -135,19 +135,19 @@ def test_custom_alt_z_is_not_swallowed_by_default_ctrl_z_guard() -> None:
     screen = SimpleNamespace(
         _history_gesture=core,
         _has_extra_history_modifiers=(
-            HistoryKeyGuardAgentsScreen._has_extra_history_modifiers
+            HistoryTransportAgentsScreen._has_extra_history_modifiers
         ),
         _observed_modifiers=unexpected_observation,
         _apply_history_gesture_transition=lambda _transition: None,
     )
 
-    assert HistoryKeyGuardAgentsScreen._claims_history_override(
+    assert HistoryTransportAgentsScreen._claims_history_override(
         screen,
         event,
         "z",
         environment,
     ) is False
-    assert HistoryKeyGuardAgentsScreen._handle_history_key_press(
+    assert HistoryTransportAgentsScreen._handle_history_key_press(
         screen,
         event,
         "z",
@@ -176,19 +176,19 @@ def test_unowned_history_transport_never_observes_or_mutates_key_state() -> None
     screen = SimpleNamespace(
         _history_gesture=core,
         _has_extra_history_modifiers=(
-            HistoryKeyGuardAgentsScreen._has_extra_history_modifiers
+            HistoryTransportAgentsScreen._has_extra_history_modifiers
         ),
         _observed_modifiers=unexpected_observation,
         _apply_history_gesture_transition=lambda _transition: None,
     )
 
-    assert HistoryKeyGuardAgentsScreen._claims_history_override(
+    assert HistoryTransportAgentsScreen._claims_history_override(
         screen,
         event,
         "z",
         environment,
     ) is False
-    assert HistoryKeyGuardAgentsScreen._handle_history_key_press(
+    assert HistoryTransportAgentsScreen._handle_history_key_press(
         screen,
         event,
         "z",
