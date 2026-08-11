@@ -3,6 +3,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from persona_training_lab.ui.agents.history_gesture_core import HistoryGestureCore
+from persona_training_lab.ui.agents.history_input_environment import (
+    HistoryInputEnvironmentSnapshot,
+)
+from persona_training_lab.ui.agents.history_modifier_snapshot import (
+    HistoryModifierSnapshot,
+)
 from persona_training_lab.ui.agents.history_shortcut_routing import (
     HistoryShortcutRouting,
 )
@@ -31,10 +37,16 @@ def test_modifier_polling_tracks_screen_readiness_and_binding_ownership() -> Non
     active = [True]
     core = HistoryGestureCore()
     core.set_guarded_bindings(("history_toggle",))
+    environment = SimpleNamespace(
+        capture=lambda _owner: HistoryInputEnvironmentSnapshot(
+            modifiers=HistoryModifierSnapshot(),
+            input_active=active[0],
+        )
+    )
     screen = SimpleNamespace(
         _modifier_poll=transport,
         _history_gesture=core,
-        _history_keys_are_active=lambda: active[0],
+        _history_environment=environment,
     )
 
     AgentsScreen._sync_modifier_polling(screen)  # type: ignore[arg-type]
@@ -52,10 +64,7 @@ def test_modifier_polling_tracks_screen_readiness_and_binding_ownership() -> Non
 def test_modifier_polling_sync_is_safe_before_transport_construction() -> None:
     core = HistoryGestureCore()
     core.set_guarded_bindings(("history_toggle",))
-    screen = SimpleNamespace(
-        _history_gesture=core,
-        _history_keys_are_active=lambda: True,
-    )
+    screen = SimpleNamespace(_history_gesture=core)
 
     AgentsScreen._sync_modifier_polling(screen)  # type: ignore[arg-type]
 
