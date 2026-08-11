@@ -58,6 +58,13 @@ class AutomationRecipe:
 
 
 @dataclass(frozen=True, slots=True)
+class AutomationDiscoveryIssue:
+    path: str
+    code: str
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class AutomationRunResult:
     ok: bool
     code: str
@@ -74,6 +81,8 @@ class AutomationRunResult:
 
 class AutomationRecipeProvider(Protocol):
     def list_recipes(self) -> tuple[AutomationRecipe, ...]: ...
+
+    def discovery_issues(self) -> tuple[AutomationDiscoveryIssue, ...]: ...
 
     def import_recipe(self, path: Path) -> AutomationRecipe: ...
 
@@ -132,6 +141,10 @@ class AutomationService:
                 key=lambda recipe: (recipe.title.casefold(), recipe.recipe_id),
             )
         )
+
+    def discovery_issues(self) -> tuple[AutomationDiscoveryIssue, ...]:
+        self.recipe_provider.list_recipes()
+        return self.recipe_provider.discovery_issues()
 
     def get_recipe(self, recipe_id: str) -> AutomationRecipe | None:
         target = recipe_id.strip()
