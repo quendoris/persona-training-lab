@@ -3,6 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence
 
+from persona_training_lab.ui.agents.history_shortcut_routing import (
+    HistoryShortcutRouting,
+)
 from persona_training_lab.ui.agents.screen_history_keyguard import AgentsScreen
 
 
@@ -67,6 +70,8 @@ def test_physical_shift_scan_codes_cover_evdev_and_xkb_sides() -> None:
 
 
 def test_history_sequences_are_removed_from_qt_shortcut_routing() -> None:
-    assert AgentsScreen._sequence_is_history(QKeySequence("Ctrl+Z")) is True
-    assert AgentsScreen._sequence_is_history(QKeySequence("Ctrl+Shift+Z")) is True
-    assert AgentsScreen._sequence_is_history(QKeySequence("Del")) is False
+    routing = HistoryShortcutRouting()
+
+    assert routing.sequence_is_history(QKeySequence("Ctrl+Z")) is True
+    assert routing.sequence_is_history(QKeySequence("Ctrl+Shift+Z")) is True
+    assert routing.sequence_is_history(QKeySequence("Del")) is False
