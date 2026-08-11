@@ -14,6 +14,10 @@ from persona_training_lab.application.experiments.service import (
     ExperimentRunResult,
     ExperimentSummary,
 )
+from persona_training_lab.application.experiments.titles import (
+    ExperimentTitleKind,
+    encode_experiment_title,
+)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -67,6 +71,7 @@ def _portrait(
     score: int,
     *,
     status: str = "Портрет собран",
+    updated_at: str = "",
 ) -> ExperimentSummary:
     return ExperimentSummary(
         experiment_id=experiment_id,
@@ -82,6 +87,7 @@ def _portrait(
             "VALID_SCORE: 1\n"
             f"RAW_RESPONSE: SCORE: {score}\nRESPONSE: SCORE: {score}"
         ),
+        updated_at=updated_at,
     )
 
 
@@ -297,6 +303,47 @@ def test_analysis_method_summary_switches_manual_live(
     screen.deleteLater()
     app.processEvents()
 
+    manager.set_locale("en-US", persist=False)
+    semantic_title = encode_experiment_title(
+        ExperimentTitleKind.PERSONALITY_PORTRAIT
+    )
+    semantic_vm = AnalysisViewModel(
+        experiments_service=_Experiments(
+            [
+                _portrait(
+                    "evr_semantic",
+                    semantic_title,
+                    "mdl_semantic",
+                    4,
+                    updated_at="2026-08-10T23:58:00+00:00",
+                )
+            ]
+        )
+    )
+    semantic_screen = AnalysisScreen(semantic_vm, manager)
+    semantic_screen.show()
+    app.processEvents()
+
+    assert semantic_vm.title == "Анализ · Портрет Big Five · 2026-08-10 23:58"
+    assert semantic_screen._title.text() == (
+        "Analysis · Big Five portrait · 2026-08-10 23:58"
+    )
+    assert "ptl:experiment-title:" not in semantic_screen._title.text()
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    _flush_deferred_deletes()
+    app.processEvents()
+
+    assert semantic_screen._title.text() == (
+        "Анализ · Портрет Big Five · 2026-08-10 23:58"
+    )
+    assert semantic_vm.title == "Анализ · Портрет Big Five · 2026-08-10 23:58"
+
+    semantic_screen.close()
+    semantic_screen.deleteLater()
+    app.processEvents()
+
 
 def test_analysis_pair_switches_live_and_never_substitutes_versions(
     monkeypatch: pytest.MonkeyPatch,
@@ -308,11 +355,20 @@ def test_analysis_pair_switches_live_and_never_substitutes_versions(
         "_prepare_qt_translator",
         lambda _locale: None,
     )
+    current_title = encode_experiment_title(
+        ExperimentTitleKind.PERSONALITY_PORTRAIT
+    )
     service = _Experiments(
         [
             _portrait("other", "Other", "mdl_other", 1),
             _portrait("old", "Old portrait", "mdl_old", 2),
-            _portrait("new", "Current portrait", "mdl_current", 5),
+            _portrait(
+                "new",
+                current_title,
+                "mdl_current",
+                5,
+                updated_at="2026-08-10T23:58:00+00:00",
+            ),
         ]
     )
     vm = AnalysisViewModel(experiments_service=service)
@@ -328,9 +384,10 @@ def test_analysis_pair_switches_live_and_never_substitutes_versions(
 
     assert screen._title.text() == "Analysis · mdl_old ↔ mdl_current"
     assert vm.left.subtitle == "Old portrait"
-    assert vm.right.subtitle == "Current portrait"
+    assert vm.right.subtitle == "Портрет Big Five · 2026-08-10 23:58"
     assert vm.metrics[1].delta == "O=+3.00"
     assert screen._compare.title_label.text() == "Portrait and stability"
+    assert "Big Five portrait · 2026-08-10 23:58" in _visible_texts(screen)
 
     manager.set_locale("ru-RU", persist=False)
     app.processEvents()
@@ -339,6 +396,7 @@ def test_analysis_pair_switches_live_and_never_substitutes_versions(
 
     assert screen._title.text() == "Анализ · mdl_old ↔ mdl_current"
     assert screen._compare.title_label.text() == "Портрет и устойчивость"
+    assert "Портрет Big Five · 2026-08-10 23:58" in _visible_texts(screen)
     assert any(
         "Самое заметное изменение" in text
         for text in _visible_texts(screen)
