@@ -3,7 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from persona_training_lab.application.ports.local_model_probe import InferenceProbeResult, LocalInferenceResult, ModelProbeResult
+from persona_training_lab.application.local_model.status_mapping import (
+    LocalModelStatus,
+)
+from persona_training_lab.application.ports.local_model_probe import (
+    InferenceProbeResult,
+    LocalInferenceResult,
+    ModelProbeResult,
+    local_model_diagnostic,
+)
 
 
 class FilesystemLocalModelProbeProvider:
@@ -12,8 +20,11 @@ class FilesystemLocalModelProbeProvider:
             model_dir = Path(model_path)
             if not model_dir.exists() or not model_dir.is_dir():
                 return ModelProbeResult(
-                    status="Модель не найдена",
-                    details="Не найдена директория модели.",
+                    status=LocalModelStatus.MISSING.value,
+                    diagnostic=local_model_diagnostic(
+                        "model_directory_missing",
+                        path=str(model_dir),
+                    ),
                 )
 
             missing: list[str] = []
@@ -22,33 +33,44 @@ class FilesystemLocalModelProbeProvider:
 
             tokenizer_exists = any(
                 (model_dir / name).exists()
-                for name in ("tokenizer.json", "tokenizer.model", "tokenizer_config.json")
+                for name in (
+                    "tokenizer.json",
+                    "tokenizer.model",
+                    "tokenizer_config.json",
+                )
             )
             if not tokenizer_exists:
                 missing.append("tokenizer")
 
-            weights_exists = any(model_dir.glob("*.safetensors")) or (model_dir / "pytorch_model.bin").exists()
+            weights_exists = any(model_dir.glob("*.safetensors")) or (
+                model_dir / "pytorch_model.bin"
+            ).exists()
             if not weights_exists:
                 missing.append("weights")
 
             if missing:
                 return ModelProbeResult(
-                    status="Модель не найдена",
-                    details=f"Не найдены обязательные файлы: {', '.join(missing)}.",
+                    status=LocalModelStatus.MISSING.value,
+                    diagnostic=local_model_diagnostic(
+                        "required_files_missing",
+                        files=", ".join(missing),
+                    ),
                 )
 
             return ModelProbeResult(
-                status="Модель найдена",
-                details="Структура файлов модели выглядит корректно.",
+                status=LocalModelStatus.FOUND.value,
+                diagnostic=local_model_diagnostic("model_files_ready"),
             )
         except Exception:
             return ModelProbeResult(
-                status="Не удалось проверить модель",
-                details="Проверьте путь и права доступа к файлам модели.",
+                status=LocalModelStatus.CHECK_FAILED.value,
+                diagnostic=local_model_diagnostic("model_check_failed"),
             )
 
     def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
-        return InferenceProbeResult(message="Inference backend подключается при проверке ответа")
+        return InferenceProbeResult(
+            diagnostic=local_model_diagnostic("inference_check_deferred")
+        )
 
     def generate(
         self,
@@ -58,14 +80,25 @@ class FilesystemLocalModelProbeProvider:
     ) -> LocalInferenceResult:
         try:
             import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
+            from transformers import (  # type: ignore
+                AutoModelForCausalLM,
+                AutoTokenizer,
+            )
         except Exception:
-            return LocalInferenceResult(status="Inference backend не подключён", message="Inference backend не подключён")
+            return LocalInferenceResult(
+                status=LocalModelStatus.INFERENCE_UNAVAILABLE.value,
+                diagnostic=local_model_diagnostic(
+                    "inference_backend_unavailable"
+                ),
+            )
 
         try:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             dtype = torch.float16 if device.type == "cuda" else torch.float32
-            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_path,
+                trust_remote_code=True,
+            )
             if tokenizer.pad_token is None and tokenizer.eos_token is not None:
                 tokenizer.pad_token = tokenizer.eos_token
             model = AutoModelForCausalLM.from_pretrained(
@@ -93,14 +126,31 @@ class FilesystemLocalModelProbeProvider:
             text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
             text = self._clean_response(text)
             if not text:
-                text = "<пустой ответ>"
-            return LocalInferenceResult(status="Модель отвечает", message="Portrait test выполнен", response=text)
+                return LocalInferenceResult(
+                    status=LocalModelStatus.RESPONDING.value,
+                    diagnostic=local_model_diagnostic("empty_response"),
+                )
+            return LocalInferenceResult(
+                status=LocalModelStatus.RESPONDING.value,
+                response=text,
+            )
         except RuntimeError:
-            return LocalInferenceResult(status="Недостаточно ресурсов для генерации", message="Недостаточно ресурсов для генерации")
+            return LocalInferenceResult(
+                status=LocalModelStatus.GENERATION_FAILED.value,
+                diagnostic=local_model_diagnostic("insufficient_resources"),
+            )
         except Exception:
-            return LocalInferenceResult(status="Ошибка генерации", message="Не удалось загрузить локальную модель")
+            return LocalInferenceResult(
+                status=LocalModelStatus.GENERATION_FAILED.value,
+                diagnostic=local_model_diagnostic("generation_failed"),
+            )
 
-    def _encode_prompt(self, tokenizer: Any, prompt: str, instruction_prompt: str | None) -> dict[str, Any]:
+    def _encode_prompt(
+        self,
+        tokenizer: Any,
+        prompt: str,
+        instruction_prompt: str | None,
+    ) -> dict[str, Any]:
         instruction = instruction_prompt or "Отвечай строго по запросу пользователя."
         messages = [
             {"role": "system", "content": instruction},
