@@ -19,6 +19,9 @@ from persona_training_lab.application.model_versions.quality import (
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
+from persona_training_lab.application.ports.local_model_probe import (
+    LocalModelDiagnostic,
+)
 from persona_training_lab.application.training.service import (
     TrainingConfigurationError,
     TrainingService,
@@ -57,9 +60,24 @@ _LOCAL_MODEL_STATUS_KEYS = {
         "training.local_model.status.inference_unavailable"
     ),
     LocalModelStatus.GENERATING: "training.local_model.status.generating",
+    LocalModelStatus.EMPTY_RESPONSE: "training.local_model.status.empty_response",
+    LocalModelStatus.RESOURCE_EXHAUSTED: (
+        "training.local_model.status.resource_exhausted"
+    ),
     LocalModelStatus.GENERATION_FAILED: (
         "training.local_model.status.generation_failed"
     ),
+}
+_LOCAL_MODEL_DIAGNOSTIC_KEYS = {
+    "model_directory_missing": (
+        "training.local_model.diagnostic.model_directory_missing"
+    ),
+    "required_files_missing": (
+        "training.local_model.diagnostic.required_files_missing"
+    ),
+    "model_files_ready": "training.local_model.diagnostic.model_files_ready",
+    "model_check_failed": "training.local_model.note.check_failed",
+    "unknown": "training.local_model.diagnostic.unknown",
 }
 _MODEL_VERSION_STATUS_KEYS = {
     ModelVersionStatus.DRAFT: "training.version.status.draft",
@@ -970,9 +988,15 @@ class TrainingViewModel:
             self._set_local_model_state(
                 status_code,
                 self._local_status_text(status_code, result.status),
-                result.details,
-                raw_status=result.status,
-                raw_note=result.details,
+                self._local_diagnostic_text(
+                    result.diagnostic,
+                    result.details,
+                ),
+                raw_status=(
+                    result.status
+                    if status_code is LocalModelStatus.UNKNOWN
+                    else None
+                ),
             )
         except Exception:
             self._set_local_model_state(
@@ -1350,6 +1374,20 @@ class TrainingViewModel:
             "training.local_model.status.unknown",
             status=raw_status,
         )
+
+    @staticmethod
+    def _local_diagnostic_text(
+        diagnostic: LocalModelDiagnostic | None,
+        raw_details: str,
+    ) -> TrainingTextValue:
+        if diagnostic is None:
+            return raw_details
+        key = _LOCAL_MODEL_DIAGNOSTIC_KEYS.get(diagnostic.code)
+        if key is not None:
+            return training_text(key, **dict(diagnostic.values))
+        if raw_details.strip():
+            return raw_details
+        return training_text(_LOCAL_MODEL_DIAGNOSTIC_KEYS["unknown"])
 
     @staticmethod
     def _coerce_local_status(status: str) -> LocalModelStatus:
