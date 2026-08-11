@@ -11,9 +11,6 @@ from persona_training_lab.application.experiments.service import (
     ExperimentSummary,
     ExperimentsService,
 )
-from persona_training_lab.application.local_model.status_mapping import (
-    LocalModelStatus,
-)
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
 )
@@ -21,6 +18,7 @@ from persona_training_lab.ui.viewmodels.evaluation import (
     EvaluationText,
     evaluation_status_text,
     evaluation_text,
+    local_model_status_text,
     render_base_evaluation_text,
 )
 from persona_training_lab.ui.viewmodels.experiment_semantics import (
@@ -41,19 +39,6 @@ TRAIT_LABELS = {
     "Conscientiousness": "C",
     "Emotional Stability": "S",
     "Openness": "O",
-}
-_MODEL_STATUS_KEYS: dict[LocalModelStatus, str] = {
-    LocalModelStatus.UNCHECKED: "tests.model_status.unchecked",
-    LocalModelStatus.CHECKING: "tests.model_status.checking",
-    LocalModelStatus.FOUND: "tests.model_status.found",
-    LocalModelStatus.MISSING: "tests.model_status.missing",
-    LocalModelStatus.CHECK_FAILED: "tests.model_status.check_failed",
-    LocalModelStatus.NOT_LOADED: "tests.model_status.not_loaded",
-    LocalModelStatus.RESPONDING: "tests.model_status.responding",
-    LocalModelStatus.INFERENCE_UNAVAILABLE: "tests.model_status.inference_unavailable",
-    LocalModelStatus.GENERATING: "tests.model_status.generating",
-    LocalModelStatus.GENERATION_FAILED: "tests.model_status.generation_failed",
-    LocalModelStatus.UNKNOWN: "tests.model_status.unknown",
 }
 _PAIR_REASON_KEYS: dict[str, str] = {
     "service_unavailable": "analysis.pair.reason.service_unavailable",
@@ -500,12 +485,7 @@ class AnalysisViewModel:
             (
                 evaluation_text(
                     "analysis.sample.field.status",
-                    status=evaluation_text(
-                        _MODEL_STATUS_KEYS.get(
-                            case.status_code,
-                            _MODEL_STATUS_KEYS[LocalModelStatus.UNKNOWN],
-                        )
-                    ),
+                    status=local_model_status_text(case.status_code),
                 ),
                 evaluation_text(
                     "analysis.sample.field.raw_score",
