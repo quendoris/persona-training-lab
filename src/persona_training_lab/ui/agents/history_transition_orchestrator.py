@@ -20,7 +20,7 @@ class HistoryRepeatTransport(Protocol):
     def stop(self) -> None: ...
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, weakref_slot=True)
 class HistoryTransitionOrchestrator:
     """Execute history transitions without owning Qt event routing or timers."""
 
