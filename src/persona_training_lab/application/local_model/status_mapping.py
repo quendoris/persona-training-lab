@@ -13,6 +13,8 @@ class LocalModelStatus(StrEnum):
     RESPONDING = "responding"
     INFERENCE_UNAVAILABLE = "inference_unavailable"
     GENERATING = "generating"
+    EMPTY_RESPONSE = "empty_response"
+    RESOURCE_EXHAUSTED = "resource_exhausted"
     GENERATION_FAILED = "generation_failed"
     UNKNOWN = "unknown"
 
@@ -38,10 +40,12 @@ _STATUS_ALIASES = {
     "генерация…": LocalModelStatus.GENERATING,
     "генерация...": LocalModelStatus.GENERATING,
     "generating": LocalModelStatus.GENERATING,
+    "пустой ответ": LocalModelStatus.EMPTY_RESPONSE,
+    "empty response": LocalModelStatus.EMPTY_RESPONSE,
+    "недостаточно ресурсов для генерации": LocalModelStatus.RESOURCE_EXHAUSTED,
+    "not enough resources for generation": LocalModelStatus.RESOURCE_EXHAUSTED,
     "ошибка генерации": LocalModelStatus.GENERATION_FAILED,
     "generation failed": LocalModelStatus.GENERATION_FAILED,
-    "недостаточно ресурсов для генерации": LocalModelStatus.GENERATION_FAILED,
-    "not enough resources for generation": LocalModelStatus.GENERATION_FAILED,
 }
 
 
