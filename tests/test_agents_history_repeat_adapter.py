@@ -120,14 +120,14 @@ def test_transition_stops_repeat_before_dispatching_actions() -> None:
     calls: list[str] = []
     orchestrator = _orchestrator(transport, [True], calls)
     transition = HistoryTransition(
-        actions=("undo",),
+        actions=("toggle", "undo", "toggle"),
         stop_repeat=True,
     )
 
     orchestrator.apply(transition)
 
-    assert transport.calls == ["stop", "arm"]
-    assert calls == ["undo"]
+    assert transport.calls == ["stop", "stop", "arm", "stop"]
+    assert calls == ["toggle", "undo", "toggle"]
 
 
 def test_gesture_reset_stops_repeat_before_resetting_core() -> None:
