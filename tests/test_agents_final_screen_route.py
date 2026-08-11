@@ -84,6 +84,7 @@ _RETIRED_HISTORY_ATTRIBUTES = frozenset(
         "_sync_history_shortcut_routing",
         "_queried_modifiers",
         "_queried_extra_history_modifiers",
+        "_history_keys_are_active",
     }
 )
 _RETIRED_SCREEN_IMPLEMENTATIONS = frozenset(
