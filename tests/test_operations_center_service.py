@@ -111,12 +111,24 @@ def test_active_training_is_mapped_to_training_workspace() -> None:
                     "running",
                     "2026-08-04T10:01:00+00:00",
                 ),
+                _operation(
+                    "op_command",
+                    "automation_command",
+                    "running",
+                    "2026-08-04T10:02:00+00:00",
+                ),
             )
         ),
-    ).active_items()[0]
-    assert automation.target_screen == "automation"
-    assert automation.focus_key == ""
-    assert automation.operation_kind == "automation_recipe"
+    ).active_items()
+    assert [item.target_screen for item in automation] == [
+        "automation",
+        "automation",
+    ]
+    assert all(item.focus_key == "" for item in automation)
+    assert [item.operation_kind for item in automation] == [
+        "automation_recipe",
+        "automation_command",
+    ]
 
 
 def test_warning_and_error_events_appear_in_problems() -> None:
@@ -187,3 +199,38 @@ def test_recent_activity_is_sorted_and_deduplicated() -> None:
     assert portrait.focus_key == "focus.tests.build_portrait"
     assert portrait.title == "personality_test · mdl_001"
     assert portrait.status == "succeeded"
+
+
+def test_automation_audit_events_stay_persistent_without_duplicate_activity_items() -> None:
+    audit_event = EventRecord(
+        id="evt_automation_audit",
+        event_type="automation.run.finished",
+        entity_kind="automation_command",
+        entity_id="command_1",
+        correlation_id="corr_command_1",
+        causation_id="op_command_1",
+        payload_json=json.dumps(
+            {
+                "schema": "ptl:automation-audit:v1",
+                "operation_id": "op_command_1",
+                "state": "succeeded",
+            }
+        ),
+        occurred_at="2026-08-04T14:00:00+00:00",
+    )
+    operation = _operation(
+        "op_command_1",
+        "automation_command",
+        "succeeded",
+        "2026-08-04T14:00:00+00:00",
+    )
+    service = OperationsCenterService(
+        event_log=_EventLog((audit_event,)),
+        runtime_operations=_Operations(recent=(operation,)),
+    )
+
+    items = service.recent_activity()
+
+    assert len(items) == 1
+    assert items[0].item_id == "operation:op_command_1"
+    assert items[0].target_screen == "automation"
