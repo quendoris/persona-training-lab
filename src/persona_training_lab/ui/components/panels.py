@@ -6,6 +6,10 @@ from PySide6.QtWidgets import QLabel
 
 
 StatusLabelTone = Literal["good", "pending"]
+_STATUS_OBJECT_NAMES: dict[StatusLabelTone, str] = {
+    "good": "StatusSuccess",
+    "pending": "StatusWarning",
+}
 
 
 def make_muted_label(text: str) -> QLabel:
@@ -17,9 +21,8 @@ def make_muted_label(text: str) -> QLabel:
 
 def make_status_label(
     text: str,
-    tone: StatusLabelTone | bool = False,
+    tone: StatusLabelTone = "good",
 ) -> QLabel:
-    warning = tone if isinstance(tone, bool) else tone == "pending"
     label = QLabel(text)
-    label.setObjectName("StatusWarning" if warning else "StatusSuccess")
+    label.setObjectName(_STATUS_OBJECT_NAMES[tone])
     return label
