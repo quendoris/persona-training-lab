@@ -12,10 +12,14 @@ class WorkspaceStack(QScrollArea):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("StableScrollArea")
-        self.setFrameShape(QFrame.NoFrame)
+        self.setFrameShape(QFrame.Shape.NoFrame)
         self.setWidgetResizable(True)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
         self._stack = QStackedWidget()
         self._stack.setProperty("transparentBg", True)
         self.setWidget(self._stack)
@@ -28,6 +32,8 @@ class WorkspaceStack(QScrollArea):
     def workspace(self, key: str) -> QWidget | None:
         for index in range(self._stack.count()):
             widget = self._stack.widget(index)
+            if widget is None:
+                continue
             if widget.property("workspace_key") == key:
                 return widget
         return None
@@ -50,6 +56,8 @@ class WorkspaceStack(QScrollArea):
     def show_workspace(self, key: str) -> bool:
         for index in range(self._stack.count()):
             widget = self._stack.widget(index)
+            if widget is None:
+                continue
             if widget.property("workspace_key") != key:
                 continue
             if index == self._stack.currentIndex():
