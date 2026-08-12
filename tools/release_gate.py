@@ -9,113 +9,36 @@ import shlex
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
+from typing import TypedDict
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "artifacts" / "release-audit"
-QUICK_TESTS = (
-    "tests/test_window_state_store.py",
-    "tests/test_i18n_catalogs.py",
-    "tests/test_i18n_catalog_fragments.py",
-    "tests/test_i18n_audit.py",
-    "tests/test_sidebar_i18n.py",
-    "tests/test_operations_center_i18n.py",
-    "tests/test_operations_center_service.py",
-    "tests/test_dashboard_viewmodel.py",
-    "tests/test_dashboard_i18n.py",
-    "tests/test_projects_connector.py",
-    "tests/test_profiles_connector.py",
-    "tests/test_profiles_i18n.py",
-    "tests/test_profile_creation_validation.py",
-    "tests/test_profiles_write_path.py",
-    "tests/test_datasets_connector.py",
-    "tests/test_datasets_i18n.py",
-    "tests/test_dataset_import_validation.py",
-    "tests/test_training_connector.py",
-    "tests/test_training_i18n.py",
-    "tests/test_training_semantic_contracts.py",
-    "tests/test_training_run_creation.py",
-    "tests/test_training_runner.py",
-    "tests/test_local_model_probe.py",
-    "tests/test_model_versions_connector.py",
-    "tests/test_model_version_statuses.py",
-    "tests/test_snapshots_i18n.py",
-    "tests/test_style_i18n.py",
-    "tests/test_automation_service.py",
-    "tests/test_automation_execution.py",
-    "tests/test_automation_command_draft.py",
-    "tests/test_automation_i18n.py",
-    "tests/test_docs_service.py",
-    "tests/test_docs_i18n.py",
-    "tests/test_personality_battery_loader.py",
-    "tests/test_experiments_connector.py",
-    "tests/test_experiments_i18n.py",
-    "tests/test_experiments_selected_model.py",
-    "tests/test_portrait_semantic_contracts.py",
-    "tests/test_key_binding_manager.py",
-    "tests/test_key_binding_draft_session.py",
-    "tests/test_key_bindings_direct_capture.py",
-    "tests/test_key_bindings_screen_registration.py",
-    "tests/test_agents_key_bindings.py",
-    "tests/test_agents_mouse_binding_routing.py",
-    "tests/test_keybindings_i18n.py",
-    "tests/test_agents_i18n.py",
-    "tests/test_agents_legacy_i18n.py",
-    "tests/test_tests_connector.py",
-    "tests/test_analysis_connector.py",
-    "tests/test_lineage_workflow_context.py",
-    "tests/test_evaluation_i18n.py",
-    "tests/test_lineage_projection_service.py",
-    "tests/test_lineage_atomic_snapshot.py",
-    "tests/test_agents_atomic_lineage.py",
-    "tests/test_agents_lineage_state.py",
-    "tests/test_lineage_state_schema6_i18n.py",
-    "tests/test_agents_lineage_layout_undo_chain.py",
-    "tests/test_lineage_refresh_schedule.py",
-    "tests/test_lineage_refresh_coordinator.py",
-    "tests/test_lineage_projection_loader.py",
-    "tests/test_agents_background_projection.py",
-    "tests/test_agents_content_repaint.py",
-    "tests/test_background_close_guard.py",
-    "tests/test_lineage_projection_link_reconciliation.py",
-    "tests/test_lineage_runtime_policy.py",
-    "tests/test_lineage_runtime_safety.py",
-    "tests/test_lineage_projection_runtime_components.py",
-    "tests/test_lineage_projection_update_planner.py",
-    "tests/test_agents_final_screen_route.py",
-    "tests/test_history_shortcut_routing.py",
-    "tests/test_agents_editable_key_binding_routing.py",
-    "tests/test_agents_history_key_layouts.py",
-    "tests/test_history_gesture_core.py",
-    "tests/test_history_key_resolver.py",
-    "tests/test_history_repeat_timers.py",
-    "tests/test_agents_history_repeat_adapter.py",
-    "tests/test_history_modifier_poller.py",
-    "tests/test_agents_history_modifier_poller_adapter.py",
-    "tests/test_history_modifier_snapshot.py",
-    "tests/test_agents_history_modifier_snapshot_adapter.py",
-    "tests/test_history_event_orchestrator.py",
-    "tests/test_agents_history_event_adapter.py",
-    "tests/test_lineage_context_navigation.py",
-    "tests/test_agents_scroll_compensation.py",
-    "tests/test_agents_context_adapter.py",
-    "tests/test_lineage_atomic_state_store.py",
-    "tests/test_branch_deletion_controller.py",
-    "tests/test_branch_deletion_finalization_contract.py",
-    "tests/test_agents_branch_deletion_adapter.py",
-    "tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py",
-    "tests/test_navigation_shortcuts_and_zoom.py",
-    "tests/test_workspace_leave_guard.py",
-    "tests/test_runtime_operation_coordinator.py",
-    "tests/test_atomic_runtime_operation_coordinator.py",
-    "tests/test_runtime_destructive_lineage.py",
-    "tests/test_application_error_reporter.py",
-    "tests/test_qt_message_boundary.py",
-)
+QUICK_TEST_MANIFEST = ROOT / "tools" / "release_quick_tests.txt"
+
+
+class StepResultPayload(TypedDict):
+    name: str
+    command: tuple[str, ...]
+    blocking: bool
+    return_code: int
+    duration_seconds: float
+    log_path: str
+    passed: bool
+
+
+class AuditSummary(TypedDict):
+    passed: bool
+    seed: int
+    runs: int
+    quick: bool
+    blocking_failures: list[str]
+    warnings: list[str]
+    results: list[StepResultPayload]
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +61,53 @@ class StepResult:
     def passed(self) -> bool:
         return self.return_code == 0
 
+    def to_payload(self) -> StepResultPayload:
+        return {
+            "name": self.name,
+            "command": self.command,
+            "blocking": self.blocking,
+            "return_code": self.return_code,
+            "duration_seconds": self.duration_seconds,
+            "log_path": self.log_path,
+            "passed": self.passed,
+        }
+
+
+def load_quick_test_manifest(
+    path: Path = QUICK_TEST_MANIFEST,
+) -> tuple[str, ...]:
+    try:
+        raw_lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise RuntimeError(
+            f"Quick test manifest is unavailable: {path}"
+        ) from error
+
+    tests = tuple(
+        line
+        for raw_line in raw_lines
+        if (line := raw_line.strip()) and not line.startswith("#")
+    )
+    if not tests:
+        raise RuntimeError(f"Quick test manifest is empty: {path}")
+
+    duplicates = sorted(
+        test for test in set(tests) if tests.count(test) > 1
+    )
+    if duplicates:
+        raise RuntimeError(
+            "Quick test manifest contains duplicate paths: "
+            + ", ".join(duplicates)
+        )
+
+    missing = [test for test in tests if not (ROOT / test).is_file()]
+    if missing:
+        raise RuntimeError(
+            "Quick test manifest references missing files: "
+            + ", ".join(missing)
+        )
+    return tests
+
 
 class ReleaseGate:
     def __init__(
@@ -157,6 +127,7 @@ class ReleaseGate:
         self._strict_mypy = strict_mypy
         self._skip_mypy = skip_mypy
         self._skip_build = skip_build
+        self._quick_tests = load_quick_test_manifest()
         self._metadata = self._collect_metadata()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         commit = str(self._metadata.get("commit") or "unknown")[:12]
@@ -173,6 +144,11 @@ class ReleaseGate:
         print(f"Output: {self.output_dir}")
         print(f"Seed: {self._seed}")
         print(f"Test runs: {self._runs}")
+        print(
+            "Quick test manifest: "
+            f"{QUICK_TEST_MANIFEST.relative_to(ROOT)} "
+            f"({len(self._quick_tests)} tests)"
+        )
         print()
 
         for step in self._setup_steps():
@@ -236,7 +212,7 @@ class ReleaseGate:
     def _pytest_step(self, run_index: int) -> GateStep:
         command = [sys.executable, "-m", "pytest", "-q"]
         if self._quick:
-            command.extend(QUICK_TESTS)
+            command.extend(self._quick_tests)
         return GateStep(
             f"pytest-run-{run_index:02d}",
             tuple(command),
@@ -289,9 +265,15 @@ class ReleaseGate:
                 errors="replace",
                 bufsize=1,
             )
-            assert process.stdout is not None
+            stdout = process.stdout
+            if stdout is None:
+                process.kill()
+                process.wait()
+                raise RuntimeError(
+                    f"Failed to capture output for gate step: {step.name}"
+                )
             try:
-                for line in process.stdout:
+                for line in stdout:
                     print(line, end="")
                     log.write(line)
             except KeyboardInterrupt:
@@ -330,17 +312,16 @@ class ReleaseGate:
             for result in result_list
             if not result.blocking and not result.passed
         ]
-        payload = {
+        payload: AuditSummary = {
             "passed": not blocking_failures,
             "seed": self._seed,
             "runs": self._runs,
             "quick": self._quick,
-            "blocking_failures": [result.name for result in blocking_failures],
-            "warnings": [result.name for result in warnings],
-            "results": [
-                asdict(result) | {"passed": result.passed}
-                for result in result_list
+            "blocking_failures": [
+                result.name for result in blocking_failures
             ],
+            "warnings": [result.name for result in warnings],
+            "results": [result.to_payload() for result in result_list],
         }
         (self.output_dir / "summary.json").write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
@@ -364,7 +345,7 @@ class ReleaseGate:
         print(f"Report: {self.output_dir / 'summary.md'}")
         return 0
 
-    def _write_markdown_summary(self, payload: dict[str, object]) -> None:
+    def _write_markdown_summary(self, payload: AuditSummary) -> None:
         lines = [
             "# Persona Training Lab release audit",
             "",
@@ -374,26 +355,24 @@ class ReleaseGate:
             f"- Seed: `{self._seed}`",
             f"- Test runs: `{self._runs}`",
             f"- Dirty worktree: `{self._metadata.get('dirty', False)}`",
+            f"- Quick tests: `{len(self._quick_tests)}`",
             "",
             "| Step | Blocking | Result | Seconds | Log |",
             "|---|---:|---:|---:|---|",
         ]
-        for result in payload["results"]:  # type: ignore[index]
+        for result in payload["results"]:
             lines.append(
                 "| {name} | {blocking} | {status} | {duration:.3f} | `{log}` |".format(
                     name=result["name"],
                     blocking="yes" if result["blocking"] else "no",
                     status="PASS" if result["passed"] else "FAIL",
-                    duration=float(result["duration_seconds"]),
+                    duration=result["duration_seconds"],
                     log=result["log_path"],
                 )
             )
-        warnings = payload["warnings"]
-        if warnings:
+        if payload["warnings"]:
             lines.extend(("", "## Informational failures", ""))
-            lines.extend(
-                f"- `{name}`" for name in warnings  # type: ignore[arg-type]
-            )
+            lines.extend(f"- `{name}`" for name in payload["warnings"])
         lines.append("")
         (self.output_dir / "summary.md").write_text(
             "\n".join(lines),
@@ -414,6 +393,8 @@ class ReleaseGate:
             "seed": self._seed,
             "runs": self._runs,
             "quick": self._quick,
+            "quick_test_manifest": str(QUICK_TEST_MANIFEST.relative_to(ROOT)),
+            "quick_test_count": len(self._quick_tests),
         }
 
 
@@ -460,7 +441,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Run the release-shell subset and skip mypy/build.",
+        help="Run the curated quick manifest and skip mypy/build.",
     )
     parser.add_argument("--strict-mypy", action="store_true")
     parser.add_argument("--skip-mypy", action="store_true")
@@ -471,17 +452,20 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     seed = args.seed if args.seed is not None else secrets.randbits(32)
-    gate = ReleaseGate(
-        output_root=args.output.resolve(),
-        seed=seed,
-        runs=args.runs,
-        quick=args.quick,
-        strict_mypy=args.strict_mypy,
-        skip_mypy=args.skip_mypy,
-        skip_build=args.skip_build,
-    )
     try:
+        gate = ReleaseGate(
+            output_root=args.output.resolve(),
+            seed=seed,
+            runs=args.runs,
+            quick=args.quick,
+            strict_mypy=args.strict_mypy,
+            skip_mypy=args.skip_mypy,
+            skip_build=args.skip_build,
+        )
         return gate.run()
+    except RuntimeError as error:
+        print(f"Release audit configuration error: {error}")
+        return 2
     except KeyboardInterrupt:
         print("\nRelease audit interrupted. Partial logs were preserved.")
         return 130
