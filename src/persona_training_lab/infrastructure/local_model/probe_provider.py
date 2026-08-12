@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -79,11 +80,10 @@ class FilesystemLocalModelProbeProvider:
         instruction_prompt: str | None = None,
     ) -> LocalInferenceResult:
         try:
-            import torch
-            from transformers import (  # type: ignore
-                AutoModelForCausalLM,
-                AutoTokenizer,
-            )
+            torch: Any = import_module("torch")
+            transformers: Any = import_module("transformers")
+            AutoModelForCausalLM = transformers.AutoModelForCausalLM
+            AutoTokenizer = transformers.AutoTokenizer
         except Exception:
             return LocalInferenceResult(
                 status=LocalModelStatus.INFERENCE_UNAVAILABLE.value,
