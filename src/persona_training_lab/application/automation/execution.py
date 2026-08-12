@@ -145,7 +145,22 @@ def _spawn_process(
     command: tuple[str, ...] | str,
     execution: AutomationExecution,
 ) -> subprocess.Popen[bytes]:
-    common = dict(
+    if os.name == "nt":
+        return subprocess.Popen(
+            command,
+            cwd=execution.cwd,
+            env=dict(execution.env),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            shell=execution.mode == "shell",
+            text=False,
+            creationflags=int(
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            ),
+        )
+    return subprocess.Popen(
+        command,
         cwd=execution.cwd,
         env=dict(execution.env),
         stdout=subprocess.PIPE,
@@ -153,19 +168,7 @@ def _spawn_process(
         stdin=subprocess.DEVNULL,
         shell=execution.mode == "shell",
         text=False,
-    )
-    if os.name == "nt":
-        return subprocess.Popen(
-            command,
-            creationflags=int(
-                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            ),
-            **common,
-        )
-    return subprocess.Popen(
-        command,
         start_new_session=True,
-        **common,
     )
 
 
