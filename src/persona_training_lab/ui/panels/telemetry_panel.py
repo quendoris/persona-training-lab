@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QTimer, Qt, QSize
-from PySide6.QtGui import QPainter, QPainterPath
+from PySide6.QtCore import QSize, QTimer, Qt
+from PySide6.QtGui import (
+    QHideEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QResizeEvent,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QDockWidget,
     QFrame,
@@ -49,7 +56,7 @@ class _TelemetryBarTrack(QFrame):
         self.setObjectName("TelemetryBarTrack")
         self._value = max(0, min(100, value))
         self._vertical = vertical
-        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._fill_probe = QFrame(self)
         self._fill_probe.setObjectName("TelemetryBarFill")
         self._fill_probe.hide()
@@ -58,9 +65,10 @@ class _TelemetryBarTrack(QFrame):
         self._value = max(0, min(100, value))
         self.update()
 
-    def paintEvent(self, event) -> None:  # type: ignore[override]
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
+        super().paintEvent(event)
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = self.rect().adjusted(1, 1, -1, -1)
         if rect.width() <= 0 or rect.height() <= 0:
             return
@@ -68,7 +76,12 @@ class _TelemetryBarTrack(QFrame):
         opt = QStyleOptionFrame()
         opt.initFrom(self)
         opt.rect = self.rect()
-        self.style().drawPrimitive(QStyle.PE_Widget, opt, painter, self)
+        self.style().drawPrimitive(
+            QStyle.PrimitiveElement.PE_Widget,
+            opt,
+            painter,
+            self,
+        )
 
         radius = min(10.0, rect.width() / 2.0, rect.height() / 2.0)
         track_path = QPainterPath()
@@ -88,7 +101,7 @@ class _TelemetryBarTrack(QFrame):
         fill_opt.initFrom(self._fill_probe)
         fill_opt.rect = fill_rect
         self._fill_probe.style().drawPrimitive(
-            QStyle.PE_Widget,
+            QStyle.PrimitiveElement.PE_Widget,
             fill_opt,
             painter,
             self._fill_probe,
@@ -108,17 +121,17 @@ class _VerticalMetric(QFrame):
         track = _TelemetryBarTrack(item.value, vertical=True)
         track.setFixedSize(28, 86)
 
-        layout.addWidget(track, 0, Qt.AlignHCenter)
+        layout.addWidget(track, 0, Qt.AlignmentFlag.AlignHCenter)
         caption = QLabel(item.short_label)
         caption.setObjectName("TelemetryChip")
-        caption.setAlignment(Qt.AlignCenter)
+        caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         caption.setMinimumWidth(42)
         caption.setFixedHeight(24)
-        layout.addWidget(caption, 0, Qt.AlignHCenter)
+        layout.addWidget(caption, 0, Qt.AlignmentFlag.AlignHCenter)
 
         value_label = QLabel(item.value_text)
         value_label.setObjectName("TelemetryCaption")
-        value_label.setAlignment(Qt.AlignCenter)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(value_label)
         self._track = track
         self._caption = caption
@@ -142,7 +155,7 @@ class _HorizontalMetric(QFrame):
 
         label = QLabel(item.full_label)
         label.setObjectName("TelemetryChip")
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setMinimumWidth(64)
         label.setFixedHeight(24)
         layout.addWidget(label)
@@ -199,7 +212,11 @@ class TelemetryPanel(QFrame):
         title_row.addWidget(self._title)
         self._subtitle = QLabel(self._status_subtitle())
         self._subtitle.setObjectName("MutedText")
-        title_row.addWidget(self._subtitle, 0, Qt.AlignVCenter)
+        title_row.addWidget(
+            self._subtitle,
+            0,
+            Qt.AlignmentFlag.AlignVCenter,
+        )
         title_row.addStretch(1)
         self._refresh_btn = QPushButton(
             self._text("panel.telemetry.refresh")
@@ -247,9 +264,9 @@ class TelemetryPanel(QFrame):
         self._processes_scroll = QScrollArea()
         self._processes_scroll.setObjectName("TelemetryProcessesScroll")
         self._processes_scroll.setWidgetResizable(True)
-        self._processes_scroll.setFrameShape(QFrame.NoFrame)
+        self._processes_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._processes_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self._processes_scroll.setSizePolicy(
             QSizePolicy.Policy.Preferred,
@@ -268,7 +285,7 @@ class TelemetryPanel(QFrame):
         self._processes = QVBoxLayout(self._processes_container)
         self._processes.setContentsMargins(0, 0, 10, 0)
         self._processes.setSpacing(6)
-        self._processes.setAlignment(Qt.AlignTop)
+        self._processes.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._processes_scroll.setWidget(self._processes_container)
         processes_shell_layout.addWidget(self._processes_scroll, 1)
         processes_shell_layout.setStretch(1, 1)
@@ -281,7 +298,7 @@ class TelemetryPanel(QFrame):
         if localization is not None:
             localization.language_changed.connect(self._on_language_changed)
 
-    def resizeEvent(self, event) -> None:  # type: ignore[override]
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         super().resizeEvent(event)
         desired = (
             "side"
@@ -291,7 +308,7 @@ class TelemetryPanel(QFrame):
         if desired != self._mode:
             self._rebuild(desired)
 
-    def showEvent(self, event) -> None:  # type: ignore[override]
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
         self._ensure_dock_binding()
         self._apply_floating_size_policy()
@@ -299,7 +316,7 @@ class TelemetryPanel(QFrame):
             self._auto_refresh_timer.start()
         self._on_auto_refresh()
 
-    def hideEvent(self, event) -> None:  # type: ignore[override]
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
         super().hideEvent(event)
         self._auto_refresh_timer.stop()
 
@@ -485,8 +502,10 @@ class TelemetryPanel(QFrame):
 
     def _refresh_processes(self) -> None:
         while self._processes.count():
-            item = self._processes.takeAt(0)
-            widget = item.widget()
+            layout_item = self._processes.takeAt(0)
+            if layout_item is None:
+                continue
+            widget = layout_item.widget()
             if widget is not None:
                 widget.deleteLater()
 
@@ -531,25 +550,27 @@ class TelemetryPanel(QFrame):
         viewport.setProperty("transparentBg", True)
 
         if mode == "side":
-            layout = QVBoxLayout(viewport)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(12)
-            self._metrics_layout = layout
+            side_layout = QVBoxLayout(viewport)
+            side_layout.setContentsMargins(0, 0, 0, 0)
+            side_layout.setSpacing(12)
+            self._metrics_layout = side_layout
             for item in self._items:
-                metric = _HorizontalMetric(item)
-                self._metrics_widgets.append(metric)
-                layout.addWidget(metric)
-            alignment = Qt.AlignTop
+                horizontal_metric = _HorizontalMetric(item)
+                self._metrics_widgets.append(horizontal_metric)
+                side_layout.addWidget(horizontal_metric)
+            alignment = Qt.AlignmentFlag.AlignTop
         else:
-            layout = QHBoxLayout(viewport)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(10)
-            self._metrics_layout = layout
+            bottom_layout = QHBoxLayout(viewport)
+            bottom_layout.setContentsMargins(0, 0, 0, 0)
+            bottom_layout.setSpacing(10)
+            self._metrics_layout = bottom_layout
             for item in self._items:
-                metric = _VerticalMetric(item)
-                self._metrics_widgets.append(metric)
-                layout.addWidget(metric)
-            alignment = Qt.AlignLeft | Qt.AlignTop
+                vertical_metric = _VerticalMetric(item)
+                self._metrics_widgets.append(vertical_metric)
+                bottom_layout.addWidget(vertical_metric)
+            alignment = (
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+            )
 
         self._metrics_viewport = viewport
         self._content_layout.addWidget(viewport, 0, alignment)
