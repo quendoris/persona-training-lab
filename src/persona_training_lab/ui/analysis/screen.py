@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -30,9 +31,13 @@ def _stable_scroll_list(
     scroll = QScrollArea()
     scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
-    scroll.setFrameShape(QFrame.NoFrame)
-    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    scroll.setVerticalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
     scroll.setMinimumHeight(min_height)
     apply_scrollbar_style(scroll)
 
@@ -65,16 +70,26 @@ def _narrow_delta_row(text: str) -> QFrame:
     row = QFrame()
     row.setObjectName("PanelCardSoft")
     row.setMinimumWidth(0)
-    row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+    row.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Minimum,
+    )
     layout = QVBoxLayout(row)
     layout.setContentsMargins(12, 10, 12, 10)
     layout.setSpacing(4)
     label = QLabel(" ".join(text.split()))
     label.setObjectName("MutedText")
     label.setWordWrap(True)
-    label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-    label.setTextInteractionFlags(Qt.NoTextInteraction)
-    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    label.setAlignment(
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+    )
+    label.setTextInteractionFlags(
+        Qt.TextInteractionFlag.NoTextInteraction
+    )
+    label.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Preferred,
+    )
     layout.addWidget(label)
     return row
 
@@ -184,7 +199,7 @@ class AnalysisScreen(QWidget):
         )
         self._refresh_all()
 
-    def showEvent(self, event) -> None:  # type: ignore[override]
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         self._vm.refresh()
         self._refresh_all()
         super().showEvent(event)
@@ -193,6 +208,8 @@ class AnalysisScreen(QWidget):
     def _clear_layout(layout: QVBoxLayout | QGridLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -255,8 +272,12 @@ class AnalysisScreen(QWidget):
             row_layout.addStretch(1)
             value_label = QLabel(value)
             value_label.setObjectName("MetricPercentPill")
-            value_label.setAlignment(Qt.AlignCenter)
-            row_layout.addWidget(value_label, 0, Qt.AlignRight)
+            value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row_layout.addWidget(
+                value_label,
+                0,
+                Qt.AlignmentFlag.AlignRight,
+            )
             metrics_layout.addWidget(row)
 
         layout.addWidget(metrics_wrap)
@@ -312,7 +333,10 @@ class AnalysisScreen(QWidget):
         self._clear_layout(self._insight_layout)
         shell = QFrame()
         shell.setObjectName("PanelCardSoft")
-        shell.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        shell.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         layout = QVBoxLayout(shell)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
@@ -331,7 +355,10 @@ class AnalysisScreen(QWidget):
         self._clear_layout(self._sample_layout)
         shell = QFrame()
         shell.setObjectName("PanelCardSoft")
-        shell.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        shell.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         layout = QVBoxLayout(shell)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
@@ -371,7 +398,10 @@ class AnalysisScreen(QWidget):
         shell = QFrame()
         shell.setObjectName("PanelCardSoft")
         shell.setMinimumWidth(0)
-        shell.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        shell.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         layout = QVBoxLayout(shell)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
