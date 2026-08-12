@@ -80,6 +80,58 @@ class AutomationAuditTrail:
             },
         )
 
+    def record_blocked(
+        self,
+        *,
+        operation_kind: str,
+        subject_kind: str,
+        subject_id: str,
+        execution: AutomationExecution,
+        claims: tuple[ResourceClaim, ...],
+        detail: str,
+    ) -> None:
+        self._append(
+            event_type="automation.run.blocked",
+            operation_id="",
+            correlation_id="",
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            payload={
+                "schema": AUTOMATION_AUDIT_SCHEMA,
+                "phase": "blocked",
+                "operation_kind": operation_kind,
+                "detail": detail,
+                **self._execution_payload(execution, claims),
+            },
+        )
+
+    def record_launch_failed(
+        self,
+        *,
+        operation_id: str,
+        correlation_id: str,
+        operation_kind: str,
+        subject_kind: str,
+        subject_id: str,
+        execution: AutomationExecution,
+        claims: tuple[ResourceClaim, ...],
+        detail: str,
+    ) -> None:
+        self._append(
+            event_type="automation.run.launch_failed",
+            operation_id=operation_id,
+            correlation_id=correlation_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            payload={
+                "schema": AUTOMATION_AUDIT_SCHEMA,
+                "phase": "launch_failed",
+                "operation_kind": operation_kind,
+                "detail": detail,
+                **self._execution_payload(execution, claims),
+            },
+        )
+
     @staticmethod
     def _execution_payload(
         execution: AutomationExecution,
@@ -136,7 +188,7 @@ class AutomationAuditTrail:
                     default=str,
                 ),
                 occurred_at=datetime.now(timezone.utc).isoformat(),
-                correlation_id=correlation_id,
-                causation_id=operation_id,
+                correlation_id=correlation_id or None,
+                causation_id=operation_id or None,
             )
         )
