@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
@@ -34,6 +35,16 @@ from persona_training_lab.ui.viewmodels.profiles import (
 
 def _elide(text: str, max_len: int = 42) -> str:
     return text if len(text) <= max_len else text[: max_len - 1] + "…"
+
+
+def _clear_layout(layout: QLayout) -> None:
+    while layout.count():
+        item = layout.takeAt(0)
+        if item is None:
+            continue
+        widget = item.widget()
+        if widget is not None:
+            widget.deleteLater()
 
 
 class ProfileEditorDialog(QDialog):
@@ -342,11 +353,7 @@ class ProfilesScreen(QWidget):
         profile = self._vm.current_profile()
         self._summary_text.setText(self._render(profile.summary))
         self._readiness_badge.setText(self._render(profile.readiness))
-        while self._constraints_wrap.count():
-            item = self._constraints_wrap.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+        _clear_layout(self._constraints_wrap)
         for value in profile.constraints:
             row = QFrame()
             row.setObjectName("PanelCardSoft")
@@ -362,11 +369,7 @@ class ProfilesScreen(QWidget):
             self._constraints_wrap.addWidget(row)
 
     def _refresh_traits(self) -> None:
-        while self._traits_grid.count():
-            item = self._traits_grid.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+        _clear_layout(self._traits_grid)
         for index, trait in enumerate(self._vm.current_profile().traits):
             card = TraitMetricCard(
                 title=self._render(trait.name),
@@ -376,11 +379,7 @@ class ProfilesScreen(QWidget):
             self._traits_grid.addWidget(card, index // 2, index % 2)
 
     def _refresh_linked(self) -> None:
-        while self._linked_layout.count():
-            item = self._linked_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+        _clear_layout(self._linked_layout)
         for value in self._vm.current_profile().linked_artifacts:
             text = self._render(value)
             row = QFrame()
