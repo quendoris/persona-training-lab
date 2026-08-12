@@ -256,8 +256,8 @@ class _MouseGestureDialog(QDialog):
         root.setSpacing(12)
 
         self._heading = QLabel()
-        root.addWidget(self._heading)
         self._heading.setObjectName("CardTitle")
+        root.addWidget(self._heading)
         self._note = make_muted_label("")
         root.addWidget(self._note)
 
