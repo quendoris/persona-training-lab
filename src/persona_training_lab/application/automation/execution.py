@@ -141,35 +141,43 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
             process.kill()
 
 
-def run_automation_process(
+def _spawn_process(
+    command: tuple[str, ...] | str,
     execution: AutomationExecution,
-    *,
-    cancel_requested: Callable[[], bool] | None,
-) -> AutomationProcessResult:
-    popen_command: tuple[str, ...] | str
-    shell = execution.mode == "shell"
-    if shell:
-        popen_command = execution.shell_command
-    else:
-        popen_command = execution.argv
-
-    popen_kwargs: dict[str, object] = {}
-    if os.name == "nt":
-        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        popen_kwargs["start_new_session"] = True
-
-    process = subprocess.Popen(
-        popen_command,
+) -> subprocess.Popen[bytes]:
+    common = dict(
         cwd=execution.cwd,
         env=dict(execution.env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.DEVNULL,
-        shell=shell,
+        shell=execution.mode == "shell",
         text=False,
-        **popen_kwargs,
     )
+    if os.name == "nt":
+        return subprocess.Popen(
+            command,
+            creationflags=int(
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            ),
+            **common,
+        )
+    return subprocess.Popen(
+        command,
+        start_new_session=True,
+        **common,
+    )
+
+
+def run_automation_process(
+    execution: AutomationExecution,
+    *,
+    cancel_requested: Callable[[], bool] | None,
+) -> AutomationProcessResult:
+    command: tuple[str, ...] | str = (
+        execution.shell_command if execution.mode == "shell" else execution.argv
+    )
+    process = _spawn_process(command, execution)
     if process.stdout is None or process.stderr is None:
         _terminate_process_tree(process)
         raise RuntimeError("automation process pipes were not created")
