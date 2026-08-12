@@ -963,6 +963,8 @@ class LineageStateStore:
 
 
 def _schema_number(value: object) -> int:
+    if not isinstance(value, (str, int, float)):
+        return 0
     try:
         return int(value)
     except (TypeError, ValueError):
