@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 import os
+import signal
 import subprocess
 from threading import Thread
 import time
@@ -108,9 +109,35 @@ def _drain_stream(stream: BinaryIO, capture: _BoundedCapture) -> None:
         stream.close()
 
 
-def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
+def _posix_process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _terminate_posix_process_group(process_group_id: int) -> None:
+    try:
+        os.killpg(process_group_id, signal.SIGTERM)
+    except ProcessLookupError:
         return
+
+    deadline = time.monotonic() + _PROCESS_TERMINATION_GRACE_SECONDS
+    while time.monotonic() < deadline:
+        if not _posix_process_group_exists(process_group_id):
+            return
+        time.sleep(_PROCESS_POLL_INTERVAL_SECONDS)
+
+    try:
+        os.killpg(process_group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+
+
+def _terminate_windows_process_tree(process: subprocess.Popen[bytes]) -> None:
     try:
         root = psutil.Process(process.pid)
         processes = (*root.children(recursive=True), root)
@@ -134,11 +161,20 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
                 timeout=_PROCESS_TERMINATION_GRACE_SECONDS,
             )
     except psutil.Error:
+        if process.poll() is not None:
+            return
         try:
             process.terminate()
             process.wait(timeout=_PROCESS_TERMINATION_GRACE_SECONDS)
         except (OSError, subprocess.TimeoutExpired):
             process.kill()
+
+
+def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    if os.name == "nt":
+        _terminate_windows_process_tree(process)
+        return
+    _terminate_posix_process_group(process.pid)
 
 
 def _spawn_process(
@@ -215,6 +251,8 @@ def run_automation_process(
         time.sleep(_PROCESS_POLL_INTERVAL_SECONDS)
 
     return_code = process.wait()
+    if os.name != "nt":
+        _terminate_posix_process_group(process.pid)
     stdout_thread.join(timeout=_PROCESS_TERMINATION_GRACE_SECONDS)
     stderr_thread.join(timeout=_PROCESS_TERMINATION_GRACE_SECONDS)
     return AutomationProcessResult(
