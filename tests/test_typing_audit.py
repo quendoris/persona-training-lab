@@ -20,7 +20,7 @@ def test_typing_audit_accepts_clean_source_and_config(tmp_path: Path) -> None:
 
     findings = scan_typing_suppressions(
         root=tmp_path,
-        source_root=source_root,
+        code_roots=(source_root,),
         config_paths=(config,),
     )
 
@@ -40,7 +40,7 @@ def test_typing_audit_reports_source_suppressions(tmp_path: Path) -> None:
 
     findings = scan_typing_suppressions(
         root=tmp_path,
-        source_root=source_root,
+        code_roots=(source_root,),
         config_paths=(),
     )
 
@@ -51,6 +51,26 @@ def test_typing_audit_reports_source_suppressions(tmp_path: Path) -> None:
     ]
     assert [item.line for item in findings] == [1, 2, 3]
     assert {item.path for item in findings} == {"src/hidden.py"}
+
+
+def test_typing_audit_ignores_suppression_text_inside_strings(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "tests"
+    source_root.mkdir()
+    (source_root / "fixture.py").write_text(
+        'payload = "value = object()  # type: ignore[arg-type]"\n'
+        'pragma = "# mypy: ignore-errors"\n',
+        encoding="utf-8",
+    )
+
+    findings = scan_typing_suppressions(
+        root=tmp_path,
+        code_roots=(source_root,),
+        config_paths=(),
+    )
+
+    assert findings == ()
 
 
 def test_typing_audit_reports_config_suppressions(tmp_path: Path) -> None:
@@ -66,7 +86,7 @@ def test_typing_audit_reports_config_suppressions(tmp_path: Path) -> None:
 
     findings = scan_typing_suppressions(
         root=tmp_path,
-        source_root=source_root,
+        code_roots=(source_root,),
         config_paths=(config,),
     )
 
