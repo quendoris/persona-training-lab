@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from persona_training_lab.application.datasets.service import DatasetsService
@@ -150,7 +151,7 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
                 )
         return " · ".join(parts)
 
-    def _training_runs(self) -> list[object]:
+    def _training_runs(self) -> Sequence[object]:
         if self.training_service is None:
             return []
         try:
@@ -158,7 +159,7 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
         except Exception:
             return []
 
-    def _model_versions(self) -> list[object]:
+    def _model_versions(self) -> Sequence[object]:
         if self.model_versions_service is None:
             return []
         try:
@@ -166,7 +167,7 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
         except Exception:
             return []
 
-    def _datasets(self) -> list[object]:
+    def _datasets(self) -> Sequence[object]:
         if self.datasets_service is None:
             return []
         try:
@@ -174,7 +175,7 @@ class AgentsGuidanceViewModel(AgentsOverviewViewModel):
         except Exception:
             return []
 
-    def _portraits(self) -> list[object]:
+    def _portraits(self) -> Sequence[object]:
         if self.experiments_service is None:
             return []
         try:
