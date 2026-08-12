@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from persona_training_lab.application.automation.execution import (
     MAX_AUTOMATION_OUTPUT_LIMIT_BYTES,
 )
@@ -13,7 +15,10 @@ def test_automation_command_draft_preserves_exec_argv_boundaries() -> None:
     result = build_automation_command_request(
         AutomationCommandDraft(
             mode="exec",
-            command_text='["python", "-c", "print(\"a b\")"]',
+            command_text=json.dumps(
+                ["python", "-c", 'print("a b")'],
+                ensure_ascii=False,
+            ),
             working_directory="scratch/run 1",
             environment_text='{"FLAG": "raw value"}',
             inherit_environment=False,
