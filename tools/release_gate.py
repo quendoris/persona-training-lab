@@ -60,6 +60,7 @@ QUICK_TESTS = (
     "tests/test_key_bindings_direct_capture.py",
     "tests/test_key_bindings_screen_registration.py",
     "tests/test_agents_key_bindings.py",
+    "tests/test_agents_mouse_binding_routing.py",
     "tests/test_keybindings_i18n.py",
     "tests/test_agents_i18n.py",
     "tests/test_agents_legacy_i18n.py",
