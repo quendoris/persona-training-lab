@@ -1,7 +1,16 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QTimer, Qt
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen
+from PySide6.QtCore import QObject, QEvent, QTimer, Qt
+from PySide6.QtGui import (
+    QColor,
+    QKeyEvent,
+    QKeySequence,
+    QMouseEvent,
+    QPaintEvent,
+    QPainter,
+    QPen,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QApplication,
@@ -90,7 +99,7 @@ class _BindingValueChip(QPushButton):
         self._pulse_on = not self._pulse_on
         self.update()
 
-    def paintEvent(self, event) -> None:  # type: ignore[override]
+    def paintEvent(self, event: QPaintEvent) -> None:
         app = QApplication.instance()
         theme_name = app.property("ptl_theme_name") if app is not None else None
         accent_name = app.property("ptl_accent_name") if app is not None else None
@@ -147,7 +156,7 @@ class _ConflictPanelCard(PanelCard):
         self._has_conflict = active
         self.update()
 
-    def paintEvent(self, event) -> None:  # type: ignore[override]
+    def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
         if not self._has_conflict:
             return
@@ -247,8 +256,8 @@ class _MouseGestureDialog(QDialog):
         root.setSpacing(12)
 
         self._heading = QLabel()
-        self._heading.setObjectName("CardTitle")
         root.addWidget(self._heading)
+        self._heading.setObjectName("CardTitle")
         self._note = make_muted_label("")
         root.addWidget(self._note)
 
@@ -619,11 +628,11 @@ class KeyBindingsScreen(QWidget):
             app.removeEventFilter(self)
         self._capture_filter_installed = False
 
-    def eventFilter(self, watched, event) -> bool:  # type: ignore[override]
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if self._capture_kind is None or self._capture_binding_id is None:
             return super().eventFilter(watched, event)
 
-        if event.type() == QEvent.Type.KeyPress:
+        if isinstance(event, QKeyEvent) and event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Escape:
                 self._cancel_capture()
                 return True
@@ -643,7 +652,10 @@ class KeyBindingsScreen(QWidget):
             return event.key() in _MODIFIER_KEYS
 
         if self._capture_kind == "mouse":
-            if event.type() == QEvent.Type.MouseButtonPress:
+            if (
+                isinstance(event, QMouseEvent)
+                and event.type() == QEvent.Type.MouseButtonPress
+            ):
                 button = _MOUSE_BUTTON_NAMES.get(event.button())
                 if button is None:
                     return True
@@ -666,7 +678,7 @@ class KeyBindingsScreen(QWidget):
                     )
                 self._refresh_bindings()
                 return True
-            if event.type() == QEvent.Type.Wheel:
+            if isinstance(event, QWheelEvent) and event.type() == QEvent.Type.Wheel:
                 modifier = self._modifier_name(event.modifiers())
                 binding_id = self._capture_binding_id
                 self._cancel_capture()
