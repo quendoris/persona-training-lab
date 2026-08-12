@@ -42,14 +42,13 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         node_id = getattr(self, "_drag_node_id", None)
         drag_mode = getattr(self, "_drag_mode", None)
-        is_node_drag = (
+        scope_is_subtree = False
+        before_move: dict[str, Any] | None = None
+        if (
             isinstance(node_id, str)
             and drag_mode in {"node", "subtree"}
             and bool(event.buttons() & Qt.MouseButton.RightButton)
-        )
-        scope_is_subtree = False
-        before_move: dict[str, Any] | None = None
-        if is_node_drag:
+        ):
             scope_is_subtree = bool(
                 event.modifiers()
                 & Qt.KeyboardModifier.ShiftModifier
