@@ -4,12 +4,18 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 import os
-import subprocess
 import sys
-import time
 from types import MappingProxyType
-from typing import Mapping, Protocol, Sequence
+from typing import Mapping, Protocol
 
+from persona_training_lab.application.automation.execution import (
+    DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES,
+    AutomationExecution,
+    AutomationExecutionMode,
+    AutomationProcessResult,
+    AutomationProcessRunner,
+    run_automation_process,
+)
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
     ResourceClaim,
@@ -59,19 +65,26 @@ class AutomationRecipe:
 
 
 @dataclass(frozen=True, slots=True)
+class AutomationCommandRequest:
+    command_id: str
+    mode: AutomationExecutionMode = "exec"
+    argv: tuple[str, ...] = ()
+    shell_command: str = ""
+    working_directory: str = ""
+    environment: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+    inherit_environment: bool = True
+    resource_claims: tuple[AutomationResourceClaim, ...] = ()
+    timeout_seconds: float = 0.0
+    output_limit_bytes: int = DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES
+
+
+@dataclass(frozen=True, slots=True)
 class AutomationDiscoveryIssue:
     path: str
     code: str
     detail: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class AutomationProcessResult:
-    return_code: int
-    stdout: str = ""
-    stderr: str = ""
-    cancelled: bool = False
-    timed_out: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,9 +94,13 @@ class AutomationRunResult:
     recipe_id: str
     operation_id: str = ""
     return_code: int | None = None
+    execution_mode: AutomationExecutionMode = "exec"
     command: tuple[str, ...] = ()
+    working_directory: str = ""
     stdout: str = ""
     stderr: str = ""
+    stdout_truncated: bool = False
+    stderr_truncated: bool = False
     values: Mapping[str, object] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -97,78 +114,12 @@ class AutomationRecipeProvider(Protocol):
     def import_recipe(self, path: Path) -> AutomationRecipe: ...
 
 
-class AutomationProcessRunner(Protocol):
-    def __call__(
-        self,
-        command: Sequence[str],
-        *,
-        cwd: Path,
-        env: Mapping[str, str],
-        timeout: float | None,
-        cancel_requested: Callable[[], bool] | None,
-    ) -> AutomationProcessResult: ...
-
-
-def _default_runner(
-    command: Sequence[str],
-    *,
-    cwd: Path,
-    env: Mapping[str, str],
-    timeout: float | None,
-    cancel_requested: Callable[[], bool] | None,
-) -> AutomationProcessResult:
-    process = subprocess.Popen(
-        tuple(command),
-        cwd=cwd,
-        env=dict(env),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    started = time.monotonic()
-    while True:
-        try:
-            stdout, stderr = process.communicate(timeout=0.1)
-            return AutomationProcessResult(
-                process.returncode,
-                stdout=stdout,
-                stderr=stderr,
-            )
-        except subprocess.TimeoutExpired:
-            if cancel_requested is not None and cancel_requested():
-                process.terminate()
-                try:
-                    stdout, stderr = process.communicate(timeout=2.0)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    stdout, stderr = process.communicate()
-                return AutomationProcessResult(
-                    process.returncode,
-                    stdout=stdout,
-                    stderr=stderr,
-                    cancelled=True,
-                )
-            if timeout is not None and time.monotonic() - started >= timeout:
-                process.terminate()
-                try:
-                    stdout, stderr = process.communicate(timeout=2.0)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    stdout, stderr = process.communicate()
-                return AutomationProcessResult(
-                    process.returncode,
-                    stdout=stdout,
-                    stderr=stderr,
-                    timed_out=True,
-                )
-
-
 @dataclass(slots=True)
 class AutomationService:
     recipe_provider: AutomationRecipeProvider
     operation_coordinator: RuntimeOperationCoordinator
     workspace_root: Path
-    process_runner: AutomationProcessRunner = _default_runner
+    process_runner: AutomationProcessRunner = run_automation_process
 
     def list_recipes(self, query: str = "") -> tuple[AutomationRecipe, ...]:
         recipes = tuple(self.recipe_provider.list_recipes())
@@ -268,6 +219,17 @@ class AutomationService:
                 for claim in recipe.resource_claims
             )
             cwd = self._working_directory(recipe, substitutions)
+            execution = AutomationExecution(
+                mode="exec",
+                argv=command,
+                cwd=cwd,
+                env=self._environment_snapshot(),
+                timeout=(
+                    float(recipe.timeout_seconds)
+                    if recipe.timeout_seconds > 0
+                    else None
+                ),
+            )
         except (KeyError, ValueError) as exc:
             return AutomationRunResult(
                 False,
@@ -276,51 +238,119 @@ class AutomationService:
                 stderr=str(exc),
             )
 
-        if not command:
+        return self._execute(
+            result_id=recipe.recipe_id,
+            execution=execution,
+            operation_kind="automation_recipe",
+            subject_kind="automation_recipe",
+            claims=claims,
+            cancel_requested=cancel_requested,
+        )
+
+    def run_command(
+        self,
+        request: AutomationCommandRequest,
+        *,
+        cancel_requested: Callable[[], bool] | None = None,
+    ) -> AutomationRunResult:
+        command_id = request.command_id.strip() or "ad_hoc"
+        try:
+            claims = tuple(
+                ResourceClaim(
+                    claim.resource_kind,
+                    claim.resource_id,
+                    claim.access_mode,
+                )
+                for claim in request.resource_claims
+            )
+            if not claims:
+                claims = (
+                    ResourceClaim(
+                        "workspace",
+                        str(self.workspace_root.resolve()),
+                        "write",
+                    ),
+                )
+            execution = AutomationExecution(
+                mode=request.mode,
+                argv=tuple(request.argv),
+                shell_command=request.shell_command,
+                cwd=self._command_working_directory(request.working_directory),
+                env=self._environment_snapshot(
+                    request.environment,
+                    inherit=request.inherit_environment,
+                ),
+                timeout=(
+                    float(request.timeout_seconds)
+                    if request.timeout_seconds > 0
+                    else None
+                ),
+                output_limit_bytes=request.output_limit_bytes,
+            )
+        except ValueError as exc:
             return AutomationRunResult(
                 False,
-                "recipe_invalid",
-                recipe.recipe_id,
-                stderr="empty command",
+                "command_invalid",
+                command_id,
+                execution_mode=request.mode,
+                stderr=str(exc),
             )
 
-        environment = dict(os.environ)
-        environment["PTL_WORKSPACE"] = str(self.workspace_root.resolve())
-        timeout = float(recipe.timeout_seconds) if recipe.timeout_seconds > 0 else None
+        return self._execute(
+            result_id=command_id,
+            execution=execution,
+            operation_kind="automation_command",
+            subject_kind="automation_command",
+            claims=claims,
+            cancel_requested=cancel_requested,
+        )
 
+    def _execute(
+        self,
+        *,
+        result_id: str,
+        execution: AutomationExecution,
+        operation_kind: str,
+        subject_kind: str,
+        claims: tuple[ResourceClaim, ...],
+        cancel_requested: Callable[[], bool] | None,
+    ) -> AutomationRunResult:
+        command = execution.command_snapshot
+        cwd = str(execution.cwd)
         try:
             lease = self.operation_coordinator.begin(
-                operation_kind="automation_recipe",
-                subject_kind="automation_recipe",
-                subject_id=recipe.recipe_id,
+                operation_kind=operation_kind,
+                subject_kind=subject_kind,
+                subject_id=result_id,
                 claims=claims,
             )
         except OperationConflictError as exc:
             return AutomationRunResult(
                 False,
                 "operation_blocked",
-                recipe.recipe_id,
+                result_id,
+                execution_mode=execution.mode,
                 command=command,
+                working_directory=cwd,
                 stderr=str(exc),
             )
 
         with lease:
             try:
-                completed = self.process_runner(
-                    command,
-                    cwd=cwd,
-                    env=environment,
-                    timeout=timeout,
+                completed: AutomationProcessResult = self.process_runner(
+                    execution,
                     cancel_requested=cancel_requested,
                 )
-            except OSError as exc:
+            except (OSError, RuntimeError) as exc:
                 lease.fail(str(exc))
                 return AutomationRunResult(
                     False,
                     "launch_failed",
-                    recipe.recipe_id,
+                    result_id,
                     operation_id=lease.operation_id,
+                    execution_mode=execution.mode,
                     command=command,
+                    working_directory=cwd,
                     stderr=str(exc),
                 )
 
@@ -343,13 +373,38 @@ class AutomationService:
             return AutomationRunResult(
                 ok,
                 code,
-                recipe.recipe_id,
+                result_id,
                 operation_id=lease.operation_id,
                 return_code=completed.return_code,
+                execution_mode=execution.mode,
                 command=command,
+                working_directory=cwd,
                 stdout=completed.stdout,
                 stderr=completed.stderr,
+                stdout_truncated=completed.stdout_truncated,
+                stderr_truncated=completed.stderr_truncated,
             )
+
+    def _environment_snapshot(
+        self,
+        overrides: Mapping[str, str] | None = None,
+        *,
+        inherit: bool = True,
+    ) -> Mapping[str, str]:
+        environment = dict(os.environ) if inherit else {}
+        environment.update(
+            {str(key): str(value) for key, value in (overrides or {}).items()}
+        )
+        environment["PTL_WORKSPACE"] = str(self.workspace_root.resolve())
+        return MappingProxyType(environment)
+
+    def _command_working_directory(self, value: str) -> Path:
+        if not value.strip():
+            return self.workspace_root.resolve()
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = self.workspace_root.resolve() / path
+        return path.resolve()
 
     def _working_directory(
         self,
