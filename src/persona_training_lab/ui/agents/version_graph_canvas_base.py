@@ -46,7 +46,7 @@ class VersionGraphCanvas(QWidget):
             lambda value: render_user_message(None, value)
         )
         self.setMouseTracking(True)
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._refresh_size()
 
     def set_text_renderer(
@@ -89,7 +89,7 @@ class VersionGraphCanvas(QWidget):
 
     def paintEvent(self, _event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self._hit_rects.clear()
         positions = self._positions()
         by_id = {node.node_id: node for node in self._nodes}
@@ -415,8 +415,8 @@ class VersionGraphCanvas(QWidget):
         color = self._tone_color(tone)
         color.setAlpha(150)
         pen = QPen(color, max(1.2, 1.8 * self._zoom))
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         dot_gap = 9 * self._zoom
@@ -522,7 +522,10 @@ class VersionGraphCanvas(QWidget):
                 max(230, self.width() - x - 24),
                 26 * self._zoom,
             ),
-            Qt.AlignVCenter | Qt.AlignLeft,
+            (
+                Qt.AlignmentFlag.AlignVCenter
+                | Qt.AlignmentFlag.AlignLeft
+            ),
             label,
         )
 
