@@ -74,14 +74,14 @@ class LocalizationManager(QObject):
     def locale_name(self, locale: str) -> str:
         return self._catalogs.catalog(locale).metadata.native_name
 
-    def text(
-        self,
-        key: str,
-        *,
-        count: int | None = None,
-        **values: object,
-    ) -> str:
-        return self._catalog.text(key, count=count, values=values)
+    def text(self, key: str, **values: object) -> str:
+        format_values = dict(values)
+        count = _extract_count(format_values)
+        return self._catalog.text(
+            key,
+            count=count,
+            values=format_values,
+        )
 
     def set_locale(self, locale: str, *, persist: bool = True) -> None:
         target_catalog = self._catalogs.catalog(locale)
@@ -288,3 +288,12 @@ class LocalizationManager(QObject):
         self._bindings = [
             binding for binding in self._bindings if binding.target() is not None
         ]
+
+
+def _extract_count(values: dict[str, object]) -> int | None:
+    raw_count = values.pop("count", None)
+    if raw_count is None:
+        return None
+    if type(raw_count) is not int:
+        raise TypeError("localization count must be an integer or None")
+    return raw_count
