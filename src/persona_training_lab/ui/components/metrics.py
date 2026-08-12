@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from persona_training_lab.ui.components.panels import make_muted_label
@@ -19,17 +20,26 @@ class RoundedMetricBar(QFrame):
         self._track = QFrame()
         self._track.setObjectName("TelemetryBarTrack")
         self._track.setFixedHeight(height)
-        self._track.setAttribute(Qt.WA_StyledBackground, True)
+        self._track.setAttribute(
+            Qt.WidgetAttribute.WA_StyledBackground,
+            True,
+        )
         layout.addWidget(self._track)
 
         self._fill = QFrame(self._track)
         self._fill.setObjectName("TelemetryBarFill")
-        self._fill.setAttribute(Qt.WA_StyledBackground, True)
+        self._fill.setAttribute(
+            Qt.WidgetAttribute.WA_StyledBackground,
+            True,
+        )
         self._fill.show()
 
-    def resizeEvent(self, event) -> None:  # type: ignore[override]
+    def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        width = max(self._height, int(self._track.width() * self._value / 100))
+        width = max(
+            self._height,
+            int(self._track.width() * self._value / 100),
+        )
         self._fill.setGeometry(0, 0, width, self._track.height())
 
     def set_value(self, value: int) -> None:
@@ -59,6 +69,6 @@ class TraitMetricCard(QFrame):
 
         value_label = QLabel(f"{value}%")
         value_label.setObjectName("MetricPercentPill")
-        value_label.setAlignment(Qt.AlignCenter)
-        footer.addWidget(value_label, 0, Qt.AlignRight)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer.addWidget(value_label, 0, Qt.AlignmentFlag.AlignRight)
         layout.addLayout(footer)
