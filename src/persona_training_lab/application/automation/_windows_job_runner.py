@@ -20,27 +20,31 @@ def _read_payload() -> _ExecutionPayload:
     raw = sys.stdin.buffer.read()
     value = json.loads(raw.decode("utf-8"))
     if not isinstance(value, dict):
-        raise ValueError("Automation launch payload must be an object")
+        raise ValueError("payload_object")
     mode = value.get("mode")
     argv = value.get("argv")
     shell_command = value.get("shell_command")
     cwd = value.get("cwd")
     env = value.get("env")
     if mode not in {"exec", "shell"}:
-        raise ValueError("Automation launch payload has invalid mode")
+        raise ValueError("payload_mode")
     if not isinstance(argv, list) or not all(
         isinstance(item, str) for item in argv
     ):
-        raise ValueError("Automation launch payload has invalid argv")
+        raise ValueError("payload_argv")
     if not isinstance(shell_command, str):
-        raise ValueError("Automation launch payload has invalid shell command")
+        raise ValueError("payload_shell_command")
     if not isinstance(cwd, str) or not cwd:
-        raise ValueError("Automation launch payload has invalid working directory")
+        raise ValueError("payload_working_directory")
     if not isinstance(env, dict) or not all(
         isinstance(key, str) and isinstance(item, str)
         for key, item in env.items()
     ):
-        raise ValueError("Automation launch payload has invalid environment")
+        raise ValueError("payload_environment")
+    if mode == "exec" and (not argv or not argv[0].strip() or shell_command):
+        raise ValueError("payload_exec_shape")
+    if mode == "shell" and (not shell_command.strip() or argv):
+        raise ValueError("payload_shell_shape")
     return cast(
         _ExecutionPayload,
         {
@@ -76,7 +80,8 @@ def main() -> int:
         payload = _read_payload()
         return _run(payload)
     except Exception as exc:
-        print(f"Automation Windows launcher failed: {exc}", file=sys.stderr)
+        code = str(exc).strip() or type(exc).__name__
+        print(f"ptl_automation_windows_launcher_failed:{code}", file=sys.stderr)
         return 127
 
 
