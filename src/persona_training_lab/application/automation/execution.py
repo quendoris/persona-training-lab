@@ -17,6 +17,7 @@ from persona_training_lab.application.automation.windows_job import WindowsJobOb
 
 
 AutomationExecutionMode = Literal["exec", "shell"]
+AutomationEffectScope = Literal["trusted_host"]
 DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES = 1024 * 1024
 MAX_AUTOMATION_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024
 _PROCESS_POLL_INTERVAL_SECONDS = 0.05
@@ -28,6 +29,7 @@ _CAPTURE_CHUNK_BYTES = 64 * 1024
 class AutomationExecution:
     mode: AutomationExecutionMode
     cwd: Path
+    effect_scope: AutomationEffectScope = "trusted_host"
     env: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -37,6 +39,8 @@ class AutomationExecution:
     output_limit_bytes: int = DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES
 
     def __post_init__(self) -> None:
+        if self.effect_scope != "trusted_host":
+            raise ValueError("unsupported automation effect scope")
         if self.mode == "exec":
             if not self.argv or not self.argv[0].strip():
                 raise ValueError("exec automation requires a non-empty argv")
