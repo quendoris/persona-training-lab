@@ -16,6 +16,7 @@ from persona_training_lab.application.runtime.operations import ResourceClaim
 
 
 AUTOMATION_AUDIT_SCHEMA = "ptl:automation-audit:v1"
+AUTOMATION_RESOURCE_CLAIM_SEMANTICS = "runtime_coordination"
 
 
 @dataclass(slots=True)
@@ -145,6 +146,8 @@ class AutomationAuditTrail:
         )
         return {
             "mode": execution.mode,
+            "effect_scope": execution.effect_scope,
+            "resource_claim_semantics": AUTOMATION_RESOURCE_CLAIM_SEMANTICS,
             "working_directory": str(execution.cwd),
             "command_sha256": sha256(command_json.encode("utf-8")).hexdigest(),
             "command_parts": len(command_snapshot),
