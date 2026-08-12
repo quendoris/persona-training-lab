@@ -41,6 +41,18 @@ AUTOMATION_DISCOVERY_ISSUE_KEYS = {
     "manifest_invalid": "automation.discovery.manifest_invalid",
     "recipe_duplicate": "automation.discovery.recipe_duplicate",
 }
+AUTOMATION_SOURCE_KEYS = {
+    "builtin": "automation.source.builtin",
+    "workspace": "automation.source.workspace",
+}
+AUTOMATION_ACCESS_KEYS = {
+    "read": "automation.access.read",
+    "write": "automation.access.write",
+}
+AUTOMATION_EXECUTION_MODE_KEYS = {
+    "exec": "automation.adhoc.mode.exec",
+    "shell": "automation.adhoc.mode.shell",
+}
 
 
 @dataclass(frozen=True, slots=True)
