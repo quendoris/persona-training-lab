@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import (
+    StatusLabelTone,
     make_muted_label,
     make_status_label,
 )
@@ -316,7 +317,7 @@ class DashboardScreen(QWidget):
             texts.addWidget(note)
             row_layout.addLayout(texts, 1)
 
-            tone = (
+            tone: StatusLabelTone = (
                 "pending"
                 if item.state_key
                 in {
