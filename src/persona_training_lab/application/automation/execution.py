@@ -8,13 +8,14 @@ import subprocess
 from threading import Thread
 import time
 from types import MappingProxyType
-from typing import Literal, Mapping, Protocol
+from typing import BinaryIO, Literal, Mapping, Protocol
 
 import psutil
 
 
 AutomationExecutionMode = Literal["exec", "shell"]
 DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES = 1024 * 1024
+MAX_AUTOMATION_OUTPUT_LIMIT_BYTES = 64 * 1024 * 1024
 _PROCESS_POLL_INTERVAL_SECONDS = 0.05
 _PROCESS_TERMINATION_GRACE_SECONDS = 2.0
 _CAPTURE_CHUNK_BYTES = 64 * 1024
@@ -49,6 +50,8 @@ class AutomationExecution:
             raise ValueError("automation timeout must be positive")
         if self.output_limit_bytes < 0:
             raise ValueError("automation output limit must not be negative")
+        if self.output_limit_bytes > MAX_AUTOMATION_OUTPUT_LIMIT_BYTES:
+            raise ValueError("automation output limit exceeds the hard maximum")
 
     @property
     def command_snapshot(self) -> tuple[str, ...]:
@@ -94,18 +97,15 @@ class _BoundedCapture:
         return bytes(self.data).decode("utf-8", errors="replace")
 
 
-def _drain_stream(stream: object, capture: _BoundedCapture) -> None:
-    read = getattr(stream, "read")
+def _drain_stream(stream: BinaryIO, capture: _BoundedCapture) -> None:
     try:
         while True:
-            chunk = read(_CAPTURE_CHUNK_BYTES)
+            chunk = stream.read(_CAPTURE_CHUNK_BYTES)
             if not chunk:
                 return
-            capture.append(bytes(chunk))
+            capture.append(chunk)
     finally:
-        close = getattr(stream, "close", None)
-        if callable(close):
-            close()
+        stream.close()
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
