@@ -198,7 +198,8 @@ class ExperimentsService:
         self,
         model_version_id: str | None = None,
     ) -> ExperimentRunResult:
-        if self.local_model_service is None:
+        local_model_service = self.local_model_service
+        if local_model_service is None:
             return experiment_result(
                 False,
                 message_code="local_model_unavailable",
@@ -224,11 +225,9 @@ class ExperimentsService:
             selected_version.artifact_path
             if selected_version is not None
             and selected_version.artifact_path
-            else self.local_model_service.model_path
+            else local_model_service.model_path
         )
-        model_probe = self.local_model_service.probe_model_files_at(
-            model_path
-        )
+        model_probe = local_model_service.probe_model_files_at(model_path)
         if (
             normalize_local_model_status(model_probe.status)
             is not LocalModelStatus.FOUND
@@ -291,6 +290,7 @@ class ExperimentsService:
                 test_cases=test_cases,
                 selected_version=selected_version,
                 model_path=model_path,
+                local_model_service=local_model_service,
             )
             if lease is not None:
                 if result.ok:
@@ -398,11 +398,12 @@ class ExperimentsService:
         test_cases: tuple[PortraitTestCase, ...],
         selected_version,
         model_path: str,
+        local_model_service: LocalModelService,
     ) -> ExperimentRunResult:
         responses: list[str] = []
         failures = 0
         for index, case in enumerate(test_cases, start=1):
-            result = self.local_model_service.generate_at(
+            result = local_model_service.generate_at(
                 model_path,
                 case.prompt,
                 instruction_prompt=PORTRAIT_SCORE_INSTRUCTION,
