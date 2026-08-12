@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.util import find_spec
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,9 +24,7 @@ class MarkerFineTuneBackend:
         model_dir = Path(model_path)
         if not model_dir.exists():
             return MarkerFineTuneResult("Модель не найдена", "Модель не найдена")
-        try:
-            import transformers  # noqa: F401
-        except Exception:
+        if find_spec("transformers") is None:
             return MarkerFineTuneResult("Training backend не подключён", "Training backend не подключён")
 
         out = self._root / run_id
