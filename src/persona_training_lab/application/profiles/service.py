@@ -5,10 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from persona_training_lab.application.messages import ActionResult
-from persona_training_lab.application.ports.repositories import (
-    ProfilesReadRepositoryPort,
-    ProfilesWriteRepositoryPort,
-)
+from persona_training_lab.application.ports.repositories import ProfilesRepositoryPort
 from persona_training_lab.domain.persona.statuses import ProfileStatus
 
 
@@ -27,7 +24,7 @@ class ProfileSummary:
 
 @dataclass(slots=True)
 class ProfilesService:
-    profiles_repo: ProfilesReadRepositoryPort | ProfilesWriteRepositoryPort
+    profiles_repo: ProfilesRepositoryPort
 
     def list_profiles(self) -> list[ProfileSummary]:
         rows = self.profiles_repo.list_profiles()
