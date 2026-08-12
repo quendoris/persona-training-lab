@@ -6,6 +6,7 @@ from functools import partial
 from persona_training_lab.application.agents.service import AgentsService
 from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.automation import AutomationService
+from persona_training_lab.application.automation.audit import AutomationAuditTrail
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
@@ -210,6 +211,7 @@ def build_container() -> AppContainer:
         ),
         operation_coordinator=runtime_operations,
         workspace_root=paths.root,
+        audit_trail=AutomationAuditTrail(event_log_repo),
     )
     telemetry_service = SystemTelemetryService(
         system_provider=PsutilTelemetryProvider(),
