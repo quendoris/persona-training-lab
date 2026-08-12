@@ -16,7 +16,7 @@ from persona_training_lab.application.datasets.errors import (
     DatasetServiceErrorCode,
 )
 from persona_training_lab.application.messages import ActionResult
-from persona_training_lab.application.ports.repositories import DatasetsReadRepositoryPort
+from persona_training_lab.application.ports.repositories import DatasetsRepositoryPort
 from persona_training_lab.domain.datasets.statuses import (
     DatasetReadinessStatus,
     DatasetVersionStatus,
@@ -58,7 +58,7 @@ class DatasetPreviewRecord:
 
 @dataclass(slots=True)
 class DatasetsService:
-    datasets_repo: DatasetsReadRepositoryPort
+    datasets_repo: DatasetsRepositoryPort
 
     def list_datasets(self) -> list[DatasetSummary]:
         return [self._row_to_summary(row) for row in self.datasets_repo.list_datasets()]
@@ -121,13 +121,23 @@ class DatasetsService:
             return ActionResult(False, "not_found")
         return ActionResult(False, "version_compare_unavailable")
 
-    def preview_dataset(self, dataset_id: str, limit: int = 25) -> tuple[DatasetPreviewRecord, ...]:
+    def preview_dataset(
+        self,
+        dataset_id: str,
+        limit: int = 25,
+    ) -> tuple[DatasetPreviewRecord, ...]:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
             return ()
         return self._preview_jsonl_path(str(row.get("path", "")), limit=limit)
 
-    def _save_result(self, dataset_id: str, result: DatasetValidationResult, *, approve: bool) -> None:
+    def _save_result(
+        self,
+        dataset_id: str,
+        result: DatasetValidationResult,
+        *,
+        approve: bool,
+    ) -> None:
         status = (
             DatasetVersionStatus.APPROVED.value
             if approve and result.status == DatasetVersionStatus.VALIDATED.value
@@ -210,7 +220,14 @@ class DatasetsService:
             status = DatasetVersionStatus.STRUCTURE_ERROR.value
         else:
             status = DatasetVersionStatus.VALIDATED.value
-        return DatasetValidationResult(status, total_rows, valid_rows, invalid_rows, 0, tuple(errors[:8]))
+        return DatasetValidationResult(
+            status,
+            total_rows,
+            valid_rows,
+            invalid_rows,
+            0,
+            tuple(errors[:8]),
+        )
 
     def _validate_record(
         self,
@@ -265,7 +282,11 @@ class DatasetsService:
             return True, None
         return False, dataset_diagnostic("unsupported_schema")
 
-    def _preview_jsonl_path(self, file_path: str, limit: int) -> tuple[DatasetPreviewRecord, ...]:
+    def _preview_jsonl_path(
+        self,
+        file_path: str,
+        limit: int,
+    ) -> tuple[DatasetPreviewRecord, ...]:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
             return (
@@ -327,7 +348,11 @@ class DatasetsService:
             )
         )
 
-    def _preview_record(self, line_number: int, payload: dict[str, object]) -> DatasetPreviewRecord:
+    def _preview_record(
+        self,
+        line_number: int,
+        payload: dict[str, object],
+    ) -> DatasetPreviewRecord:
         if "messages" in payload:
             messages = payload.get("messages") or []
             user_text = ""
@@ -342,14 +367,33 @@ class DatasetsService:
                         user_text = content
                     if role == "assistant":
                         assistant_text = content
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text), "messages", "structure_ok")
+            return DatasetPreviewRecord(
+                f"#{line_number:03d}",
+                self._short(user_text or assistant_text),
+                "messages",
+                "structure_ok",
+            )
         if "instruction" in payload or "output" in payload:
             instruction = str(payload.get("instruction", "")).strip()
             input_text = str(payload.get("input", "")).strip()
-            summary = instruction if not input_text else f"{instruction} · {input_text}"
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "structure_ok")
+            summary = (
+                instruction
+                if not input_text
+                else f"{instruction} · {input_text}"
+            )
+            return DatasetPreviewRecord(
+                f"#{line_number:03d}",
+                self._short(summary),
+                "instruction/output",
+                "structure_ok",
+            )
         prompt = str(payload.get("prompt", "")).strip()
-        return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "structure_ok")
+        return DatasetPreviewRecord(
+            f"#{line_number:03d}",
+            self._short(prompt),
+            "prompt/response",
+            "structure_ok",
+        )
 
     def _short(self, value: str, limit: int = 140) -> str:
         compact = " ".join(value.split())
@@ -365,7 +409,9 @@ class DatasetsService:
             valid_count=int(row.get("valid_count", 0)),
             invalid_count=int(row.get("invalid_count", 0)),
             quality_summary=str(row.get("quality_summary", "")),
-            validation_errors_preview=str(row.get("validation_errors_preview", "")),
+            validation_errors_preview=str(
+                row.get("validation_errors_preview", "")
+            ),
             path=str(row.get("path", "")),
             format=str(row.get("format", "jsonl")),
         )
