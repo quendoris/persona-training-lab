@@ -1,4 +1,5 @@
 from .execution import (
+    AutomationEffectScope,
     AutomationExecution,
     AutomationExecutionMode,
     AutomationProcessResult,
@@ -17,6 +18,7 @@ from .service import (
 __all__ = [
     "AutomationCommandRequest",
     "AutomationDiscoveryIssue",
+    "AutomationEffectScope",
     "AutomationExecution",
     "AutomationExecutionMode",
     "AutomationInput",
