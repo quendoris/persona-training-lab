@@ -27,6 +27,7 @@ QUICK_TESTS = (
     "tests/test_operations_center_service.py",
     "tests/test_dashboard_viewmodel.py",
     "tests/test_dashboard_i18n.py",
+    "tests/test_projects_connector.py",
     "tests/test_profiles_connector.py",
     "tests/test_profiles_i18n.py",
     "tests/test_profile_creation_validation.py",
