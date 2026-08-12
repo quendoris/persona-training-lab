@@ -1,16 +1,31 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import re
 from types import MappingProxyType
 from typing import Mapping
 
-from persona_training_lab.application.datasets.service import DatasetsService
-from persona_training_lab.application.docs.service import DocsService
-from persona_training_lab.application.experiments.service import ExperimentsService
-from persona_training_lab.application.model_versions.service import ModelVersionsService
-from persona_training_lab.application.projects.service import ProjectsService
-from persona_training_lab.application.training.service import TrainingService
+from persona_training_lab.application.datasets.service import (
+    DatasetSummary,
+    DatasetsService,
+)
+from persona_training_lab.application.experiments.service import (
+    ExperimentSummary,
+    ExperimentsService,
+)
+from persona_training_lab.application.model_versions.service import (
+    ModelVersionSummary,
+    ModelVersionsService,
+)
+from persona_training_lab.application.projects.service import (
+    ProjectSummary,
+    ProjectsService,
+)
+from persona_training_lab.application.training.service import (
+    TrainingRunSummary,
+    TrainingService,
+)
 from persona_training_lab.ui.viewmodels.experiment_semantics import (
     experiment_title_semantic,
 )
@@ -151,7 +166,9 @@ def dashboard_text(key: str, **values: object) -> DashboardText:
     return DashboardText(key, MappingProxyType(dict(values)))
 
 
-def _dashboard_experiment_title(experiment: object) -> DashboardTextValue:
+def _dashboard_experiment_title(
+    experiment: ExperimentSummary,
+) -> DashboardTextValue:
     semantic = experiment_title_semantic(experiment)
     if semantic.key:
         return dashboard_text(semantic.key, **dict(semantic.values))
@@ -160,7 +177,6 @@ def _dashboard_experiment_title(experiment: object) -> DashboardTextValue:
 
 @dataclass(slots=True)
 class DashboardViewModel:
-    docs_service: DocsService
     projects_service: ProjectsService
     training_service: TrainingService | None = None
     model_versions_service: ModelVersionsService | None = None
@@ -189,9 +205,6 @@ class DashboardViewModel:
                 DashboardRoute("analysis"),
             ),
         )
-
-    def quick_start(self) -> list[str]:
-        return self.docs_service.get_quick_start_items()
 
     def stats(self) -> tuple[DashboardStat, ...]:
         if not self._has_live_workflow_services():
@@ -564,7 +577,7 @@ class DashboardViewModel:
             )
         )
 
-    def _projects(self) -> list[object]:
+    def _projects(self) -> list[ProjectSummary]:
         try:
             return self.projects_service.list_projects()
         except Exception:
@@ -602,7 +615,7 @@ class DashboardViewModel:
             ),
         )
 
-    def _training_runs(self) -> list[object]:
+    def _training_runs(self) -> list[TrainingRunSummary]:
         if self.training_service is None:
             return []
         try:
@@ -610,7 +623,7 @@ class DashboardViewModel:
         except Exception:
             return []
 
-    def _model_versions(self) -> list[object]:
+    def _model_versions(self) -> list[ModelVersionSummary]:
         if self.model_versions_service is None:
             return []
         try:
@@ -618,7 +631,7 @@ class DashboardViewModel:
         except Exception:
             return []
 
-    def _datasets(self) -> list[object]:
+    def _datasets(self) -> list[DatasetSummary]:
         if self.datasets_service is None:
             return []
         try:
@@ -626,7 +639,7 @@ class DashboardViewModel:
         except Exception:
             return []
 
-    def _portraits(self) -> list[object]:
+    def _portraits(self) -> list[ExperimentSummary]:
         if self.experiments_service is None:
             return []
         try:
@@ -638,7 +651,10 @@ class DashboardViewModel:
         portraits = self._portraits()
         return self._portrait_stats(portraits[0]) if portraits else None
 
-    def _portrait_stats(self, experiment: object) -> PortraitDashboardStats:
+    def _portrait_stats(
+        self,
+        experiment: ExperimentSummary,
+    ) -> PortraitDashboardStats:
         subtitle = getattr(experiment, "subtitle", "")
         status = getattr(experiment, "status", "")
         passed, total = self._parse_passed_total(subtitle)
@@ -748,7 +764,10 @@ class DashboardViewModel:
                 )
         return " · ".join(parts)
 
-    def _dataset_note(self, datasets: list[object]) -> DashboardText:
+    def _dataset_note(
+        self,
+        datasets: Sequence[DatasetSummary],
+    ) -> DashboardText:
         if not datasets:
             return dashboard_text("dashboard.note.no_datasets")
         approved = sum(
@@ -765,7 +784,10 @@ class DashboardViewModel:
             errors=errors,
         )
 
-    def _dataset_readiness(self, datasets: list[object]) -> int:
+    def _dataset_readiness(
+        self,
+        datasets: Sequence[DatasetSummary],
+    ) -> int:
         if not datasets:
             return 0
         approved = sum(
@@ -801,7 +823,10 @@ class DashboardViewModel:
         except (TypeError, ValueError):
             return 0
 
-    def _progress_note(self, runs: list[object]) -> DashboardText:
+    def _progress_note(
+        self,
+        runs: Sequence[TrainingRunSummary],
+    ) -> DashboardText:
         if not runs:
             return dashboard_text("dashboard.note.no_training_run")
         run = runs[0]
@@ -841,10 +866,10 @@ class DashboardViewModel:
             return "dashboard.state.ready"
         return "dashboard.state.present"
 
-    def _is_dataset_approved(self, dataset: object) -> bool:
+    def _is_dataset_approved(self, dataset: DatasetSummary) -> bool:
         return self._status_code(getattr(dataset, "status", "")) == "approved"
 
-    def _training_finished(self, run: object) -> bool:
+    def _training_finished(self, run: TrainingRunSummary) -> bool:
         return self._status_code(getattr(run, "status", "")) in {
             "completed",
             "ready",
