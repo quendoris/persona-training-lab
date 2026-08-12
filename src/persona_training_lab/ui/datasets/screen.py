@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -46,7 +47,10 @@ def _stable_scroll_grid(
     scroll.setFrameShape(QFrame.Shape.NoFrame)
     scroll.setMinimumHeight(max_height)
     apply_scrollbar_style(scroll)
-    scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    scroll.setSizePolicy(
+        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Expanding,
+    )
 
     wrap = QFrame()
     wrap.setObjectName("StableScrollShell")
@@ -201,17 +205,17 @@ class DatasetsScreen(QWidget):
         self._table.setAlternatingRowColors(False)
         self._table.horizontalHeader().setStretchLastSection(True)
         self._table.horizontalHeader().setDefaultAlignment(
-            Qt.AlignLeft | Qt.AlignVCenter
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         self._table.setWordWrap(True)
         self._table.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
         self._preview_card.add_widget(self._table)
         self._preview_card.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
         center.addWidget(self._preview_card, 1)
 
@@ -224,8 +228,8 @@ class DatasetsScreen(QWidget):
         self._validation_scroll.setMinimumHeight(320)
         self._validation_card.add_widget(self._validation_scroll)
         self._validation_card.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
         center.addWidget(self._validation_card, 1)
 
@@ -465,6 +469,8 @@ class DatasetsScreen(QWidget):
     def _refresh_validation(self) -> None:
         while self._validation_grid.count():
             item = self._validation_grid.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -481,7 +487,7 @@ class DatasetsScreen(QWidget):
             if signal.state == "warning":
                 badge = make_status_label(
                     self._text("datasets.badge.error"),
-                    warning=True,
+                    tone="pending",
                 )
             elif signal.state == "ok":
                 badge = make_status_label(
@@ -506,6 +512,8 @@ class DatasetsScreen(QWidget):
     def _refresh_summary(self) -> None:
         while self._summary_rows.count():
             item = self._summary_rows.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -634,7 +642,7 @@ class DatasetsScreen(QWidget):
             "datasets.action.approving",
         )
 
-    def closeEvent(self, event) -> None:  # type: ignore[override]
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         if (
             self._dataset_thread is not None
             and self._dataset_thread.isRunning()
