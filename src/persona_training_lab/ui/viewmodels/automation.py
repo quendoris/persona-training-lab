@@ -7,6 +7,7 @@ from types import MappingProxyType
 from typing import Mapping
 
 from persona_training_lab.application.automation import (
+    AutomationCommandRequest,
     AutomationDiscoveryIssue,
     AutomationRecipe,
     AutomationRunResult,
@@ -31,6 +32,9 @@ AUTOMATION_RUN_STATUS_KEYS = {
     "recipe_invalid": "automation.run.status.recipe_invalid",
     "input_required": "automation.run.status.input_required",
     "input_unknown": "automation.run.status.input_unknown",
+    "command_invalid": "automation.run.status.command_invalid",
+    "audit_unavailable": "automation.run.status.audit_unavailable",
+    "audit_failed": "automation.run.status.audit_failed",
 }
 AUTOMATION_DISCOVERY_ISSUE_KEYS = {
     "manifest_invalid": "automation.discovery.manifest_invalid",
@@ -78,9 +82,13 @@ class AutomationRunView:
     recipe_id: str
     operation_id: str
     return_code: int | None
+    execution_mode: str
     command: str
+    working_directory: str
     stdout: str
     stderr: str
+    stdout_truncated: bool
+    stderr_truncated: bool
 
 
 def automation_text(key: str, **values: object) -> AutomationText:
@@ -117,6 +125,19 @@ class AutomationViewModel:
             self.automation_service.run_recipe(
                 recipe_id,
                 inputs,
+                cancel_requested=cancel_requested,
+            )
+        )
+
+    def run_command(
+        self,
+        request: AutomationCommandRequest,
+        *,
+        cancel_requested: Callable[[], bool] | None = None,
+    ) -> AutomationRunView:
+        return self._run_view(
+            self.automation_service.run_command(
+                request,
                 cancel_requested=cancel_requested,
             )
         )
@@ -183,7 +204,11 @@ class AutomationViewModel:
             recipe_id=result.recipe_id,
             operation_id=result.operation_id,
             return_code=result.return_code,
+            execution_mode=result.execution_mode,
             command=" ".join(result.command),
+            working_directory=result.working_directory,
             stdout=result.stdout,
             stderr=result.stderr,
+            stdout_truncated=result.stdout_truncated,
+            stderr_truncated=result.stderr_truncated,
         )
