@@ -34,6 +34,7 @@ AUTOMATION_RUN_STATUS_KEYS = {
     "input_required": "automation.run.status.input_required",
     "input_unknown": "automation.run.status.input_unknown",
     "command_invalid": "automation.run.status.command_invalid",
+    "host_effects_not_authorized": "automation.run.status.host_effects_not_authorized",
     "audit_unavailable": "automation.run.status.audit_unavailable",
     "audit_failed": "automation.run.status.audit_failed",
 }
@@ -52,6 +53,9 @@ AUTOMATION_ACCESS_KEYS = {
 AUTOMATION_EXECUTION_MODE_KEYS = {
     "exec": "automation.adhoc.mode.exec",
     "shell": "automation.adhoc.mode.shell",
+}
+AUTOMATION_EFFECT_SCOPE_KEYS = {
+    "trusted_host": "automation.effect_scope.trusted_host",
 }
 
 
@@ -96,6 +100,7 @@ class AutomationRunView:
     operation_id: str
     return_code: int | None
     execution_mode: str
+    effect_scope: str
     command: str
     working_directory: str
     stdout: str
@@ -223,6 +228,7 @@ class AutomationViewModel:
             operation_id=result.operation_id,
             return_code=result.return_code,
             execution_mode=result.execution_mode,
+            effect_scope=result.effect_scope,
             command=command,
             working_directory=result.working_directory,
             stdout=result.stdout,
