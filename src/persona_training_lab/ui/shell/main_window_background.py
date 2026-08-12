@@ -24,7 +24,7 @@ class MainWindow(_ContextMainWindow):
             return True
         return bool(shutdown(timeout_ms))
 
-    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+    def closeEvent(self, event: QCloseEvent) -> None:
         if not self._close_guard_passed:
             if not self._workspace.request_current_leave():
                 event.ignore()
