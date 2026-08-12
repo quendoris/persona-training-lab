@@ -137,6 +137,8 @@ class Sidebar(_BaseSidebar):
             return
         while layout.count() > 1:
             item = layout.takeAt(1)
+            if item is None:
+                break
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -162,7 +164,9 @@ class Sidebar(_BaseSidebar):
         if badge is None:
             return
         brand = badge.parentWidget()
-        brand_layout = brand.layout() if brand is not None else None
+        if brand is None:
+            return
+        brand_layout = brand.layout()
         if not isinstance(brand_layout, QVBoxLayout):
             return
         top_item = brand_layout.itemAt(0)
