@@ -105,6 +105,12 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     assert screen._run_command_btn.text() == "Run command"
     assert screen._adhoc_mode.itemText(0) == "exec · argv"
     assert screen._adhoc_mode.itemText(1) == "shell · explicit"
+    assert (
+        screen._adhoc_host_effects.text()
+        == "I authorize this command to execute with trusted host effects"
+    )
+    assert screen._adhoc_host_effects.isChecked() is False
+    assert "do not sandbox filesystem" in screen._adhoc_host_effects_help.text()
 
     raw_command = '["tool", "RAW ARG Δ"]'
     raw_environment = '{"RAW_ENV": "KEEP VALUE"}'
@@ -112,6 +118,7 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     screen._adhoc_command.setPlainText(raw_command)
     screen._adhoc_environment.setPlainText(raw_environment)
     screen._adhoc_resources.setPlainText(raw_claims)
+    screen._adhoc_host_effects.setChecked(True)
 
     screen._search.setText("operator")
     app.processEvents()
@@ -130,6 +137,9 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     assert screen._run_command_btn.text() == "Запустить команду"
     assert screen._adhoc_mode.itemText(0) == "exec · argv"
     assert screen._adhoc_mode.itemText(1) == "shell · явно"
+    assert "trusted host effects" in screen._adhoc_host_effects.text()
+    assert screen._adhoc_host_effects.isChecked() is True
+    assert "не ограничивают filesystem" in screen._adhoc_host_effects_help.text()
     assert screen._adhoc_command.toPlainText() == raw_command
     assert screen._adhoc_environment.toPlainText() == raw_environment
     assert screen._adhoc_resources.toPlainText() == raw_claims
@@ -154,12 +164,14 @@ def test_automation_inspector_and_runtime_operation_localize_live(tmp_path: Path
     inspector.set_context("automation")
     inspector.show()
     app.processEvents()
-    assert "Automation" in _visible_texts(inspector)
+    english = _visible_texts(inspector)
+    assert "Automation" in english
     assert any(
-        "Resource claims match" in text for text in _visible_texts(inspector)
+        "runtime resource claims match" in text.casefold() for text in english
     )
     assert any(
-        "Ad-hoc commands must stay" in text for text in _visible_texts(inspector)
+        "resource claims coordinate ptl concurrency" in text.casefold()
+        for text in english
     )
 
     operation = OperationsCenterItem(
@@ -178,13 +190,14 @@ def test_automation_inspector_and_runtime_operation_localize_live(tmp_path: Path
 
     manager.set_locale("ru-RU", persist=False)
     app.processEvents()
-    assert "Автоматизация" in _visible_texts(inspector)
+    russian = _visible_texts(inspector)
+    assert "Автоматизация" in russian
     assert any(
-        "Resource claims" in text for text in _visible_texts(inspector)
+        "runtime resource claims" in text.casefold() for text in russian
     )
     assert any(
-        "Ad-hoc команды должны оставаться" in text
-        for text in _visible_texts(inspector)
+        "resource claims координируют конкуренцию ptl" in text.casefold()
+        for text in russian
     )
     assert item_title(operation, manager) == "Автоматизация · workspace_health"
 
