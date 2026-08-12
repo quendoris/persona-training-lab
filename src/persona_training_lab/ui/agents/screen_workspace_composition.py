@@ -63,7 +63,10 @@ from persona_training_lab.ui.components.panels import (
 )
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.keybindings.manager import KeyBindingManager
-from persona_training_lab.ui.viewmodels.agents_contracts import AgentDetailView
+from persona_training_lab.ui.viewmodels.agents_contracts import (
+    AgentDetailView,
+    AgentText,
+)
 
 
 _CONTEXT_ROUTER = LineageContextRouter()
@@ -107,7 +110,7 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         ] = ()
         self._real_projection: LineagePresentationProjection | None = None
         self._real_projection_signature: tuple[
-            tuple[str, str, str, str], ...
+            tuple[AgentText, AgentText, AgentText, AgentText], ...
         ] = ()
         self._projection_safety_binding = ProjectionSafetyBinding(
             lineage_runtime_safety
@@ -782,13 +785,13 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             return True
         return coordinator.shutdown(timeout_ms)
 
-    def showEvent(self, event: QShowEvent) -> None:  # type: ignore[override]
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
         coordinator = self._lineage_refresh_coordinator
         if coordinator is not None:
             coordinator.set_active(True)
 
-    def hideEvent(self, event: QHideEvent) -> None:  # type: ignore[override]
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
         coordinator = self._lineage_refresh_coordinator
         if coordinator is not None:
             coordinator.set_active(False)
