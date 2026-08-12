@@ -10,6 +10,7 @@ from persona_training_lab.application.automation import (
 from persona_training_lab.application.automation.execution import (
     DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES,
     MAX_AUTOMATION_OUTPUT_LIMIT_BYTES,
+    AutomationExecutionMode,
 )
 
 
@@ -52,8 +53,13 @@ def build_automation_command_request(
     *,
     command_id: str,
 ) -> AutomationCommandDraftResult:
-    mode = draft.mode.strip().casefold()
-    if mode not in {"exec", "shell"}:
+    mode_text = draft.mode.strip().casefold()
+    mode: AutomationExecutionMode
+    if mode_text == "exec":
+        mode = "exec"
+    elif mode_text == "shell":
+        mode = "shell"
+    else:
         return AutomationCommandDraftResult(error_code="mode_invalid")
 
     argv: tuple[str, ...] = ()
@@ -63,14 +69,16 @@ def build_automation_command_request(
             decoded_argv = json.loads(draft.command_text)
         except json.JSONDecodeError:
             return AutomationCommandDraftResult(error_code="exec_json")
-        if (
-            not isinstance(decoded_argv, list)
-            or not decoded_argv
-            or not all(isinstance(item, str) for item in decoded_argv)
-            or not decoded_argv[0].strip()
-        ):
+        if not isinstance(decoded_argv, list) or not decoded_argv:
             return AutomationCommandDraftResult(error_code="exec_json")
-        argv = tuple(decoded_argv)
+        argv_items: list[str] = []
+        for item in decoded_argv:
+            if not isinstance(item, str):
+                return AutomationCommandDraftResult(error_code="exec_json")
+            argv_items.append(item)
+        if not argv_items[0].strip():
+            return AutomationCommandDraftResult(error_code="exec_json")
+        argv = tuple(argv_items)
     else:
         shell_command = draft.command_text
         if not shell_command.strip():
@@ -82,12 +90,12 @@ def build_automation_command_request(
             decoded_environment = json.loads(draft.environment_text)
         except json.JSONDecodeError:
             return AutomationCommandDraftResult(error_code="environment_json")
-        if not isinstance(decoded_environment, dict) or not all(
-            isinstance(key, str) and isinstance(value, str)
-            for key, value in decoded_environment.items()
-        ):
+        if not isinstance(decoded_environment, dict):
             return AutomationCommandDraftResult(error_code="environment_json")
-        environment = dict(decoded_environment)
+        for key, value in decoded_environment.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                return AutomationCommandDraftResult(error_code="environment_json")
+            environment[key] = value
 
     claims: list[AutomationResourceClaim] = []
     if draft.resource_claims_text.strip():
