@@ -37,7 +37,7 @@
     "automation.adhoc.mode.label": "Режим выполнения",
     "automation.adhoc.mode.shell": "shell · явно",
     "automation.adhoc.output_limit.label": "Лимит каждого потока вывода (байт)",
-    "automation.adhoc.resources.help": "JSON-массив {kind, id, access}. Это runtime coordination claims, а не разрешения ОС. Пустой массив означает эксклюзивный workspace write-claim для планировщика PTL.",
+    "automation.adhoc.resources.help": "JSON-массив {{kind, id, access}}. Это runtime coordination claims, а не разрешения ОС. Пустой массив означает эксклюзивный workspace write-claim для планировщика PTL.",
     "automation.adhoc.resources.label": "Resource claims",
     "automation.adhoc.timeout.label": "Timeout (секунды, 0 = без лимита)",
     "automation.adhoc.title": "Ad-hoc выполнение",
