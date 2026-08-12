@@ -112,7 +112,7 @@ class StyleScreen(QWidget):
         badges_layout.setContentsMargins(0, 0, 0, 0)
         badges_layout.setSpacing(8)
         self._running_badge = make_status_label("")
-        self._attention_badge = make_status_label("", warning=True)
+        self._attention_badge = make_status_label("", tone="pending")
         badges_layout.addWidget(self._running_badge)
         badges_layout.addWidget(self._attention_badge)
         badges_layout.addStretch(1)
