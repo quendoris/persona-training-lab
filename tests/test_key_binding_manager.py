@@ -1,11 +1,39 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 
+from persona_training_lab.ui.keybindings.definitions import (
+    MOUSE_BUTTON_IDS,
+    MOUSE_BUTTON_LABELS,
+    MOUSE_MODIFIER_IDS,
+    MOUSE_MODIFIER_LABELS,
+)
 from persona_training_lab.ui.keybindings.manager import (
     KeyBindingManager,
     MouseBindingValue,
 )
+
+
+def test_localized_label_compatibility_surfaces_are_read_only_mappings() -> None:
+    assert isinstance(MOUSE_BUTTON_LABELS, Mapping)
+    assert isinstance(MOUSE_MODIFIER_LABELS, Mapping)
+    assert not isinstance(MOUSE_BUTTON_LABELS, dict)
+    assert not isinstance(MOUSE_MODIFIER_LABELS, dict)
+
+    assert tuple(MOUSE_BUTTON_LABELS) == MOUSE_BUTTON_IDS
+    assert tuple(MOUSE_MODIFIER_LABELS) == MOUSE_MODIFIER_IDS
+    assert MOUSE_BUTTON_LABELS.get("missing", "fallback") == "fallback"
+    assert MOUSE_MODIFIER_LABELS.get("missing", "fallback") == "fallback"
+
+    button_snapshot = dict(MOUSE_BUTTON_LABELS)
+    modifier_snapshot = dict(MOUSE_MODIFIER_LABELS)
+    assert tuple(button_snapshot) == MOUSE_BUTTON_IDS
+    assert tuple(modifier_snapshot) == MOUSE_MODIFIER_IDS
+    assert tuple(MOUSE_BUTTON_LABELS.items()) == tuple(button_snapshot.items())
+    assert tuple(MOUSE_MODIFIER_LABELS.values()) == tuple(modifier_snapshot.values())
+    assert all(button_snapshot.values())
+    assert all(modifier_snapshot.values())
 
 
 def test_key_binding_manager_uses_stable_defaults(tmp_path) -> None:
