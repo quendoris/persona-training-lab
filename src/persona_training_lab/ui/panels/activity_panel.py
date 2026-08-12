@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -71,9 +72,14 @@ class _ActivityRow(QPushButton):
         text_layout.addWidget(note)
         layout.addLayout(text_layout, 1)
 
+        tone = (
+            "pending"
+            if item.severity in {"warning", "error", "critical"}
+            else "good"
+        )
         status = make_status_label(
             item_status(item, localization),
-            warning=item.severity in {"warning", "error", "critical"},
+            tone=tone,
         )
         status.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents,
@@ -144,12 +150,12 @@ class ActivityPanel(QFrame):
         self._render_signature = None
         self.refresh(force=True)
 
-    def showEvent(self, event) -> None:  # type: ignore[override]
+    def showEvent(self, event: QShowEvent) -> None:
         self._timer.start()
         self.refresh(force=True)
         super().showEvent(event)
 
-    def hideEvent(self, event) -> None:  # type: ignore[override]
+    def hideEvent(self, event: QHideEvent) -> None:
         self._timer.stop()
         super().hideEvent(event)
 
@@ -236,6 +242,8 @@ class ActivityPanel(QFrame):
     def _clear_rows(self) -> None:
         while self._rows.count():
             item = self._rows.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
