@@ -11,6 +11,7 @@ from persona_training_lab.application.automation import (
     AutomationResourceClaim,
     AutomationService,
 )
+from persona_training_lab.application.automation.audit import AutomationAuditTrail
 from persona_training_lab.application.automation.execution import (
     AutomationExecution,
     AutomationProcessResult,
@@ -18,6 +19,7 @@ from persona_training_lab.application.automation.execution import (
 from persona_training_lab.application.automation.service import (
     AutomationCommandRequest,
 )
+from persona_training_lab.application.ports.event_log import EventRecord
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
     ResourceClaim,
@@ -29,6 +31,7 @@ from persona_training_lab.infrastructure.automation import (
 
 class _Lease:
     operation_id = "op_automation_test"
+    correlation_id = "corr_automation_test"
 
     def __init__(self) -> None:
         self.state = "running"
@@ -67,6 +70,17 @@ class _Coordinator:
         return lease
 
 
+class _EventLog:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.records: list[EventRecord] = []
+
+    def append(self, record: EventRecord) -> None:
+        if self.fail:
+            raise OSError("event log unavailable")
+        self.records.append(record)
+
+
 class _StaticProvider:
     def __init__(self, recipes: tuple[AutomationRecipe, ...]) -> None:
         self._recipes = recipes
@@ -79,6 +93,11 @@ class _StaticProvider:
 
     def import_recipe(self, path: Path) -> AutomationRecipe:
         raise NotImplementedError(path)
+
+
+def _audit(log: _EventLog | None = None) -> tuple[AutomationAuditTrail, _EventLog]:
+    event_log = log or _EventLog()
+    return AutomationAuditTrail(event_log), event_log
 
 
 def _manifest(path: Path, **overrides: object) -> None:
@@ -241,6 +260,7 @@ def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
     tmp_path: Path,
 ) -> None:
     coordinator = _Coordinator()
+    audit_trail, event_log = _audit()
     observed: dict[str, object] = {}
 
     def runner(
@@ -267,6 +287,7 @@ def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
         coordinator,  # type: ignore[arg-type]
         tmp_path,
         process_runner=runner,
+        audit_trail=audit_trail,
     )
     request = AutomationCommandRequest(
         command_id="operator_probe",
@@ -302,16 +323,99 @@ def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
     assert coordinator.calls[0]["claims"] == (
         ResourceClaim("workspace", str(tmp_path.resolve()), "write"),
     )
+    assert [record.event_type for record in event_log.records] == [
+        "automation.run.started",
+        "automation.run.finished",
+    ]
+    started_payload = json.loads(event_log.records[0].payload_json)
+    finished_payload = json.loads(event_log.records[1].payload_json)
+    assert started_payload["mode"] == "shell"
+    assert started_payload["working_directory"] == str(
+        (tmp_path / "scratch").resolve()
+    )
+    assert started_payload["environment_keys"] == [
+        "PTL_OPERATOR_FLAG",
+        "PTL_WORKSPACE",
+    ]
+    assert "printf probe" not in event_log.records[0].payload_json
+    assert "enabled" not in event_log.records[0].payload_json
+    assert finished_payload["state"] == "succeeded"
+    assert finished_payload["stdout_truncated"] is True
+
+
+def test_automation_service_requires_audit_before_ad_hoc_launch(
+    tmp_path: Path,
+) -> None:
+    coordinator = _Coordinator()
+    launched = False
+
+    def runner(
+        execution: AutomationExecution,
+        *,
+        cancel_requested,
+    ) -> AutomationProcessResult:
+        nonlocal launched
+        launched = True
+        return AutomationProcessResult(0)
+
+    service = AutomationService(
+        _StaticProvider(()),
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+        process_runner=runner,
+    )
+    result = service.run_command(
+        AutomationCommandRequest(command_id="no_audit", argv=("tool",))
+    )
+
+    assert result.code == "audit_unavailable"
+    assert launched is False
+    assert coordinator.calls == []
+
+
+def test_automation_service_fails_closed_when_audit_start_cannot_persist(
+    tmp_path: Path,
+) -> None:
+    coordinator = _Coordinator()
+    audit_trail, _event_log = _audit(_EventLog(fail=True))
+    launched = False
+
+    def runner(
+        execution: AutomationExecution,
+        *,
+        cancel_requested,
+    ) -> AutomationProcessResult:
+        nonlocal launched
+        launched = True
+        return AutomationProcessResult(0)
+
+    service = AutomationService(
+        _StaticProvider(()),
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+        process_runner=runner,
+        audit_trail=audit_trail,
+    )
+    result = service.run_command(
+        AutomationCommandRequest(command_id="audit_failure", argv=("tool",))
+    )
+
+    assert result.code == "audit_failed"
+    assert "event log unavailable" in result.stderr
+    assert launched is False
+    assert coordinator.leases[0].state == "failed"
 
 
 def test_automation_service_requires_explicit_valid_ad_hoc_execution_shape(
     tmp_path: Path,
 ) -> None:
     coordinator = _Coordinator()
+    audit_trail, _event_log = _audit()
     service = AutomationService(
         _StaticProvider(()),
         coordinator,  # type: ignore[arg-type]
         tmp_path,
+        audit_trail=audit_trail,
     )
 
     invalid_exec = service.run_command(
@@ -332,6 +436,7 @@ def test_automation_service_preserves_ad_hoc_claims_and_terminal_output_flags(
     tmp_path: Path,
 ) -> None:
     coordinator = _Coordinator()
+    audit_trail, event_log = _audit()
 
     def runner(
         execution: AutomationExecution,
@@ -350,6 +455,7 @@ def test_automation_service_preserves_ad_hoc_claims_and_terminal_output_flags(
         coordinator,  # type: ignore[arg-type]
         tmp_path,
         process_runner=runner,
+        audit_trail=audit_trail,
     )
     result = service.run_command(
         AutomationCommandRequest(
@@ -368,6 +474,9 @@ def test_automation_service_preserves_ad_hoc_claims_and_terminal_output_flags(
     assert coordinator.calls[0]["claims"] == (
         ResourceClaim("dataset", "dataset-17", "write"),
     )
+    finished_payload = json.loads(event_log.records[-1].payload_json)
+    assert finished_payload["state"] == "cancelled"
+    assert finished_payload["stderr_truncated"] is True
 
 
 def test_automation_service_rejects_bad_inputs_and_preserves_terminal_states(
