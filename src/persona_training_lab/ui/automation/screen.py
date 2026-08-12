@@ -35,6 +35,7 @@ from persona_training_lab.ui.i18n.text import text as localized_text
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.automation import (
     AUTOMATION_ACCESS_KEYS,
+    AUTOMATION_EFFECT_SCOPE_KEYS,
     AUTOMATION_EXECUTION_MODE_KEYS,
     AUTOMATION_SOURCE_KEYS,
     AutomationRecipeView,
@@ -294,6 +295,12 @@ class AutomationScreen(QWidget):
         self._adhoc_inherit_environment = QCheckBox()
         self._adhoc_inherit_environment.setChecked(True)
         self._adhoc_card.add_widget(self._adhoc_inherit_environment)
+        self._adhoc_host_effects = QCheckBox()
+        self._adhoc_host_effects.setChecked(False)
+        self._adhoc_card.add_widget(self._adhoc_host_effects)
+        self._adhoc_host_effects_help = make_muted_label("")
+        self._adhoc_host_effects_help.setWordWrap(True)
+        self._adhoc_card.add_widget(self._adhoc_host_effects_help)
         detail_layout.addWidget(self._adhoc_card)
 
         detail_layout.addStretch(1)
@@ -530,6 +537,7 @@ class AutomationScreen(QWidget):
             resource_claims_text=self._adhoc_resources.toPlainText(),
             timeout_text=self._adhoc_timeout.text(),
             output_limit_text=self._adhoc_output_limit.text(),
+            host_effects_authorized=self._adhoc_host_effects.isChecked(),
         )
         parsed = build_automation_command_request(
             draft,
@@ -593,9 +601,14 @@ class AutomationScreen(QWidget):
                 result.return_code if result.return_code is not None else "—"
             ),
         )
+        scope_key = AUTOMATION_EFFECT_SCOPE_KEYS.get(
+            result.effect_scope,
+            "automation.effect_scope.unknown",
+        )
         execution = self._text(
             "automation.run.execution",
             mode=result.execution_mode,
+            scope=self._text(scope_key),
             working_directory=result.working_directory or "—",
         )
         self._operation.setText(operation + "\n" + execution)
@@ -699,6 +712,12 @@ class AutomationScreen(QWidget):
         )
         self._adhoc_inherit_environment.setText(
             self._text("automation.adhoc.inherit_environment")
+        )
+        self._adhoc_host_effects.setText(
+            self._text("automation.adhoc.host_effects_authorized")
+        )
+        self._adhoc_host_effects_help.setText(
+            self._text("automation.adhoc.host_effects_help")
         )
         self._apply_adhoc_mode()
         self._runner_title.setText(self._text("automation.runner.title"))
