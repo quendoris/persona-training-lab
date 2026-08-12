@@ -247,8 +247,8 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         color = self._tone_color(tone)
         color.setAlpha(150)
         pen = QPen(color, max(1.2, 1.8 * self._zoom))
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         dot_gap = 9 * self._zoom
@@ -277,7 +277,7 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         if frame is None:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(
             QPen(
                 QColor(34, 211, 238, 150),
@@ -304,7 +304,10 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         )
         painter.drawText(
             title_rect,
-            Qt.AlignLeft | Qt.AlignVCenter,
+            (
+                Qt.AlignmentFlag.AlignLeft
+                | Qt.AlignmentFlag.AlignVCenter
+            ),
             self._menu_text("agents.menu.title"),
         )
 
@@ -321,7 +324,10 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
         )
         painter.drawText(
             id_rect,
-            Qt.AlignLeft | Qt.AlignVCenter,
+            (
+                Qt.AlignmentFlag.AlignLeft
+                | Qt.AlignmentFlag.AlignVCenter
+            ),
             self._menu_node_id,
         )
 
@@ -349,7 +355,10 @@ class VersionGraphCanvas(LockableVersionGraphCanvas):
                     -8 * self._zoom,
                     0,
                 ),
-                Qt.AlignLeft | Qt.AlignVCenter,
+                (
+                    Qt.AlignmentFlag.AlignLeft
+                    | Qt.AlignmentFlag.AlignVCenter
+                ),
                 label,
             )
 
