@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import argparse
-import json
-import re
 from dataclasses import asdict, dataclass
+from io import StringIO
+import json
 from pathlib import Path
+import re
+from tokenize import COMMENT, TokenError, generate_tokens
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_ROOT = ROOT / "src"
+CODE_ROOTS = (
+    ROOT / "src",
+    ROOT / "tests",
+    ROOT / "tools",
+)
 CONFIG_PATHS = (
     ROOT / "pyproject.toml",
     ROOT / "mypy.ini",
@@ -62,20 +68,51 @@ def _relative(path: Path, root: Path) -> str:
         return path.as_posix()
 
 
-def _scan_file(
-    path: Path,
-    *,
-    root: Path,
-    markers: tuple[tuple[str, re.Pattern[str]], ...],
-) -> list[TypingSuppressionFinding]:
+def _read_text(path: Path) -> str:
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        return path.read_text(encoding="utf-8")
     except OSError as error:
         raise RuntimeError(f"Typing audit cannot read: {path}") from error
 
+
+def _scan_python_file(
+    path: Path,
+    *,
+    root: Path,
+) -> list[TypingSuppressionFinding]:
+    text = _read_text(path)
+    findings: list[TypingSuppressionFinding] = []
+    try:
+        tokens = generate_tokens(StringIO(text).readline)
+        for token in tokens:
+            if token.type != COMMENT:
+                continue
+            for kind, pattern in _SOURCE_MARKERS:
+                if pattern.search(token.string) is None:
+                    continue
+                findings.append(
+                    TypingSuppressionFinding(
+                        path=_relative(path, root),
+                        line=token.start[0],
+                        kind=kind,
+                        text=token.string.strip(),
+                    )
+                )
+                break
+    except (IndentationError, TokenError) as error:
+        raise RuntimeError(f"Typing audit cannot tokenize: {path}") from error
+    return findings
+
+
+def _scan_config_file(
+    path: Path,
+    *,
+    root: Path,
+) -> list[TypingSuppressionFinding]:
+    lines = _read_text(path).splitlines()
     findings: list[TypingSuppressionFinding] = []
     for line_number, line in enumerate(lines, start=1):
-        for kind, pattern in markers:
+        for kind, pattern in _CONFIG_MARKERS:
             if pattern.search(line) is None:
                 continue
             findings.append(
@@ -93,39 +130,42 @@ def _scan_file(
 def scan_typing_suppressions(
     *,
     root: Path = ROOT,
-    source_root: Path | None = None,
+    code_roots: tuple[Path, ...] | None = None,
     config_paths: tuple[Path, ...] | None = None,
 ) -> tuple[TypingSuppressionFinding, ...]:
-    source = source_root or root / "src"
-    configs = config_paths or (
-        root / "pyproject.toml",
-        root / "mypy.ini",
-        root / ".mypy.ini",
-        root / "setup.cfg",
-        root / "tox.ini",
+    roots = (
+        code_roots
+        if code_roots is not None
+        else (root / "src", root / "tests", root / "tools")
+    )
+    configs = (
+        config_paths
+        if config_paths is not None
+        else (
+            root / "pyproject.toml",
+            root / "mypy.ini",
+            root / ".mypy.ini",
+            root / "setup.cfg",
+            root / "tox.ini",
+        )
     )
 
     findings: list[TypingSuppressionFinding] = []
-    if source.is_dir():
-        for path in sorted(source.rglob("*.py")):
-            findings.extend(
-                _scan_file(
-                    path,
-                    root=root,
-                    markers=_SOURCE_MARKERS,
-                )
-            )
+    seen_paths: set[Path] = set()
+    for code_root in roots:
+        if not code_root.is_dir():
+            continue
+        for path in sorted(code_root.rglob("*.py")):
+            resolved = path.resolve()
+            if resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+            findings.extend(_scan_python_file(path, root=root))
 
     for path in configs:
         if not path.is_file():
             continue
-        findings.extend(
-            _scan_file(
-                path,
-                root=root,
-                markers=_CONFIG_MARKERS,
-            )
-        )
+        findings.extend(_scan_config_file(path, root=root))
 
     return tuple(
         sorted(
@@ -138,7 +178,7 @@ def scan_typing_suppressions(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Fail when production typing suppressions can hide mypy errors."
+            "Fail when typing suppressions can hide errors in Python code or mypy config."
         ),
     )
     parser.add_argument(
