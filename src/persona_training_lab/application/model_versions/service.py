@@ -8,8 +8,7 @@ from persona_training_lab.application.model_versions.status_mapping import (
     normalize_model_version_status,
 )
 from persona_training_lab.application.ports.repositories import (
-    ModelVersionsReadRepositoryPort,
-    ModelVersionsWriteRepositoryPort,
+    ModelVersionsRepositoryPort,
 )
 from persona_training_lab.domain.models.statuses import ModelVersionStatus
 
@@ -30,9 +29,7 @@ class ModelVersionSummary:
 
 @dataclass(slots=True)
 class ModelVersionsService:
-    model_versions_repo: (
-        ModelVersionsReadRepositoryPort | ModelVersionsWriteRepositoryPort
-    )
+    model_versions_repo: ModelVersionsRepositoryPort
 
     def list_model_versions(self) -> list[ModelVersionSummary]:
         rows = self.model_versions_repo.list_model_versions()
