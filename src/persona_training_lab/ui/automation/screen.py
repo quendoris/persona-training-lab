@@ -34,6 +34,9 @@ from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import text as localized_text
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
 from persona_training_lab.ui.viewmodels.automation import (
+    AUTOMATION_ACCESS_KEYS,
+    AUTOMATION_EXECUTION_MODE_KEYS,
+    AUTOMATION_SOURCE_KEYS,
     AutomationRecipeView,
     AutomationRunView,
     AutomationText,
@@ -45,20 +48,6 @@ from persona_training_lab.ui.viewmodels.automation_command import (
     AutomationCommandDraft,
     build_automation_command_request,
 )
-
-
-AUTOMATION_SOURCE_KEYS = {
-    "builtin": "automation.source.builtin",
-    "workspace": "automation.source.workspace",
-}
-AUTOMATION_ACCESS_KEYS = {
-    "read": "automation.access.read",
-    "write": "automation.access.write",
-}
-AUTOMATION_EXECUTION_MODE_KEYS = {
-    "exec": "automation.adhoc.mode.exec",
-    "shell": "automation.adhoc.mode.shell",
-}
 
 
 class _AutomationRunWorker(QObject):
