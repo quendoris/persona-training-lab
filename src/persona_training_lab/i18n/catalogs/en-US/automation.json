@@ -37,7 +37,7 @@
     "automation.adhoc.mode.label": "Execution mode",
     "automation.adhoc.mode.shell": "shell · explicit",
     "automation.adhoc.output_limit.label": "Output limit per stream (bytes)",
-    "automation.adhoc.resources.help": "JSON array of {kind, id, access}. These are runtime coordination claims, not OS permissions. Empty means an exclusive workspace write claim for PTL scheduling.",
+    "automation.adhoc.resources.help": "JSON array of {{kind, id, access}}. These are runtime coordination claims, not OS permissions. Empty means an exclusive workspace write claim for PTL scheduling.",
     "automation.adhoc.resources.label": "Resource claims",
     "automation.adhoc.timeout.label": "Timeout (seconds, 0 = none)",
     "automation.adhoc.title": "Ad-hoc execution",
