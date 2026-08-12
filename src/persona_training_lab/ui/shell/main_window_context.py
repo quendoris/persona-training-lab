@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QCloseEvent, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
+    QGraphicsEffect,
     QPushButton,
     QWidget,
 )
@@ -28,6 +31,11 @@ TAB_SHORTCUTS: tuple[tuple[str, str], ...] = (
     ("nav_docs", "docs"),
     ("nav_keybindings", "keybindings"),
 )
+
+
+def _remove_graphics_effect(widget: QWidget) -> None:
+    # PySide accepts None for the nullable C++ pointer; its stub omits None.
+    widget.setGraphicsEffect(cast(QGraphicsEffect, None))
 
 
 class MainWindow(_MainWindow):
@@ -190,7 +198,7 @@ class MainWindow(_MainWindow):
             return
         self._guidance_target = None
         try:
-            target.setGraphicsEffect(None)
+            _remove_graphics_effect(target)
         except RuntimeError:
             return
 
@@ -283,7 +291,7 @@ class MainWindow(_MainWindow):
         self._sync_inspector_shortcut(screen)
         self._refresh_operations_chrome()
 
-    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         super().closeEvent(event)
         if not event.isAccepted():
             return
