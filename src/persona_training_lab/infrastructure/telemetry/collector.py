@@ -5,11 +5,7 @@ from dataclasses import dataclass
 from importlib import import_module
 import subprocess
 
-from persona_training_lab.application.ports.telemetry import (
-    BaseTelemetryMetrics,
-    GpuTelemetryMetrics,
-    ProcessMetrics,
-)
+from persona_training_lab.application.ports.telemetry import BaseTelemetryMetrics, GpuTelemetryMetrics, ProcessMetrics
 
 
 _PROCESS_FIELDS = ("pid", "name", "cpu_percent", "memory_percent")
@@ -105,10 +101,7 @@ class PsutilTelemetryProvider:
                         ram_percent=_as_float(info.get("memory_percent")),
                     )
                 )
-            processes.sort(
-                key=lambda item: (item.cpu_percent, item.ram_percent),
-                reverse=True,
-            )
+            processes.sort(key=lambda item: (item.cpu_percent, item.ram_percent), reverse=True)
             processes = processes[: self.max_process_rows]
         except Exception:
             processes = []
@@ -131,21 +124,11 @@ class NvidiaSmiTelemetryProvider:
             "--format=csv,noheader,nounits",
         ]
         try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=1.0,
-            )
+            result = subprocess.run(command, capture_output=True, text=True, check=True, timeout=1.0)
         except Exception as exc:
             raise RuntimeError("Источник GPU не подключён") from exc
 
-        line = (
-            result.stdout.strip().splitlines()[0].strip()
-            if result.stdout.strip()
-            else ""
-        )
+        line = result.stdout.strip().splitlines()[0].strip() if result.stdout.strip() else ""
         if not line:
             raise RuntimeError("Источник GPU не подключён")
 
@@ -157,11 +140,7 @@ class NvidiaSmiTelemetryProvider:
         vram_used_mb = float(parts[1])
         vram_total_mb = float(parts[2])
         temperature_raw = parts[3]
-        temperature_c = (
-            float(temperature_raw)
-            if temperature_raw not in {"", "N/A"}
-            else None
-        )
+        temperature_c = float(temperature_raw) if temperature_raw not in {"", "N/A"} else None
 
         return GpuTelemetryMetrics(
             gpu_util_percent=gpu_util_percent,
