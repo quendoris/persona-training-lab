@@ -23,6 +23,7 @@ AUTOMATION_COMMAND_DRAFT_ERROR_KEYS = {
     "timeout_invalid": "automation.adhoc.error.timeout_invalid",
     "output_limit_invalid": "automation.adhoc.error.output_limit_invalid",
     "output_limit_too_large": "automation.adhoc.error.output_limit_too_large",
+    "host_effects_required": "automation.adhoc.error.host_effects_required",
 }
 
 
@@ -36,6 +37,7 @@ class AutomationCommandDraft:
     resource_claims_text: str = ""
     timeout_text: str = ""
     output_limit_text: str = ""
+    host_effects_authorized: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +150,9 @@ def build_automation_command_request(
         if output_limit > MAX_AUTOMATION_OUTPUT_LIMIT_BYTES:
             return AutomationCommandDraftResult(error_code="output_limit_too_large")
 
+    if not draft.host_effects_authorized:
+        return AutomationCommandDraftResult(error_code="host_effects_required")
+
     return AutomationCommandDraftResult(
         request=AutomationCommandRequest(
             command_id=command_id,
@@ -160,5 +165,6 @@ def build_automation_command_request(
             resource_claims=tuple(claims),
             timeout_seconds=timeout,
             output_limit_bytes=output_limit,
+            host_effects_authorized=True,
         )
     )
