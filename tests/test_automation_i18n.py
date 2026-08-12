@@ -100,7 +100,18 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     assert "Workspace health" in english
     assert "Execution" in english
     assert "Recipe registry" in english
+    assert "Ad-hoc execution" in english
     assert "KEEP RAW METADATA" not in english
+    assert screen._run_command_btn.text() == "Run command"
+    assert screen._adhoc_mode.itemText(0) == "exec · argv"
+    assert screen._adhoc_mode.itemText(1) == "shell · explicit"
+
+    raw_command = '["tool", "RAW ARG Δ"]'
+    raw_environment = '{"RAW_ENV": "KEEP VALUE"}'
+    raw_claims = '[{"kind":"artifact","id":"RAW-ID","access":"write"}]'
+    screen._adhoc_command.setPlainText(raw_command)
+    screen._adhoc_environment.setPlainText(raw_environment)
+    screen._adhoc_resources.setPlainText(raw_claims)
 
     screen._search.setText("operator")
     app.processEvents()
@@ -113,8 +124,15 @@ def test_automation_screen_live_localizes_builtin_and_keeps_operator_metadata_ra
     operator_russian = _visible_texts(screen)
     assert "Автоматизация" in operator_russian
     assert "Выполнение" in operator_russian
+    assert "Ad-hoc выполнение" in operator_russian
     assert "Operator Recipe Δ" in operator_russian
     assert "KEEP RAW METADATA" in operator_russian
+    assert screen._run_command_btn.text() == "Запустить команду"
+    assert screen._adhoc_mode.itemText(0) == "exec · argv"
+    assert screen._adhoc_mode.itemText(1) == "shell · явно"
+    assert screen._adhoc_command.toPlainText() == raw_command
+    assert screen._adhoc_environment.toPlainText() == raw_environment
+    assert screen._adhoc_resources.toPlainText() == raw_claims
 
     screen._search.setText("workspace_health")
     app.processEvents()
@@ -140,6 +158,9 @@ def test_automation_inspector_and_runtime_operation_localize_live(tmp_path: Path
     assert any(
         "Resource claims match" in text for text in _visible_texts(inspector)
     )
+    assert any(
+        "Ad-hoc commands must stay" in text for text in _visible_texts(inspector)
+    )
 
     operation = OperationsCenterItem(
         item_id="operation:op_1",
@@ -159,7 +180,11 @@ def test_automation_inspector_and_runtime_operation_localize_live(tmp_path: Path
     app.processEvents()
     assert "Автоматизация" in _visible_texts(inspector)
     assert any(
-        "Ресурсные claims" in text for text in _visible_texts(inspector)
+        "Resource claims" in text for text in _visible_texts(inspector)
+    )
+    assert any(
+        "Ad-hoc команды должны оставаться" in text
+        for text in _visible_texts(inspector)
     )
     assert item_title(operation, manager) == "Автоматизация · workspace_health"
 
