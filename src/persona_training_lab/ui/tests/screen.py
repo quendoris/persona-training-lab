@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -123,9 +124,13 @@ def _stable_scroll_shell(
     scroll = QScrollArea()
     scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
-    scroll.setFrameShape(QFrame.NoFrame)
-    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    scroll.setVerticalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
     scroll.setMinimumHeight(min_height)
     apply_scrollbar_style(scroll)
 
@@ -268,6 +273,8 @@ class TestsScreen(QWidget):
     def _clear_layout(layout: QVBoxLayout | QGridLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -335,7 +342,11 @@ class TestsScreen(QWidget):
             layout.addStretch(1)
             value_label = QLabel(self._render(value))
             value_label.setWordWrap(True)
-            layout.addWidget(value_label, 0, Qt.AlignRight)
+            layout.addWidget(
+                value_label,
+                0,
+                Qt.AlignmentFlag.AlignRight,
+            )
             self._setup_layout.addWidget(row)
         self._setup_layout.addStretch(1)
 
@@ -462,7 +473,7 @@ class TestsScreen(QWidget):
         self._tests_thread = None
         self._tests_worker = None
 
-    def closeEvent(self, event) -> None:  # type: ignore[override]
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         if self._cases_dialog is not None:
             self._cases_dialog.close()
         if self._tests_thread is not None and self._tests_thread.isRunning():
