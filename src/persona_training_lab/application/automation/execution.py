@@ -166,7 +166,10 @@ def _spawn_posix_process(execution: AutomationExecution) -> _ContainedProcess:
         start_new_session=True,
     )
     process_group_id = process.pid
-    terminate = lambda: _terminate_posix_process_group(process_group_id)
+
+    def terminate() -> None:
+        _terminate_posix_process_group(process_group_id)
+
     return _ContainedProcess(process, terminate, terminate)
 
 
