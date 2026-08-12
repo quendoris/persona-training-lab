@@ -65,27 +65,20 @@ def test_automation_execution_keeps_shell_mode_explicit(tmp_path: Path) -> None:
     assert result.timed_out is False
 
 
-@pytest.mark.parametrize(
-    "execution",
-    (
-        AutomationExecution,
-    ),
-)
 def test_automation_execution_contract_rejects_ambiguous_command_shapes(
     tmp_path: Path,
-    execution,
 ) -> None:
     with pytest.raises(ValueError, match="non-empty argv"):
-        execution(mode="exec", cwd=tmp_path)
+        AutomationExecution(mode="exec", cwd=tmp_path)
     with pytest.raises(ValueError, match="must not define shell_command"):
-        execution(
+        AutomationExecution(
             mode="exec",
             argv=("tool",),
             shell_command="echo hidden-shell",
             cwd=tmp_path,
         )
     with pytest.raises(ValueError, match="must not define argv"):
-        execution(
+        AutomationExecution(
             mode="shell",
             argv=("tool",),
             shell_command="echo explicit-shell",
