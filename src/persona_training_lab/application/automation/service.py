@@ -11,6 +11,7 @@ from typing import Mapping, Protocol
 from persona_training_lab.application.automation.audit import AutomationAuditTrail
 from persona_training_lab.application.automation.execution import (
     DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES,
+    AutomationEffectScope,
     AutomationExecution,
     AutomationExecutionMode,
     AutomationProcessResult,
@@ -79,6 +80,7 @@ class AutomationCommandRequest:
     resource_claims: tuple[AutomationResourceClaim, ...] = ()
     timeout_seconds: float = 0.0
     output_limit_bytes: int = DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES
+    host_effects_authorized: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +98,7 @@ class AutomationRunResult:
     operation_id: str = ""
     return_code: int | None = None
     execution_mode: AutomationExecutionMode = "exec"
+    effect_scope: AutomationEffectScope = "trusted_host"
     command: tuple[str, ...] = ()
     working_directory: str = ""
     stdout: str = ""
@@ -256,6 +259,13 @@ class AutomationService:
         cancel_requested: Callable[[], bool] | None = None,
     ) -> AutomationRunResult:
         command_id = request.command_id.strip() or "ad_hoc"
+        if not request.host_effects_authorized:
+            return AutomationRunResult(
+                False,
+                "host_effects_not_authorized",
+                command_id,
+                execution_mode=request.mode,
+            )
         try:
             claims = tuple(
                 ResourceClaim(
@@ -289,13 +299,12 @@ class AutomationService:
                 ),
                 output_limit_bytes=request.output_limit_bytes,
             )
-        except ValueError as exc:
+        except ValueError:
             return AutomationRunResult(
                 False,
                 "command_invalid",
                 command_id,
                 execution_mode=request.mode,
-                stderr=str(exc),
             )
 
         if self.audit_trail is None:
@@ -304,6 +313,7 @@ class AutomationService:
                 "audit_unavailable",
                 command_id,
                 execution_mode=execution.mode,
+                effect_scope=execution.effect_scope,
                 command=execution.command_snapshot,
                 working_directory=str(execution.cwd),
             )
@@ -353,6 +363,7 @@ class AutomationService:
                         "audit_failed",
                         result_id,
                         execution_mode=execution.mode,
+                        effect_scope=execution.effect_scope,
                         command=command,
                         working_directory=cwd,
                         stderr=str(audit_exc),
@@ -362,6 +373,7 @@ class AutomationService:
                 "operation_blocked",
                 result_id,
                 execution_mode=execution.mode,
+                effect_scope=execution.effect_scope,
                 command=command,
                 working_directory=cwd,
                 stderr=str(exc),
@@ -387,6 +399,7 @@ class AutomationService:
                         result_id,
                         operation_id=lease.operation_id,
                         execution_mode=execution.mode,
+                        effect_scope=execution.effect_scope,
                         command=command,
                         working_directory=cwd,
                         stderr=str(exc),
@@ -418,6 +431,7 @@ class AutomationService:
                             result_id,
                             operation_id=lease.operation_id,
                             execution_mode=execution.mode,
+                            effect_scope=execution.effect_scope,
                             command=command,
                             working_directory=cwd,
                             stderr=str(audit_exc),
@@ -429,6 +443,7 @@ class AutomationService:
                     result_id,
                     operation_id=lease.operation_id,
                     execution_mode=execution.mode,
+                    effect_scope=execution.effect_scope,
                     command=command,
                     working_directory=cwd,
                     stderr=str(exc),
@@ -473,6 +488,7 @@ class AutomationService:
                         operation_id=lease.operation_id,
                         return_code=completed.return_code,
                         execution_mode=execution.mode,
+                        effect_scope=execution.effect_scope,
                         command=command,
                         working_directory=cwd,
                         stdout=completed.stdout,
@@ -497,6 +513,7 @@ class AutomationService:
                 operation_id=lease.operation_id,
                 return_code=completed.return_code,
                 execution_mode=execution.mode,
+                effect_scope=execution.effect_scope,
                 command=command,
                 working_directory=cwd,
                 stdout=completed.stdout,
