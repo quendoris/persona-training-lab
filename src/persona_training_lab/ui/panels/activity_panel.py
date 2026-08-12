@@ -17,6 +17,7 @@ from persona_training_lab.application.operations_center import (
     OperationsCenterService,
 )
 from persona_training_lab.ui.components.panels import (
+    StatusLabelTone,
     make_muted_label,
     make_status_label,
 )
@@ -72,7 +73,7 @@ class _ActivityRow(QPushButton):
         text_layout.addWidget(note)
         layout.addLayout(text_layout, 1)
 
-        tone = (
+        tone: StatusLabelTone = (
             "pending"
             if item.severity in {"warning", "error", "critical"}
             else "good"
