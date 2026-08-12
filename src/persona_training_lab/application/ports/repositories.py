@@ -21,6 +21,14 @@ class ProfilesWriteRepositoryPort(Protocol):
     def update_profile(self, profile_id: str, payload: dict[str, str]) -> bool: ...
 
 
+class ProfilesRepositoryPort(
+    ProfilesReadRepositoryPort,
+    ProfilesWriteRepositoryPort,
+    Protocol,
+):
+    """Repository contract required by the read/write profiles service."""
+
+
 class AgentsReadRepositoryPort(Protocol):
     def list_agents(self) -> list[dict[str, str]]: ...
 
@@ -33,14 +41,34 @@ class ExperimentsWriteRepositoryPort(Protocol):
     def create_experiment(self, payload: dict[str, str]) -> None: ...
 
 
+class ExperimentsRepositoryPort(
+    ExperimentsReadRepositoryPort,
+    ExperimentsWriteRepositoryPort,
+    Protocol,
+):
+    """Repository contract required by the read/write experiments service."""
+
+
 class DatasetsReadRepositoryPort(Protocol):
-    def list_datasets(self) -> list[dict[str, str]]: ...
+    def list_datasets(self) -> list[dict[str, str | int]]: ...
 
 
 class DatasetsWriteRepositoryPort(Protocol):
     def add_dataset(self, payload: dict[str, str | int]) -> None: ...
     def get_dataset(self, dataset_id: str) -> dict[str, str | int] | None: ...
-    def update_dataset_validation(self, dataset_id: str, payload: dict[str, str | int]) -> None: ...
+    def update_dataset_validation(
+        self,
+        dataset_id: str,
+        payload: dict[str, str | int],
+    ) -> None: ...
+
+
+class DatasetsRepositoryPort(
+    DatasetsReadRepositoryPort,
+    DatasetsWriteRepositoryPort,
+    Protocol,
+):
+    """Repository contract required by the read/write datasets service."""
 
 
 class TrainingReadRepositoryPort(Protocol):
@@ -49,6 +77,14 @@ class TrainingReadRepositoryPort(Protocol):
 
 class TrainingWriteRepositoryPort(Protocol):
     def create_training_run(self, payload: dict[str, str]) -> None: ...
+
+
+class TrainingRepositoryPort(
+    TrainingReadRepositoryPort,
+    TrainingWriteRepositoryPort,
+    Protocol,
+):
+    """Repository contract required by the read/write training service."""
 
 
 class AnalysisReadRepositoryPort(Protocol):
@@ -61,3 +97,11 @@ class ModelVersionsReadRepositoryPort(Protocol):
 
 class ModelVersionsWriteRepositoryPort(Protocol):
     def create_model_version(self, payload: dict[str, str]) -> None: ...
+
+
+class ModelVersionsRepositoryPort(
+    ModelVersionsReadRepositoryPort,
+    ModelVersionsWriteRepositoryPort,
+    Protocol,
+):
+    """Repository contract required by the read/write model-version service."""
