@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
-from typing import TypeVar, overload
-
-
-_DefaultT = TypeVar("_DefaultT")
 
 
 def _base_text(key: str) -> str:
@@ -106,54 +102,34 @@ MOUSE_MODIFIER_IDS = (
 )
 
 
-class _LocalizedLabelMap(dict[str, str]):
-    """Dict-compatible base-locale labels rendered only when actually read."""
+class _LocalizedLabelMap(Mapping[str, str]):
+    """Read-only base-locale labels rendered only when actually read."""
 
     def __init__(self, ids: tuple[str, ...], key_prefix: str) -> None:
-        super().__init__((item, "") for item in ids)
+        self._ids = ids
+        self._id_set = frozenset(ids)
         self._key_prefix = key_prefix
 
     def __getitem__(self, key: str) -> str:
-        if key not in self:
+        if key not in self._id_set:
             raise KeyError(key)
         return _base_text(f"{self._key_prefix}.{key}")
 
-    @overload
-    def get(self, key: str, default: None = None, /) -> str | None: ...
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._ids)
 
-    @overload
-    def get(self, key: str, default: str, /) -> str: ...
-
-    @overload
-    def get(self, key: str, default: _DefaultT, /) -> str | _DefaultT: ...
-
-    def get(
-        self,
-        key: str,
-        default: _DefaultT | None = None,
-        /,
-    ) -> str | _DefaultT | None:
-        if key not in self:
-            return default
-        return self[key]
-
-    def items(self) -> Iterator[tuple[str, str]]:  # type: ignore[override]
-        for key in self.keys():
-            yield key, self[key]
-
-    def values(self) -> Iterator[str]:  # type: ignore[override]
-        for key in self.keys():
-            yield self[key]
+    def __len__(self) -> int:
+        return len(self._ids)
 
 
-# Compatibility maps for callers that still expect base-locale labels.
+# Compatibility mappings for callers that still expect base-locale labels.
 # Catalog access is deliberately lazy so importing the binding model cannot fail
 # merely because a presentation catalog is malformed.
-MOUSE_BUTTON_LABELS: dict[str, str] = _LocalizedLabelMap(
+MOUSE_BUTTON_LABELS: Mapping[str, str] = _LocalizedLabelMap(
     MOUSE_BUTTON_IDS,
     "keybindings.mouse.button",
 )
-MOUSE_MODIFIER_LABELS: dict[str, str] = _LocalizedLabelMap(
+MOUSE_MODIFIER_LABELS: Mapping[str, str] = _LocalizedLabelMap(
     MOUSE_MODIFIER_IDS,
     "keybindings.mouse.modifier",
 )
