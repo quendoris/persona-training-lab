@@ -416,15 +416,17 @@ class KeyBindingsScreen(QWidget):
         self._bindings_title = QLabel()
         self._bindings_title.setObjectName("SectionTitle")
         content_layout.addWidget(self._bindings_title)
-        for definition in self._manager.definitions():
-            content_layout.addWidget(self._binding_card(definition.binding_id))
+        for keyboard_definition in self._manager.definitions():
+            content_layout.addWidget(
+                self._binding_card(keyboard_definition.binding_id)
+            )
 
         self._mouse_title = QLabel()
         self._mouse_title.setObjectName("SectionTitle")
         content_layout.addWidget(self._mouse_title)
-        for definition in self._manager.mouse_definitions():
+        for mouse_definition in self._manager.mouse_definitions():
             content_layout.addWidget(
-                self._mouse_binding_card(definition.binding_id)
+                self._mouse_binding_card(mouse_definition.binding_id)
             )
 
         content_layout.addStretch(1)
@@ -458,11 +460,11 @@ class KeyBindingsScreen(QWidget):
                 )
             )
 
-        for definition in self._manager.definitions():
-            binding_id = definition.binding_id
+        for keyboard_definition in self._manager.definitions():
+            binding_id = keyboard_definition.binding_id
             card = self._keyboard_cards[binding_id]
-            card.set_title(self._text(definition.title_key))
-            card.set_subtitle(self._text(definition.description_key))
+            card.set_title(self._text(keyboard_definition.title_key))
+            card.set_subtitle(self._text(keyboard_definition.description_key))
             self._keyboard_edit_buttons[binding_id].setText(
                 self._text("keybindings.action.edit")
             )
@@ -473,11 +475,11 @@ class KeyBindingsScreen(QWidget):
                 self._text("keybindings.chip.tooltip")
             )
 
-        for definition in self._manager.mouse_definitions():
-            binding_id = definition.binding_id
+        for mouse_definition in self._manager.mouse_definitions():
+            binding_id = mouse_definition.binding_id
             card = self._mouse_cards[binding_id]
-            card.set_title(self._text(definition.title_key))
-            card.set_subtitle(self._text(definition.description_key))
+            card.set_title(self._text(mouse_definition.title_key))
+            card.set_subtitle(self._text(mouse_definition.description_key))
             self._mouse_edit_buttons[binding_id].setText(
                 self._text("keybindings.action.edit")
             )
