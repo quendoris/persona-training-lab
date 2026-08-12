@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import TypeVar, overload
+
+
+_DefaultT = TypeVar("_DefaultT")
 
 
 def _base_text(key: str) -> str:
@@ -114,7 +118,20 @@ class _LocalizedLabelMap(dict[str, str]):
             raise KeyError(key)
         return _base_text(f"{self._key_prefix}.{key}")
 
-    def get(self, key: str, default: str | None = None) -> str | None:
+    @overload
+    def get(self, key: str) -> str | None: ...
+
+    @overload
+    def get(self, key: str, default: str) -> str: ...
+
+    @overload
+    def get(self, key: str, default: _DefaultT) -> str | _DefaultT: ...
+
+    def get(
+        self,
+        key: str,
+        default: _DefaultT | None = None,
+    ) -> str | _DefaultT | None:
         if key not in self:
             return default
         return self[key]
