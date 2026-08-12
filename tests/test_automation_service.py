@@ -241,6 +241,7 @@ def test_automation_service_executes_same_declared_snapshot_under_runtime_lease(
     assert result.ok is True
     assert result.code == "succeeded"
     assert result.execution_mode == "exec"
+    assert result.effect_scope == "trusted_host"
     assert result.command == ("tool", "--value", "hello")
     assert result.working_directory == str(tmp_path.resolve())
     assert result.stdout == "done\n"
@@ -254,6 +255,42 @@ def test_automation_service_executes_same_declared_snapshot_under_runtime_lease(
     assert claims == (
         ResourceClaim("artifact", f"{tmp_path.resolve()}/result", "write"),
     )
+
+
+def test_automation_service_requires_host_effect_authorization_before_ad_hoc_run(
+    tmp_path: Path,
+) -> None:
+    coordinator = _Coordinator()
+    audit_trail, event_log = _audit()
+    launched = False
+
+    def runner(
+        execution: AutomationExecution,
+        *,
+        cancel_requested,
+    ) -> AutomationProcessResult:
+        nonlocal launched
+        launched = True
+        return AutomationProcessResult(0)
+
+    result = AutomationService(
+        _StaticProvider(()),
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+        process_runner=runner,
+        audit_trail=audit_trail,
+    ).run_command(
+        AutomationCommandRequest(
+            command_id="unauthorized_host",
+            argv=("tool",),
+        )
+    )
+
+    assert result.code == "host_effects_not_authorized"
+    assert result.effect_scope == "trusted_host"
+    assert launched is False
+    assert coordinator.calls == []
+    assert event_log.records == []
 
 
 def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
@@ -270,6 +307,7 @@ def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
     ) -> AutomationProcessResult:
         observed.update(
             mode=execution.mode,
+            effect_scope=execution.effect_scope,
             command=execution.command_snapshot,
             cwd=execution.cwd,
             env=dict(execution.env),
@@ -298,17 +336,20 @@ def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
         inherit_environment=False,
         timeout_seconds=4.5,
         output_limit_bytes=128,
+        host_effects_authorized=True,
     )
 
     result = service.run_command(request)
 
     assert result.ok is True
     assert result.execution_mode == "shell"
+    assert result.effect_scope == "trusted_host"
     assert result.command == ("printf probe",)
     assert result.working_directory == str((tmp_path / "scratch").resolve())
     assert result.stdout == "bounded output"
     assert result.stdout_truncated is True
     assert observed["mode"] == "shell"
+    assert observed["effect_scope"] == "trusted_host"
     assert observed["command"] == result.command
     assert observed["cwd"] == (tmp_path / "scratch").resolve()
     assert observed["timeout"] == 4.5
@@ -330,6 +371,8 @@ def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
     started_payload = json.loads(event_log.records[0].payload_json)
     finished_payload = json.loads(event_log.records[1].payload_json)
     assert started_payload["mode"] == "shell"
+    assert started_payload["effect_scope"] == "trusted_host"
+    assert started_payload["resource_claim_semantics"] == "runtime_coordination"
     assert started_payload["working_directory"] == str(
         (tmp_path / "scratch").resolve()
     )
@@ -365,7 +408,11 @@ def test_automation_service_requires_audit_before_ad_hoc_launch(
         process_runner=runner,
     )
     result = service.run_command(
-        AutomationCommandRequest(command_id="no_audit", argv=("tool",))
+        AutomationCommandRequest(
+            command_id="no_audit",
+            argv=("tool",),
+            host_effects_authorized=True,
+        )
     )
 
     assert result.code == "audit_unavailable"
@@ -397,7 +444,11 @@ def test_automation_service_fails_closed_when_audit_start_cannot_persist(
         audit_trail=audit_trail,
     )
     result = service.run_command(
-        AutomationCommandRequest(command_id="audit_failure", argv=("tool",))
+        AutomationCommandRequest(
+            command_id="audit_failure",
+            argv=("tool",),
+            host_effects_authorized=True,
+        )
     )
 
     assert result.code == "audit_failed"
@@ -419,16 +470,24 @@ def test_automation_service_requires_explicit_valid_ad_hoc_execution_shape(
     )
 
     invalid_exec = service.run_command(
-        AutomationCommandRequest(command_id="empty_exec", mode="exec")
+        AutomationCommandRequest(
+            command_id="empty_exec",
+            mode="exec",
+            host_effects_authorized=True,
+        )
     )
     invalid_shell = service.run_command(
-        AutomationCommandRequest(command_id="empty_shell", mode="shell")
+        AutomationCommandRequest(
+            command_id="empty_shell",
+            mode="shell",
+            host_effects_authorized=True,
+        )
     )
 
     assert invalid_exec.code == "command_invalid"
-    assert "non-empty argv" in invalid_exec.stderr
+    assert invalid_exec.stderr == ""
     assert invalid_shell.code == "command_invalid"
-    assert "non-empty command" in invalid_shell.stderr
+    assert invalid_shell.stderr == ""
     assert coordinator.calls == []
 
 
@@ -464,6 +523,7 @@ def test_automation_service_preserves_ad_hoc_claims_and_terminal_output_flags(
             resource_claims=(
                 AutomationResourceClaim("dataset", "dataset-17", "write"),
             ),
+            host_effects_authorized=True,
         )
     )
 
