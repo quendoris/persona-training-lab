@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.ui.viewmodels.dashboard import DashboardViewModel
 
 
@@ -80,7 +79,6 @@ class FakeExperimentsService:
 
 def _build_vm() -> DashboardViewModel:
     return DashboardViewModel(
-        docs_service=DocsService(),
         projects_service=FakeProjectsService(),
         training_service=FakeTrainingService(),
         model_versions_service=FakeVersionsService(),
