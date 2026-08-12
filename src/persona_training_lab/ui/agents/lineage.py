@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Protocol
 
 from persona_training_lab.application.messages import UserMessage
-from persona_training_lab.ui.viewmodels.agents_contracts import (
-    AgentText,
-    VersionNodeView,
-)
+from persona_training_lab.ui.viewmodels.agents_contracts import AgentText
+
+
+class _VersionLineageSource(Protocol):
+    @property
+    def node_id(self) -> str: ...
+
+    @property
+    def title(self) -> AgentText: ...
+
+    @property
+    def subtitle(self) -> AgentText: ...
+
+    @property
+    def status(self) -> AgentText: ...
+
+    @property
+    def tone(self) -> str: ...
+
+    @property
+    def branch_note(self) -> str: ...
 
 
 @dataclass(slots=True, frozen=True)
@@ -40,7 +57,7 @@ MAINLINE_NOTES = {"main", "current"}
 
 
 def build_version_lineage(
-    raw_nodes: Iterable[VersionNodeView],
+    raw_nodes: Iterable[_VersionLineageSource],
 ) -> tuple[LineageVersionNode, ...]:
     nodes = list(raw_nodes)
     by_id = {node.node_id: node for node in nodes}
@@ -84,7 +101,7 @@ def build_version_lineage(
 
 
 def _visual_level_by_id(
-    nodes: list[VersionNodeView],
+    nodes: list[_VersionLineageSource],
     parent_by_id: dict[str, str | None],
 ) -> dict[str, int]:
     explicit = {
@@ -117,8 +134,8 @@ def _visual_level_by_id(
 
 
 def _side_branch_node_ids(
-    nodes: list[VersionNodeView],
-    by_id: dict[str, VersionNodeView],
+    nodes: list[_VersionLineageSource],
+    by_id: dict[str, _VersionLineageSource],
     parent_by_id: dict[str, str | None],
 ) -> set[str]:
     side_ids: set[str] = set()
@@ -133,7 +150,7 @@ def _side_branch_node_ids(
     return side_ids
 
 
-def _should_branch_pending_node(node: VersionNodeView) -> bool:
+def _should_branch_pending_node(node: _VersionLineageSource) -> bool:
     return (
         node.node_id not in ROOT_NODE_IDS
         and node.branch_note in MAINLINE_NOTES
@@ -144,7 +161,7 @@ def _should_branch_pending_node(node: VersionNodeView) -> bool:
 
 def _has_mainline_child_after(
     node_id: str,
-    nodes: list[VersionNodeView],
+    nodes: list[_VersionLineageSource],
     parent_by_id: dict[str, str | None],
 ) -> bool:
     for child in nodes:
@@ -156,7 +173,7 @@ def _has_mainline_child_after(
 
 
 def _effective_parent_id(
-    node: VersionNodeView,
+    node: _VersionLineageSource,
     parent_by_id: dict[str, str | None],
     side_ids: set[str],
 ) -> str | None:
@@ -166,12 +183,12 @@ def _effective_parent_id(
     return parent_id
 
 
-def _parent_id(node: VersionNodeView) -> str | None:
+def _parent_id(node: _VersionLineageSource) -> str | None:
     explicit = getattr(node, "parent_id", None)
     if explicit is not None:
         return explicit
     return PARENT_BY_NODE_ID.get(node.node_id)
 
 
-def _is_pending_delta(node: VersionNodeView) -> bool:
+def _is_pending_delta(node: _VersionLineageSource) -> bool:
     return node.node_id == "delta" and node.tone == "pending"
