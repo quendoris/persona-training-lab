@@ -1,4 +1,10 @@
+from .execution import (
+    AutomationExecution,
+    AutomationExecutionMode,
+    AutomationProcessResult,
+)
 from .service import (
+    AutomationCommandRequest,
     AutomationDiscoveryIssue,
     AutomationInput,
     AutomationOutput,
@@ -9,9 +15,13 @@ from .service import (
 )
 
 __all__ = [
+    "AutomationCommandRequest",
     "AutomationDiscoveryIssue",
+    "AutomationExecution",
+    "AutomationExecutionMode",
     "AutomationInput",
     "AutomationOutput",
+    "AutomationProcessResult",
     "AutomationRecipe",
     "AutomationResourceClaim",
     "AutomationRunResult",
