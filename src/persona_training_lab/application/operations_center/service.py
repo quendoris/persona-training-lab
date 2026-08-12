@@ -60,7 +60,11 @@ class OperationsCenterService:
             events = self.event_log.list_recent(limit)
         except Exception:
             events = []
-        items.extend(self._event_item(event) for event in events)
+        items.extend(
+            self._event_item(event)
+            for event in events
+            if not event.event_type.startswith("automation.run.")
+        )
 
         unique: dict[str, OperationsCenterItem] = {}
         for item in items:
@@ -174,6 +178,7 @@ def _operation_target(kind: str) -> tuple[str, str]:
         "inference": ("training", "focus.training.check_model"),
         "lineage_delete": ("agents", "focus.agents.delete_branch"),
         "automation_recipe": ("automation", ""),
+        "automation_command": ("automation", ""),
     }.get(kind, ("dashboard", ""))
 
 
@@ -190,6 +195,8 @@ def _event_target(
         return "tests", "focus.tests.build_portrait"
     if "analysis" in haystack:
         return "analysis", ""
+    if "automation" in haystack:
+        return "automation", ""
     if "dataset" in haystack:
         return "datasets", ""
     if "model_version" in haystack or "snapshot" in haystack:
