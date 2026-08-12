@@ -5,7 +5,7 @@ from ctypes import wintypes
 from dataclasses import dataclass
 import os
 import subprocess
-from typing import Any
+from typing import Any, Callable, cast
 
 
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
@@ -59,8 +59,13 @@ def _kernel32() -> Any:
     return loader("kernel32", use_last_error=True)
 
 
+def _last_windows_error() -> int:
+    reader = cast(Callable[[], int] | None, getattr(ctypes, "get_last_error", None))
+    return int(reader()) if reader is not None else 0
+
+
 def _raise_windows_error(function: str) -> None:
-    code = ctypes.get_last_error()
+    code = _last_windows_error()
     raise OSError(code, f"{function} failed with Windows error {code}")
 
 
