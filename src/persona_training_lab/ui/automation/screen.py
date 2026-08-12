@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import Event
+from uuid import uuid4
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -21,6 +24,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from persona_training_lab.application.automation import AutomationCommandRequest
+from persona_training_lab.application.automation.execution import (
+    DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES,
+)
 from persona_training_lab.ui.components.cards import PanelCard
 from persona_training_lab.ui.components.panels import make_muted_label, make_status_label
 from persona_training_lab.ui.i18n.manager import LocalizationManager
@@ -33,6 +40,11 @@ from persona_training_lab.ui.viewmodels.automation import (
     AutomationTextValue,
     AutomationViewModel,
 )
+from persona_training_lab.ui.viewmodels.automation_command import (
+    AUTOMATION_COMMAND_DRAFT_ERROR_KEYS,
+    AutomationCommandDraft,
+    build_automation_command_request,
+)
 
 
 AUTOMATION_SOURCE_KEYS = {
@@ -43,6 +55,10 @@ AUTOMATION_ACCESS_KEYS = {
     "read": "automation.access.read",
     "write": "automation.access.write",
 }
+AUTOMATION_EXECUTION_MODE_KEYS = {
+    "exec": "automation.adhoc.mode.exec",
+    "shell": "automation.adhoc.mode.shell",
+}
 
 
 class _AutomationRunWorker(QObject):
@@ -52,13 +68,16 @@ class _AutomationRunWorker(QObject):
     def __init__(
         self,
         vm: AutomationViewModel,
-        recipe_id: str,
-        inputs: dict[str, str],
+        *,
+        recipe_id: str = "",
+        inputs: dict[str, str] | None = None,
+        command_request: AutomationCommandRequest | None = None,
     ) -> None:
         super().__init__()
         self._vm = vm
         self._recipe_id = recipe_id
-        self._inputs = dict(inputs)
+        self._inputs = dict(inputs or {})
+        self._command_request = command_request
         self._cancelled = Event()
 
     def cancel(self) -> None:
@@ -66,11 +85,17 @@ class _AutomationRunWorker(QObject):
 
     def run(self) -> None:
         try:
-            result = self._vm.run_recipe(
-                self._recipe_id,
-                self._inputs,
-                cancel_requested=self._cancelled.is_set,
-            )
+            if self._command_request is not None:
+                result = self._vm.run_command(
+                    self._command_request,
+                    cancel_requested=self._cancelled.is_set,
+                )
+            else:
+                result = self._vm.run_recipe(
+                    self._recipe_id,
+                    self._inputs,
+                    cancel_requested=self._cancelled.is_set,
+                )
         except Exception as exc:
             self.failed.emit(repr(exc))
             return
@@ -208,6 +233,80 @@ class AutomationScreen(QWidget):
         self._command_card.add_widget(self._command_title)
         self._command_card.add_widget(self._command)
         detail_layout.addWidget(self._command_card)
+
+        self._adhoc_card = PanelCard()
+        self._adhoc_title = QLabel()
+        self._adhoc_title.setObjectName("SectionTitle")
+        self._adhoc_description = make_muted_label("")
+        self._adhoc_card.add_widget(self._adhoc_title)
+        self._adhoc_card.add_widget(self._adhoc_description)
+
+        adhoc_form = QFormLayout()
+        adhoc_form.setContentsMargins(0, 0, 0, 0)
+        adhoc_form.setSpacing(10)
+
+        self._adhoc_mode_label = QLabel()
+        self._adhoc_mode = QComboBox()
+        self._adhoc_mode.addItem("", "exec")
+        self._adhoc_mode.addItem("", "shell")
+        self._adhoc_mode.currentIndexChanged.connect(self._apply_adhoc_mode)
+        adhoc_form.addRow(self._adhoc_mode_label, self._adhoc_mode)
+
+        self._adhoc_command_label = QLabel()
+        self._adhoc_command = QPlainTextEdit()
+        self._adhoc_command.setMaximumHeight(110)
+        adhoc_form.addRow(self._adhoc_command_label, self._adhoc_command)
+        self._adhoc_command_help = make_muted_label("")
+        self._adhoc_command_help.setWordWrap(True)
+        adhoc_form.addRow(self._adhoc_command_help)
+
+        self._adhoc_cwd_label = QLabel()
+        self._adhoc_cwd = QLineEdit()
+        adhoc_form.addRow(self._adhoc_cwd_label, self._adhoc_cwd)
+
+        self._adhoc_timeout_label = QLabel()
+        self._adhoc_timeout = QLineEdit()
+        self._adhoc_timeout.setText("0")
+        adhoc_form.addRow(self._adhoc_timeout_label, self._adhoc_timeout)
+
+        self._adhoc_output_limit_label = QLabel()
+        self._adhoc_output_limit = QLineEdit()
+        self._adhoc_output_limit.setText(
+            str(DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES)
+        )
+        adhoc_form.addRow(
+            self._adhoc_output_limit_label,
+            self._adhoc_output_limit,
+        )
+
+        self._adhoc_environment_label = QLabel()
+        self._adhoc_environment = QPlainTextEdit()
+        self._adhoc_environment.setMaximumHeight(90)
+        adhoc_form.addRow(
+            self._adhoc_environment_label,
+            self._adhoc_environment,
+        )
+        self._adhoc_environment_help = make_muted_label("")
+        self._adhoc_environment_help.setWordWrap(True)
+        adhoc_form.addRow(self._adhoc_environment_help)
+
+        self._adhoc_resources_label = QLabel()
+        self._adhoc_resources = QPlainTextEdit()
+        self._adhoc_resources.setMaximumHeight(90)
+        adhoc_form.addRow(
+            self._adhoc_resources_label,
+            self._adhoc_resources,
+        )
+        self._adhoc_resources_help = make_muted_label("")
+        self._adhoc_resources_help.setWordWrap(True)
+        adhoc_form.addRow(self._adhoc_resources_help)
+        self._adhoc_card._layout.addLayout(adhoc_form)
+
+        self._adhoc_inherit_environment = QCheckBox()
+        self._adhoc_inherit_environment.setChecked(True)
+        self._adhoc_card.add_widget(self._adhoc_inherit_environment)
+        detail_layout.addWidget(self._adhoc_card)
+
         detail_layout.addStretch(1)
         detail_scroll.setWidget(detail_host)
         splitter.addWidget(detail_scroll)
@@ -227,15 +326,20 @@ class AutomationScreen(QWidget):
         self._run_btn = QPushButton()
         self._run_btn.setObjectName("PrimaryButton")
         self._run_btn.clicked.connect(self._run_selected)
+        self._run_command_btn = QPushButton()
+        self._run_command_btn.setObjectName("PrimaryButton")
+        self._run_command_btn.clicked.connect(self._run_command)
         self._cancel_btn = QPushButton()
         self._cancel_btn.setObjectName("SecondaryButton")
         self._cancel_btn.clicked.connect(self._cancel_run)
         self._cancel_btn.setEnabled(False)
         run_actions.addWidget(self._run_btn)
+        run_actions.addWidget(self._run_command_btn)
         run_actions.addWidget(self._cancel_btn)
         runner_layout.addLayout(run_actions)
 
         self._operation = make_muted_label("")
+        self._operation.setWordWrap(True)
         runner_layout.addWidget(self._operation)
         self._output_title = QLabel()
         self._output_title.setObjectName("CardTitle")
@@ -349,7 +453,9 @@ class AutomationScreen(QWidget):
                 "automation.input.label",
                 name=name,
                 required=self._text(
-                    "automation.input.required" if required else "automation.input.optional"
+                    "automation.input.required"
+                    if required
+                    else "automation.input.optional"
                 ),
             )
             self._inputs_form.addRow(label, field)
@@ -415,19 +521,58 @@ class AutomationScreen(QWidget):
         if recipe is None or self._running:
             return
         inputs = {name: field.text() for name, field in self._input_fields.items()}
+        self._start_worker(
+            _AutomationRunWorker(
+                self._vm,
+                recipe_id=recipe.recipe_id,
+                inputs=inputs,
+            )
+        )
+
+    def _run_command(self) -> None:
+        if self._running:
+            return
+        draft = AutomationCommandDraft(
+            mode=str(self._adhoc_mode.currentData() or ""),
+            command_text=self._adhoc_command.toPlainText(),
+            working_directory=self._adhoc_cwd.text(),
+            environment_text=self._adhoc_environment.toPlainText(),
+            inherit_environment=self._adhoc_inherit_environment.isChecked(),
+            resource_claims_text=self._adhoc_resources.toPlainText(),
+            timeout_text=self._adhoc_timeout.text(),
+            output_limit_text=self._adhoc_output_limit.text(),
+        )
+        parsed = build_automation_command_request(
+            draft,
+            command_id=f"command_{uuid4().hex[:12]}",
+        )
+        if parsed.request is None:
+            key = AUTOMATION_COMMAND_DRAFT_ERROR_KEYS.get(
+                parsed.error_code,
+                "automation.run.status.command_invalid",
+            )
+            self._run_status.setText(self._text(key))
+            self._operation.clear()
+            self._output.clear()
+            return
+        self._start_worker(
+            _AutomationRunWorker(
+                self._vm,
+                command_request=parsed.request,
+            )
+        )
+
+    def _start_worker(self, worker: _AutomationRunWorker) -> None:
         self._running = True
         self._run_btn.setEnabled(False)
+        self._run_command_btn.setEnabled(False)
         self._cancel_btn.setEnabled(True)
         self._run_status.setText(self._text("automation.run.status.running"))
         self._operation.clear()
         self._output.clear()
 
         self._thread = QThread(self)
-        self._worker = _AutomationRunWorker(
-            self._vm,
-            recipe.recipe_id,
-            inputs,
-        )
+        self._worker = worker
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._on_run_finished)
@@ -452,27 +597,42 @@ class AutomationScreen(QWidget):
             return
         self._finish_run_state()
         self._run_status.setText(self._render(result.status))
-        self._operation.setText(
-            self._text(
-                "automation.run.operation",
-                operation_id=result.operation_id or "—",
-                return_code=(
-                    result.return_code if result.return_code is not None else "—"
-                ),
-            )
+        operation = self._text(
+            "automation.run.operation",
+            operation_id=result.operation_id or "—",
+            return_code=(
+                result.return_code if result.return_code is not None else "—"
+            ),
         )
+        execution = self._text(
+            "automation.run.execution",
+            mode=result.execution_mode,
+            working_directory=result.working_directory or "—",
+        )
+        self._operation.setText(operation + "\n" + execution)
+
         sections: list[str] = []
         if result.command:
             sections.append(
                 self._text("automation.run.command") + "\n" + result.command
             )
         if result.stdout:
+            stdout_key = (
+                "automation.run.stdout_truncated"
+                if result.stdout_truncated
+                else "automation.run.stdout"
+            )
             sections.append(
-                self._text("automation.run.stdout") + "\n" + result.stdout.rstrip()
+                self._text(stdout_key) + "\n" + result.stdout.rstrip()
             )
         if result.stderr:
+            stderr_key = (
+                "automation.run.stderr_truncated"
+                if result.stderr_truncated
+                else "automation.run.stderr"
+            )
             sections.append(
-                self._text("automation.run.stderr") + "\n" + result.stderr.rstrip()
+                self._text(stderr_key) + "\n" + result.stderr.rstrip()
             )
         self._output.setPlainText("\n\n".join(sections))
 
@@ -487,7 +647,19 @@ class AutomationScreen(QWidget):
     def _finish_run_state(self) -> None:
         self._running = False
         self._run_btn.setEnabled(bool(self._selected_recipe_id))
+        self._run_command_btn.setEnabled(True)
         self._cancel_btn.setEnabled(False)
+
+    def _apply_adhoc_mode(self, _value: object = None) -> None:
+        mode = str(self._adhoc_mode.currentData() or "")
+        if mode == "shell":
+            help_key = "automation.adhoc.command.shell_help"
+            placeholder_key = "automation.adhoc.command.shell_placeholder"
+        else:
+            help_key = "automation.adhoc.command.exec_help"
+            placeholder_key = "automation.adhoc.command.exec_placeholder"
+        self._adhoc_command_help.setText(self._text(help_key))
+        self._adhoc_command.setPlaceholderText(self._text(placeholder_key))
 
     def _apply_language(self, _locale: str = "") -> None:
         self._title.setText(self._text("automation.title"))
@@ -501,9 +673,51 @@ class AutomationScreen(QWidget):
         self._inputs_title.setText(self._text("automation.inputs.title"))
         self._contract_title.setText(self._text("automation.contract.title"))
         self._command_title.setText(self._text("automation.command.title"))
+        self._adhoc_title.setText(self._text("automation.adhoc.title"))
+        self._adhoc_description.setText(self._text("automation.adhoc.description"))
+        self._adhoc_mode_label.setText(self._text("automation.adhoc.mode.label"))
+        for index in range(self._adhoc_mode.count()):
+            mode = str(self._adhoc_mode.itemData(index) or "")
+            key = AUTOMATION_EXECUTION_MODE_KEYS.get(mode)
+            if key:
+                self._adhoc_mode.setItemText(index, self._text(key))
+        self._adhoc_command_label.setText(
+            self._text("automation.adhoc.command.label")
+        )
+        self._adhoc_cwd_label.setText(
+            self._text("automation.adhoc.working_directory.label")
+        )
+        self._adhoc_cwd.setPlaceholderText(
+            self._text("automation.adhoc.working_directory.placeholder")
+        )
+        self._adhoc_timeout_label.setText(
+            self._text("automation.adhoc.timeout.label")
+        )
+        self._adhoc_output_limit_label.setText(
+            self._text("automation.adhoc.output_limit.label")
+        )
+        self._adhoc_environment_label.setText(
+            self._text("automation.adhoc.environment.label")
+        )
+        self._adhoc_environment_help.setText(
+            self._text("automation.adhoc.environment.help")
+        )
+        self._adhoc_resources_label.setText(
+            self._text("automation.adhoc.resources.label")
+        )
+        self._adhoc_resources_help.setText(
+            self._text("automation.adhoc.resources.help")
+        )
+        self._adhoc_inherit_environment.setText(
+            self._text("automation.adhoc.inherit_environment")
+        )
+        self._apply_adhoc_mode()
         self._runner_title.setText(self._text("automation.runner.title"))
         self._runner_note.setText(self._text("automation.runner.description"))
         self._run_btn.setText(self._text("automation.action.run"))
+        self._run_command_btn.setText(
+            self._text("automation.action.run_command")
+        )
         self._cancel_btn.setText(self._text("automation.action.cancel"))
         self._output_title.setText(self._text("automation.run.output"))
         self._refresh_registry()
