@@ -5,8 +5,8 @@ from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, Qt, Signal, QRect, QRectF
-from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap
+from PySide6.QtCore import QByteArray, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QCursor, QPainter, QPixmap, QResizeEvent
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication,
@@ -57,6 +57,11 @@ def base_text(key: str, **values: object) -> str:
     """Resolve shell text when the standalone base sidebar has no manager."""
 
     return _base_catalog().text(key, values=values)
+
+
+def _application() -> QApplication | None:
+    app = QApplication.instance()
+    return app if isinstance(app, QApplication) else None
 
 
 def _custom_accent_palette(hex_color: str) -> dict[str, str]:
@@ -199,10 +204,13 @@ class NavButton(QPushButton):
 
         self.setObjectName("NavButton")
         self.setCheckable(True)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(52)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setLayoutDirection(Qt.LeftToRight)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
 
         self._icon = QLabel("", self)
         self._icon.setAttribute(
@@ -210,7 +218,7 @@ class NavButton(QPushButton):
             True,
         )
         self._icon.setObjectName("NavIconBadge")
-        self._icon.setAlignment(Qt.AlignCenter)
+        self._icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._icon.setFixedSize(
             SIDEBAR_ICON_BADGE_SIZE,
             SIDEBAR_ICON_BADGE_SIZE,
@@ -222,7 +230,7 @@ class NavButton(QPushButton):
             True,
         )
         self._icon_glyph.setObjectName("NavIcon")
-        self._icon_glyph.setAlignment(Qt.AlignCenter)
+        self._icon_glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._icon_glyph.setGeometry(
             0,
             0,
@@ -236,7 +244,7 @@ class NavButton(QPushButton):
             True,
         )
         self._arrow.setObjectName("NavArrow")
-        self._arrow.setAlignment(Qt.AlignCenter)
+        self._arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._arrow.setFixedSize(14, 30)
         self._arrow.hide()
 
@@ -264,7 +272,7 @@ class NavButton(QPushButton):
         self._is_light_theme = is_light
         self._sync_icon_state(self.isChecked())
 
-    def resizeEvent(self, event) -> None:  # type: ignore[override]
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         super().resizeEvent(event)
         badge_y = max(10, (self.height() - self._icon.height()) // 2)
         self._icon.move(SIDEBAR_ICON_BADGE_LEFT, badge_y)
@@ -272,7 +280,7 @@ class NavButton(QPushButton):
         self._arrow.move(self.width() - 26, badge_y)
         self._arrow.raise_()
 
-    def setChecked(self, checked: bool) -> None:  # type: ignore[override]
+    def setChecked(self, checked: bool) -> None:  # noqa: N802
         super().setChecked(checked)
         self._arrow.setVisible(checked)
         self._sync_icon_state(checked)
@@ -367,7 +375,7 @@ class Sidebar(QFrame):
 
         badge = QLabel("")
         badge.setObjectName("BrandBadge")
-        badge.setAlignment(Qt.AlignCenter)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setFixedSize(44, 44)
         accent_palette = ACCENTS.get(
             self._current_accent,
@@ -389,8 +397,8 @@ class Sidebar(QFrame):
         title.setWordWrap(False)
         title.setMinimumWidth(0)
 
-        top_row.addWidget(badge, 0, Qt.AlignTop)
-        top_row.addWidget(title, 1, Qt.AlignVCenter)
+        top_row.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        top_row.addWidget(title, 1, Qt.AlignmentFlag.AlignVCenter)
         brand_layout.addLayout(top_row)
 
         self._window_toggle = QPushButton(
@@ -400,9 +408,13 @@ class Sidebar(QFrame):
         self._window_toggle.setMinimumHeight(32)
         self._window_toggle.setMaximumHeight(32)
         self._window_toggle.setMaximumWidth(600)
-        self._window_toggle.setCursor(Qt.PointingHandCursor)
+        self._window_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._window_toggle.clicked.connect(self._show_window_menu)
-        brand_layout.addWidget(self._window_toggle, 0, Qt.AlignHCenter)
+        brand_layout.addWidget(
+            self._window_toggle,
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
         root.addWidget(brand)
 
         self._theme_block = QFrame()
@@ -433,7 +445,7 @@ class Sidebar(QFrame):
         for key, meta in THEMES.items():
             button = QPushButton(meta["label"])
             button.setObjectName("ThemeChip")
-            button.setCursor(Qt.PointingHandCursor)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setMinimumHeight(34)
             button.clicked.connect(
                 lambda _checked=False, theme_key=key: self._apply_theme(
@@ -467,14 +479,14 @@ class Sidebar(QFrame):
         scale_layout.setContentsMargins(0, 0, 0, 0)
         scale_layout.setSpacing(8)
 
-        self._scale_slider = QSlider(Qt.Horizontal)
+        self._scale_slider = QSlider(Qt.Orientation.Horizontal)
         self._scale_slider.setRange(
             int(MIN_UI_SCALE * 100),
             int(MAX_UI_SCALE * 100),
         )
         self._scale_slider.setSingleStep(1)
         self._scale_slider.setPageStep(4)
-        self._scale_slider.setCursor(Qt.PointingHandCursor)
+        self._scale_slider.setCursor(Qt.CursorShape.PointingHandCursor)
         self._scale_slider.valueChanged.connect(self._apply_scale_live)
         self._scale_slider.sliderReleased.connect(
             self._save_scale_from_slider
@@ -488,7 +500,7 @@ class Sidebar(QFrame):
             self._text("shell.scale.auto_button")
         )
         self._reset_scale.setObjectName("SidebarMenuButton")
-        self._reset_scale.setCursor(Qt.PointingHandCursor)
+        self._reset_scale.setCursor(Qt.CursorShape.PointingHandCursor)
         self._reset_scale.clicked.connect(self._reset_scale_auto)
         scale_actions.addWidget(self._scale_hint, 1)
         scale_actions.addWidget(self._reset_scale)
@@ -502,12 +514,14 @@ class Sidebar(QFrame):
 
         nav_scroll = QScrollArea()
         nav_scroll.setObjectName("StableScrollArea")
-        nav_scroll.setFrameShape(QFrame.NoFrame)
+        nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
         nav_scroll.setWidgetResizable(True)
-        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        nav_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         nav_scroll.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
         apply_scrollbar_style(nav_scroll)
 
@@ -598,7 +612,7 @@ class Sidebar(QFrame):
             self._scale_toggle.setText(self._text("shell.show"))
 
     def _sync_scale_controls(self) -> None:
-        app = QApplication.instance()
+        app = _application()
         auto_scale = current_scale()
         if app is not None:
             try:
@@ -627,7 +641,7 @@ class Sidebar(QFrame):
 
     def _apply_scale_live(self, value: int) -> None:
         scale = value / 100
-        app = QApplication.instance()
+        app = _application()
         if app is not None:
             app.setProperty("ptl_ui_scale", scale)
             app.setProperty("ptl_ui_density", f"manual {value}%")
@@ -645,7 +659,7 @@ class Sidebar(QFrame):
     def _save_scale_from_slider(self) -> None:
         value = self._scale_slider.value()
         scale = value / 100
-        app = QApplication.instance()
+        app = _application()
         if app is not None:
             apply_scaled_styles(app, scale, immediate=True)
         self._style_vm.save_ui_scale(f"{scale:.2f}")
@@ -654,7 +668,7 @@ class Sidebar(QFrame):
         self._scale_hint.setText(self._text("shell.scale.saved"))
 
     def _reset_scale_auto(self) -> None:
-        app = QApplication.instance()
+        app = _application()
         auto_scale = current_scale()
         if app is not None:
             try:
@@ -688,7 +702,7 @@ class Sidebar(QFrame):
         self._sync_accent_from_app()
 
     def _sync_accent_from_app(self) -> None:
-        app = QApplication.instance()
+        app = _application()
         accent_palette = ACCENTS.get(
             self._current_accent,
             ACCENTS["cyan"],
@@ -702,7 +716,6 @@ class Sidebar(QFrame):
                 elif accent_name.startswith("#"):
                     accent_palette = _custom_accent_palette(accent_name)
         is_light_theme = False
-        app = QApplication.instance()
         if app is not None:
             theme_name = app.property("ptl_theme_name")
             if isinstance(theme_name, str):
