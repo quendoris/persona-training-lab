@@ -79,7 +79,11 @@ def _display_levels(
         assign(root_id, 0)
     for node in nodes:
         if node.node_id not in levels:
-            parent_level = levels.get(node.parent_id, node.source_level - 1)
+            parent_level = (
+                levels.get(node.parent_id, node.source_level - 1)
+                if node.parent_id is not None
+                else node.source_level - 1
+            )
             assign(node.node_id, max(0, parent_level + 1))
     return levels
 
