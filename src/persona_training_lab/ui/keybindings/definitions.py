@@ -119,18 +119,19 @@ class _LocalizedLabelMap(dict[str, str]):
         return _base_text(f"{self._key_prefix}.{key}")
 
     @overload
-    def get(self, key: str) -> str | None: ...
+    def get(self, key: str, default: None = None, /) -> str | None: ...
 
     @overload
-    def get(self, key: str, default: str) -> str: ...
+    def get(self, key: str, default: str, /) -> str: ...
 
     @overload
-    def get(self, key: str, default: _DefaultT) -> str | _DefaultT: ...
+    def get(self, key: str, default: _DefaultT, /) -> str | _DefaultT: ...
 
     def get(
         self,
         key: str,
         default: _DefaultT | None = None,
+        /,
     ) -> str | _DefaultT | None:
         if key not in self:
             return default
