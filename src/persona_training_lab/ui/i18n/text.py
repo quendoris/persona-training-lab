@@ -23,16 +23,16 @@ def base_catalog() -> LocaleCatalog:
 def text(
     localization: LocalizationManager | None,
     key: str,
-    *,
-    count: int | None = None,
     **values: object,
 ) -> str:
     if localization is not None:
-        return localization.text(key, count=count, **values)
+        return localization.text(key, **values)
+    format_values = dict(values)
+    count = _extract_count(format_values)
     return base_catalog().text(
         key,
         count=count,
-        values=values,
+        values=format_values,
     )
 
 
@@ -62,3 +62,12 @@ def _render_message_value(
     if isinstance(value, UserMessage):
         return render_user_message(localization, value)
     return value
+
+
+def _extract_count(values: dict[str, object]) -> int | None:
+    raw_count = values.pop("count", None)
+    if raw_count is None:
+        return None
+    if type(raw_count) is not int:
+        raise TypeError("localization count must be an integer or None")
+    return raw_count
