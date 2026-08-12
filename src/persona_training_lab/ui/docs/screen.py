@@ -38,7 +38,7 @@ class DocsScreen(QWidget):
         self._topic_list = QListWidget()
         self._topic_list.setObjectName("DocsTopicList")
         self._topic_list.setSpacing(8)
-        self._topic_list.setFrameShape(QListWidget.NoFrame)
+        self._topic_list.setFrameShape(QFrame.Shape.NoFrame)
         for _topic in self._topics:
             self._topic_list.addItem("")
         self._topic_list.currentRowChanged.connect(self._show_topic)
@@ -69,7 +69,9 @@ class DocsScreen(QWidget):
             row_layout = QVBoxLayout(row)
             row_layout.setContentsMargins(12, 10, 12, 10)
             label = make_muted_label("")
-            label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            label.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+            )
             row_layout.addWidget(label)
             self._context_card.add_widget(row)
             self._context_labels.append(label)
