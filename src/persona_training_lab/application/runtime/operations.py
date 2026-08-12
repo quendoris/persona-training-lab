@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from os import getpid, kill
 from threading import RLock
-from typing import Iterable, Protocol
+from typing import Iterable, Literal, Protocol
 from uuid import uuid4
 
 
@@ -359,7 +359,7 @@ class RuntimeOperationLease:
     def __enter__(self) -> RuntimeOperationLease:
         return self
 
-    def __exit__(self, exc_type, exc, _traceback) -> bool:
+    def __exit__(self, exc_type, exc, _traceback) -> Literal[False]:
         if exc is None:
             self.succeed()
         else:
