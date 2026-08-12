@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeyEvent, QMouseEvent
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QShowEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -152,7 +152,7 @@ class DashboardScreen(QWidget):
         if localization is not None:
             localization.language_changed.connect(self._on_language_changed)
 
-    def showEvent(self, event) -> None:  # type: ignore[override]
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         self._refresh_all()
         super().showEvent(event)
 
@@ -190,6 +190,8 @@ class DashboardScreen(QWidget):
     def _clear_layout(self, layout: QLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             child_layout = item.layout()
             if child_layout is not None:
@@ -200,6 +202,8 @@ class DashboardScreen(QWidget):
     def _clear_card_body(self, card: PanelCard) -> None:
         while card._layout.count() > 2:
             item = card._layout.takeAt(2)
+            if item is None:
+                continue
             widget = item.widget()
             child_layout = item.layout()
             if child_layout is not None:
@@ -312,13 +316,18 @@ class DashboardScreen(QWidget):
             texts.addWidget(note)
             row_layout.addLayout(texts, 1)
 
-            warning = item.state_key in {
-                "dashboard.state.attention",
-                "dashboard.state.waiting",
-            }
+            tone = (
+                "pending"
+                if item.state_key
+                in {
+                    "dashboard.state.attention",
+                    "dashboard.state.waiting",
+                }
+                else "good"
+            )
             state = make_status_label(
                 self._text(item.state_key),
-                warning=warning,
+                tone=tone,
             )
             state.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents,
