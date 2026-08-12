@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
@@ -160,7 +161,7 @@ class AutomationViewModel:
             title=title,
             description=description,
             tags=recipe.tags,
-            command=" ".join(recipe.command),
+            command=json.dumps(recipe.command, ensure_ascii=False),
             source=recipe.source,
             source_path=recipe.source_path,
             inputs=tuple(
@@ -198,6 +199,11 @@ class AutomationViewModel:
         inputs = result.values.get("inputs")
         if isinstance(inputs, tuple):
             values["inputs"] = ", ".join(str(item) for item in inputs)
+        command = (
+            result.command[0]
+            if result.execution_mode == "shell" and len(result.command) == 1
+            else json.dumps(result.command, ensure_ascii=False)
+        )
         return AutomationRunView(
             ok=result.ok,
             status=automation_text(key, **values),
@@ -205,7 +211,7 @@ class AutomationViewModel:
             operation_id=result.operation_id,
             return_code=result.return_code,
             execution_mode=result.execution_mode,
-            command=" ".join(result.command),
+            command=command,
             working_directory=result.working_directory,
             stdout=result.stdout,
             stderr=result.stderr,
