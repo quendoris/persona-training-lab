@@ -32,9 +32,13 @@ def _stable_scroll_content(
     scroll = QScrollArea()
     scroll.setObjectName("StableScrollArea")
     scroll.setWidgetResizable(True)
-    scroll.setFrameShape(QFrame.NoFrame)
-    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    )
+    scroll.setVerticalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )
     scroll.setMinimumHeight(max_height)
     apply_scrollbar_style(scroll)
 
@@ -118,7 +122,9 @@ class SnapshotsScreen(QWidget):
 
         self._registry = PanelCard("", "")
         self._list = QListWidget()
-        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self._list.setSelectionMode(
             QListWidget.SelectionMode.SingleSelection
         )
@@ -277,7 +283,7 @@ class SnapshotsScreen(QWidget):
             text_wrap.addWidget(
                 make_muted_label(self._render(timeline_item.note))
             )
-            row_layout.addWidget(dot, 0, Qt.AlignTop)
+            row_layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignTop)
             row_layout.addLayout(text_wrap, 1)
             self._timeline_layout.addWidget(row)
         self._timeline_layout.addStretch(1)
@@ -292,7 +298,7 @@ class SnapshotsScreen(QWidget):
             icon = QLabel("›")
             icon.setObjectName("LineageIcon")
             icon.setFixedSize(20, 20)
-            row_layout.addWidget(icon, 0, Qt.AlignVCenter)
+            row_layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
             label = QLabel(self._render(entry))
             label.setWordWrap(True)
             row_layout.addWidget(label, 1)
@@ -306,6 +312,8 @@ class SnapshotsScreen(QWidget):
     def _clear_layout(layout: QGridLayout | QVBoxLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
+            if item is None:
+                break
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
