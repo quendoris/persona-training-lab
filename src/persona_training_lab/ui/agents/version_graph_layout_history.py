@@ -43,7 +43,7 @@ class VersionGraphCanvas(LayoutAuthorityVersionGraphCanvas):
         node_id = getattr(self, "_drag_node_id", None)
         drag_mode = getattr(self, "_drag_mode", None)
         is_node_drag = (
-            node_id is not None
+            isinstance(node_id, str)
             and drag_mode in {"node", "subtree"}
             and bool(event.buttons() & Qt.MouseButton.RightButton)
         )
