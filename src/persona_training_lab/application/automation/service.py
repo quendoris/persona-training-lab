@@ -8,6 +8,7 @@ import sys
 from types import MappingProxyType
 from typing import Mapping, Protocol
 
+from persona_training_lab.application.automation.audit import AutomationAuditTrail
 from persona_training_lab.application.automation.execution import (
     DEFAULT_AUTOMATION_OUTPUT_LIMIT_BYTES,
     AutomationExecution,
@@ -120,6 +121,7 @@ class AutomationService:
     operation_coordinator: RuntimeOperationCoordinator
     workspace_root: Path
     process_runner: AutomationProcessRunner = run_automation_process
+    audit_trail: AutomationAuditTrail | None = None
 
     def list_recipes(self, query: str = "") -> tuple[AutomationRecipe, ...]:
         recipes = tuple(self.recipe_provider.list_recipes())
@@ -296,6 +298,16 @@ class AutomationService:
                 stderr=str(exc),
             )
 
+        if self.audit_trail is None:
+            return AutomationRunResult(
+                False,
+                "audit_unavailable",
+                command_id,
+                execution_mode=execution.mode,
+                command=execution.command_snapshot,
+                working_directory=str(execution.cwd),
+            )
+
         return self._execute(
             result_id=command_id,
             execution=execution,
@@ -325,6 +337,26 @@ class AutomationService:
                 claims=claims,
             )
         except OperationConflictError as exc:
+            if self.audit_trail is not None:
+                try:
+                    self.audit_trail.record_blocked(
+                        operation_kind=operation_kind,
+                        subject_kind=subject_kind,
+                        subject_id=result_id,
+                        execution=execution,
+                        claims=claims,
+                        detail=str(exc),
+                    )
+                except Exception as audit_exc:
+                    return AutomationRunResult(
+                        False,
+                        "audit_failed",
+                        result_id,
+                        execution_mode=execution.mode,
+                        command=command,
+                        working_directory=cwd,
+                        stderr=str(audit_exc),
+                    )
             return AutomationRunResult(
                 False,
                 "operation_blocked",
@@ -336,12 +368,60 @@ class AutomationService:
             )
 
         with lease:
+            if self.audit_trail is not None:
+                try:
+                    self.audit_trail.record_started(
+                        operation_id=lease.operation_id,
+                        correlation_id=lease.correlation_id,
+                        operation_kind=operation_kind,
+                        subject_kind=subject_kind,
+                        subject_id=result_id,
+                        execution=execution,
+                        claims=claims,
+                    )
+                except Exception as exc:
+                    lease.fail(f"automation audit start failed: {exc}")
+                    return AutomationRunResult(
+                        False,
+                        "audit_failed",
+                        result_id,
+                        operation_id=lease.operation_id,
+                        execution_mode=execution.mode,
+                        command=command,
+                        working_directory=cwd,
+                        stderr=str(exc),
+                    )
+
             try:
                 completed: AutomationProcessResult = self.process_runner(
                     execution,
                     cancel_requested=cancel_requested,
                 )
             except (OSError, RuntimeError) as exc:
+                if self.audit_trail is not None:
+                    try:
+                        self.audit_trail.record_launch_failed(
+                            operation_id=lease.operation_id,
+                            correlation_id=lease.correlation_id,
+                            operation_kind=operation_kind,
+                            subject_kind=subject_kind,
+                            subject_id=result_id,
+                            execution=execution,
+                            claims=claims,
+                            detail=str(exc),
+                        )
+                    except Exception as audit_exc:
+                        lease.fail(f"automation audit finish failed: {audit_exc}")
+                        return AutomationRunResult(
+                            False,
+                            "audit_failed",
+                            result_id,
+                            operation_id=lease.operation_id,
+                            execution_mode=execution.mode,
+                            command=command,
+                            working_directory=cwd,
+                            stderr=str(audit_exc),
+                        )
                 lease.fail(str(exc))
                 return AutomationRunResult(
                     False,
@@ -355,21 +435,61 @@ class AutomationService:
                 )
 
             if completed.cancelled:
-                lease.cancel("cancelled")
                 code = "cancelled"
                 ok = False
+                state = "cancelled"
             elif completed.timed_out:
-                lease.fail("timeout")
                 code = "timeout"
                 ok = False
+                state = "failed"
             elif completed.return_code == 0:
-                lease.succeed()
                 code = "succeeded"
                 ok = True
+                state = "succeeded"
             else:
-                lease.fail(completed.stderr or f"exit {completed.return_code}")
                 code = "failed"
                 ok = False
+                state = "failed"
+
+            if self.audit_trail is not None:
+                try:
+                    self.audit_trail.record_finished(
+                        operation_id=lease.operation_id,
+                        correlation_id=lease.correlation_id,
+                        operation_kind=operation_kind,
+                        subject_kind=subject_kind,
+                        subject_id=result_id,
+                        execution=execution,
+                        claims=claims,
+                        result=completed,
+                        state=state,
+                    )
+                except Exception as exc:
+                    lease.fail(f"automation audit finish failed: {exc}")
+                    return AutomationRunResult(
+                        False,
+                        "audit_failed",
+                        result_id,
+                        operation_id=lease.operation_id,
+                        return_code=completed.return_code,
+                        execution_mode=execution.mode,
+                        command=command,
+                        working_directory=cwd,
+                        stdout=completed.stdout,
+                        stderr=completed.stderr or str(exc),
+                        stdout_truncated=completed.stdout_truncated,
+                        stderr_truncated=completed.stderr_truncated,
+                    )
+
+            if state == "cancelled":
+                lease.cancel("cancelled")
+            elif state == "succeeded":
+                lease.succeed()
+            elif completed.timed_out:
+                lease.fail("timeout")
+            else:
+                lease.fail(completed.stderr or f"exit {completed.return_code}")
+
             return AutomationRunResult(
                 ok,
                 code,
