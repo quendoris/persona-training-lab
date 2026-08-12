@@ -23,7 +23,7 @@ class SafeApplication(QApplication):
     ) -> None:
         self._error_reporter = reporter
 
-    def notify(self, receiver: QObject, event: QEvent) -> bool:  # type: ignore[override]
+    def notify(self, receiver: QObject, event: QEvent) -> bool:
         try:
             return super().notify(receiver, event)
         except Exception as error:
