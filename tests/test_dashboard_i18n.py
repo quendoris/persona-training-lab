@@ -12,7 +12,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QLabel
 
-from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.experiments.service import ExperimentSummary
 from persona_training_lab.application.experiments.titles import (
     ExperimentTitleKind,
@@ -120,7 +119,6 @@ def test_dashboard_switches_static_and_dynamic_content_live(
     manager = _manager(app)
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     vm = DashboardViewModel(
-        docs_service=DocsService(),
         projects_service=FakeProjectsService(),
     )
     screen = DashboardScreen(vm, manager)
@@ -149,7 +147,6 @@ def test_dashboard_switches_static_and_dynamic_content_live(
     manager.set_locale("en-US", persist=False)
     semantic_screen = DashboardScreen(
         DashboardViewModel(
-            docs_service=DocsService(),
             projects_service=FakeProjectsService(),
             experiments_service=SemanticExperimentsService(),  # type: ignore[arg-type]
         ),
@@ -246,7 +243,6 @@ def test_legacy_russian_status_is_rendered_in_current_locale(
     manager = _manager(app)
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     vm = DashboardViewModel(
-        docs_service=DocsService(),
         projects_service=FakeProjectsService(),
         training_service=LegacyRussianTrainingService(legacy_status),
     )
@@ -276,7 +272,6 @@ def test_dashboard_route_is_stable_while_focus_text_is_localized(
     manager = _manager(app)
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
     vm = DashboardViewModel(
-        docs_service=DocsService(),
         projects_service=FakeProjectsService(),
         datasets_service=EmptyDatasetsService(),
     )
