@@ -195,22 +195,22 @@ class MainWindow(QMainWindow):
         inspector = self._register_dock(
             "inspector",
             self._inspector_panel,
-            Qt.RightDockWidgetArea,
+            Qt.DockWidgetArea.RightDockWidgetArea,
         )
         activity = self._register_dock(
             "activity",
             ActivityPanel(localization=localization),
-            Qt.BottomDockWidgetArea,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
         )
         telemetry = self._register_dock(
             "telemetry",
             TelemetryPanel(telemetry_vm, localization),
-            Qt.BottomDockWidgetArea,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
         )
         issues = self._register_dock(
             "issues",
             IssuesPanel(localization=localization),
-            Qt.BottomDockWidgetArea,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
         )
         self.tabifyDockWidget(activity, telemetry)
         self.tabifyDockWidget(telemetry, issues)
@@ -238,9 +238,9 @@ class MainWindow(QMainWindow):
         dock.setWidget(widget)
         dock.setObjectName(f"ptl.dock.{dock_id}")
         dock.setFeatures(
-            QDockWidget.DockWidgetMovable
-            | QDockWidget.DockWidgetClosable
-            | QDockWidget.DockWidgetFloatable
+            QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
         if self._localization is not None:
             self._localization.bind_window_title(dock, title_key)
@@ -263,29 +263,32 @@ class MainWindow(QMainWindow):
             for dock in self._docks.values()
             if dock.isVisible()
             and not dock.isFloating()
-            and self.dockWidgetArea(dock) == Qt.RightDockWidgetArea
+            and self.dockWidgetArea(dock)
+            == Qt.DockWidgetArea.RightDockWidgetArea
         ]
         bottom = [
             dock
             for dock in self._docks.values()
             if dock.isVisible()
             and not dock.isFloating()
-            and self.dockWidgetArea(dock) == Qt.BottomDockWidgetArea
+            and self.dockWidgetArea(dock)
+            == Qt.DockWidgetArea.BottomDockWidgetArea
         ]
         if right:
             self.resizeDocks(
                 right,
                 [self._density.right_dock_width for _ in right],
-                Qt.Horizontal,
+                Qt.Orientation.Horizontal,
             )
         if bottom:
             self.resizeDocks(
                 bottom,
                 [self._density.bottom_dock_height for _ in bottom],
-                Qt.Vertical,
+                Qt.Orientation.Vertical,
             )
-        if self.centralWidget() is not None:
-            self.centralWidget().updateGeometry()
+        central = self.centralWidget()
+        if central is not None:
+            central.updateGeometry()
 
     def _build_windows_menu(self) -> QMenu:
         menu = QMenu(self._text("shell.panels"), self)
@@ -319,7 +322,7 @@ class MainWindow(QMainWindow):
         accent_name: str,
     ) -> None:
         app = QApplication.instance()
-        if app is None:
+        if not isinstance(app, QApplication):
             return
         self._current_theme = theme_name
         self._current_accent = accent_name
@@ -349,7 +352,7 @@ class MainWindow(QMainWindow):
             return key
         return self._localization.text(key, **values)
 
-    def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
+    def closeEvent(self, event: QCloseEvent) -> None:
         if not self._workspace.request_current_leave():
             event.ignore()
             return
