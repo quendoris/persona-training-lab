@@ -4,6 +4,7 @@ tests/test_window_state_store.py
 tests/test_i18n_catalogs.py
 tests/test_i18n_catalog_fragments.py
 tests/test_i18n_audit.py
+tests/test_typing_audit.py
 tests/test_sidebar_i18n.py
 tests/test_operations_center_i18n.py
 tests/test_operations_center_service.py
@@ -30,6 +31,7 @@ tests/test_style_i18n.py
 tests/test_status_label_semantics.py
 tests/test_automation_service.py
 tests/test_automation_execution.py
+tests/test_automation_windows_launcher.py
 tests/test_automation_command_draft.py
 tests/test_automation_i18n.py
 tests/test_docs_service.py
