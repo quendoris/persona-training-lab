@@ -42,7 +42,9 @@ def _clamp(value: float, low: float, high: float) -> float:
 
 
 def _coerce_manual_scale(value: str | float | None) -> float | None:
-    if value in (None, "", "auto"):
+    if value is None:
+        return None
+    if isinstance(value, str) and value in ("", "auto"):
         return None
     try:
         return _clamp(float(value), MIN_UI_SCALE, MAX_UI_SCALE)
