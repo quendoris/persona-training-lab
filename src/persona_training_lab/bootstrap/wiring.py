@@ -220,7 +220,6 @@ def build_container() -> AppContainer:
 
     shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
     dashboard_vm = DashboardViewModel(
-        docs_service=docs_service,
         projects_service=projects_service,
         training_service=training_service,
         model_versions_service=model_versions_service,
