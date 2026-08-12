@@ -4,9 +4,22 @@ from string import Template
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QApplication, QProxyStyle, QScrollArea, QScrollBar, QStyle
+from PySide6.QtWidgets import (
+    QApplication,
+    QProxyStyle,
+    QScrollArea,
+    QScrollBar,
+    QStyle,
+    QStyleOptionComplex,
+    QWidget,
+)
 
-from persona_training_lab.ui.themes.tokens import ACCENTS, DEFAULT_ACCENT, DEFAULT_THEME, THEMES
+from persona_training_lab.ui.themes.tokens import (
+    ACCENTS,
+    DEFAULT_ACCENT,
+    DEFAULT_THEME,
+    THEMES,
+)
 
 
 def _build_custom_accent(hex_color: str) -> dict[str, str]:
@@ -25,13 +38,22 @@ def _build_custom_accent(hex_color: str) -> dict[str, str]:
     }
 
 
-def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str, str], dict[str, str]]:
-    theme = THEMES.get(theme_name or DEFAULT_THEME, THEMES[DEFAULT_THEME]).copy()
+def _resolve(
+    theme_name: str | None,
+    accent_name: str | None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    theme = THEMES.get(
+        theme_name or DEFAULT_THEME,
+        THEMES[DEFAULT_THEME],
+    ).copy()
     accent_key = accent_name or DEFAULT_ACCENT
     if isinstance(accent_key, str) and accent_key.startswith("#"):
         accent = _build_custom_accent(accent_key)
     else:
-        accent = ACCENTS.get(accent_key, ACCENTS[DEFAULT_ACCENT]).copy()
+        accent = ACCENTS.get(
+            accent_key,
+            ACCENTS[DEFAULT_ACCENT],
+        ).copy()
     if theme.get("is_light") == "1":
         accent["accent_soft"] = accent["accent_soft_light"]
         accent["accent_text"] = accent["accent_text_light"]
@@ -41,7 +63,10 @@ def _resolve(theme_name: str | None, accent_name: str | None) -> tuple[dict[str,
     return theme, accent
 
 
-def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None = None) -> tuple[str, str]:
+def build_scrollbar_qss(
+    theme_name: str | None = None,
+    accent_name: str | None = None,
+) -> tuple[str, str]:
     theme, accent = _resolve(theme_name, accent_name)
     values = {
         "surface_soft": theme["surface_soft"],
@@ -137,7 +162,11 @@ def build_scrollbar_qss(theme_name: str | None = None, accent_name: str | None =
     return vertical_qss, horizontal_qss
 
 
-def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = None, accent_name: str | None = None) -> None:
+def apply_scrollbar_style(
+    scroll_area: QScrollArea,
+    theme_name: str | None = None,
+    accent_name: str | None = None,
+) -> None:
     if theme_name is None or accent_name is None:
         app = QApplication.instance()
         if app is not None:
@@ -146,7 +175,10 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
             if accent_name is None:
                 accent_name = app.property("ptl_accent_name")
     theme, accent = _resolve(theme_name, accent_name)
-    vertical_qss, horizontal_qss = build_scrollbar_qss(theme_name, accent_name)
+    vertical_qss, horizontal_qss = build_scrollbar_qss(
+        theme_name,
+        accent_name,
+    )
     vbar = scroll_area.verticalScrollBar()
     hbar = scroll_area.horizontalScrollBar()
     v_style = RoundedScrollBarStyle(
@@ -154,22 +186,25 @@ def apply_scrollbar_style(scroll_area: QScrollArea, theme_name: str | None = Non
         theme["border_soft"],
         accent["accent"],
         accent["accent_hover"],
+        parent=vbar,
     )
     h_style = RoundedScrollBarStyle(
         theme["surface_soft"],
         theme["border_soft"],
         accent["accent"],
         accent["accent_hover"],
+        parent=hbar,
     )
     vbar.setStyle(v_style)
     hbar.setStyle(h_style)
-    vbar._rounded_style = v_style
-    hbar._rounded_style = h_style
     vbar.setStyleSheet(vertical_qss)
     hbar.setStyleSheet(horizontal_qss)
 
 
-def build_stylesheet(theme_name: str | None = None, accent_name: str | None = None) -> str:
+def build_stylesheet(
+    theme_name: str | None = None,
+    accent_name: str | None = None,
+) -> str:
     theme, accent = _resolve(theme_name, accent_name)
     values = {
         "window_bg": theme["window_bg"],
@@ -650,7 +685,11 @@ def build_stylesheet(theme_name: str | None = None, accent_name: str | None = No
     return template.substitute(values)
 
 
-def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: str | None = None) -> None:
+def apply_theme(
+    app: QApplication,
+    theme_name: str | None = None,
+    accent_name: str | None = None,
+) -> None:
     resolved_theme = theme_name or DEFAULT_THEME
     resolved_accent = accent_name or DEFAULT_ACCENT
     app.setProperty("ptl_theme_name", resolved_theme)
@@ -658,35 +697,77 @@ def apply_theme(app: QApplication, theme_name: str | None = None, accent_name: s
     app.setStyleSheet(build_stylesheet(resolved_theme, resolved_accent))
     for scroll_area in app.findChildren(QScrollArea):
         apply_scrollbar_style(scroll_area, resolved_theme, resolved_accent)
+
+
 class RoundedScrollBarStyle(QProxyStyle):
-    def __init__(self, track: str, track_border: str, handle: str, handle_hover: str) -> None:
+    def __init__(
+        self,
+        track: str,
+        track_border: str,
+        handle: str,
+        handle_hover: str,
+        *,
+        parent: QScrollBar,
+    ) -> None:
         super().__init__("Fusion")
+        self.setParent(parent)
         self._track = QColor(track)
         self._track_border = QColor(track_border)
         self._handle = QColor(handle)
         self._handle_hover = QColor(handle_hover)
 
-    def drawComplexControl(self, control: QStyle.ComplexControl, option, painter: QPainter, widget=None) -> None:
-        if control != QStyle.CC_ScrollBar or not isinstance(widget, QScrollBar):
+    def drawComplexControl(
+        self,
+        control: QStyle.ComplexControl,
+        option: QStyleOptionComplex,
+        painter: QPainter,
+        widget: QWidget | None = None,
+    ) -> None:
+        if (
+            control is not QStyle.ComplexControl.CC_ScrollBar
+            or not isinstance(widget, QScrollBar)
+        ):
             super().drawComplexControl(control, option, painter, widget)
             return
 
         painter.save()
-        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        groove_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarGroove, widget).adjusted(1, 1, -1, -1)
+        groove_rect = self.subControlRect(
+            control,
+            option,
+            QStyle.SubControl.SC_ScrollBarGroove,
+            widget,
+        ).adjusted(1, 1, -1, -1)
         if groove_rect.isValid():
             painter.setPen(self._track_border)
             painter.setBrush(self._track)
-            radius = groove_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else groove_rect.height() / 2.0
+            radius = (
+                groove_rect.width() / 2.0
+                if widget.orientation() is Qt.Orientation.Vertical
+                else groove_rect.height() / 2.0
+            )
             painter.drawRoundedRect(QRectF(groove_rect), radius, radius)
 
-        slider_rect = self.subControlRect(control, option, QStyle.SC_ScrollBarSlider, widget).adjusted(1, 1, -1, -1)
+        slider_rect = self.subControlRect(
+            control,
+            option,
+            QStyle.SubControl.SC_ScrollBarSlider,
+            widget,
+        ).adjusted(1, 1, -1, -1)
         if slider_rect.isValid():
-            hovered = bool(option.state & QStyle.State_MouseOver)
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(self._handle_hover if hovered else self._handle)
-            radius = slider_rect.width() / 2.0 if widget.orientation() == Qt.Vertical else slider_rect.height() / 2.0
+            hovered = bool(
+                option.state & QStyle.StateFlag.State_MouseOver
+            )
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(
+                self._handle_hover if hovered else self._handle
+            )
+            radius = (
+                slider_rect.width() / 2.0
+                if widget.orientation() is Qt.Orientation.Vertical
+                else slider_rect.height() / 2.0
+            )
             painter.drawRoundedRect(QRectF(slider_rect), radius, radius)
 
         painter.restore()
