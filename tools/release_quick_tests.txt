@@ -24,6 +24,7 @@ tests/test_training_semantic_contracts.py
 tests/test_training_run_creation.py
 tests/test_training_runner.py
 tests/test_local_model_probe.py
+tests/test_telemetry_collector.py
 tests/test_model_versions_connector.py
 tests/test_model_version_statuses.py
 tests/test_snapshots_i18n.py
