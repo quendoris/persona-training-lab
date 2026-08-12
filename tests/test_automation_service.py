@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Mapping, Sequence
 
 import pytest
 
@@ -12,8 +11,12 @@ from persona_training_lab.application.automation import (
     AutomationResourceClaim,
     AutomationService,
 )
-from persona_training_lab.application.automation.service import (
+from persona_training_lab.application.automation.execution import (
+    AutomationExecution,
     AutomationProcessResult,
+)
+from persona_training_lab.application.automation.service import (
+    AutomationCommandRequest,
 )
 from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
@@ -194,18 +197,16 @@ def test_automation_service_executes_same_declared_snapshot_under_runtime_lease(
     observed: dict[str, object] = {}
 
     def runner(
-        command: Sequence[str],
+        execution: AutomationExecution,
         *,
-        cwd: Path,
-        env: Mapping[str, str],
-        timeout: float | None,
         cancel_requested,
     ) -> AutomationProcessResult:
         observed.update(
-            command=tuple(command),
-            cwd=cwd,
-            workspace=env["PTL_WORKSPACE"],
-            timeout=timeout,
+            mode=execution.mode,
+            command=execution.command_snapshot,
+            cwd=execution.cwd,
+            workspace=execution.env["PTL_WORKSPACE"],
+            timeout=execution.timeout,
             cancelled=bool(cancel_requested and cancel_requested()),
         )
         return AutomationProcessResult(0, stdout="done\n")
@@ -220,8 +221,11 @@ def test_automation_service_executes_same_declared_snapshot_under_runtime_lease(
 
     assert result.ok is True
     assert result.code == "succeeded"
+    assert result.execution_mode == "exec"
     assert result.command == ("tool", "--value", "hello")
+    assert result.working_directory == str(tmp_path.resolve())
     assert result.stdout == "done\n"
+    assert observed["mode"] == "exec"
     assert observed["command"] == result.command
     assert observed["cwd"] == tmp_path.resolve()
     assert observed["workspace"] == str(tmp_path.resolve())
@@ -230,6 +234,139 @@ def test_automation_service_executes_same_declared_snapshot_under_runtime_lease(
     claims = coordinator.calls[0]["claims"]
     assert claims == (
         ResourceClaim("artifact", f"{tmp_path.resolve()}/result", "write"),
+    )
+
+
+def test_automation_service_executes_ad_hoc_shell_snapshot_with_safe_defaults(
+    tmp_path: Path,
+) -> None:
+    coordinator = _Coordinator()
+    observed: dict[str, object] = {}
+
+    def runner(
+        execution: AutomationExecution,
+        *,
+        cancel_requested,
+    ) -> AutomationProcessResult:
+        observed.update(
+            mode=execution.mode,
+            command=execution.command_snapshot,
+            cwd=execution.cwd,
+            env=dict(execution.env),
+            timeout=execution.timeout,
+            output_limit=execution.output_limit_bytes,
+        )
+        return AutomationProcessResult(
+            0,
+            stdout="bounded output",
+            stdout_truncated=True,
+        )
+
+    service = AutomationService(
+        _StaticProvider(()),
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+        process_runner=runner,
+    )
+    request = AutomationCommandRequest(
+        command_id="operator_probe",
+        mode="shell",
+        shell_command="printf probe",
+        working_directory="scratch",
+        environment={"PTL_OPERATOR_FLAG": "enabled"},
+        inherit_environment=False,
+        timeout_seconds=4.5,
+        output_limit_bytes=128,
+    )
+
+    result = service.run_command(request)
+
+    assert result.ok is True
+    assert result.execution_mode == "shell"
+    assert result.command == ("printf probe",)
+    assert result.working_directory == str((tmp_path / "scratch").resolve())
+    assert result.stdout == "bounded output"
+    assert result.stdout_truncated is True
+    assert observed["mode"] == "shell"
+    assert observed["command"] == result.command
+    assert observed["cwd"] == (tmp_path / "scratch").resolve()
+    assert observed["timeout"] == 4.5
+    assert observed["output_limit"] == 128
+    assert observed["env"] == {
+        "PTL_OPERATOR_FLAG": "enabled",
+        "PTL_WORKSPACE": str(tmp_path.resolve()),
+    }
+    assert coordinator.calls[0]["operation_kind"] == "automation_command"
+    assert coordinator.calls[0]["subject_kind"] == "automation_command"
+    assert coordinator.calls[0]["subject_id"] == "operator_probe"
+    assert coordinator.calls[0]["claims"] == (
+        ResourceClaim("workspace", str(tmp_path.resolve()), "write"),
+    )
+
+
+def test_automation_service_requires_explicit_valid_ad_hoc_execution_shape(
+    tmp_path: Path,
+) -> None:
+    coordinator = _Coordinator()
+    service = AutomationService(
+        _StaticProvider(()),
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+    )
+
+    invalid_exec = service.run_command(
+        AutomationCommandRequest(command_id="empty_exec", mode="exec")
+    )
+    invalid_shell = service.run_command(
+        AutomationCommandRequest(command_id="empty_shell", mode="shell")
+    )
+
+    assert invalid_exec.code == "command_invalid"
+    assert "non-empty argv" in invalid_exec.stderr
+    assert invalid_shell.code == "command_invalid"
+    assert "non-empty command" in invalid_shell.stderr
+    assert coordinator.calls == []
+
+
+def test_automation_service_preserves_ad_hoc_claims_and_terminal_output_flags(
+    tmp_path: Path,
+) -> None:
+    coordinator = _Coordinator()
+
+    def runner(
+        execution: AutomationExecution,
+        *,
+        cancel_requested,
+    ) -> AutomationProcessResult:
+        return AutomationProcessResult(
+            -15,
+            stderr="partial",
+            cancelled=True,
+            stderr_truncated=True,
+        )
+
+    service = AutomationService(
+        _StaticProvider(()),
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+        process_runner=runner,
+    )
+    result = service.run_command(
+        AutomationCommandRequest(
+            command_id="dataset_cleanup",
+            argv=("tool", "--cleanup"),
+            resource_claims=(
+                AutomationResourceClaim("dataset", "dataset-17", "write"),
+            ),
+        )
+    )
+
+    assert result.code == "cancelled"
+    assert result.stderr == "partial"
+    assert result.stderr_truncated is True
+    assert coordinator.leases[0].state == "cancelled"
+    assert coordinator.calls[0]["claims"] == (
+        ResourceClaim("dataset", "dataset-17", "write"),
     )
 
 
