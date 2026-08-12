@@ -22,6 +22,7 @@ def test_automation_command_draft_preserves_exec_argv_boundaries() -> None:
             ),
             timeout_text="2.5",
             output_limit_text="4096",
+            host_effects_authorized=True,
         ),
         command_id="command_test",
     )
@@ -40,6 +41,7 @@ def test_automation_command_draft_preserves_exec_argv_boundaries() -> None:
     assert request.resource_claims[0].access_mode == "write"
     assert request.timeout_seconds == 2.5
     assert request.output_limit_bytes == 4096
+    assert request.host_effects_authorized is True
 
 
 def test_automation_command_draft_keeps_shell_text_raw() -> None:
@@ -48,6 +50,7 @@ def test_automation_command_draft_keeps_shell_text_raw() -> None:
         AutomationCommandDraft(
             mode="shell",
             command_text=command,
+            host_effects_authorized=True,
         ),
         command_id="command_shell",
     )
@@ -63,6 +66,7 @@ def test_automation_command_draft_uses_bounded_safe_defaults() -> None:
         AutomationCommandDraft(
             mode="exec",
             command_text='["tool"]',
+            host_effects_authorized=True,
         ),
         command_id="command_defaults",
     )
@@ -72,6 +76,19 @@ def test_automation_command_draft_uses_bounded_safe_defaults() -> None:
     assert result.request.resource_claims == ()
     assert result.request.timeout_seconds == 0.0
     assert 0 < result.request.output_limit_bytes <= MAX_AUTOMATION_OUTPUT_LIMIT_BYTES
+
+
+def test_automation_command_draft_requires_explicit_host_effect_acknowledgement() -> None:
+    result = build_automation_command_request(
+        AutomationCommandDraft(
+            mode="exec",
+            command_text='["tool"]',
+        ),
+        command_id="command_host_scope",
+    )
+
+    assert result.request is None
+    assert result.error_code == "host_effects_required"
 
 
 def test_automation_command_draft_rejects_malformed_structured_fields() -> None:
