@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from importlib import import_module
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, TypedDict
 
 
 @dataclass(slots=True, frozen=True)
@@ -18,14 +20,22 @@ class FullFineTuneResult:
     final_loss: float = 0.0
 
 
-def _token_ids(tokenizer, text: str) -> list[int]:
+class _FineTuneExample(TypedDict):
+    input_ids: list[int]
+    attention_mask: list[int]
+    labels: list[int]
+    prompt_prefix: str
+    full_text: str
+
+
+def _token_ids(tokenizer: Any, text: str) -> list[int]:
     try:
         return tokenizer(text, add_special_tokens=False)["input_ids"]
     except TypeError:
         return tokenizer(text)["input_ids"]
 
 
-def _example(tokenizer, prefix: str, answer: str, max_length: int = 256) -> dict[str, object]:
+def _example(tokenizer: Any, prefix: str, answer: str, max_length: int = 256) -> _FineTuneExample:
     eos = tokenizer.eos_token or ""
     full_text = prefix + answer + eos
     prefix_ids = _token_ids(tokenizer, prefix)
@@ -43,13 +53,13 @@ def _example(tokenizer, prefix: str, answer: str, max_length: int = 256) -> dict
     }
 
 
-def build_full_finetune_example(tokenizer, prompt: str, response: str, max_length: int = 256) -> dict[str, object]:
+def build_full_finetune_example(tokenizer: Any, prompt: str, response: str, max_length: int = 256) -> _FineTuneExample:
     return _example(tokenizer, f"Prompt: {prompt}\nResponse:", f" {response}", max_length)
 
 
-def _batch(items: list[dict[str, object]], pad: int) -> dict[str, list[list[int]]]:
+def _batch(items: list[_FineTuneExample], pad: int) -> dict[str, list[list[int]]]:
     width = max(len(item["input_ids"]) for item in items)
-    out = {"input_ids": [], "attention_mask": [], "labels": []}
+    out: dict[str, list[list[int]]] = {"input_ids": [], "attention_mask": [], "labels": []}
     for item in items:
         ids = list(item["input_ids"])
         mask = list(item["attention_mask"])
@@ -70,8 +80,10 @@ class LocalFullFineTuneBackend:
         if not model_dir.exists():
             return FullFineTuneResult("Модель не найдена", "Модель не найдена")
         try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+            torch: Any = import_module("torch")
+            transformers: Any = import_module("transformers")
+            AutoModelForCausalLM = transformers.AutoModelForCausalLM
+            AutoTokenizer = transformers.AutoTokenizer
         except Exception:
             return FullFineTuneResult("Training backend не подключён", "Training backend не подключён")
         try:
@@ -105,7 +117,7 @@ class LocalFullFineTuneBackend:
             optimizer = torch.optim.SGD(trainable, lr=effective_lr)
             initial_loss = 0.0
             final_loss = 0.0
-            best_loss = 10**9
+            best_loss = float("inf")
             stopped_step = target_steps
             for step in range(target_steps):
                 optimizer.zero_grad(set_to_none=True)
@@ -132,7 +144,7 @@ class LocalFullFineTuneBackend:
 
             model.eval()
             checks = [prompt, f"Prompt: {prompt}\nResponse:", f"Prompt: {prompt}\nResponse: "]
-            generated_texts = []
+            generated_texts: list[str] = []
             confirmed = False
             with torch.no_grad():
                 for check_prompt in checks:
