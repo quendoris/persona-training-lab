@@ -12,37 +12,34 @@ from persona_training_lab.ui.keybindings.definitions import (
 from persona_training_lab.ui.keybindings.manager import MouseBindingValue
 
 
-class _MappedMouseEvent:
-    """Delegate a Qt mouse event while overriding routing fields for the graph."""
+def _mapped_mouse_event(
+    source: QMouseEvent,
+    *,
+    button: Qt.MouseButton | None = None,
+    buttons: Qt.MouseButton | None = None,
+    modifiers: Qt.KeyboardModifier | None = None,
+) -> QMouseEvent:
+    """Clone a mouse event while replacing only canonical routing state."""
 
-    def __init__(
-        self,
-        source,
-        *,
-        button=None,
-        buttons=None,
-        modifiers=None,
-    ) -> None:
-        self._source = source
-        self._button = button
-        self._buttons = buttons
-        self._modifiers = modifiers
+    mapped = QMouseEvent(
+        source.type(),
+        source.position(),
+        source.scenePosition(),
+        source.globalPosition(),
+        source.button() if button is None else button,
+        source.buttons() if buttons is None else buttons,
+        source.modifiers() if modifiers is None else modifiers,
+        source.pointingDevice(),
+    )
+    mapped.setAccepted(source.isAccepted())
+    return mapped
 
-    def button(self):
-        return self._source.button() if self._button is None else self._button
 
-    def buttons(self):
-        return self._source.buttons() if self._buttons is None else self._buttons
-
-    def modifiers(self):
-        return (
-            self._source.modifiers()
-            if self._modifiers is None
-            else self._modifiers
-        )
-
-    def __getattr__(self, name):
-        return getattr(self._source, name)
+def _sync_mouse_event_acceptance(
+    source: QMouseEvent,
+    mapped: QMouseEvent,
+) -> None:
+    source.setAccepted(mapped.isAccepted())
 
 
 class VersionGraphCanvas(ActionMenuPolicyVersionGraphCanvas):
@@ -118,13 +115,14 @@ class VersionGraphCanvas(ActionMenuPolicyVersionGraphCanvas):
             self._node_at(event.position()) is None
             and self._mouse_press_matches("close_node_menu", event)
         )
-        mapped = _MappedMouseEvent(
+        mapped = _mapped_mouse_event(
             event,
             button=canonical_button,
             buttons=canonical_button,
             modifiers=self._canonical_modifiers(action),
         )
         super().mousePressEvent(mapped)
+        _sync_mouse_event_acceptance(event, mapped)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         action = self._input_drag_action
@@ -150,13 +148,14 @@ class VersionGraphCanvas(ActionMenuPolicyVersionGraphCanvas):
                 modifiers = Qt.KeyboardModifier.NoModifier
             self._input_drag_action = action
 
-        mapped = _MappedMouseEvent(
+        mapped = _mapped_mouse_event(
             event,
             button=Qt.MouseButton.NoButton,
             buttons=canonical_button,
             modifiers=modifiers,
         )
         super().mouseMoveEvent(mapped)
+        _sync_mouse_event_acceptance(event, mapped)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         action = self._input_drag_action
@@ -165,13 +164,14 @@ class VersionGraphCanvas(ActionMenuPolicyVersionGraphCanvas):
             return
 
         canonical_button = self._input_canonical_button
-        mapped = _MappedMouseEvent(
+        mapped = _mapped_mouse_event(
             event,
             button=canonical_button,
             buttons=Qt.MouseButton.NoButton,
             modifiers=self._canonical_modifiers(action),
         )
         super().mouseReleaseEvent(mapped)
+        _sync_mouse_event_acceptance(event, mapped)
         self._cancel_input_drag()
 
     def _press_action(self, event: QMouseEvent) -> str | None:
