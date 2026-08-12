@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sqlite3
 
-from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.projects.service import ProjectsService
 from persona_training_lab.infrastructure.persistence.repositories.projects import (
     SQLiteProjectsRepository,
@@ -30,7 +29,7 @@ def test_projects_connector_empty_state() -> None:
     rows = service.list_projects()
     assert rows == []
 
-    vm = DashboardViewModel(docs_service=DocsService(), projects_service=service)
+    vm = DashboardViewModel(projects_service=service)
     stat = vm.stats()[0]
 
     assert stat.label_key == "dashboard.stat.projects"
@@ -60,7 +59,7 @@ def test_projects_connector_reads_latest_project() -> None:
     assert rows[0].title == "Alpha Persona"
     assert rows[0].status == "активен"
 
-    vm = DashboardViewModel(docs_service=DocsService(), projects_service=service)
+    vm = DashboardViewModel(projects_service=service)
     stat = vm.stats()[0]
 
     assert stat.label_key == "dashboard.stat.projects"
