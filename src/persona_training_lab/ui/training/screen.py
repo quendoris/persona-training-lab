@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -775,11 +776,13 @@ class TrainingScreen(QWidget):
     def _clear_layout(layout: QGridLayout | QVBoxLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
 
-    def closeEvent(self, event) -> None:  # type: ignore[override]
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         self._runner_timer.stop()
         if self._logs_dialog is not None:
             self._logs_dialog.close()
