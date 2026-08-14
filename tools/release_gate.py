@@ -123,6 +123,7 @@ class ReleaseGate:
         self._quick = quick
         self._quick_tests = load_quick_test_manifest()
         self._metadata = self._collect_metadata()
+        self._require_clean_worktree()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         commit = str(self._metadata.get("commit") or "unknown")[:12]
         self.output_dir = output_root / f"{stamp}-{commit}-seed-{seed}"
@@ -241,6 +242,25 @@ class ReleaseGate:
         if not self._quick:
             steps.append(GateStep("build", ("uv", "build")))
         return tuple(steps)
+
+    def _require_clean_worktree(self) -> None:
+        if not bool(self._metadata.get("dirty")):
+            return
+
+        raw_paths = self._metadata.get("dirty_paths")
+        dirty_paths = (
+            [str(path) for path in raw_paths]
+            if isinstance(raw_paths, list)
+            else []
+        )
+        message = (
+            "Release gate requires a clean Git worktree so the audit is "
+            "reproducibly tied to the recorded commit. Commit or stash local "
+            "changes before running the gate."
+        )
+        if dirty_paths:
+            message += " Dirty paths: " + ", ".join(dirty_paths)
+        raise RuntimeError(message)
 
     def _run_step(self, step: GateStep) -> StepResult:
         log_path = self.output_dir / f"{step.name}.log"
@@ -381,10 +401,15 @@ class ReleaseGate:
         )
 
     def _collect_metadata(self) -> dict[str, object]:
+        commit = _git("rev-parse", "HEAD")
+        if not commit:
+            raise RuntimeError(
+                "Release gate requires a Git worktree with a resolvable HEAD."
+            )
         status = _git("status", "--porcelain")
         return {
             "created_at": datetime.now(UTC).isoformat(),
-            "commit": _git("rev-parse", "HEAD") or "unknown",
+            "commit": commit,
             "branch": _git("branch", "--show-current") or "detached",
             "dirty": bool(status.strip()),
             "dirty_paths": status.splitlines(),
