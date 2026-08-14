@@ -117,14 +117,10 @@ class ReleaseGate:
         seed: int,
         runs: int,
         quick: bool,
-        skip_mypy: bool,
-        skip_build: bool,
     ) -> None:
         self._seed = seed
         self._runs = max(1, runs)
         self._quick = quick
-        self._skip_mypy = skip_mypy
-        self._skip_build = skip_build
         self._quick_tests = load_quick_test_manifest()
         self._metadata = self._collect_metadata()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -205,7 +201,7 @@ class ReleaseGate:
                 ),
             ),
         ]
-        if not self._skip_mypy and not self._quick:
+        if not self._quick:
             steps.append(
                 GateStep(
                     "mypy",
@@ -242,7 +238,7 @@ class ReleaseGate:
                 ),
             ),
         ]
-        if not self._skip_build and not self._quick:
+        if not self._quick:
             steps.append(GateStep("build", ("uv", "build")))
         return tuple(steps)
 
@@ -446,15 +442,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Run the curated quick manifest and skip mypy/build.",
+        help="Run the curated quick profile; mypy and build belong to full release audit.",
     )
-    parser.add_argument(
-        "--strict-mypy",
-        action="store_true",
-        help="Compatibility no-op; mypy is blocking by default.",
-    )
-    parser.add_argument("--skip-mypy", action="store_true")
-    parser.add_argument("--skip-build", action="store_true")
     return parser.parse_args()
 
 
@@ -467,8 +456,6 @@ def main() -> int:
             seed=seed,
             runs=args.runs,
             quick=args.quick,
-            skip_mypy=args.skip_mypy,
-            skip_build=args.skip_build,
         )
         return gate.run()
     except RuntimeError as error:
