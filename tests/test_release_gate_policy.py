@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
+import tools.release_gate as release_gate_module
 from tools.release_gate import ReleaseGate, _parse_args
 
 
@@ -53,3 +55,39 @@ def test_release_gate_rejects_removed_typing_and_build_bypasses(
         _parse_args()
 
     assert error.value.code == 2
+
+
+def test_release_gate_rejects_dirty_worktree_before_report_creation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def _dirty_metadata(_gate: ReleaseGate) -> dict[str, object]:
+        return {
+            "commit": "0123456789abcdef",
+            "branch": "agent/history-keyguard-poller",
+            "dirty": True,
+            "dirty_paths": [" M src/persona_training_lab/example.py"],
+        }
+
+    monkeypatch.setattr(ReleaseGate, "_collect_metadata", _dirty_metadata)
+
+    with pytest.raises(RuntimeError, match="clean Git worktree") as error:
+        ReleaseGate(
+            output_root=tmp_path,
+            seed=123,
+            runs=1,
+            quick=True,
+        )
+
+    assert "src/persona_training_lab/example.py" in str(error.value)
+    assert not tuple(tmp_path.iterdir())
+
+
+def test_release_gate_metadata_requires_resolvable_git_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(release_gate_module, "_git", lambda *_args: "")
+    gate = object.__new__(ReleaseGate)
+
+    with pytest.raises(RuntimeError, match="resolvable HEAD"):
+        gate._collect_metadata()
