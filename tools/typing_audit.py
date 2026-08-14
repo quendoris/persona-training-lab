@@ -52,6 +52,8 @@ _CONFIG_MARKERS = (
     ),
 )
 
+_CODED_TYPE_IGNORE = re.compile(r"#\s*type:\s*ignore\s*\[[^\]]+\]")
+
 
 @dataclass(frozen=True, slots=True)
 class TypingSuppressionFinding:
@@ -175,10 +177,43 @@ def scan_typing_suppressions(
     )
 
 
+def _is_narrow_test_suppression(finding: TypingSuppressionFinding) -> bool:
+    if not finding.path.startswith("tests/"):
+        return False
+    if finding.kind != "type_ignore":
+        return False
+    return _CODED_TYPE_IGNORE.search(finding.text) is not None
+
+
+def classify_typing_suppressions(
+    findings: tuple[TypingSuppressionFinding, ...],
+) -> tuple[
+    tuple[TypingSuppressionFinding, ...],
+    tuple[TypingSuppressionFinding, ...],
+]:
+    blocking: list[TypingSuppressionFinding] = []
+    informational: list[TypingSuppressionFinding] = []
+    for finding in findings:
+        if _is_narrow_test_suppression(finding):
+            informational.append(finding)
+        else:
+            blocking.append(finding)
+    return tuple(blocking), tuple(informational)
+
+
+def _finding_payload(
+    finding: TypingSuppressionFinding,
+    *,
+    blocking: bool,
+) -> dict[str, object]:
+    return {**asdict(finding), "blocking": blocking}
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Fail when typing suppressions can hide errors in Python code or mypy config."
+            "Fail when typing suppressions can hide errors in production code, "
+            "release tooling, or mypy config while inventorying narrow test seams."
         ),
     )
     parser.add_argument(
@@ -197,13 +232,24 @@ def main() -> int:
         print(str(error))
         return 2
 
+    blocking, informational = classify_typing_suppressions(findings)
+    blocking_ids = {id(finding) for finding in blocking}
+
     if args.json:
         print(
             json.dumps(
                 {
-                    "passed": not findings,
+                    "passed": not blocking,
                     "finding_count": len(findings),
-                    "findings": [asdict(item) for item in findings],
+                    "blocking_finding_count": len(blocking),
+                    "informational_finding_count": len(informational),
+                    "findings": [
+                        _finding_payload(
+                            item,
+                            blocking=id(item) in blocking_ids,
+                        )
+                        for item in findings
+                    ],
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -211,14 +257,15 @@ def main() -> int:
         )
     elif findings:
         for finding in findings:
+            severity = "BLOCK" if id(finding) in blocking_ids else "INFO"
             print(
-                f"{finding.path}:{finding.line}: "
+                f"{severity} {finding.path}:{finding.line}: "
                 f"{finding.kind}: {finding.text}"
             )
     else:
         print("Typing suppression audit passed: no suppressions found.")
 
-    return 1 if findings else 0
+    return 1 if blocking else 0
 
 
 if __name__ == "__main__":
