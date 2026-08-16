@@ -77,7 +77,7 @@ def test_style_workspace_switches_language_without_losing_selection(
         screen._language_box.findData("ru-RU")
     ) == "Русский"
     assert screen._language_note.text() == (
-        "The language changes without restarting the application."
+        "The interface language changes without restarting the application."
     )
     assert screen._theme_box.currentData() == "velvet"
     assert screen._theme_box.currentText() == "Velvet"
