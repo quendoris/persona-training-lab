@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "es-ES",
+    "fragment": "shell"
+  },
+  "messages": {
+    "app.subtitle": "estación de investigación para entrenamiento de personalidad",
+    "status.background_shutdown": "Las operaciones en segundo plano están finalizando; la aplicación se cerrará cuando se liberen sus recursos."
+  }
+}

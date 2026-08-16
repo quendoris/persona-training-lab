@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "es-ES",
+    "fragment": "docs"
+  },
+  "messages": {
+    "docs.card.topics.title": "Documentación",
+    "docs.card.topics.subtitle": "Secciones vivas del proyecto que guían el flujo de trabajo actual.",
+    "docs.card.content.title": "Sección",
+    "docs.card.content.subtitle": "El contenido se lee de los archivos Markdown de docs/.",
+    "docs.content.select_summary": "Selecciona una sección a la izquierda.",
+    "docs.card.next.title": "Qué hacer después",
+    "docs.card.next.subtitle": "Orientación breve sin decoración innecesaria.",
+    "docs.next.select": "Selecciona una sección de la documentación.",
+    "docs.content.missing": "Documento no encontrado: {path}",
+    "docs.content.read_failed": "No se pudo leer el documento: {path}",
+    "docs.topic.quickstart.title": "Inicio rápido",
+    "docs.topic.quickstart.summary": "La ruta mínima desde el conjunto de datos hasta el análisis.",
+    "docs.topic.quickstart.next_step": "Empieza por Conjuntos de datos → Entrenamiento → Pruebas → Análisis.",
+    "docs.topic.training_pipeline.title": "Flujo de entrenamiento",
+    "docs.topic.training_pipeline.summary": "Cómo una ejecución de entrenamiento se convierte en un artefacto del modelo.",
+    "docs.topic.training_pipeline.next_step": "Después del entrenamiento, comprueba el artefacto y la respuesta local del modelo.",
+    "docs.topic.personality_portrait.title": "Retrato de personalidad",
+    "docs.topic.personality_portrait.summary": "KPI de Big Five, respuestas SCORE, puntuación inversa y delta.",
+    "docs.topic.personality_portrait.next_step": "Recopila un nuevo retrato después de cada fine-tune significativo.",
+    "docs.topic.experiment_protocol.title": "Protocolo de experimento",
+    "docs.topic.experiment_protocol.summary": "Qué registrar para que las comparaciones sigan siendo reproducibles.",
+    "docs.topic.experiment_protocol.next_step": "Antes de publicar, conserva las versiones del modelo, conjunto de datos, batería y puntuación.",
+    "docs.topic.methodology_limits.title": "Límites metodológicos",
+    "docs.topic.methodology_limits.summary": "Límites de interpretación y limitaciones explícitas de la batería actual.",
+    "docs.topic.methodology_limits.next_step": "Para publicar, amplía la batería y añade ejecuciones repetidas.",
+    "docs.quick_reference.1": "Conjuntos de datos: añade un archivo y comprueba la estructura prompt/response.",
+    "docs.quick_reference.2": "Entrenamiento: elige un modelo, conjunto de datos y perfil y, después, inicia el fine-tune.",
+    "docs.quick_reference.3": "Instantáneas: comprueba que el artefacto esté registrado.",
+    "docs.quick_reference.4": "Pruebas: recopila un retrato Big Five y comprueba VALID_SCORE.",
+    "docs.quick_reference.5": "Análisis: compara el KPI y el delta entre dos retratos.",
+    "docs.context_help.1": "La documentación debe responder a una pregunta: ¿qué debe ocurrir después?",
+    "docs.context_help.2": "Si un espacio de trabajo no está claro, abre su sección y revisa la lista de comprobación.",
+    "docs.context_help.3": "Para investigación, conserva siempre las versiones del modelo, conjunto de datos, batería y puntuación."
+  }
+}

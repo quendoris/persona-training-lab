@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "es-ES",
+    "fragment": "errors"
+  },
+  "messages": {
+    "error.experiments.battery_load": "No se pudo cargar la batería de pruebas.",
+    "error.experiments.portrait.safe_stop": "La prueba se detuvo de forma segura. El resto de la interfaz sigue disponible.",
+    "error.python.main_thread": "Una operación en segundo plano falló, pero la aplicación sigue disponible.",
+    "error.python.worker_thread": "Una tarea en segundo plano se detuvo de forma segura; la interfaz sigue disponible.",
+    "error.training.full_finetune.safe_stop": "El entrenamiento se detuvo de forma segura. La interfaz sigue disponible; los detalles se escribieron en el registro.",
+    "error.ui.event_dispatch": "No se pudo completar la operación de la interfaz, pero la aplicación sigue disponible."
+  }
+}

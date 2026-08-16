@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "es-ES",
+    "fragment": "style"
+  },
+  "messages": {
+    "style.accent.cyan": "Cian",
+    "style.accent.emerald": "Esmeralda",
+    "style.accent.label": "Acento",
+    "style.accent.rose": "Rosa",
+    "style.accent.violet": "Violeta",
+    "style.apply": "Aplicar apariencia",
+    "style.controls.note": "La selección se guarda en SQLite y pasa a formar parte de la comodidad de las sesiones largas del sistema.",
+    "style.controls.subtitle": "La apariencia no es meramente decorativa; forma parte de un trabajo prolongado y cómodo.",
+    "style.controls.title": "Apariencia",
+    "style.custom_accent.choose": "Personalizado",
+    "style.preview.action.compare": "Abrir comparación",
+    "style.preview.action.training": "Iniciar entrenamiento",
+    "style.preview.brand_note": "Una estación de trabajo de investigación tranquila para entrenar personalidad y analizar versiones.",
+    "style.preview.status.attention": "atención",
+    "style.preview.status.running": "en ejecución",
+    "style.preview.subtitle": "La interfaz debe sentirse viva y legible, no abstracta.",
+    "style.preview.title": "Vista previa",
+    "style.theme.eclipse": "Eclipse",
+    "style.theme.label": "Tema",
+    "style.theme.pearl": "Pearl",
+    "style.theme.velvet": "Velvet"
+  }
+}

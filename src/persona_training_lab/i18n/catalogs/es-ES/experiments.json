@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "es-ES",
+    "fragment": "experiments"
+  },
+  "messages": {
+    "experiments.header.title": "Experimentos · {title}",
+    "experiments.registry.title": "Registro de experimentos",
+    "experiments.registry.subtitle": "Proyecto, agente y parámetros en una sola vista de solo lectura.",
+    "experiments.empty.title": "Aún no hay experimentos",
+    "experiments.empty.subtitle": "Todavía no se ha creado ningún experimento.",
+    "experiments.empty.status": "vacío",
+    "experiments.error.title": "No se pudieron cargar los experimentos",
+    "experiments.error.subtitle": "No se pudo cargar el registro de experimentos.",
+    "experiments.error.status": "error",
+    "experiments.generated.title.personality_portrait": "Retrato Big Five · {time}",
+    "experiments.generated.title.unknown": "Experimento"
+  }
+}

@@ -115,6 +115,61 @@ def test_style_workspace_switches_language_without_losing_selection(
     app.processEvents()
 
 
+def test_style_locale_selector_cycles_ru_en_es_ru_without_state_loss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    persisted: list[str] = []
+    manager = LocalizationManager(
+        app,
+        initial_locale="ru-RU",
+        catalog_directory=CATALOGS,
+        persist_locale=persisted.append,
+    )
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+    screen = StyleScreen(_StyleVM(), lambda _theme, _accent: None, manager)
+
+    assert screen._language_box.currentData() == "ru-RU"
+    assert screen._language_box.itemText(
+        screen._language_box.findData("es-ES")
+    ) == "Español"
+    assert screen._theme_box.currentData() == "velvet"
+    assert screen._accent_box.currentData() == "cyan"
+
+    screen._language_box.setCurrentIndex(
+        screen._language_box.findData("en-US")
+    )
+    assert manager.locale == "en-US"
+    assert screen._controls.title_label.text() == "Appearance"
+    assert screen._theme_box.currentData() == "velvet"
+    assert screen._accent_box.currentData() == "cyan"
+
+    screen._language_box.setCurrentIndex(
+        screen._language_box.findData("es-ES")
+    )
+    assert manager.locale == "es-ES"
+    assert screen._controls.title_label.text() == "Apariencia"
+    assert screen._language_label.text() == "Idioma de la interfaz"
+    assert screen._language_note.text() == (
+        "El idioma de la interfaz cambia sin reiniciar la aplicación."
+    )
+    assert screen._apply_button.text() == "Aplicar apariencia"
+    assert screen._theme_box.currentData() == "velvet"
+    assert screen._accent_box.currentData() == "cyan"
+
+    screen._language_box.setCurrentIndex(
+        screen._language_box.findData("ru-RU")
+    )
+    assert manager.locale == "ru-RU"
+    assert screen._controls.title_label.text() == "Оформление"
+    assert screen._theme_box.currentData() == "velvet"
+    assert screen._accent_box.currentData() == "cyan"
+    assert persisted == ["en-US", "es-ES", "ru-RU"]
+
+    screen.deleteLater()
+    app.processEvents()
+
+
 def test_locale_metadata_controls_application_layout_direction(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

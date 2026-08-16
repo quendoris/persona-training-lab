@@ -35,7 +35,8 @@ def _app() -> QApplication:
 def test_repository_catalogs_are_complete_and_placeholder_safe() -> None:
     catalogs = CatalogSet.load(CATALOGS, base_locale="ru-RU")
 
-    assert catalogs.available_locales() == ("en-US", "ru-RU")
+    assert catalogs.available_locales() == ("en-US", "es-ES", "ru-RU")
+    assert catalogs.catalog("es-ES").metadata.native_name == "Español"
     assert catalogs.catalog("ru-RU").text(
         "language.unavailable_incomplete",
         values={"locale": "en-US"},
@@ -48,6 +49,14 @@ def test_repository_catalogs_are_complete_and_placeholder_safe() -> None:
         "operations.active_count",
         count=2,
     ) == "2 active operations"
+    assert catalogs.catalog("es-ES").text(
+        "operations.active_count",
+        count=1,
+    ) == "1 operación activa"
+    assert catalogs.catalog("es-ES").text(
+        "operations.active_count",
+        count=2,
+    ) == "2 operaciones activas"
     assert catalogs.catalog("ru-RU").text(
         "operations.active_count",
         count=22,

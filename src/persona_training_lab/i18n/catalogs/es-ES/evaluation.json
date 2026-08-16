@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "es-ES",
+    "fragment": "evaluation"
+  },
+  "messages": {
+    "evaluation.status.created": "creada",
+    "evaluation.status.running": "en ejecución",
+    "evaluation.status.partial": "completada con errores",
+    "evaluation.status.failed": "fallida",
+    "evaluation.status.completed": "completada",
+    "evaluation.status.unknown": "{status}"
+  }
+}
