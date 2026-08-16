@@ -12,6 +12,7 @@ artifacts/
 exports/
 temp/
 cache/
+logs/
 
 .git/
 *.zip
