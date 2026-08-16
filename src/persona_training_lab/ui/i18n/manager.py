@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from weakref import ReferenceType, ref
 
-from PySide6.QtCore import QLibraryInfo, QLocale, QObject, QTranslator, Signal
+from PySide6.QtCore import QLibraryInfo, QLocale, QObject, Qt, QTranslator, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
 from persona_training_lab.i18n.catalog import (
@@ -97,6 +97,12 @@ class LocalizationManager(QObject):
         self._catalog = target_catalog
         self._locale = locale
         self._qt_translator = target_qt_translator
+        layout_direction = (
+            Qt.LayoutDirection.RightToLeft
+            if target_catalog.metadata.direction == "rtl"
+            else Qt.LayoutDirection.LeftToRight
+        )
+        self._app.setLayoutDirection(layout_direction)
         QLocale.setDefault(QLocale(locale.replace("-", "_")))
         self._app.setProperty("ptl_locale", locale)
 

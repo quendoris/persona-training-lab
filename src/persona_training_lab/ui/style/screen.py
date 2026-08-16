@@ -41,6 +41,26 @@ class StyleScreen(QWidget):
         root.setSpacing(16)
 
         self._controls = PanelCard("", "")
+
+        self._language_label = QLabel()
+        self._controls.add_widget(self._language_label)
+        self._language_box = QComboBox()
+        if localization is not None:
+            for locale in localization.available_locales():
+                self._language_box.addItem(
+                    localization.locale_name(locale),
+                    locale,
+                )
+            language_index = self._language_box.findData(localization.locale)
+            if language_index >= 0:
+                self._language_box.setCurrentIndex(language_index)
+            self._language_box.currentIndexChanged.connect(self._change_language)
+        else:
+            self._language_box.setEnabled(False)
+        self._controls.add_widget(self._language_box)
+        self._language_note = make_muted_label("")
+        self._controls.add_widget(self._language_note)
+
         self._theme_label = QLabel()
         self._controls.add_widget(self._theme_label)
         self._theme_box = QComboBox()
@@ -130,6 +150,21 @@ class StyleScreen(QWidget):
     def _apply_language(self, _locale: str = "") -> None:
         self._controls.set_title(self._text("style.controls.title"))
         self._controls.set_subtitle(self._text("style.controls.subtitle"))
+        self._language_label.setText(self._text("language.current"))
+        self._language_note.setText(self._text("language.restart_not_required"))
+        if self._localization is not None:
+            self._language_box.blockSignals(True)
+            for index in range(self._language_box.count()):
+                locale = str(self._language_box.itemData(index))
+                self._language_box.setItemText(
+                    index,
+                    self._localization.locale_name(locale),
+                )
+            current_index = self._language_box.findData(self._localization.locale)
+            if current_index >= 0:
+                self._language_box.setCurrentIndex(current_index)
+            self._language_box.blockSignals(False)
+
         self._theme_label.setText(self._text("style.theme.label"))
         self._accent_label.setText(self._text("style.accent.label"))
         self._choose_custom.setText(self._text("style.custom_accent.choose"))
@@ -153,6 +188,15 @@ class StyleScreen(QWidget):
         self._attention_badge.setText(
             self._text("style.preview.status.attention")
         )
+
+    def _change_language(self, _index: int) -> None:
+        localization = self._localization
+        if localization is None:
+            return
+        locale = self._language_box.currentData()
+        if not isinstance(locale, str) or locale == localization.locale:
+            return
+        localization.set_locale(locale)
 
     def _apply(self) -> None:
         theme = self._theme_box.currentData()
