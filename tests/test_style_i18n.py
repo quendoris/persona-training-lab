@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.style.screen import StyleScreen
+from persona_training_lab.ui.themes import manager as theme_manager
 
 
 CATALOGS = (
@@ -38,6 +39,20 @@ class _StyleVM:
 
 def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
+
+
+def test_stylesheet_uses_packaged_chevron_asset_without_repo_cwd() -> None:
+    stylesheet = theme_manager.build_stylesheet("velvet", "cyan")
+    asset = (
+        Path(theme_manager.__file__).resolve().parent.parent
+        / "assets"
+        / "icons"
+        / "chevron_down.svg"
+    )
+
+    assert asset.is_file()
+    assert asset.as_posix() in stylesheet
+    assert "url(src/persona_training_lab/" not in stylesheet
 
 
 def test_style_workspace_switches_language_without_losing_selection(

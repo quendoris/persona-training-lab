@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -19,9 +19,17 @@ DOC_TOPICS: tuple[DocTopic, ...] = (
 )
 
 
+def _default_docs_root() -> Path:
+    package_root = Path(__file__).resolve().parents[2]
+    if (package_root / "docs").is_dir():
+        return package_root
+    repository_root = Path(__file__).resolve().parents[4]
+    return repository_root
+
+
 @dataclass(slots=True)
 class DocsService:
-    root: Path = Path.cwd()
+    root: Path = field(default_factory=_default_docs_root)
 
     def list_topics(self) -> tuple[DocTopic, ...]:
         return DOC_TOPICS

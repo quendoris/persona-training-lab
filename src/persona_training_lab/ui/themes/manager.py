@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from string import Template
 
 from PySide6.QtCore import QRectF, Qt
@@ -20,6 +21,11 @@ from persona_training_lab.ui.themes.tokens import (
     DEFAULT_THEME,
     THEMES,
 )
+
+
+_CHEVRON_DOWN_URL = (
+    Path(__file__).resolve().parent.parent / "assets" / "icons" / "chevron_down.svg"
+).as_posix()
 
 
 def _build_custom_accent(hex_color: str) -> dict[str, str]:
@@ -223,6 +229,7 @@ def build_stylesheet(
         "accent_text": accent["accent_text"],
         "accent_hover": accent["accent_hover"],
         "accent_pressed": accent["accent_pressed"],
+        "chevron_url": _CHEVRON_DOWN_URL,
     }
     template = Template("""
     QWidget {
@@ -538,7 +545,7 @@ def build_stylesheet(
         border-bottom-right-radius: 16px;
     }
     QComboBox::down-arrow {
-        image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
+        image: url("$chevron_url");
         width: 10px;
         height: 6px;
         margin-right: 10px;
@@ -546,7 +553,7 @@ def build_stylesheet(
     }
     QComboBox::down-arrow:on,
     QComboBox::down-arrow:hover {
-        image: url(src/persona_training_lab/ui/assets/icons/chevron_down.svg);
+        image: url("$chevron_url");
     }
     QComboBox QAbstractItemView {
         background-color: $surface_alt;

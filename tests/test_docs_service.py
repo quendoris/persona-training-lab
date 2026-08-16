@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 
 import pytest
 
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.ui.viewmodels.docs import DocText, DocsViewModel
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_docs_service_lists_versioned_topics_without_user_text() -> None:
@@ -27,6 +31,26 @@ def test_docs_service_reads_markdown_topic() -> None:
     assert "# Personality portrait" in content
     assert "VALID_SCORE" in content
     assert "reverse" in content
+
+
+def test_docs_service_default_root_does_not_depend_on_process_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    content = DocsService().read_topic("docs/personality_portrait.md")
+
+    assert "# Personality portrait" in content
+
+
+def test_wheel_force_includes_runtime_documentation() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"][
+        "force-include"
+    ]
+    assert force_include["docs"] == "persona_training_lab/docs"
 
 
 def test_docs_service_missing_content_is_not_localized_in_application(
