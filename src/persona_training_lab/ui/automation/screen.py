@@ -5,6 +5,7 @@ from threading import Event
 from uuid import uuid4
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -358,6 +359,9 @@ class AutomationScreen(QWidget):
         self._run_status.setText(self._text("automation.run.leave_blocked"))
         return False
 
+    def request_application_close(self) -> bool:
+        return True
+
     def _refresh_registry(self, _value: object = None) -> None:
         selected = self._selected_recipe_id
         recipes = self._vm.recipes(self._search.text())
@@ -514,7 +518,11 @@ class AutomationScreen(QWidget):
 
     def _run_selected(self) -> None:
         recipe = self._recipes.get(self._selected_recipe_id)
-        if recipe is None or self._running:
+        if (
+            recipe is None
+            or self._running
+            or self._thread_is_running(self._thread)
+        ):
             return
         inputs = {name: field.text() for name, field in self._input_fields.items()}
         self._start_worker(
@@ -526,7 +534,7 @@ class AutomationScreen(QWidget):
         )
 
     def _run_command(self) -> None:
-        if self._running:
+        if self._running or self._thread_is_running(self._thread):
             return
         draft = AutomationCommandDraft(
             mode=str(self._adhoc_mode.currentData() or ""),
@@ -568,18 +576,35 @@ class AutomationScreen(QWidget):
         self._operation.clear()
         self._output.clear()
 
-        self._thread = QThread(self)
+        thread = QThread(self)
+        self._thread = thread
         self._worker = worker
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_run_finished)
-        self._worker.failed.connect(self._on_run_failed)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.failed.connect(self._thread.quit)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._worker.failed.connect(self._worker.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.start()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_run_finished)
+        worker.failed.connect(self._on_run_failed)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(
+            lambda thread=thread, worker=worker: self._clear_worker(
+                thread,
+                worker,
+            )
+        )
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
+
+    def _clear_worker(
+        self,
+        thread: QThread,
+        worker: _AutomationRunWorker,
+    ) -> None:
+        if self._thread is thread:
+            self._thread = None
+        if self._worker is worker:
+            self._worker = None
 
     def _cancel_run(self) -> None:
         if self._worker is None or not self._running:
@@ -651,6 +676,30 @@ class AutomationScreen(QWidget):
         self._run_btn.setEnabled(bool(self._selected_recipe_id))
         self._run_command_btn.setEnabled(True)
         self._cancel_btn.setEnabled(False)
+
+    def shutdown_background_work(self, timeout_ms: int = 0) -> bool:
+        worker = self._worker
+        if worker is not None:
+            worker.cancel()
+
+        thread = self._thread
+        if not self._thread_is_running(thread):
+            return True
+        assert thread is not None
+        thread.quit()
+        timeout_ms = max(0, int(timeout_ms))
+        if timeout_ms:
+            thread.wait(timeout_ms)
+        return not self._thread_is_running(thread)
+
+    @staticmethod
+    def _thread_is_running(thread: QThread | None) -> bool:
+        if thread is None:
+            return False
+        try:
+            return thread.isRunning()
+        except RuntimeError:
+            return False
 
     def _apply_adhoc_mode(self, _value: object = None) -> None:
         mode = str(self._adhoc_mode.currentData() or "")
@@ -742,3 +791,9 @@ class AutomationScreen(QWidget):
 
     def _text(self, key: str, **values: object) -> str:
         return localized_text(self._localization, key, **values)
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+        if not self.shutdown_background_work(2_000):
+            event.ignore()
+            return
+        super().closeEvent(event)

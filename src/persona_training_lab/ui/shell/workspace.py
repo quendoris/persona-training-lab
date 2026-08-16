@@ -30,13 +30,17 @@ class WorkspaceStack(QScrollArea):
         self._stack.addWidget(widget)
 
     def workspace(self, key: str) -> QWidget | None:
-        for index in range(self._stack.count()):
-            widget = self._stack.widget(index)
-            if widget is None:
-                continue
+        for widget in self.workspaces():
             if widget.property("workspace_key") == key:
                 return widget
         return None
+
+    def workspaces(self) -> tuple[QWidget, ...]:
+        return tuple(
+            widget
+            for index in range(self._stack.count())
+            if (widget := self._stack.widget(index)) is not None
+        )
 
     def current_workspace_key(self) -> str:
         current = self._stack.currentWidget()
@@ -52,6 +56,15 @@ class WorkspaceStack(QScrollArea):
         if not callable(guard):
             return True
         return bool(guard())
+
+    def request_current_close(self) -> bool:
+        current = self._stack.currentWidget()
+        if current is None:
+            return True
+        close_guard = getattr(current, "request_application_close", None)
+        if callable(close_guard):
+            return bool(close_guard())
+        return self.request_current_leave()
 
     def show_workspace(self, key: str) -> bool:
         for index in range(self._stack.count()):

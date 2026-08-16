@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from time import monotonic
+
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMainWindow
@@ -18,15 +20,23 @@ class MainWindow(_ContextMainWindow):
         super().__init__(*args, **kwargs)
 
     def shutdown_background_work(self, timeout_ms: int = 6_500) -> bool:
-        agents = self._workspace.workspace("agents")
-        shutdown = getattr(agents, "shutdown_background_work", None)
-        if not callable(shutdown):
-            return True
-        return bool(shutdown(timeout_ms))
+        timeout_ms = max(0, int(timeout_ms))
+        deadline = monotonic() + timeout_ms / 1000 if timeout_ms else 0.0
+        all_stopped = True
+        for workspace in self._workspace.workspaces():
+            shutdown = getattr(workspace, "shutdown_background_work", None)
+            if not callable(shutdown):
+                continue
+            remaining_ms = 0
+            if deadline:
+                remaining_ms = max(0, int((deadline - monotonic()) * 1000))
+            stopped = bool(shutdown(remaining_ms))
+            all_stopped = stopped and all_stopped
+        return all_stopped
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if not self._close_guard_passed:
-            if not self._workspace.request_current_leave():
+            if not self._workspace.request_current_close():
                 event.ignore()
                 return
             self._close_guard_passed = True
@@ -46,12 +56,7 @@ class MainWindow(_ContextMainWindow):
         QMainWindow.closeEvent(self, event)
 
     def _set_background_shutdown_status(self) -> None:
-        setter = getattr(self._status, "set_message", None)
-        if callable(setter):
-            setter(
-                "Завершается фоновое обновление lineage; окно закроется "
-                "после освобождения read-only снимка."
-            )
+        self._status.set_message_key("status.background_shutdown")
 
     def _schedule_close_retry(self) -> None:
         if self._background_close_retry_scheduled:

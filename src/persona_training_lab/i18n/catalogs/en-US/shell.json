@@ -5,6 +5,7 @@
     "fragment": "shell"
   },
   "messages": {
-    "app.subtitle": "research station for personality training"
+    "app.subtitle": "research station for personality training",
+    "status.background_shutdown": "Background operations are finishing; the application will close after their resources are released."
   }
 }

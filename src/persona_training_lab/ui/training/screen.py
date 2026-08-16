@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from time import monotonic
+
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
@@ -564,6 +566,8 @@ class TrainingScreen(QWidget):
         self._refresh_local_model_block()
 
     def _on_test_inference(self) -> None:
+        if self._thread_is_running(self._inference_thread):
+            return
         ok, prompt = self._vm.begin_local_inference(
             self._inference_prompt.text()
         )
@@ -571,20 +575,33 @@ class TrainingScreen(QWidget):
             return
         self._refresh_local_model_block()
 
-        self._inference_thread = QThread(self)
-        self._inference_worker = _InferenceWorker(self._vm, prompt)
-        self._inference_worker.moveToThread(self._inference_thread)
-        self._inference_thread.started.connect(self._inference_worker.run)
-        self._inference_worker.finished.connect(
-            self._on_inference_finished
+        thread = QThread(self)
+        worker = _InferenceWorker(self._vm, prompt)
+        self._inference_thread = thread
+        self._inference_worker = worker
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_inference_finished)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(
+            lambda thread=thread, worker=worker: self._clear_inference_worker(
+                thread,
+                worker,
+            )
         )
-        self._inference_worker.finished.connect(
-            self._inference_thread.quit
-        )
-        self._inference_thread.finished.connect(
-            self._inference_thread.deleteLater
-        )
-        self._inference_thread.start()
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
+
+    def _clear_inference_worker(
+        self,
+        thread: QThread,
+        worker: _InferenceWorker,
+    ) -> None:
+        if self._inference_thread is thread:
+            self._inference_thread = None
+        if self._inference_worker is worker:
+            self._inference_worker = None
 
     def _on_inference_finished(self, status: str, response: str) -> None:
         self._vm.finish_local_inference(status, response)
@@ -724,6 +741,8 @@ class TrainingScreen(QWidget):
         self._logs_dialog.activateWindow()
 
     def _on_start_training(self) -> None:
+        if self._thread_is_running(self._training_thread):
+            return
         if not self._vm.begin_training_run():
             key = (
                 "training.message.already_running"
@@ -737,23 +756,33 @@ class TrainingScreen(QWidget):
             self._text("training.message.starting")
         )
         self._runner_timer.start()
-        self._training_thread = QThread(self)
-        self._training_worker = _TrainingWorker(self._vm)
-        self._training_worker.moveToThread(self._training_thread)
-        self._training_thread.started.connect(self._training_worker.run)
-        self._training_worker.finished.connect(
-            self._on_training_started
+        thread = QThread(self)
+        worker = _TrainingWorker(self._vm)
+        self._training_thread = thread
+        self._training_worker = worker
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_training_started)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(
+            lambda thread=thread, worker=worker: self._clear_training_worker(
+                thread,
+                worker,
+            )
         )
-        self._training_worker.finished.connect(
-            self._training_thread.quit
-        )
-        self._training_worker.finished.connect(
-            self._training_worker.deleteLater
-        )
-        self._training_thread.finished.connect(
-            self._training_thread.deleteLater
-        )
-        self._training_thread.start()
+        thread.finished.connect(thread.deleteLater)
+        thread.start()
+
+    def _clear_training_worker(
+        self,
+        thread: QThread,
+        worker: _TrainingWorker,
+    ) -> None:
+        if self._training_thread is thread:
+            self._training_thread = None
+        if self._training_worker is worker:
+            self._training_worker = None
 
     def _on_training_started(self, success: bool, _code: str) -> None:
         current_message = self._vm.current_message()
@@ -772,6 +801,36 @@ class TrainingScreen(QWidget):
         if not self._vm.training_in_progress:
             self._runner_timer.stop()
 
+    def shutdown_background_work(self, timeout_ms: int = 0) -> bool:
+        self._runner_timer.stop()
+        if self._logs_dialog is not None:
+            self._logs_dialog.close()
+
+        timeout_ms = max(0, int(timeout_ms))
+        deadline = monotonic() + timeout_ms / 1000 if timeout_ms else 0.0
+        all_stopped = True
+        for thread in (self._inference_thread, self._training_thread):
+            if not self._thread_is_running(thread):
+                continue
+            assert thread is not None
+            thread.quit()
+            if deadline:
+                remaining_ms = max(0, int((deadline - monotonic()) * 1000))
+                if remaining_ms:
+                    thread.wait(remaining_ms)
+            if self._thread_is_running(thread):
+                all_stopped = False
+        return all_stopped
+
+    @staticmethod
+    def _thread_is_running(thread: QThread | None) -> bool:
+        if thread is None:
+            return False
+        try:
+            return thread.isRunning()
+        except RuntimeError:
+            return False
+
     @staticmethod
     def _clear_layout(layout: QGridLayout | QVBoxLayout) -> None:
         while layout.count():
@@ -783,11 +842,7 @@ class TrainingScreen(QWidget):
                 widget.deleteLater()
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
-        self._runner_timer.stop()
-        if self._logs_dialog is not None:
-            self._logs_dialog.close()
-        for thread in (self._inference_thread, self._training_thread):
-            if thread is not None and thread.isRunning():
-                thread.quit()
-                thread.wait(2000)
+        if not self.shutdown_background_work(2_000):
+            event.ignore()
+            return
         super().closeEvent(event)
