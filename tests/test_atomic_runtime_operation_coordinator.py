@@ -12,8 +12,29 @@ from persona_training_lab.application.runtime.operations import (
     OperationConflictError,
     ResourceClaim,
 )
+from persona_training_lab.infrastructure.persistence.repositories.agents import (
+    SQLiteAgentsRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.analysis import (
+    SQLiteAnalysisRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.datasets import (
+    SQLiteDatasetsRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.profiles import (
+    SQLiteProfilesRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.projects import (
+    SQLiteProjectsRepository,
+)
 from persona_training_lab.infrastructure.persistence.repositories.runtime_operations_atomic import (
     SQLiteRuntimeOperationsRepository,
+)
+from persona_training_lab.infrastructure.persistence.repositories.ui_preferences import (
+    SQLiteUIPreferencesRepository,
+)
+from persona_training_lab.infrastructure.persistence.sqlite.locking import (
+    connection_lock,
 )
 from persona_training_lab.infrastructure.persistence.sqlite.schema import (
     create_minimal_schema,
@@ -27,6 +48,26 @@ def _connect(path):
     connection.execute("PRAGMA journal_mode = WAL")
     connection.execute("PRAGMA busy_timeout = 2000")
     return connection
+
+
+def test_shared_writable_connection_repositories_use_one_serialization_lock() -> None:
+    connection = sqlite3.connect(":memory:", check_same_thread=False)
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    expected_lock = connection_lock(connection)
+
+    repositories = (
+        SQLiteAgentsRepository(connection),
+        SQLiteAnalysisRepository(connection),
+        SQLiteDatasetsRepository(connection),
+        SQLiteProfilesRepository(connection),
+        SQLiteProjectsRepository(connection),
+        SQLiteRuntimeOperationsRepository(connection),
+        SQLiteUIPreferencesRepository(connection),
+    )
+
+    assert all(repository._lock is expected_lock for repository in repositories)
+    connection.close()
 
 
 def test_atomic_leases_are_visible_across_database_connections(tmp_path) -> None:

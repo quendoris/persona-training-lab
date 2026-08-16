@@ -2,27 +2,33 @@ from __future__ import annotations
 
 import sqlite3
 
+from persona_training_lab.infrastructure.persistence.sqlite.locking import (
+    connection_lock,
+)
+
 
 class SQLiteAnalysisRepository:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
+        self._lock = connection_lock(connection)
 
     def list_analysis_results(self) -> list[dict[str, str]]:
-        rows = self._connection.execute(
-            """
-            SELECT
-                id, title, subtitle,
-                left_title, left_subtitle, left_profile_match, left_stability, left_contradiction,
-                right_title, right_subtitle, right_profile_match, right_stability, right_contradiction,
-                delta_profile_match, delta_stability, delta_contradiction,
-                insight_1, insight_2, insight_3,
-                delta_1, delta_2, delta_3,
-                sample_1_title, sample_1_left, sample_1_right,
-                sample_2_title, sample_2_left, sample_2_right
-            FROM analysis_results
-            ORDER BY updated_at DESC, title ASC
-            """
-        ).fetchall()
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT
+                    id, title, subtitle,
+                    left_title, left_subtitle, left_profile_match, left_stability, left_contradiction,
+                    right_title, right_subtitle, right_profile_match, right_stability, right_contradiction,
+                    delta_profile_match, delta_stability, delta_contradiction,
+                    insight_1, insight_2, insight_3,
+                    delta_1, delta_2, delta_3,
+                    sample_1_title, sample_1_left, sample_1_right,
+                    sample_2_title, sample_2_left, sample_2_right
+                FROM analysis_results
+                ORDER BY updated_at DESC, title ASC
+                """
+            ).fetchall()
         return [
             {
                 "result_id": row["id"],
