@@ -33,7 +33,6 @@ from persona_training_lab.config.paths import (
     build_workspace_paths,
     ensure_workspace_dirs,
 )
-from persona_training_lab.infrastructure.artifacts.manager import LocalArtifactManager
 from persona_training_lab.infrastructure.automation import FilesystemAutomationRecipeProvider
 from persona_training_lab.infrastructure.local_model.probe_provider import (
     FilesystemLocalModelProbeProvider,
@@ -137,9 +136,6 @@ def build_container() -> AppContainer:
         SQLiteLineageProjectionLoader,
         paths.sqlite_db,
     )
-
-    artifact_manager = LocalArtifactManager(paths)
-    artifact_manager.ensure_layout()
 
     ui_preferences_repo = SQLiteUIPreferencesRepository(connection)
     event_log_repo = SQLiteEventLogRepository(connection)
