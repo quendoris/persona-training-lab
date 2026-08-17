@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -91,3 +92,46 @@ def test_release_gate_metadata_requires_resolvable_git_head(
 
     with pytest.raises(RuntimeError, match="resolvable HEAD"):
         gate._collect_metadata()
+
+
+def test_release_gate_source_tree_has_no_ignored_runtime_inputs() -> None:
+    root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        (
+            "git",
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--",
+            "src",
+            "tests",
+            "tools",
+        ),
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert completed.returncode == 0, completed.stderr
+
+    ignored_paths = tuple(
+        Path(line.strip())
+        for line in completed.stdout.splitlines()
+        if line.strip()
+    )
+    allowed_names = {".DS_Store", "Thumbs.db"}
+    unexpected = tuple(
+        str(path)
+        for path in ignored_paths
+        if "__pycache__" not in path.parts
+        and path.suffix not in {".pyc", ".pyo"}
+        and path.name not in allowed_names
+    )
+
+    assert unexpected == (), (
+        "Ignored files under src/tests/tools can alter local execution without "
+        f"appearing in the recorded Git commit: {unexpected}"
+    )
