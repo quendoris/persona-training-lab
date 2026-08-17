@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "evaluation"
+  },
+  "messages": {
+    "evaluation.status.created": "مُنشأ",
+    "evaluation.status.running": "قيد التشغيل",
+    "evaluation.status.partial": "مكتمل مع أخطاء",
+    "evaluation.status.failed": "فشل",
+    "evaluation.status.completed": "مكتمل",
+    "evaluation.status.unknown": "{status}"
+  }
+}

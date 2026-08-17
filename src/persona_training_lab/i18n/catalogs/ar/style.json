@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "style"
+  },
+  "messages": {
+    "style.accent.cyan": "سماوي",
+    "style.accent.emerald": "زمردي",
+    "style.accent.label": "اللون المميز",
+    "style.accent.rose": "وردي",
+    "style.accent.violet": "بنفسجي",
+    "style.apply": "تطبيق المظهر",
+    "style.controls.note": "يُحفظ الاختيار في SQLite ويصبح جزءاً من راحة الجلسات الطويلة للنظام.",
+    "style.controls.subtitle": "المظهر ليس زخرفة فحسب؛ بل جزء من راحة العمل طويل المدة.",
+    "style.controls.title": "المظهر",
+    "style.custom_accent.choose": "مخصص",
+    "style.preview.action.compare": "فتح المقارنة",
+    "style.preview.action.training": "بدء التدريب",
+    "style.preview.brand_note": "محطة بحث هادئة لتدريب الشخصية وتحليل الإصدارات.",
+    "style.preview.status.attention": "انتباه",
+    "style.preview.status.running": "قيد التشغيل",
+    "style.preview.subtitle": "ينبغي أن تبدو الواجهة حية ومقروءة لا مجردة.",
+    "style.preview.title": "معاينة",
+    "style.theme.eclipse": "Eclipse",
+    "style.theme.label": "السمة",
+    "style.theme.pearl": "Pearl",
+    "style.theme.velvet": "Velvet"
+  }
+}

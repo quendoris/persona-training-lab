@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "agents_graph"
+  },
+  "messages": {
+    "agents.menu.title": "إجراءات العقدة"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "experiments"
+  },
+  "messages": {
+    "experiments.header.title": "التجارب · {title}",
+    "experiments.registry.title": "سجل التجارب",
+    "experiments.registry.subtitle": "المشروع والوكيل والمعلمات في عرض واحد للقراءة فقط.",
+    "experiments.empty.title": "لا توجد تجارب بعد",
+    "experiments.empty.subtitle": "لم تُنشأ أي تجارب بعد.",
+    "experiments.empty.status": "فارغ",
+    "experiments.error.title": "تعذر تحميل التجارب",
+    "experiments.error.subtitle": "تعذر تحميل سجل التجارب.",
+    "experiments.error.status": "خطأ",
+    "experiments.generated.title.personality_portrait": "صورة العوامل الخمسة الكبرى · {time}",
+    "experiments.generated.title.unknown": "تجربة"
+  }
+}

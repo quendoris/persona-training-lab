@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "errors"
+  },
+  "messages": {
+    "error.experiments.battery_load": "تعذر تحميل بطارية الاختبار.",
+    "error.experiments.portrait.safe_stop": "توقف الاختبار بأمان. تبقى بقية الواجهة متاحة.",
+    "error.python.main_thread": "فشلت عملية خلفية، لكن التطبيق ما يزال متاحاً.",
+    "error.python.worker_thread": "توقفت مهمة خلفية بأمان؛ تبقى الواجهة متاحة.",
+    "error.training.full_finetune.safe_stop": "توقف التدريب بأمان. تبقى الواجهة متاحة؛ كُتبت التفاصيل في السجل.",
+    "error.ui.event_dispatch": "تعذر إكمال عملية الواجهة، لكن التطبيق ما يزال متاحاً."
+  }
+}

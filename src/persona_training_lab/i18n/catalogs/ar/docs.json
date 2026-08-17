@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "docs"
+  },
+  "messages": {
+    "docs.card.topics.title": "التوثيق",
+    "docs.card.topics.subtitle": "أقسام حية للمشروع توجه سير العمل الحالي.",
+    "docs.card.content.title": "القسم",
+    "docs.card.content.subtitle": "يُقرأ المحتوى من ملفات Markdown ضمن docs/.",
+    "docs.content.select_summary": "اختر قسماً من الجانب.",
+    "docs.card.next.title": "ما الذي ينبغي فعله بعد ذلك",
+    "docs.card.next.subtitle": "إرشاد مختصر من دون زخرفة غير ضرورية.",
+    "docs.next.select": "اختر قسماً من التوثيق.",
+    "docs.content.missing": "لم يتم العثور على المستند: {path}",
+    "docs.content.read_failed": "تعذرت قراءة المستند: {path}",
+    "docs.topic.quickstart.title": "البدء السريع",
+    "docs.topic.quickstart.summary": "أقصر مسار من مجموعة البيانات إلى التحليل.",
+    "docs.topic.quickstart.next_step": "ابدأ بمجموعات البيانات ← التدريب ← الاختبارات ← التحليل.",
+    "docs.topic.training_pipeline.title": "خط أنابيب التدريب",
+    "docs.topic.training_pipeline.summary": "كيف يصبح تشغيل التدريب مُخرَج نموذج.",
+    "docs.topic.training_pipeline.next_step": "بعد التدريب، تحقق من المُخرَج واستجابة النموذج المحلية.",
+    "docs.topic.personality_portrait.title": "صورة الشخصية",
+    "docs.topic.personality_portrait.summary": "KPI للعوامل الخمسة الكبرى واستجابات SCORE والاحتساب العكسي والفرق.",
+    "docs.topic.personality_portrait.next_step": "اجمع صورة شخصية جديدة بعد كل ضبط دقيق ذي معنى.",
+    "docs.topic.experiment_protocol.title": "بروتوكول التجربة",
+    "docs.topic.experiment_protocol.summary": "ما يجب تسجيله حتى تبقى المقارنات قابلة لإعادة الإنتاج.",
+    "docs.topic.experiment_protocol.next_step": "قبل النشر، احفظ إصدارات النموذج ومجموعة البيانات والبطارية ونظام الدرجات.",
+    "docs.topic.methodology_limits.title": "حدود المنهجية",
+    "docs.topic.methodology_limits.summary": "حدود التفسير والقيود الصريحة للبطارية الحالية.",
+    "docs.topic.methodology_limits.next_step": "للنشر، وسّع البطارية وأضف عمليات تشغيل متكررة.",
+    "docs.quick_reference.1": "مجموعات البيانات: أضف ملفاً وتحقق من بنية prompt/response.",
+    "docs.quick_reference.2": "التدريب: اختر نموذجاً ومجموعة بيانات وملف شخصية، ثم ابدأ الضبط الدقيق.",
+    "docs.quick_reference.3": "اللقطات: تحقق من تسجيل المُخرَج.",
+    "docs.quick_reference.4": "الاختبارات: اجمع صورة شخصية وفق العوامل الخمسة الكبرى وتحقق من VALID_SCORE.",
+    "docs.quick_reference.5": "التحليل: قارن KPI والفرق بين صورتين للشخصية.",
+    "docs.context_help.1": "يجب أن يجيب التوثيق عن سؤال واحد: ما الذي ينبغي أن يحدث بعد ذلك؟",
+    "docs.context_help.2": "إذا كانت مساحة العمل غير واضحة، افتح قسمها وتحقق من قائمة الفحص.",
+    "docs.context_help.3": "للبحث، احفظ دائماً إصدارات النموذج ومجموعة البيانات والبطارية ونظام الدرجات."
+  }
+}

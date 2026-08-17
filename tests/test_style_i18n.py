@@ -115,7 +115,7 @@ def test_style_workspace_switches_language_without_losing_selection(
     app.processEvents()
 
 
-def test_style_locale_selector_cycles_ru_en_es_ru_without_state_loss(
+def test_style_locale_selector_cycles_ru_en_es_ar_ru_without_state_loss(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = _app()
@@ -133,6 +133,9 @@ def test_style_locale_selector_cycles_ru_en_es_ru_without_state_loss(
     assert screen._language_box.itemText(
         screen._language_box.findData("es-ES")
     ) == "Español"
+    assert screen._language_box.itemText(
+        screen._language_box.findData("ar")
+    ) == "العربية"
     assert screen._theme_box.currentData() == "velvet"
     assert screen._accent_box.currentData() == "cyan"
 
@@ -158,13 +161,28 @@ def test_style_locale_selector_cycles_ru_en_es_ru_without_state_loss(
     assert screen._accent_box.currentData() == "cyan"
 
     screen._language_box.setCurrentIndex(
+        screen._language_box.findData("ar")
+    )
+    assert manager.locale == "ar"
+    assert app.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert screen._controls.title_label.text() == "المظهر"
+    assert screen._language_label.text() == "لغة الواجهة"
+    assert screen._language_note.text() == (
+        "تتغير لغة الواجهة من دون إعادة تشغيل التطبيق."
+    )
+    assert screen._apply_button.text() == "تطبيق المظهر"
+    assert screen._theme_box.currentData() == "velvet"
+    assert screen._accent_box.currentData() == "cyan"
+
+    screen._language_box.setCurrentIndex(
         screen._language_box.findData("ru-RU")
     )
     assert manager.locale == "ru-RU"
+    assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
     assert screen._controls.title_label.text() == "Оформление"
     assert screen._theme_box.currentData() == "velvet"
     assert screen._accent_box.currentData() == "cyan"
-    assert persisted == ["en-US", "es-ES", "ru-RU"]
+    assert persisted == ["en-US", "es-ES", "ar", "ru-RU"]
 
     screen.deleteLater()
     app.processEvents()

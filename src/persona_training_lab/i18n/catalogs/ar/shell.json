@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ar",
+    "fragment": "shell"
+  },
+  "messages": {
+    "app.subtitle": "محطة بحث لتدريب الشخصية",
+    "status.background_shutdown": "تنتهي العمليات الخلفية؛ سيُغلق التطبيق بعد تحرير مواردها."
+  }
+}

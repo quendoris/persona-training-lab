@@ -36,8 +36,10 @@ def _app() -> QApplication:
 def test_repository_catalogs_are_complete_and_placeholder_safe() -> None:
     catalogs = CatalogSet.load(CATALOGS, base_locale="ru-RU")
 
-    assert catalogs.available_locales() == ("en-US", "es-ES", "ru-RU")
+    assert catalogs.available_locales() == ("ar", "en-US", "es-ES", "ru-RU")
     assert catalogs.catalog("es-ES").metadata.native_name == "Español"
+    assert catalogs.catalog("ar").metadata.native_name == "العربية"
+    assert catalogs.catalog("ar").metadata.direction == "rtl"
     assert catalogs.catalog("ru-RU").text(
         "language.unavailable_incomplete",
         values={"locale": "en-US"},
@@ -62,6 +64,13 @@ def test_repository_catalogs_are_complete_and_placeholder_safe() -> None:
         "operations.active_count",
         count=22,
     ) == "22 активные операции"
+    arabic = catalogs.catalog("ar")
+    assert arabic.text("operations.active_count", count=0) == "لا توجد عمليات نشطة"
+    assert arabic.text("operations.active_count", count=1) == "عملية نشطة واحدة"
+    assert arabic.text("operations.active_count", count=2) == "عمليتان نشطتان"
+    assert arabic.text("operations.active_count", count=3) == "3 عمليات نشطة"
+    assert arabic.text("operations.active_count", count=11) == "11 عملية نشطة"
+    assert arabic.text("operations.active_count", count=100) == "100 عملية نشطة"
 
 
 def test_arabic_plural_categories_follow_the_six_form_contract(tmp_path: Path) -> None:
