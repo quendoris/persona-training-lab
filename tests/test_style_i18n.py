@@ -244,3 +244,43 @@ def test_locale_metadata_controls_bound_text_direction_without_mirroring_shell(
 
     label.deleteLater()
     app.processEvents()
+
+
+def test_arabic_runtime_leaf_direction_uses_displayed_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    manager = LocalizationManager(
+        app,
+        initial_locale="en-US",
+        catalog_directory=CATALOGS,
+    )
+    monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+
+    mixed_label = QLabel("Datasets · personality_test_dataset")
+    machine_label = QLabel("model_version_id=mdl_001")
+    mixed_label.show()
+    machine_label.show()
+
+    def update_manual_labels(locale: str) -> None:
+        if locale == "ar":
+            mixed_label.setText("مجموعات البيانات · personality_test_dataset")
+        else:
+            mixed_label.setText("Datasets · personality_test_dataset")
+
+    manager.language_changed.connect(update_manual_labels)
+    manager.set_locale("ar", persist=False)
+
+    assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert mixed_label.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert machine_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
+
+    manager.set_locale("en-US", persist=False)
+    assert mixed_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert machine_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
+
+    mixed_label.close()
+    machine_label.close()
+    mixed_label.deleteLater()
+    machine_label.deleteLater()
+    app.processEvents()

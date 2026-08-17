@@ -5,10 +5,26 @@ from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
+from unicodedata import bidirectional
 from weakref import ReferenceType, ref
 
-from PySide6.QtCore import QLibraryInfo, QLocale, QObject, Qt, QTranslator, Signal
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import (
+    QLibraryInfo,
+    QLocale,
+    QObject,
+    QTimer,
+    Qt,
+    QTranslator,
+    Signal,
+)
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QWidget,
+)
 
 from persona_training_lab.i18n.catalog import (
     CatalogSet,
@@ -101,15 +117,23 @@ class LocalizationManager(QObject):
 
         # Application-level RTL mirrors every inherited Qt layout: shell docks,
         # splitters, workspace columns and graph controls. Locale direction is a
-        # text concern here; stable application geometry remains LTR while bound
-        # textual leaf widgets receive the locale direction individually.
+        # text concern here; stable application geometry remains LTR while text
+        # leaves resolve their direction from the text they actually display.
         self._app.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         QLocale.setDefault(QLocale(locale.replace("-", "_")))
         self._app.setProperty("ptl_locale", locale)
-        self._app.setProperty("ptl_text_direction", target_catalog.metadata.direction)
+        self._app.setProperty(
+            "ptl_text_direction",
+            target_catalog.metadata.direction,
+        )
 
         self._apply_rendered_bindings(rendered)
         self.language_changed.emit(locale)
+        self._refresh_runtime_text_directions()
+        # The initial locale is selected before MainWindow creates its screens.
+        # A zero-delay pass catches those newly created leaf widgets without
+        # granting RTL ownership to any parent layout.
+        QTimer.singleShot(0, self._refresh_runtime_text_directions)
         if persist and self._persist_locale is not None:
             self._persist_locale(locale)
 
@@ -196,6 +220,7 @@ class LocalizationManager(QObject):
     def refresh(self) -> None:
         rendered = self._render_bindings(self._catalog)
         self._apply_rendered_bindings(rendered)
+        self._refresh_runtime_text_directions()
 
     def _bind(
         self,
@@ -221,7 +246,12 @@ class LocalizationManager(QObject):
             text_direction=text_direction,
         )
         value = self._render_binding(binding, self._catalog)
-        self._apply_binding_text_direction(binding, target, self._catalog)
+        self._apply_binding_text_direction(
+            binding,
+            target,
+            self._catalog,
+            value,
+        )
         setter(value)
         self._bindings.append(binding)
         target.destroyed.connect(self._prune_bindings)
@@ -268,8 +298,14 @@ class LocalizationManager(QObject):
             if not callable(setter):
                 continue
             try:
-                self._apply_binding_text_direction(binding, target, self._catalog)
-                setter(rendered_by_id[id(binding)])
+                value = rendered_by_id[id(binding)]
+                self._apply_binding_text_direction(
+                    binding,
+                    target,
+                    self._catalog,
+                    value,
+                )
+                setter(value)
             except (KeyError, RuntimeError):
                 continue
             alive.append(binding)
@@ -280,15 +316,28 @@ class LocalizationManager(QObject):
         binding: _Binding,
         target: QObject,
         catalog: LocaleCatalog,
+        text: str,
     ) -> None:
         if not binding.text_direction or not isinstance(target, QWidget):
             return
-        direction = (
-            Qt.LayoutDirection.RightToLeft
-            if catalog.metadata.direction == "rtl"
-            else Qt.LayoutDirection.LeftToRight
+        target.setLayoutDirection(
+            _text_layout_direction(text, catalog.metadata.direction)
         )
-        target.setLayoutDirection(direction)
+
+    def _refresh_runtime_text_directions(self) -> None:
+        locale_direction = self._catalog.metadata.direction
+        for root in self._app.topLevelWidgets():
+            targets = (root, *root.findChildren(QWidget))
+            for target in targets:
+                text = _leaf_text(target)
+                if text is None:
+                    continue
+                try:
+                    target.setLayoutDirection(
+                        _text_layout_direction(text, locale_direction)
+                    )
+                except RuntimeError:
+                    continue
 
     def _prepare_qt_translator(self, locale: str) -> QTranslator | None:
         language = locale.split("-", 1)[0].lower()
@@ -317,6 +366,29 @@ class LocalizationManager(QObject):
         self._bindings = [
             binding for binding in self._bindings if binding.target() is not None
         ]
+
+
+def _leaf_text(target: QWidget) -> str | None:
+    if isinstance(target, QLabel):
+        return target.text()
+    if isinstance(target, QCheckBox):
+        return target.text()
+    if isinstance(target, QComboBox):
+        return target.currentText()
+    if isinstance(target, QLineEdit):
+        return target.text() or target.placeholderText()
+    return None
+
+
+def _text_layout_direction(
+    text: str,
+    locale_direction: str,
+) -> Qt.LayoutDirection:
+    if locale_direction != "rtl":
+        return Qt.LayoutDirection.LeftToRight
+    if any(bidirectional(character) in {"R", "AL"} for character in text):
+        return Qt.LayoutDirection.RightToLeft
+    return Qt.LayoutDirection.LeftToRight
 
 
 def _extract_count(values: dict[str, object]) -> int | None:
