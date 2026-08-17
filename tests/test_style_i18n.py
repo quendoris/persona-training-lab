@@ -9,7 +9,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.style.screen import StyleScreen
@@ -164,7 +164,12 @@ def test_style_locale_selector_cycles_ru_en_es_ar_ru_without_state_loss(
         screen._language_box.findData("ar")
     )
     assert manager.locale == "ar"
-    assert app.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert screen.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert screen._controls.title_label.layoutDirection() is (
+        Qt.LayoutDirection.RightToLeft
+    )
+    assert screen._apply_button.layoutDirection() is Qt.LayoutDirection.RightToLeft
     assert screen._controls.title_label.text() == "المظهر"
     assert screen._language_label.text() == "لغة الواجهة"
     assert screen._language_note.text() == (
@@ -179,6 +184,10 @@ def test_style_locale_selector_cycles_ru_en_es_ar_ru_without_state_loss(
     )
     assert manager.locale == "ru-RU"
     assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert screen.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert screen._controls.title_label.layoutDirection() is (
+        Qt.LayoutDirection.LeftToRight
+    )
     assert screen._controls.title_label.text() == "Оформление"
     assert screen._theme_box.currentData() == "velvet"
     assert screen._accent_box.currentData() == "cyan"
@@ -188,15 +197,14 @@ def test_style_locale_selector_cycles_ru_en_es_ar_ru_without_state_loss(
     app.processEvents()
 
 
-def test_locale_metadata_controls_application_layout_direction(
+def test_locale_metadata_controls_bound_text_direction_without_mirroring_shell(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    messages = {"label": "Label"}
-    for locale, native_name, direction in (
-        ("ru-RU", "Русский", "ltr"),
-        ("en-US", "English", "ltr"),
-        ("ar-SA", "العربية", "rtl"),
+    for locale, native_name, direction, label_text in (
+        ("ru-RU", "Русский", "ltr", "Метка"),
+        ("en-US", "English", "ltr", "Label"),
+        ("ar-SA", "العربية", "rtl", "تسمية"),
     ):
         payload = {
             "meta": {
@@ -206,7 +214,7 @@ def test_locale_metadata_controls_application_layout_direction(
                 "native_name": native_name,
                 "direction": direction,
             },
-            "messages": messages,
+            "messages": {"label": label_text},
         }
         (tmp_path / f"{locale}.json").write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
@@ -220,9 +228,21 @@ def test_locale_metadata_controls_application_layout_direction(
         catalog_directory=tmp_path,
     )
     monkeypatch.setattr(manager, "_prepare_qt_translator", lambda _locale: None)
+    label = QLabel()
+    manager.bind_text(label, "label")
+
+    assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert label.layoutDirection() is Qt.LayoutDirection.LeftToRight
 
     manager.set_locale("ar-SA", persist=False)
-    assert app.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert label.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert label.text() == "تسمية"
 
     manager.set_locale("en-US", persist=False)
     assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert label.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert label.text() == "Label"
+
+    label.deleteLater()
+    app.processEvents()

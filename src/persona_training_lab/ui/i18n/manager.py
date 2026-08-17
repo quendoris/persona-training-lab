@@ -29,6 +29,7 @@ class _Binding:
     key: str
     values_provider: ValuesProvider | None
     count_provider: CountProvider | None
+    text_direction: bool
 
 
 class LocalizationManager(QObject):
@@ -97,14 +98,15 @@ class LocalizationManager(QObject):
         self._catalog = target_catalog
         self._locale = locale
         self._qt_translator = target_qt_translator
-        layout_direction = (
-            Qt.LayoutDirection.RightToLeft
-            if target_catalog.metadata.direction == "rtl"
-            else Qt.LayoutDirection.LeftToRight
-        )
-        self._app.setLayoutDirection(layout_direction)
+
+        # Application-level RTL mirrors every inherited Qt layout: shell docks,
+        # splitters, workspace columns and graph controls. Locale direction is a
+        # text concern here; stable application geometry remains LTR while bound
+        # textual leaf widgets receive the locale direction individually.
+        self._app.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         QLocale.setDefault(QLocale(locale.replace("-", "_")))
         self._app.setProperty("ptl_locale", locale)
+        self._app.setProperty("ptl_text_direction", target_catalog.metadata.direction)
 
         self._apply_rendered_bindings(rendered)
         self.language_changed.emit(locale)
@@ -125,6 +127,7 @@ class LocalizationManager(QObject):
             key,
             values_provider=values_provider,
             count_provider=count_provider,
+            text_direction=True,
         )
 
     def bind_title(
@@ -187,6 +190,7 @@ class LocalizationManager(QObject):
             "setPlaceholderText",
             key,
             values_provider=values_provider,
+            text_direction=True,
         )
 
     def refresh(self) -> None:
@@ -201,6 +205,7 @@ class LocalizationManager(QObject):
         *,
         values_provider: ValuesProvider | None = None,
         count_provider: CountProvider | None = None,
+        text_direction: bool = False,
     ) -> None:
         setter = getattr(target, setter_name, None)
         if not callable(setter):
@@ -213,8 +218,10 @@ class LocalizationManager(QObject):
             key=key,
             values_provider=values_provider,
             count_provider=count_provider,
+            text_direction=text_direction,
         )
         value = self._render_binding(binding, self._catalog)
+        self._apply_binding_text_direction(binding, target, self._catalog)
         setter(value)
         self._bindings.append(binding)
         target.destroyed.connect(self._prune_bindings)
@@ -261,11 +268,27 @@ class LocalizationManager(QObject):
             if not callable(setter):
                 continue
             try:
+                self._apply_binding_text_direction(binding, target, self._catalog)
                 setter(rendered_by_id[id(binding)])
             except (KeyError, RuntimeError):
                 continue
             alive.append(binding)
         self._bindings = alive
+
+    @staticmethod
+    def _apply_binding_text_direction(
+        binding: _Binding,
+        target: QObject,
+        catalog: LocaleCatalog,
+    ) -> None:
+        if not binding.text_direction or not isinstance(target, QWidget):
+            return
+        direction = (
+            Qt.LayoutDirection.RightToLeft
+            if catalog.metadata.direction == "rtl"
+            else Qt.LayoutDirection.LeftToRight
+        )
+        target.setLayoutDirection(direction)
 
     def _prepare_qt_translator(self, locale: str) -> QTranslator | None:
         language = locale.split("-", 1)[0].lower()
