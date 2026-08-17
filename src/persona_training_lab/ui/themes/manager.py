@@ -278,7 +278,7 @@ def build_stylesheet(
     QLabel#ScreenTitle {
         background: transparent;
         font-size: 28px;
-        font-weight: 800;
+        font-weight: 700;
     }
     QLabel#SectionTitle {
         background: transparent;
@@ -386,7 +386,7 @@ def build_stylesheet(
         border: 1px solid $accent;
         border-radius: 12px;
         padding: 4px 14px;
-        font-weight: 800;
+        font-weight: 700;
         min-height: 20px;
     }
     QPushButton#SidebarMenuButton:hover {
@@ -604,7 +604,7 @@ def build_stylesheet(
         border: 1px solid $border;
         border-radius: 16px;
         padding: 12px 16px;
-        font-weight: 800;
+        font-weight: 700;
     }
     QPushButton#SecondaryButton:hover {
         background-color: $selection_bg;
@@ -615,7 +615,7 @@ def build_stylesheet(
         border: none;
         border-radius: 16px;
         padding: 12px 16px;
-        font-weight: 800;
+        font-weight: 700;
     }
     QPushButton:hover {
         background-color: $accent_hover;
