@@ -12,6 +12,7 @@ from persona_training_lab.ui.density import (
     apply_density,
     apply_scaled_styles,
 )
+from persona_training_lab.ui.i18n.font_policy import apply_locale_font_policy
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.safe_application import SafeApplication
 from persona_training_lab.ui.shell.main_window_background import MainWindow
@@ -46,6 +47,13 @@ def main() -> int:
         prefs.get("accent_palette"),
     )
     apply_scaled_styles(app, density.scale, immediate=True)
+
+    def sync_locale_font(locale: str) -> None:
+        metadata = localization.catalog_set.catalog(locale).metadata
+        apply_locale_font_policy(app, direction=metadata.direction)
+
+    localization.language_changed.connect(sync_locale_font)
+    sync_locale_font(localization.locale)
 
     window = MainWindow(
         shell_vm=container.shell_vm,
