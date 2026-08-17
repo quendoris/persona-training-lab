@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.shell.sidebar import (
+    SIDEBAR_TEXT_LEFT_PADDING,
     NavButton,
     Sidebar as _BaseSidebar,
     base_text,
@@ -269,6 +271,7 @@ class Sidebar(_BaseSidebar):
                 button.property("navigation_base_title")
                 or button.text()
             )
+        self._sync_navigation_text_geometry(button)
         shortcut = str(button.property("navigation_shortcut") or "")
         if shortcut:
             button.setToolTip(
@@ -280,6 +283,28 @@ class Sidebar(_BaseSidebar):
             )
         else:
             button.setToolTip(title)
+
+    def _sync_navigation_text_geometry(self, button: NavButton) -> None:
+        localization = self._localization
+        is_rtl = False
+        if localization is not None:
+            metadata = localization.catalog_set.catalog(localization.locale).metadata
+            is_rtl = metadata.direction == "rtl"
+
+        # NavButton owns physical icon/arrow geometry: the badge is always on
+        # the left and the active arrow is always on the right. Keep the button
+        # itself LTR and move only the text alignment for RTL locales so Arabic
+        # cannot inherit into the icon reservation and overlap the badge.
+        button.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+        text_align = "right" if is_rtl else "left"
+        right_padding = 42 if is_rtl else 28
+        button.setStyleSheet(
+            "QPushButton#NavButton {"
+            f" text-align: {text_align};"
+            f" padding-left: {SIDEBAR_TEXT_LEFT_PADDING}px;"
+            f" padding-right: {right_padding}px;"
+            "}"
+        )
 
     def _text(self, key: str, **values: object) -> str:
         if self._localization is None:
