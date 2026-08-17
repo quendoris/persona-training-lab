@@ -7,6 +7,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.shell.app_sidebar import Sidebar
+from persona_training_lab.ui.shell.sidebar import SIDEBAR_ICON_BADGE_LEFT
 from persona_training_lab.ui.shell.status_bar import AppStatusBar
 
 
@@ -124,6 +126,23 @@ def test_sidebar_shell_switches_language_without_widget_rebuild(
     assert sidebar._scale_hint.text() == "Авто по высоте экрана"
     assert "Активные процессы" in _labels(sidebar)
     assert "Нет активных операций" in _labels(sidebar)
+    assert persisted == ["ru-RU"]
+
+    manager.set_locale("ar", persist=False)
+    dashboard_button.resize(260, 52)
+    app.processEvents()
+
+    assert dashboard_button.text() == manager.text("nav.dashboard")
+    assert dashboard_button.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert dashboard_button._icon.x() == SIDEBAR_ICON_BADGE_LEFT
+    assert "text-align: right" in dashboard_button.styleSheet()
+    assert "padding-left: 70px" in dashboard_button.styleSheet()
+    assert "padding-right: 42px" in dashboard_button.styleSheet()
+
+    manager.set_locale("en-US", persist=False)
+    assert dashboard_button.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert "text-align: left" in dashboard_button.styleSheet()
+    assert "padding-right: 28px" in dashboard_button.styleSheet()
     assert persisted == ["ru-RU"]
 
     sidebar.deleteLater()
