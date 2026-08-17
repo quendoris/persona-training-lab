@@ -40,6 +40,29 @@ def _single_session(tmp_path: Path) -> Path:
     return sessions[0]
 
 
+def test_visual_audit_defaults_to_every_complete_locale(tmp_path: Path) -> None:
+    completed = _run_visual_audit(
+        tmp_path,
+        "--width",
+        "960",
+        "--height",
+        "620",
+        "--settle-ms",
+        "0",
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    session = _single_session(tmp_path)
+    manifest = json.loads((session / "manifest.json").read_text(encoding="utf-8"))
+
+    locales = manifest["locales"]
+    assert locales[0] == "ru-RU"
+    assert {"ru-RU", "en-US", "es-ES"}.issubset(set(locales))
+    assert manifest["failures"] == []
+    assert len(manifest["captures"]) == len(NAVIGATION_KEYS) * len(locales)
+    assert {item["locale"] for item in manifest["captures"]} == set(locales)
+
+
 def test_visual_audit_captures_every_route_in_real_offscreen_app(tmp_path: Path) -> None:
     completed = _run_visual_audit(
         tmp_path,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from importlib.resources import files
 import json
 import os
 import subprocess
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import QDockWidget, QWidget
 
 from persona_training_lab import __version__
 from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.i18n.catalog import CatalogSet
 from persona_training_lab.ui.density import apply_density, apply_scaled_styles
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.safe_application import SafeApplication
@@ -35,6 +37,7 @@ DEFAULT_THEME = "velvet"
 DEFAULT_ACCENT = "cyan"
 DEFAULT_SETTLE_MS = 250
 DEFAULT_CAPTURE_HOTKEY = "F12"
+BASE_LOCALE = "ru-RU"
 
 
 def _git(*args: str) -> str:
@@ -49,6 +52,18 @@ def _git(*args: str) -> str:
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
     return completed.stdout.strip() or "unknown"
+
+
+def _default_locales() -> tuple[str, ...]:
+    catalog_directory = Path(
+        str(files("persona_training_lab.i18n").joinpath("catalogs"))
+    )
+    catalogs = CatalogSet.load(catalog_directory, base_locale=BASE_LOCALE)
+    available = catalogs.available_locales()
+    return (
+        BASE_LOCALE,
+        *(locale for locale in available if locale != BASE_LOCALE),
+    )
 
 
 def _settle(milliseconds: int) -> None:
@@ -662,7 +677,7 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = _parser()
     args = parser.parse_args()
-    locales = args.locales or ["ru-RU", "en-US"]
+    locales = tuple(args.locales) if args.locales else _default_locales()
     width = max(960, args.width) if args.width > 0 else 0
     height = max(620, args.height) if args.height > 0 else 0
     if bool(width) != bool(height):
