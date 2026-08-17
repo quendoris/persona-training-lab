@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -134,4 +135,27 @@ def test_release_gate_source_tree_has_no_ignored_runtime_inputs() -> None:
     assert unexpected == (), (
         "Ignored files under src/tests/tools can alter local execution without "
         f"appearing in the recorded Git commit: {unexpected}"
+    )
+
+
+def test_production_model_loaders_do_not_enable_remote_code() -> None:
+    root = Path(__file__).resolve().parents[1] / "src" / "persona_training_lab"
+    offenders: list[str] = []
+
+    for path in root.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for keyword in node.keywords:
+                if (
+                    keyword.arg == "trust_remote_code"
+                    and isinstance(keyword.value, ast.Constant)
+                    and keyword.value.value is True
+                ):
+                    offenders.append(f"{path.relative_to(root.parent.parent)}:{node.lineno}")
+
+    assert offenders == [], (
+        "Production model loading must not execute repository-supplied Python via "
+        f"trust_remote_code=True: {offenders}"
     )
