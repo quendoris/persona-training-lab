@@ -426,6 +426,19 @@ def _plural_category(locale: str, count: int) -> str:
         if 2 <= mod10 <= 4 and not 12 <= mod100 <= 14:
             return "few"
         return "many"
+    if language == "ar":
+        if absolute == 0:
+            return "zero"
+        if absolute == 1:
+            return "one"
+        if absolute == 2:
+            return "two"
+        mod100 = absolute % 100
+        if 3 <= mod100 <= 10:
+            return "few"
+        if 11 <= mod100 <= 99:
+            return "many"
+        return "other"
     # Most supported LTR languages, including English and Spanish, use the
     # common singular/plural split. Languages with richer CLDR rules get an
     # explicit branch before they are exposed as complete catalogs.

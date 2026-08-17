@@ -14,6 +14,7 @@ from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.i18n.catalog import (
     CatalogSet,
     CatalogValidationError,
+    LocaleCatalog,
 )
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import render_user_message
@@ -61,6 +62,41 @@ def test_repository_catalogs_are_complete_and_placeholder_safe() -> None:
         "operations.active_count",
         count=22,
     ) == "22 активные операции"
+
+
+def test_arabic_plural_categories_follow_the_six_form_contract(tmp_path: Path) -> None:
+    payload = {
+        "meta": {
+            "schema": 1,
+            "locale": "ar",
+            "name": "Arabic",
+            "native_name": "العربية",
+            "direction": "rtl",
+        },
+        "messages": {
+            "operations": {
+                "zero": "zero:{count}",
+                "one": "one:{count}",
+                "two": "two:{count}",
+                "few": "few:{count}",
+                "many": "many:{count}",
+                "other": "other:{count}",
+            }
+        },
+    }
+    path = tmp_path / "ar.json"
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    catalog = LocaleCatalog.load(path)
+
+    assert catalog.text("operations", count=0) == "zero:0"
+    assert catalog.text("operations", count=1) == "one:1"
+    assert catalog.text("operations", count=2) == "two:2"
+    assert catalog.text("operations", count=3) == "few:3"
+    assert catalog.text("operations", count=11) == "many:11"
+    assert catalog.text("operations", count=100) == "other:100"
 
 
 def test_catalog_set_rejects_missing_keys_and_placeholder_drift(
