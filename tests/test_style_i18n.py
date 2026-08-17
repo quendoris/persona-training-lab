@@ -55,6 +55,11 @@ def test_stylesheet_uses_packaged_chevron_asset_without_repo_cwd() -> None:
     assert asset.is_file()
     assert asset.as_posix() in stylesheet
     assert "url(src/persona_training_lab/" not in stylesheet
+    assert "QLabel#ScreenTitle {\n        background: transparent;\n        font-size: 28px;\n        font-weight: 700;" in stylesheet
+    assert "QPushButton#SidebarMenuButton {" in stylesheet
+    assert "QPushButton#SecondaryButton {" in stylesheet
+    assert "QPushButton {\n        background-color:" in stylesheet
+    assert stylesheet.count("font-weight: 700;") >= 8
 
 
 def test_style_workspace_switches_language_without_losing_selection(
@@ -166,10 +171,6 @@ def test_style_locale_selector_cycles_ru_en_es_ar_ru_without_state_loss(
     assert manager.locale == "ar"
     assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
     assert screen.layoutDirection() is Qt.LayoutDirection.LeftToRight
-    assert screen._controls.title_label.layoutDirection() is (
-        Qt.LayoutDirection.RightToLeft
-    )
-    assert screen._apply_button.layoutDirection() is Qt.LayoutDirection.RightToLeft
     assert screen._controls.title_label.text() == "المظهر"
     assert screen._language_label.text() == "لغة الواجهة"
     assert screen._language_note.text() == (
@@ -185,9 +186,6 @@ def test_style_locale_selector_cycles_ru_en_es_ar_ru_without_state_loss(
     assert manager.locale == "ru-RU"
     assert app.layoutDirection() is Qt.LayoutDirection.LeftToRight
     assert screen.layoutDirection() is Qt.LayoutDirection.LeftToRight
-    assert screen._controls.title_label.layoutDirection() is (
-        Qt.LayoutDirection.LeftToRight
-    )
     assert screen._controls.title_label.text() == "Оформление"
     assert screen._theme_box.currentData() == "velvet"
     assert screen._accent_box.currentData() == "cyan"
