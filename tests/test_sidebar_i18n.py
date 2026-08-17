@@ -128,8 +128,13 @@ def test_sidebar_shell_switches_language_without_widget_rebuild(
     assert "Нет активных операций" in _labels(sidebar)
     assert persisted == ["ru-RU"]
 
+    # Geometry assertions are meaningful only after Qt has laid out a visible
+    # sidebar. Hidden child widgets are not guaranteed to receive resizeEvent().
+    sidebar.resize(320, 900)
+    sidebar.show()
+    app.processEvents()
+
     manager.set_locale("ar", persist=False)
-    dashboard_button.resize(260, 52)
     app.processEvents()
 
     assert dashboard_button.text() == manager.text("nav.dashboard")
@@ -145,6 +150,7 @@ def test_sidebar_shell_switches_language_without_widget_rebuild(
     assert "padding-right: 28px" in dashboard_button.styleSheet()
     assert persisted == ["ru-RU"]
 
+    sidebar.close()
     sidebar.deleteLater()
     app.processEvents()
 
