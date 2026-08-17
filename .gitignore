@@ -8,11 +8,11 @@ __pycache__/
 *.sqlite
 *.sqlite3
 
-artifacts/
-exports/
-temp/
-cache/
-logs/
+/artifacts/
+/exports/
+/temp/
+/cache/
+/logs/
 
 .git/
 *.zip
