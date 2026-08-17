@@ -95,16 +95,12 @@ class FilesystemLocalModelProbeProvider:
         try:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             dtype = torch.float16 if device.type == "cuda" else torch.float32
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_path,
-                trust_remote_code=True,
-            )
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
             if tokenizer.pad_token is None and tokenizer.eos_token is not None:
                 tokenizer.pad_token = tokenizer.eos_token
             model = AutoModelForCausalLM.from_pretrained(
                 model_path,
                 torch_dtype=dtype,
-                trust_remote_code=True,
             )
             model.to(device)
             model.eval()
