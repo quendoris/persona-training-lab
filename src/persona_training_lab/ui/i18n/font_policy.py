@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from functools import lru_cache
+from pathlib import Path
 
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
@@ -13,8 +15,34 @@ RTL_UI_FONT_PREFERENCES: tuple[str, ...] = (
     "Noto Naskh Arabic",
     "FreeSerif",
 )
+BUNDLED_RTL_UI_FONT_FILENAMES: tuple[str, ...] = (
+    "NotoSansArabicUI-Regular.ttf",
+    "NotoSansArabicUI-Bold.ttf",
+)
 _BASE_FAMILIES_PROPERTY = "ptl_base_font_families"
 _RTL_FAMILY_PROPERTY = "ptl_rtl_ui_font_family"
+_FONTS_ROOT = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+
+
+def bundled_rtl_ui_font_paths() -> tuple[Path, ...]:
+    return tuple(_FONTS_ROOT / filename for filename in BUNDLED_RTL_UI_FONT_FILENAMES)
+
+
+@lru_cache(maxsize=1)
+def register_bundled_rtl_ui_fonts() -> tuple[str, ...]:
+    """Register packaged Arabic UI fonts and return their Qt family names."""
+
+    families: list[str] = []
+    for path in bundled_rtl_ui_font_paths():
+        if not path.is_file():
+            continue
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id < 0:
+            continue
+        for family in QFontDatabase.applicationFontFamilies(font_id):
+            if family not in families:
+                families.append(family)
+    return tuple(families)
 
 
 def choose_rtl_ui_font_family(available_families: Iterable[str]) -> str | None:
@@ -26,13 +54,13 @@ def choose_rtl_ui_font_family(available_families: Iterable[str]) -> str | None:
 
 
 def rtl_ui_font_family() -> str | None:
-    return choose_rtl_ui_font_family(
-        QFontDatabase.families(QFontDatabase.WritingSystem.Arabic)
-    )
+    bundled = register_bundled_rtl_ui_fonts()
+    system_arabic = QFontDatabase.families(QFontDatabase.WritingSystem.Arabic)
+    return choose_rtl_ui_font_family((*bundled, *system_arabic))
 
 
 def apply_locale_font_policy(app: QApplication, *, direction: str) -> str | None:
-    """Use a proportional Arabic UI family without changing UI geometry.
+    """Use a packaged Arabic UI family without changing UI geometry.
 
     The original family stack is remembered independently from point size so
     density changes made while an RTL locale is active are preserved when the

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "family": "Noto Sans Arabic UI",
+  "license": {
+    "spdx": "OFL-1.1",
+    "filename": "OFL-Noto.txt",
+    "source_path": "LICENSE",
+    "git_blob_sha1": "c82d72e422e2d08c5ab439b6bac7c2177ea0c565"
+  },
+  "upstream": {
+    "repository": "notofonts/noto-fonts",
+    "commit": "8ea3c95f7f8f6284c66a5c1d82b858cc187413a8"
+  },
+  "fonts": [
+    {
+      "filename": "NotoSansArabicUI-Regular.ttf",
+      "source_path": "hinted/ttf/NotoSansArabicUI/NotoSansArabicUI-Regular.ttf",
+      "git_blob_sha1": "090cc36ac62e81e6c077532860b3ccf6dc42054f",
+      "size": 266792
+    },
+    {
+      "filename": "NotoSansArabicUI-Bold.ttf",
+      "source_path": "hinted/ttf/NotoSansArabicUI/NotoSansArabicUI-Bold.ttf",
+      "git_blob_sha1": "65429b6519324140b0e80b1ab0e8d18304927ce0",
+      "size": 279404
+    }
+  ]
+}

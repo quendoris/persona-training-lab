@@ -30,6 +30,7 @@ tests/test_model_versions_connector.py
 tests/test_model_version_statuses.py
 tests/test_snapshots_i18n.py
 tests/test_style_i18n.py
+tests/test_rtl_font_policy.py
 tests/test_status_label_semantics.py
 tests/test_automation_service.py
 tests/test_automation_execution.py
