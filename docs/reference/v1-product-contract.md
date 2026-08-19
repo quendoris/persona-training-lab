@@ -46,6 +46,14 @@ An explicit `workspace_dir` overrides the default.
 
 The workspace includes `app.db` and runtime areas such as artifacts, exports, temporary data, cache, plus feature/conventional directories such as logs, Automation recipes, and local models where applicable.
 
+Agents local lineage state is also workspace-owned:
+
+```text
+<workspace>/agents_lineage_state.json
+```
+
+A complete workspace backup therefore spans SQLite, Agents local state, generated artifacts, and other workspace-owned files; `app.db` alone is not a complete product backup.
+
 Mutable runtime state must not be placed inside the installed/source package tree as a hidden input to product behavior.
 
 ## 4. Source and execution integrity
@@ -134,13 +142,54 @@ Stable-release contracts include:
 
 - shared SQLite serialization/connection ownership;
 - atomic runtime-operation claims;
-- lineage runtime safety;
+- lineage runtime safety and persisted `lineage_resource_links`;
 - branch deletion planning/finalization/compensation paths;
+- protected branch-deletion undo/redo safety;
 - workspace-leave guards;
 - background worker ownership/shutdown;
 - application, worker-thread, and Qt diagnostic error boundaries.
 
-## 12. Localization and RTL contract
+Read/read claims can coexist; a conflicting write blocks. Destructive lineage work obtains a deletion lease before mutation rather than relying only on an earlier UI availability check.
+
+## 12. Agents lineage integrity contract
+
+Agents is a projection/integration workspace, not an alternative source of truth for Training/Dataset/model/evaluation persistence.
+
+The v1.0 lineage contract includes:
+
+- one coherent SQLite semantic snapshot for Dataset, Training-run, model-version, and evaluation source sets;
+- stable persisted IDs used for identity when available, including modern Training `profile_id` and `dataset_id` references;
+- local custom-branch/current/archive/history/layout state stored separately in `<workspace>/agents_lineage_state.json`;
+- explicit runtime links between lineage nodes and real resources;
+- inherited runtime identity for newly created custom branches;
+- last-good background projection retention when a refresh fails;
+- presentation/localization refreshes that do not silently replace semantic projection identity;
+- protocol-compatible Delta semantics shared with Analysis.
+
+A custom `branch_00N` is local research structure. Creating, renaming, archiving, or removing that branch does not by itself create/delete a persisted trained model or artifact.
+
+### Protected branch deletion
+
+Normal custom-branch deletion:
+
+1. plans the complete current subtree;
+2. acquires a fresh `lineage_delete` runtime lease;
+3. records exact linked-resource metadata for history;
+4. mutates local state;
+5. removes persisted lineage-resource links;
+6. finalizes the lease.
+
+Undo restores resource links before restoring the visible lineage/history snapshot.
+
+Redo is **not** blind JSON replay: it obtains a fresh runtime deletion lease and consumes the existing redo entry. Therefore an operation started after Undo can legitimately block Redo, and history is not a bypass around runtime safety.
+
+Registered model-version rows and physical artifacts are not destructively removed by the local custom-branch delete command.
+
+### Delta compatibility
+
+Agents must not present Delta as ready merely because two evaluations exist. Exact Delta requires known, matching evaluation `battery_version` and `scoring_version`, consistent with the Analysis protocol guard.
+
+## 13. Localization and RTL contract
 
 The v1.0 UI catalog set is complete for:
 
@@ -155,7 +204,7 @@ Arabic support includes plural-category behavior, RTL text handling, mixed-direc
 
 PTL does not rely on accidental host Arabic font fallback.
 
-## 13. Validation contract
+## 14. Validation contract
 
 Before packaging/release acceptance, PTL is validated through multiple independent mechanisms, including:
 
@@ -172,7 +221,7 @@ Before packaging/release acceptance, PTL is validated through multiple independe
 
 The evidence for a specific release belongs in that release's verification record rather than being frozen into this general contract.
 
-## 14. What v1.0 does not claim
+## 15. What v1.0 does not claim
 
 v1.0 does not claim exhaustive proof of:
 
@@ -183,19 +232,21 @@ v1.0 does not claim exhaustive proof of:
 - every GPU/driver/OS combination;
 - maximum Agents lineage graph size/interaction rate;
 - every filesystem/process/database fault mode;
+- distributed/multi-host runtime locking;
+- transactional garbage collection of registered model artifacts from Agents local branch deletion;
 - formal real-time guarantees or performance ceilings;
 - cryptographic content-addressing of the full base-model directory;
 - bit-identical ML reruns across arbitrary runtime/hardware environments.
 
 These are explicit operating boundaries, not hidden promises.
 
-## 15. Stability does not mean immobility
+## 16. Stability does not mean immobility
 
 A v1.0 release means the documented behavior/boundaries form a coherent, usable baseline.
 
 Post-release stress testing may justify internal, instrumentation, persistence, performance, or subsystem changes. Later versions must preserve or deliberately revise the public contracts documented here.
 
-## 16. Documentation is part of the product contract
+## 17. Documentation is part of the product contract
 
 For v1.0, documentation is release material.
 
@@ -209,6 +260,7 @@ It must provide:
 - architecture/persistence references;
 - security/trust boundaries;
 - Training/Dataset provenance and reproducibility boundaries;
+- Agents semantic-vs-local state and protected history boundaries;
 - development/test/visual-audit/packaging/release procedures;
 - clear separation between supported behavior and post-v1.0 stress/experimental work.
 
