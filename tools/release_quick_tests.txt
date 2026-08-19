@@ -1,6 +1,7 @@
 # Curated blocking pytest inventory for the quick release gate.
 # Keep one repository-relative test path per line. Comments and blank lines are ignored.
 tests/test_window_state_store.py
+tests/test_workspace_paths.py
 tests/test_i18n_catalogs.py
 tests/test_i18n_catalog_fragments.py
 tests/test_i18n_audit.py
