@@ -10,50 +10,53 @@ PTL documentation is organized by **reader intent**, not by source-code package.
 
 Begin with:
 
-- [Getting Started](user-guide/getting-started.md) — install from a source checkout, launch PTL, understand the workspace, and orient yourself in the interface.
+- [Getting Started](user-guide/getting-started.md) — install from a source checkout, launch PTL, understand the workspace, and complete first-run orientation.
+- [Interface Tour](user-guide/interface-tour.md) — understand the shell, twelve workspaces, Inspector, Activity, Telemetry, Issues, and status bar before starting a workflow.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — what the stable release guarantees, what it deliberately does not claim, and where its trust boundaries are.
 
-The v1.0 documentation phase will expand the user guide into task-oriented walkthroughs for profiles, datasets, training, Agents lineage, snapshots, tests, analysis, automation, styling/localization, and key bindings.
+The next user-guide layer expands this into task-oriented walkthroughs for profiles, datasets, training, Agents lineage, snapshots, tests/analysis, Automation, appearance/language, and key bindings.
 
 ### I operate or troubleshoot PTL
 
-The operator/reference layer will cover:
+Start with:
 
-- workspace layout and data lifecycle;
-- local-model discovery and model-loading boundaries;
-- Automation execution, timeout, cancellation, and process containment;
-- logs, Issues, Activity, and Telemetry;
-- recovery and troubleshooting;
-- language/RTL/font behavior;
-- backup and clean-reset procedures.
+- [Workspace & Storage](operations/workspace-and-storage.md) — platform data paths, SQLite/filesystem ownership, backup, reset, and source-tree separation.
+- [v1.0 Product Contract](reference/v1-product-contract.md) — security/runtime boundaries that matter before operational changes.
+
+The operator/reference layer will continue with local-model handling, Automation operations, recovery/troubleshooting, language/RTL behavior, and security boundaries.
 
 ### I develop, audit, or extend PTL
 
-The architecture/reference layer will cover:
+Start with:
 
-- application layering and composition root;
-- SQLite schema and repository ownership;
-- runtime-operation coordination and destructive-operation safety;
-- Agents lineage projection, history, refresh, and branch deletion;
-- UI shell, view models, panels, key bindings, and interaction contracts;
-- localization catalogs, RTL policy, and bundled font provenance;
-- model inference/training integration and security boundaries;
-- release gates, test profiles, visual audit, build, and packaging acceptance.
+- [Architecture Overview](architecture/overview.md) — composition root, layers, UI shell, persistence, runtime-operation coordination, models, Automation, telemetry, and error boundaries.
+- [Runtime resource safety](architecture/runtime-resource-safety.md) — detailed runtime-resource safety notes.
+- [Localization architecture](architecture/localization.md) — detailed catalog/RTL/localization notes.
+
+The architecture/development layer will continue with persistence, Agents lineage, Automation internals, UI-shell contracts, testing, visual audit, packaging, and release methodology.
 
 ## Documentation map
 
-### Current v1.0 documentation
+### Current v1.0 foundation
 
 | Document | Audience | Purpose |
 |---|---|---|
-| [Getting Started](user-guide/getting-started.md) | User | Source installation, first launch, workspace, UI orientation |
+| [Getting Started](user-guide/getting-started.md) | User | Source installation, first launch, workspace, initial orientation |
+| [Interface Tour](user-guide/interface-tour.md) | User | Full shell map, workspaces, docks, language/layout behavior |
+| [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Data roots, `app.db`, artifacts, backup/reset, storage integrity |
+| [Architecture Overview](architecture/overview.md) | Developer / auditor / advanced user | System layers, composition, persistence, runtime and trust boundaries |
 | [v1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release scope, guarantees, boundaries, non-goals |
-| [Localization architecture](architecture/localization.md) | Developer / auditor | Existing detailed localization design notes |
-| [Runtime resource safety](architecture/runtime-resource-safety.md) | Developer / auditor | Existing runtime-resource safety design notes |
-| [Experiment protocol](experiment_protocol.md) | Research / advanced user | Existing experiment methodology |
-| [Methodology limits](methodology_limits.md) | Research / advanced user | Existing methodological limits |
-| [Personality portrait](personality_portrait.md) | Research / advanced user | Existing portrait methodology |
-| [Training pipeline](training_pipeline.md) | Advanced user / developer | Existing training-flow notes |
+
+### Existing detailed references being migrated into v1.0
+
+| Document | Audience | Status |
+|---|---|---|
+| [Localization architecture](architecture/localization.md) | Developer / auditor | Detailed existing architecture reference; will be reconciled with final v1.0 terminology |
+| [Runtime resource safety](architecture/runtime-resource-safety.md) | Developer / auditor | Detailed existing safety reference; will be reconciled with final v1.0 terminology |
+| [Experiment protocol](experiment_protocol.md) | Research / advanced user | Existing research methodology source |
+| [Methodology limits](methodology_limits.md) | Research / advanced user | Existing methodology/limits source |
+| [Personality portrait](personality_portrait.md) | Research / advanced user | Existing portrait methodology source |
+| [Training pipeline](training_pipeline.md) | Advanced user / developer | Existing training-flow source |
 
 ### Historical and internal project records
 
@@ -72,6 +75,9 @@ The v1.0 documentation set follows these rules:
 5. **Use machine terms exactly.** IDs, paths, status codes, environment variables, schema names, and CLI commands are written exactly as the product uses them.
 6. **Distinguish guarantees from operating assumptions.** In particular, the v1.0 release is not presented as having completed the post-release stress campaign.
 7. **Keep screenshots reproducible.** Final user-facing screenshots will be captured from a clean, known commit and documented UI state rather than taken ad hoc from development sessions.
+8. **Prefer a clean novice path over compressed expert prose.** A reader should not need repository history or unwritten project context to perform a documented task safely.
+9. **Cross-link concepts instead of duplicating contracts.** Storage rules, trust boundaries, identifiers, and destructive-action semantics should have one authoritative reference and task guides should link to it.
+10. **Mark historical material as historical.** Old release/audit notes must not silently override current v1.0 behavior.
 
 ## Planned v1.0 documentation structure
 
@@ -123,3 +129,15 @@ docs/
 ```
 
 The tree above is a documentation plan, not a claim that every listed file already exists. Broken placeholder links are intentionally avoided until a document is created and reviewed.
+
+## Screenshot and diagram strategy
+
+The final v1.0 documentation will use visuals deliberately:
+
+- **full-window screenshots** for spatial orientation;
+- **cropped/annotated screenshots** for task steps where a control must be located precisely;
+- **Mermaid/architecture diagrams** for relationships and lifecycle concepts that a screenshot cannot explain;
+- **clean demo-workspace captures** rather than screenshots containing accidental development state;
+- **recorded commit/locale/theme/scale metadata** for reproducibility.
+
+The documentation should remain understandable without an image when exact behavior or paths matter. Images support comprehension; they do not replace the written contract.
