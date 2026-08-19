@@ -1,12 +1,10 @@
 # Workspace & Storage
 
-This document defines where Persona Training Lab stores mutable runtime data, what each workspace area is for, and how to back up or reset a v1.0 workspace safely.
+This document defines where Persona Training Lab stores mutable runtime data, what each area owns, and how Training artifacts/model inputs fit into the v1.0 workspace contract.
 
-The central rule is simple:
+The central rule is:
 
 > **PTL runtime state belongs in the PTL workspace, not in the source tree and not in whichever directory happened to be the process current working directory.**
-
-That rule is part of the v1.0 product contract and is guarded by release-policy tests.
 
 ## 1. Default workspace location
 
@@ -18,34 +16,19 @@ PTL resolves a stable per-user data directory at runtime.
 | Windows | `%LOCALAPPDATA%\Persona Training Lab` |
 | macOS | `~/Library/Application Support/Persona Training Lab` |
 
-Windows fallback behavior uses `%APPDATA%` if `LOCALAPPDATA` is unavailable and finally falls back to the conventional user `AppData/Local/Persona Training Lab` path.
+Windows falls back through `%APPDATA%` and then the conventional user `AppData/Local/Persona Training Lab` path when required.
 
-On Linux, if `XDG_DATA_HOME` is set, PTL respects it. Otherwise the default is:
-
-```text
-~/.local/share/persona-training-lab
-```
-
-The default is computed when `AppSettings` is created. It is not captured from `Path.cwd()` and is not affected by launching PTL from another folder.
+Changing terminal CWD does not select a PTL workspace.
 
 ## 2. Explicit workspace override
 
-Application code and controlled environments can create `AppSettings(workspace_dir=...)` with an explicit workspace root.
+Controlled code/tests can create `AppSettings(workspace_dir=...)`. That explicit root becomes the base for the same workspace-owned persistence model.
 
-When supplied, the explicit root becomes the base for the same workspace layout described below.
+This is useful for isolated tests, demo workspaces, and packaging checks.
 
-This override is useful for:
+## 3. Core workspace layout
 
-- tests;
-- isolated development/demo workspaces;
-- controlled packaging checks;
-- future explicit workspace-selection tooling.
-
-It should not be confused with changing the terminal current directory. `cd` does not select a PTL workspace.
-
-## 3. Workspace layout
-
-A normal workspace has this conceptual shape:
+The bootstrap-owned core layout is conceptually:
 
 ```text
 <workspace>/
@@ -53,124 +36,153 @@ A normal workspace has this conceptual shape:
 ├── artifacts/
 ├── exports/
 ├── temp/
-├── cache/
+└── cache/
+```
+
+Feature-owned/conventional directories can also appear, including:
+
+```text
+<workspace>/
+├── models/
 ├── logs/
 └── automation/
     └── recipes/
 ```
 
-Some directories are created during bootstrap; others are created when the owning feature is used.
+Not every optional/conventional directory is created eagerly by the core `ensure_workspace_dirs(...)` bootstrap helper.
 
-### `app.db`
+## 4. `app.db`
 
-The primary SQLite database for persistent application state.
+`app.db` is the primary SQLite database for persistent application state.
 
-It stores structured records such as preferences, profiles, datasets, model/training state, event metadata, runtime-operation leases, and lineage resource relationships.
+It stores structured records for UI preferences, Profiles, Datasets, Training, model versions, experiments/analysis, event metadata, runtime-operation coordination, lineage resource links, and other registered application state.
 
-### `artifacts/`
+Training-specific persisted state includes run IDs, configuration, status/progress, artifact paths, and input fingerprints such as `profile_sha256` and `dataset_sha256`.
 
-Persistent generated artifacts and model/training outputs owned by PTL workflows.
+## 5. `artifacts/`
 
-The local full fine-tune backend receives this directory as its artifact root.
+`artifacts/` contains persistent generated outputs owned by PTL workflows.
 
-Do not treat `artifacts/` as disposable cache merely because it is a directory. A generated model/checkpoint/output may be the only copy of a workflow result unless it has been exported or backed up elsewhere.
+For local full fine-tuning, the canonical layout is:
 
-### `exports/`
+```text
+<workspace>/artifacts/full_finetune/<run_id>/
+├── model/
+└── training_metadata.json
+```
 
-Workspace area reserved for exported material.
+The `model/` directory contains the saved trained model/tokenizer output. `training_metadata.json` records run/backend/provenance information.
 
-Exported files are conceptually user-facing outputs rather than authoritative SQLite rows. Whether an individual export can be regenerated depends on the producing workflow.
+Do **not** treat `artifacts/` as disposable cache. Generated model output may be the only copy of a completed workflow result.
 
-### `temp/`
+## 6. `models/`
 
-Temporary workspace data.
+`models/` is the conventional location used by the default local-model configuration.
 
-This area is the best candidate for cleanup when PTL is fully stopped, but do not delete it while a workflow is active unless a feature-specific recovery procedure explicitly says that is safe.
+The configured default `Qwen3.5-0.8B` resolves to:
 
-### `cache/`
+```text
+<workspace>/models/qwen3.5-0.8b
+```
 
-Regenerable cache material.
+The core workspace bootstrap does not currently guarantee that `models/` is created eagerly; users/operators populate it when using that default local-model path.
 
-Cache should not be treated as the sole authoritative copy of a user record. Clearing cache is expected to be less destructive than removing `app.db` or `artifacts/`, although a cold rebuild may make the next operation slower.
+PTL can also use an explicit model directory elsewhere.
 
-### `logs/`
+### Base-model reproducibility boundary
 
-Structured application log files.
+Training stores the resolved model path/reference but v1.0 does **not** cryptographically fingerprint the complete base-model directory in the Training run.
 
-Logging uses rotation rather than unbounded growth. Logs are diagnostic data and can be useful when investigating startup, runtime, automation, model, or Qt problems.
+If exact research reproducibility matters, keep that directory immutable for the run and record the upstream model revision/checksum separately.
 
-### `automation/recipes/`
+## 7. External Dataset sources
 
-Filesystem-backed Automation recipes associated with the workspace.
+Dataset rows store a filesystem path to an external `.jsonl` source. Importing does not copy those bytes into `app.db`.
 
-Recipes are executable operational inputs. Back them up if they represent work you care about, and review them as code/commands rather than treating them as inert UI preferences.
+Approval stores a SHA-256 content fingerprint, and Training pins that approved fingerprint into the run. The hash proves content identity but cannot restore a missing source file.
 
-## 4. What lives in SQLite
+Therefore a workspace backup is not automatically a complete Dataset-source backup when the JSONL lives elsewhere.
 
-The current v1.0 schema includes structured persistence for the following major areas.
+## 8. `exports/`
 
-| Area | Main table(s) | Purpose |
-|---|---|---|
-| UI preferences | `ui_preferences` | Theme/accent and related presentation preferences |
-| Event history | `event_log` | Structured application/audit/error events |
-| Projects | `projects` | Project records |
-| Profiles | `persona_profiles` | Personality profile content and status |
-| Agents | `agents` | Agent records |
-| Experiments | `experiments` | Experiment/evaluation run records |
-| Datasets | `datasets` | Dataset metadata, validation counts, readiness |
-| Training | `training_runs`, `training_logs` | Training state, progress, artifacts, logs |
-| Analysis | `analysis_results` | Stored comparison/analysis results |
-| Model versions | `model_versions` | Published model-version metadata and artifact paths |
-| Runtime coordination | `runtime_operations`, `runtime_operation_resources` | Persistent operation lifecycle and resource claims |
-| Lineage safety | `lineage_resource_links` | Links between lineage nodes and protected resources |
+`exports/` is workspace-owned output intended for exported/user-facing material.
 
-The exact schema is an implementation contract and may grow through explicit future migrations/evolution. Do not add or remove columns manually as a normal user workflow.
+Whether an individual export is reproducible depends on the producing workflow. Do not assume exported files are authoritative substitutes for SQLite records or model artifacts.
 
-## 5. SQLite and filesystem state form one workspace
+## 9. `temp/`
+
+`temp/` is temporary workspace state. It is a lower-risk cleanup target only when PTL and relevant owned operations are stopped.
+
+Do not clear temporary state during active Training/Automation/model work unless a feature-specific recovery procedure says it is safe.
+
+## 10. `cache/`
+
+`cache/` is intended for regenerable cache material. Clearing it should not delete the sole authoritative copy of a Profile, Dataset row, Training run, or generated model artifact.
+
+## 11. `logs/`
+
+Structured application logs are diagnostic state. They may contain operational metadata useful for startup/runtime/Training/Automation investigations.
+
+Review them before public sharing when workspace privacy matters.
+
+## 12. `automation/recipes/`
+
+Automation recipes are executable operational inputs associated with the workspace.
+
+Treat them as code/commands, not inert preferences. Back them up when they represent work you care about.
+
+## 13. SQLite and filesystem state form one product workspace
 
 A complete PTL workspace is not equivalent to `app.db` alone.
 
-For example, SQLite can contain a `model_versions.artifact_path` pointing to generated files under the workspace. Copying only the database can preserve metadata while losing the corresponding artifact bytes.
+For example:
 
-Likewise, copying only `artifacts/` can preserve model files while losing the structured profile/dataset/training/lineage records that explain what they are.
+```text
+training_runs.artifact_path
+model_versions.artifact_path
+```
 
-For a complete manual backup, treat the **entire workspace root** as one backup unit unless a feature-specific export mechanism explicitly creates a self-contained artifact.
+can point to generated files under `artifacts/`.
 
-## 6. Runtime-operation state
+Copying only SQLite can preserve metadata while losing the artifact bytes. Copying only artifacts can preserve files while losing the Profiles, Datasets, Training runs, model-version records, and lineage state that explain them.
 
-PTL persists long-running operation state in SQLite rather than keeping every lease only in process memory.
+Treat the **whole workspace root** as one backup unit unless a feature-specific export is explicitly self-contained.
 
-An operation records information including:
+## 14. Important SQLite areas
 
-- operation ID;
-- operation kind;
-- subject kind and ID;
-- state;
-- correlation ID;
-- owner process ID;
-- start/heartbeat/finish timestamps;
-- optional failure text;
-- claimed resources and read/write access mode.
+| Area | Main table(s) | Purpose |
+|---|---|---|
+| UI preferences | `ui_preferences` | Presentation preferences |
+| Event history | `event_log` | Structured events/errors/audit data |
+| Profiles | `persona_profiles` | Personality/profile definition |
+| Datasets | `datasets` | Source path, validation state, approval SHA-256 |
+| Training | `training_runs`, `training_logs` | Configuration, input fingerprints, runtime state, artifact path, logs |
+| Model versions | `model_versions` | Published model-version metadata/artifact path |
+| Experiments | `experiments` | Experiment/evaluation records |
+| Analysis | `analysis_results` | Stored analysis/comparison results |
+| Agents | `agents` | Agent records |
+| Runtime coordination | `runtime_operations`, `runtime_operation_resources` | Operation lifecycle and resource claims |
+| Lineage safety | `lineage_resource_links` | Protected resource relationships |
 
-This persistence is important for crash recovery. On a later startup PTL can identify active operations whose owner PID is no longer alive and mark them abandoned.
+Do not manually add/remove schema columns as a normal user workflow.
 
-Do not edit runtime-operation rows manually to “unlock” PTL. If an operation appears stuck, use the documented recovery/troubleshooting path so the related resource state is considered as a whole.
+## 15. Runtime-operation state
 
-## 7. Event log and audit data
+Long-running coordinated operations persist lifecycle/resource-claim state in SQLite.
 
-`event_log` is shared infrastructure for structured application events and operational diagnostics.
+An operation can record its ID/kind/subject, state, correlation ID, owner PID, timestamps, error text, and read/write claims.
 
-It includes entity/correlation/causation information plus JSON payload data and timestamps.
+This supports crash recovery and conflict detection. Do not manually edit rows to "unlock" PTL; use a documented recovery path.
 
-Automation uses an audit trail backed by this infrastructure. The automation audit contract deliberately avoids persisting environment-variable **values** merely because a child process inherited the environment.
+## 16. Event/audit data
 
-The event log is still potentially sensitive operational metadata. Include it in normal workspace privacy/back-up decisions.
+`event_log` is shared structured application-event infrastructure. Automation audit behavior intentionally avoids persisting inherited environment-variable **values** merely because a child process received them.
 
-## 8. Source tree vs workspace
+Event/audit rows may still contain sensitive operational metadata and belong in normal workspace privacy decisions.
 
-These are deliberately different locations.
+## 17. Source tree vs workspace
 
-A source checkout may contain:
+A source checkout contains code/material such as:
 
 ```text
 README.md
@@ -181,187 +193,104 @@ tools/
 docs/
 ```
 
-It must **not** depend on hidden mutable runtime files inside those directories.
+Mutable runtime state must not silently become an input from those trees.
 
-A previous audit discovered exactly why this matters: an ignored runtime-affecting file under the source tree can make an editable checkout behave differently from the recorded Git commit or clean wheel.
+Release-policy tests check ignored/untracked inputs under `src/`, `tests/`, and `tools/` so an editable checkout cannot be validated using hidden runtime-affecting source files that are absent from the recorded commit.
 
-The release policy now checks ignored/untracked inputs under `src/`, `tests/`, and `tools/` so this class of failure is blocked.
+## 18. Clean reset
 
-## 9. Clean reset
+For a complete fresh workspace:
 
-If you deliberately want a completely fresh PTL workspace and do not need the old data, the safest reset is:
+1. close PTL completely;
+2. ensure Training/Automation/helper work you care about is stopped;
+3. rename or remove the entire workspace root;
+4. launch PTL again.
 
-1. **Close PTL completely.**
-2. Confirm no PTL training/automation/helper process you care about is still running.
-3. Rename or remove the entire workspace root.
-4. Start PTL again.
-
-Example on a default Linux setup:
+Linux example:
 
 ```bash
 mv ~/.local/share/persona-training-lab \
    ~/.local/share/persona-training-lab.backup
 ```
 
-Then launch PTL normally. It will recreate the workspace directories and initialize a new `app.db`.
+Renaming first is safer than immediate deletion.
 
-Renaming first is safer than immediate deletion when you are uncertain whether the old data matters.
+A complete reset can remove/disconnect Profiles, Dataset metadata, Training records/logs, model-version metadata, generated artifacts, experiment/analysis state, Automation recipes, audit history, preferences, runtime-operation state, lineage links, logs/cache/temp/exports, and any workspace-local models.
 
-If you are certain it does not matter:
+Do not describe a whole-workspace reset as "clear cache".
 
-```bash
-rm -rf ~/.local/share/persona-training-lab
-```
+## 19. Backup
 
-Only run that command when PTL is stopped and you understand that it removes the entire workspace state.
-
-### Windows
-
-Stop PTL, then rename or remove:
-
-```text
-%LOCALAPPDATA%\Persona Training Lab
-```
-
-### macOS
-
-Stop PTL, then rename or remove:
-
-```text
-~/Library/Application Support/Persona Training Lab
-```
-
-## 10. What reset removes
-
-A complete workspace reset removes or disconnects all workspace-local state, including potentially:
-
-- profiles;
-- dataset metadata and validation state;
-- training records/logs;
-- model-version metadata;
-- generated artifacts stored under the workspace;
-- experiment and analysis records;
-- Automation recipes stored in the workspace;
-- event/audit history;
-- style/UI preferences;
-- runtime-operation records;
-- lineage resource links;
-- workspace logs/cache/temp/exported files that live under that root.
-
-Do not present a complete workspace reset as a harmless “clear cache” operation.
-
-## 11. Backup
-
-For a simple offline manual backup:
+For a conservative offline manual backup:
 
 1. stop PTL;
-2. wait for any deliberately launched PTL-owned work you intend to preserve to stop;
-3. copy the entire workspace directory to another location;
+2. stop/finish relevant PTL-owned work;
+3. copy the entire workspace root;
 4. preserve filesystem metadata when practical;
-5. record the PTL version/commit used to create the backup if reproducibility matters.
+5. record the PTL version/commit for reproducibility.
 
-Example:
+Linux example:
 
 ```bash
 cp -a ~/.local/share/persona-training-lab \
       ~/Backups/persona-training-lab-2026-08-19
 ```
 
-For large model artifacts you may choose a storage mechanism better suited to large files, but the backup should still keep enough workspace metadata to identify those artifacts.
+Then separately back up any important external Dataset sources and explicit base-model directories that live outside the workspace.
 
-## 12. Restore
+## 20. Restore
 
-The conservative manual restore procedure is:
+The conservative restore procedure is:
 
 1. stop PTL;
 2. move the current workspace aside;
-3. restore the backed-up workspace to the expected root;
-4. launch PTL;
-5. inspect Dashboard/Issues/Logs before starting destructive or long-running work.
+3. restore the saved workspace to the expected root;
+4. restore externally managed Dataset/model inputs as needed;
+5. launch PTL;
+6. inspect Dashboard/Issues/logs before destructive or long-running work.
 
-Restoring database metadata without the corresponding referenced files can produce incomplete workflows even when SQLite opens successfully.
+Restoring metadata without referenced files can produce incomplete workflows even when SQLite opens successfully.
 
-## 13. Partial cleanup
+## 21. Partial cleanup risk
 
-### Clearing `cache/`
+- `cache/`: normally lower risk while PTL is stopped.
+- `temp/`: normally lower risk after owned operations stop.
+- `logs/`: removes diagnostic history.
+- `exports/`: may delete user-visible outputs.
+- `models/`: may remove required base-model inputs.
+- `artifacts/`: potentially highly destructive; not routine cleanup.
+- only `app.db`: dangerous split because files can remain without authoritative metadata.
 
-Normally lower risk than a full reset. Do it while PTL is stopped. Expect regeneration/re-probing work afterward.
+## 22. Troubleshooting evidence
 
-### Clearing `temp/`
-
-Normally lower risk after PTL and owned operations are stopped. Avoid clearing it during active training/automation/model work.
-
-### Clearing `logs/`
-
-Removes diagnostic history. Safe only in the sense that it should not be authoritative business state; do not delete logs immediately before diagnosing a problem.
-
-### Clearing `exports/`
-
-Potentially deletes user-visible output files. Whether they are reproducible depends on the original workflow.
-
-### Clearing `artifacts/`
-
-Potentially highly destructive. Do not use this as routine cleanup.
-
-### Removing only `app.db`
-
-Creates a structurally dangerous split: files may remain while their authoritative metadata is gone. Prefer an intentional whole-workspace reset unless you are performing a documented recovery procedure.
-
-## 14. Logs and troubleshooting
-
-When reporting a workspace/startup problem, collect:
+When reporting workspace/storage problems, collect:
 
 - PTL version/commit;
-- operating system;
+- OS;
 - actual workspace root;
-- whether `XDG_DATA_HOME`, `LOCALAPPDATA`, or related variables are customized;
-- relevant files from `logs/`;
-- Issues-panel text if available;
-- whether the problem followed a crash, forced shutdown, manual file move, or partial restore.
+- relevant environment overrides such as `XDG_DATA_HOME`/`LOCALAPPDATA`;
+- relevant log/Issues text;
+- whether the issue followed a crash, forced shutdown, manual file move, Dataset edit, model replacement, or partial restore.
 
-Do **not** upload a complete `app.db` or automation recipe directory publicly without reviewing it for private research/workspace content.
+Do not publish a complete `app.db`, Dataset source, Training metadata, or Automation recipe directory without reviewing it for private content.
 
-## 15. Developer note: do not use CWD as persistence
+## 23. Developer rules
 
-New persistent features must obtain a workspace-owned path from configuration/composition rather than using `Path.cwd()` or writing beside `__file__`.
+Persistent features must obtain workspace-owned paths from configuration/composition instead of CWD or package-relative mutable state.
 
-The v1.0 code audit found a real failure mode where a CWD-based default created `app.db` inside a source package directory. The default workspace was changed to platform-stable user data storage and a regression test was added to the quick release gate.
+A clean `git status` is also not sufficient when ignored files exist. Release policy treats hidden runtime-affecting inputs under source/test/tool trees as release-integrity defects.
 
-Treat that incident as an architectural rule, not as a one-off filename bug.
+## 24. v1.0 visual plan
 
-## 16. Developer note: ignored source inputs are forbidden
-
-A clean `git status` is not sufficient if a file is ignored.
-
-Release-policy tests explicitly query Git for ignored/untracked files under:
-
-- `src/`;
-- `tests/`;
-- `tools/`.
-
-Only harmless interpreter/platform debris is allowed. A hidden `.py`, `.json`, `.svg`, `.ttf`, database, or other runtime-affecting asset in those trees must not be able to influence a validated release without appearing in the commit.
-
-## 17. Workspace-health Automation recipe
-
-PTL includes workspace-health recipe code that can report on workspace state, including the database at `<workspace>/app.db`.
-
-That recipe does not choose the workspace location. It operates on the workspace root supplied to it. Workspace selection remains a configuration/composition concern.
-
-## 18. v1.0 screenshot/diagram plan
-
-The final documentation asset pass will add:
-
-- a platform workspace-location diagram;
-- an annotated workspace directory tree;
-- a backup/reset decision diagram;
-- a screenshot of the in-app operational surfaces that help diagnose workspace problems.
-
-No screenshot is required to understand the storage contract itself; diagrams will be explanatory additions rather than substitutes for exact paths and warnings.
+The documentation asset pass should include a workspace directory diagram, backup/reset decision diagram, and operational screenshots that help diagnose workspace problems. Exact paths and destructive effects remain written contracts; images are supporting explanation.
 
 ## Related documentation
 
 - [Getting Started](../user-guide/getting-started.md)
 - [Interface Tour](../user-guide/interface-tour.md)
+- [Datasets](../user-guide/datasets.md)
+- [Training](../user-guide/training.md)
+- [Training pipeline specification](../training_pipeline.md)
 - [Architecture Overview](../architecture/overview.md)
 - [v1.0 Product Contract](../reference/v1-product-contract.md)
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)
