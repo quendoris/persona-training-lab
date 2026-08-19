@@ -61,6 +61,7 @@ class DatasetsSource:
                 validation_errors_preview="",
                 path="dataset.jsonl",
                 format="jsonl",
+                content_sha256="a" * 64,
             )
         ]
 
