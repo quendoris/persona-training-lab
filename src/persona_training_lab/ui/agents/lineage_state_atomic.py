@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from persona_training_lab.config.app_settings import default_workspace_dir
 from persona_training_lab.ui.agents.lineage_state import LineageStateStore
 
 
@@ -18,7 +19,12 @@ class AtomicLineageStateStore(LineageStateStore):
     """Durable lineage state with atomic replacement and memory rollback."""
 
     def __init__(self, path: Path | None = None) -> None:
-        super().__init__(path)
+        resolved_path = (
+            path
+            if path is not None
+            else default_workspace_dir() / "agents_lineage_state.json"
+        )
+        super().__init__(resolved_path)
         self._persisted_payload = deepcopy(self._payload)
 
     def capture_transaction_state(self) -> dict[str, Any]:
