@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from persona_training_lab.application.experiments.protocol import (
+    portrait_protocols_match,
+)
 from persona_training_lab.application.lineage.atomic_projection import (
     AtomicLineageSnapshot,
 )
@@ -470,7 +473,15 @@ def _append_delta(
         key=lambda item: (item.updated_at, item.experiment_id),
         reverse=True,
     )
-    ready = len(evaluations) >= 2
+    selected = evaluations[:2]
+    has_pair = len(selected) >= 2
+    ready = bool(
+        has_pair
+        and portrait_protocols_match(
+            selected[0].subtitle,
+            selected[1].subtitle,
+        )
+    )
     parent_id = "portrait" if evaluations else "snapshot"
     nodes.append(
         ProjectedVersionNode(
@@ -480,7 +491,11 @@ def _append_delta(
             subtitle=UserMessage(
                 "agents.node.delta.subtitle.ready"
                 if ready
-                else "agents.node.delta.subtitle.pending"
+                else (
+                    "agents.next.delta"
+                    if has_pair
+                    else "agents.node.delta.subtitle.pending"
+                )
             ),
             status=_state_message(
                 LineageState.READY if ready else LineageState.PENDING
@@ -490,19 +505,25 @@ def _append_delta(
             parent_id=parent_id,
         )
     )
-    selected = evaluations[:2]
     claims = tuple(
         ResourceClaim("experiment", item.experiment_id)
         for item in selected
     )
     resources["delta"] = claims
+    candidate_left = selected[0].experiment_id if selected else ""
+    candidate_right = (
+        selected[1].experiment_id if len(selected) > 1 else ""
+    )
     context["delta"] = {
         "node_kind": "analysis_delta",
-        "left_experiment_id": (
-            selected[0].experiment_id if selected else ""
-        ),
-        "right_experiment_id": (
-            selected[1].experiment_id if len(selected) > 1 else ""
+        "left_experiment_id": candidate_left if ready else "",
+        "right_experiment_id": candidate_right if ready else "",
+        "candidate_left_experiment_id": candidate_left,
+        "candidate_right_experiment_id": candidate_right,
+        "comparison_reason": (
+            ""
+            if ready
+            else "protocol_mismatch" if has_pair else "missing_second_evaluation"
         ),
     }
     details["delta"] = AgentDetailView(
@@ -510,15 +531,19 @@ def _append_delta(
         body=UserMessage(
             "agents.detail.delta.body",
             {
-                "left": context["delta"]["left_experiment_id"] or "—",
-                "right": context["delta"]["right_experiment_id"] or "—",
+                "left": candidate_left or "—",
+                "right": candidate_right or "—",
             },
         ),
         checks=(
             UserMessage(
                 "agents.detail.delta.check.ready"
                 if ready
-                else "agents.detail.delta.check.pending"
+                else (
+                    "agents.next.delta"
+                    if has_pair
+                    else "agents.detail.delta.check.pending"
+                )
             ),
         ),
         actions=(),

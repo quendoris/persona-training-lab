@@ -116,7 +116,8 @@ def _source() -> LineageSourceSnapshot:
                 "evr_old",
                 "Old portrait",
                 "PORTRAIT: 1/1 · model_version=mdl_old · "
-                "artifact=/artifacts/old",
+                "artifact=/artifacts/old · battery=big_five_short_v1 · "
+                "scoring=big_five_score_v1",
                 "completed",
                 "2026-08-06T10:03:00+00:00",
             ),
@@ -124,7 +125,8 @@ def _source() -> LineageSourceSnapshot:
                 "evr_new",
                 "New portrait",
                 "PORTRAIT: 1/1 · model_version=mdl_new · "
-                "artifact=/artifacts/new",
+                "artifact=/artifacts/new · battery=big_five_short_v1 · "
+                "scoring=big_five_score_v1",
                 "completed",
                 "2026-08-06T12:03:00+00:00",
             ),
@@ -166,6 +168,16 @@ def test_latest_aliases_are_selected_by_timestamp_not_input_order() -> None:
     assert "model_version:mdl_old" in by_id
     assert "evaluation_run:evr_old" in by_id
     assert by_id["portrait"].parent_id == "snapshot"
+    assert by_id["delta"].tone == "good"
+    assert (
+        projection.entity_context["delta"]["left_experiment_id"]
+        == "evr_new"
+    )
+    assert (
+        projection.entity_context["delta"]["right_experiment_id"]
+        == "evr_old"
+    )
+    assert projection.entity_context["delta"]["comparison_reason"] == ""
     claims = {
         (claim.resource_kind, claim.resource_id)
         for claim in projection.resources["snapshot"]
@@ -178,6 +190,41 @@ def test_latest_aliases_are_selected_by_timestamp_not_input_order() -> None:
         ("profile", "Mia"),
         ("training_run", "trn_new"),
     } <= claims
+
+
+def test_delta_requires_matching_protocol_identity() -> None:
+    source = _source()
+    incompatible_latest = replace(
+        source.evaluations[1],
+        subtitle=(
+            "PORTRAIT: 1/1 · model_version=mdl_new · "
+            "artifact=/artifacts/new · battery=big_five_short_v1 · "
+            "scoring=big_five_score_v2"
+        ),
+    )
+    source = replace(
+        source,
+        evaluations=(source.evaluations[0], incompatible_latest),
+    )
+    vm, _ = _view_model(source)
+
+    projection = build_real_lineage(vm)
+    by_id = {node.node_id: node for node in projection.nodes}
+    delta = by_id["delta"]
+    delta_context = projection.entity_context["delta"]
+
+    assert delta.tone == "pending"
+    assert isinstance(delta.status, UserMessage)
+    assert delta.status.key == "agents.lineage_state.pending"
+    assert isinstance(delta.subtitle, UserMessage)
+    assert delta.subtitle.key == "agents.next.delta"
+    assert delta_context["left_experiment_id"] == ""
+    assert delta_context["right_experiment_id"] == ""
+    assert delta_context["candidate_left_experiment_id"] == "evr_new"
+    assert delta_context["candidate_right_experiment_id"] == "evr_old"
+    assert delta_context["comparison_reason"] == "protocol_mismatch"
+    assert isinstance(projection.details["delta"].checks[0], UserMessage)
+    assert projection.details["delta"].checks[0].key == "agents.next.delta"
 
 
 def test_alias_changes_have_their_own_presentation_revision() -> None:

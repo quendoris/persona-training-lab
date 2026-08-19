@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from persona_training_lab.application.experiments.portrait import (
-    parse_portrait_payload,
+from persona_training_lab.application.experiments.protocol import (
+    portrait_protocol_key,
+    portrait_protocols_match,
 )
 from persona_training_lab.application.experiments.service import (
     ExperimentSummary,
@@ -24,26 +25,14 @@ class AnalysisViewModel(_AnalysisViewModel):
     def _protocol_key(
         experiment: ExperimentSummary,
     ) -> tuple[str, str] | None:
-        record = parse_portrait_payload(experiment.subtitle)
-        battery = record.battery_version.strip()
-        scoring = record.scoring_version.strip()
-        if not battery or battery == "—" or not scoring or scoring == "—":
-            return None
-        return battery, scoring
+        return portrait_protocol_key(experiment.subtitle)
 
-    @classmethod
+    @staticmethod
     def _protocols_match(
-        cls,
         latest: ExperimentSummary,
         previous: ExperimentSummary,
     ) -> bool:
-        latest_protocol = cls._protocol_key(latest)
-        previous_protocol = cls._protocol_key(previous)
-        return (
-            latest_protocol is not None
-            and previous_protocol is not None
-            and latest_protocol == previous_protocol
-        )
+        return portrait_protocols_match(latest.subtitle, previous.subtitle)
 
     def _apply_experiment(
         self,
