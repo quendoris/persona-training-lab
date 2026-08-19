@@ -1,6 +1,6 @@
 # Workspace & Storage
 
-This document defines where Persona Training Lab stores mutable runtime data, what each area owns, and how Training artifacts, Agents lineage state, model inputs, and SQLite persistence fit into the v1.0 workspace contract.
+This document defines where Persona Training Lab stores mutable runtime data, what each area owns, and how Training artifacts, Agents lineage state, Automation recipes/audit, model inputs, and SQLite persistence fit into the v1.0 workspace contract.
 
 The central rule is:
 
@@ -28,31 +28,27 @@ This is useful for isolated tests, demo workspaces, documentation capture, and p
 
 ## 3. Core workspace layout
 
-The bootstrap-owned core layout is conceptually:
+The workspace is conceptually:
 
 ```text
 <workspace>/
 ├── app.db
 ├── agents_lineage_state.json
 ├── artifacts/
+├── automation/
+│   └── recipes/
+├── cache/
 ├── exports/
-├── temp/
-└── cache/
-```
-
-`agents_lineage_state.json` is created lazily by Agents when local lineage state is persisted; it is listed here because it is part of the product workspace/backup unit even though the core directory bootstrap does not create the file eagerly.
-
-Feature-owned/conventional directories can also appear, including:
-
-```text
-<workspace>/
-├── models/
 ├── logs/
-└── automation/
-    └── recipes/
+├── models/
+└── temp/
 ```
 
-Not every optional/conventional directory is created eagerly by the core `ensure_workspace_dirs(...)` bootstrap helper.
+Not every optional/conventional directory or lazy file is created eagerly by the core `ensure_workspace_dirs(...)` bootstrap helper.
+
+`agents_lineage_state.json` is created lazily by Agents when local lineage state is persisted.
+
+`automation/recipes/` is created by the Automation recipe provider when production composition starts that provider.
 
 ## 4. `app.db`
 
@@ -63,6 +59,8 @@ It stores structured records for UI preferences, Profiles, Datasets, Training, m
 Training-specific persisted state includes run IDs, configuration, status/progress, artifact paths, and input fingerprints such as `profile_sha256` and `dataset_sha256`.
 
 Agents semantic lineage is **derived from persisted source records** in this database rather than being duplicated as a second complete semantic graph.
+
+Automation structured audit events are also written through the shared `event_log` in this database.
 
 ## 5. `agents_lineage_state.json`
 
@@ -106,6 +104,8 @@ Do **not** treat `artifacts/` as disposable cache. Generated model output may be
 
 Agents local branch deletion does not garbage-collect these artifact directories merely because a branch referenced them.
 
+Automation can invoke trusted commands that write into `artifacts/` or anywhere else permitted by the OS account; runtime claims coordinate that intent but do not enforce filesystem confinement.
+
 ## 7. `models/`
 
 `models/` is the conventional location used by the default local-model configuration.
@@ -134,23 +134,75 @@ Approval stores a SHA-256 content fingerprint, and Training pins that approved f
 
 Therefore a workspace backup is not automatically a complete Dataset-source backup when the JSONL lives elsewhere.
 
-## 9. `exports/`
+## 9. `automation/recipes/`
+
+Automation workspace manifests live under:
+
+```text
+<workspace>/automation/recipes/
+```
+
+Files matching:
+
+```text
+*.ptl-recipe.json
+```
+
+are recursively discovered as trusted-host recipe inputs.
+
+The current manifest schema is:
+
+```text
+ptl:automation-recipe:v1
+```
+
+### Import semantics
+
+Automation Import validates and copies the selected **manifest** into this registry.
+
+It does not automatically copy arbitrary companion scripts, executables, model files, or data referenced by the manifest.
+
+For an imported workspace manifest, relative `working_directory` is resolved relative to the imported manifest's directory. Back up/restore companion dependencies separately when they are not actually stored in the workspace.
+
+### Trust/reproducibility boundary
+
+Workspace recipe manifests are executable trusted inputs, not signed/content-addressed capsules.
+
+v1.0 does not persist a recipe-manifest content hash that binds the detail-pane snapshot to a later Run click. Refresh/review after edits and avoid concurrent external mutation when consent/reproducibility matters.
+
+## 10. Automation audit state
+
+Automation audit metadata is stored through the shared SQLite `event_log`, not in a separate plaintext command-history file.
+
+The current audit schema is:
+
+```text
+ptl:automation-audit:v1
+```
+
+The audit stores command SHA-256/part count, environment **keys**, working directory, effect scope, timeout/output bounds, resource claims, and terminal metadata.
+
+It intentionally does not store environment values or plaintext command text as the normal structured command record, and it does not copy stdout/stderr contents into that audit payload.
+
+Audit rows can still expose operationally sensitive paths, resource IDs, environment key names, error detail, subjects, and timing metadata.
+
+## 11. `exports/`
 
 `exports/` is workspace-owned output intended for exported/user-facing material.
 
 Whether an individual export is reproducible depends on the producing workflow. Do not assume exported files are authoritative substitutes for SQLite records or model artifacts.
 
-## 10. `temp/`
+## 12. `temp/`
 
 `temp/` is temporary workspace state. It is a lower-risk cleanup target only when PTL and relevant owned operations are stopped.
 
 Do not clear temporary state during active Training/Automation/model work unless a feature-specific recovery procedure says it is safe.
 
-## 11. `cache/`
+## 13. `cache/`
 
-`cache/` is intended for regenerable cache material. Clearing it should not delete the sole authoritative copy of a Profile, Dataset row, Training run, local Agents branch history, or generated model artifact.
+`cache/` is intended for regenerable cache material. Clearing it should not delete the sole authoritative copy of a Profile, Dataset row, Training run, local Agents branch history, Automation recipe, or generated model artifact.
 
-## 12. `logs/`
+## 14. `logs/`
 
 Structured application logs are diagnostic state. Production composition configures rotating logs under:
 
@@ -164,13 +216,7 @@ Failure to create the diagnostic log file does not prevent application startup.
 
 Logs may contain operational metadata useful for startup/runtime/Training/Automation/Agents investigations. Review them before public sharing when workspace privacy matters.
 
-## 13. `automation/recipes/`
-
-Automation recipes are executable operational inputs associated with the workspace.
-
-Treat them as code/commands, not inert preferences. Back them up when they represent work you care about.
-
-## 14. SQLite and filesystem state form one product workspace
+## 15. SQLite and filesystem state form one product workspace
 
 A complete PTL workspace is not equivalent to `app.db` alone.
 
@@ -196,16 +242,31 @@ agents_lineage_state.json
   └─ undo/redo + layout history
 ```
 
-Copying only SQLite can preserve semantic records while losing Agents local branch/history/layout state and generated artifact bytes. Copying only artifacts/JSON can preserve files/local organization while losing the persisted Profiles, Datasets, Training runs, model-version records, evaluations, and runtime links that explain them.
+Automation similarly spans:
+
+```text
+automation/recipes/
+  └─ executable manifest inputs
+
+app.db / event_log
+  └─ structured Automation audit metadata
+
+external host filesystem/tools
+  └─ optional command dependencies/effects not necessarily inside workspace
+```
+
+Copying only SQLite can preserve semantic/audit records while losing Agents local branch/history/layout state, custom recipes, and generated artifact bytes. Copying only files can preserve artifacts/recipes/local organization while losing the persisted domain and audit records that explain them.
 
 Treat the **whole workspace root** as one backup unit unless a feature-specific export is explicitly self-contained.
 
-## 15. Important SQLite areas
+Then separately preserve important external Dataset/model/Automation dependencies that live outside the workspace.
+
+## 16. Important SQLite areas
 
 | Area | Main table(s) | Purpose |
 |---|---|---|
 | UI preferences | `ui_preferences` | Presentation preferences |
-| Event history | `event_log` | Structured events/errors/audit data |
+| Event history | `event_log` | Structured events/errors/Automation audit data |
 | Profiles | `persona_profiles` | Personality/profile definition |
 | Datasets | `datasets` | Source path, validation state, approval SHA-256 |
 | Training | `training_runs`, `training_logs` | Configuration, input fingerprints, runtime state, artifact path, logs |
@@ -218,7 +279,7 @@ Treat the **whole workspace root** as one backup unit unless a feature-specific 
 
 Do not manually add/remove schema columns as a normal user workflow.
 
-## 16. Agents semantic snapshot boundary
+## 17. Agents semantic snapshot boundary
 
 Agents reads the Dataset, Training-run, model-version, and evaluation source sets under one SQLite read transaction when constructing a semantic lineage snapshot.
 
@@ -226,23 +287,29 @@ This gives one refresh a coherent persisted view instead of combining separately
 
 The local `agents_lineage_state.json` is applied after the semantic projection is built; it does not become a replacement source for those domain records.
 
-## 17. Runtime-operation state
+## 18. Runtime-operation state
 
 Long-running coordinated operations persist lifecycle/resource-claim state in SQLite.
 
 An operation can record its ID/kind/subject, state, correlation ID, owner PID, timestamps, error text, and read/write claims.
 
-This supports crash recovery and conflict detection. Agents uses `lineage_resource_links` plus these active claims to block unsafe local branch deletion/redo.
+This supports crash recovery and conflict detection. Agents uses `lineage_resource_links` plus these active claims to block unsafe local branch deletion/redo. Automation acquires claims before process launch and can be blocked by incompatible active operations.
 
 Do not manually edit rows to "unlock" PTL; use a documented recovery path.
 
-## 18. Event/audit data
+## 19. Automation host effects vs workspace ownership
 
-`event_log` is shared structured application-event infrastructure. Automation audit behavior intentionally avoids persisting inherited environment-variable **values** merely because a child process received them.
+The workspace is PTL's persistence root, but Automation is not restricted to it.
 
-Event/audit rows may still contain sensitive operational metadata and belong in normal workspace privacy decisions.
+Ad-hoc commands can use an explicit absolute working directory, and trusted recipes/commands can access other host paths permitted by the OS account.
 
-## 19. Source tree vs workspace
+Therefore:
+
+> a whole-workspace backup preserves PTL-owned Automation manifests/audit metadata, but it cannot automatically capture every external file that arbitrary trusted-host commands depend on or modify.
+
+Runtime resource claims are coordination metadata; they do not create a filesystem sandbox.
+
+## 20. Source tree vs workspace
 
 A source checkout contains code/material such as:
 
@@ -261,7 +328,9 @@ Release-policy tests check ignored/untracked inputs under `src/`, `tests/`, and 
 
 Neither `app.db` nor `agents_lineage_state.json` should be created under a package/source subdirectory merely because the process was launched there.
 
-## 20. Clean reset
+Automation custom manifests belong under the workspace registry rather than being silently discovered from arbitrary CWD/source locations.
+
+## 21. Clean reset
 
 For a complete fresh workspace:
 
@@ -279,11 +348,13 @@ mv ~/.local/share/persona-training-lab \
 
 Renaming first is safer than immediate deletion.
 
-A complete reset can remove/disconnect Profiles, Dataset metadata, Training records/logs, model-version metadata, generated artifacts, experiment/analysis state, Agents custom branches/history/layout, Automation recipes, audit history, preferences, runtime-operation state, lineage links, logs/cache/temp/exports, and any workspace-local models.
+A complete reset can remove/disconnect Profiles, Dataset metadata, Training records/logs, model-version metadata, generated artifacts, experiment/analysis state, Agents custom branches/history/layout, Automation recipes/audit history, preferences, runtime-operation state, lineage links, logs/cache/temp/exports, and any workspace-local models.
+
+It does not undo side effects that prior trusted-host Automation commands already made outside the workspace.
 
 Do not describe a whole-workspace reset as "clear cache".
 
-## 21. Backup
+## 22. Backup
 
 For a conservative offline manual backup:
 
@@ -300,37 +371,42 @@ cp -a ~/.local/share/persona-training-lab \
       ~/Backups/persona-training-lab-2026-08-19
 ```
 
-This captures both `app.db` and `agents_lineage_state.json` when present.
+This captures `app.db`, `agents_lineage_state.json` when present, and workspace Automation manifests.
 
-Then separately back up any important external Dataset sources and explicit base-model directories that live outside the workspace.
+Then separately back up any important external Dataset sources, explicit base-model directories, Automation companion scripts/tools/data, or other required resources that live outside the workspace.
 
-## 22. Restore
+For reproducible Automation research, preserve the exact recipe manifest and transitive external tool/data revisions separately; the command SHA-256 in audit metadata is not a transitive dependency hash.
+
+## 23. Restore
 
 The conservative restore procedure is:
 
 1. stop PTL;
 2. move the current workspace aside;
 3. restore the saved workspace to the expected root;
-4. restore externally managed Dataset/model inputs as needed;
+4. restore externally managed Dataset/model/Automation inputs as needed;
 5. launch PTL;
-6. inspect Dashboard/Agents/Issues/logs before destructive or long-running work.
+6. inspect Dashboard/Agents/Automation/Issues/logs before destructive or long-running work.
 
 Restoring metadata without referenced files can produce incomplete workflows even when SQLite opens successfully.
 
-Restoring `app.db` without the corresponding Agents JSON can also preserve the semantic graph while losing local branches/current/history/layout organization.
+Restoring `app.db` without the corresponding Agents JSON can preserve the semantic graph while losing local branches/current/history/layout organization.
 
-## 23. Partial cleanup risk
+Restoring Automation manifests without the external executables/scripts/data they call can leave valid-looking recipes that fail or behave differently at runtime.
+
+## 24. Partial cleanup risk
 
 - `cache/`: normally lower risk while PTL is stopped.
 - `temp/`: normally lower risk after owned operations stop.
 - `logs/`: removes diagnostic history.
 - `exports/`: may delete user-visible outputs.
 - `agents_lineage_state.json`: removes local Agents branches/current/overrides/history/layout; does not delete semantic SQLite entities.
+- `automation/recipes/`: deletes custom executable recipe manifests; does not erase their already-recorded audit events or undo prior host effects.
 - `models/`: may remove required base-model inputs.
 - `artifacts/`: potentially highly destructive; not routine cleanup.
-- only `app.db`: dangerous split because files/local Agents state can remain without authoritative semantic metadata.
+- only `app.db`: dangerous split because files/local Agents state/recipes can remain without authoritative semantic/audit metadata.
 
-## 24. Troubleshooting evidence
+## 25. Troubleshooting evidence
 
 When reporting workspace/storage problems, collect:
 
@@ -340,28 +416,33 @@ When reporting workspace/storage problems, collect:
 - relevant environment overrides such as `XDG_DATA_HOME`/`LOCALAPPDATA`;
 - relevant log/Issues text;
 - whether `agents_lineage_state.json` exists when diagnosing Agents local-state/history problems;
-- whether the issue followed a crash, forced shutdown, manual file move, Dataset edit, model replacement, or partial restore.
+- relevant Automation recipe ID/version/source path and discovery issue;
+- Automation operation ID/result code when applicable;
+- whether the issue followed a crash, forced shutdown, manual file move, Dataset edit, model replacement, recipe edit/import, trusted-host command, or partial restore.
 
-Do not publish a complete `app.db`, Agents state JSON, Dataset source, Training metadata, or Automation recipe directory without reviewing it for private content.
+Do not publish a complete `app.db`, Agents state JSON, Dataset source, Training metadata, Automation recipe directory, command output, or environment dump without reviewing it for private content.
 
-## 25. Developer rules
+## 26. Developer rules
 
 Persistent features must obtain workspace-owned paths from configuration/composition instead of CWD or package-relative mutable state.
 
 Agents production state follows the same rule: `AtomicLineageStateStore` resolves its default JSON file through the platform workspace resolver.
 
+Automation production recipe discovery follows the same rule: `FilesystemAutomationRecipeProvider` receives `<workspace>/automation/recipes` from composition.
+
 A clean `git status` is also not sufficient when ignored files exist. Release policy treats hidden runtime-affecting inputs under source/test/tool trees as release-integrity defects.
 
-## 26. v1.0 visual plan
+## 27. v1.0 visual plan
 
 The documentation asset pass should include:
 
-- a workspace directory diagram showing `app.db`, `agents_lineage_state.json`, `models/`, and `artifacts/`;
+- a workspace directory diagram showing `app.db`, `agents_lineage_state.json`, `automation/recipes/`, `models/`, and `artifacts/`;
 - a backup/reset decision diagram;
 - an Agents state-ownership diagram showing SQLite semantic state vs local JSON state;
-- operational screenshots that help diagnose workspace problems.
+- an Automation state diagram showing recipe manifests + SQLite audit + external host effects;
+- operational screenshots that help diagnose workspace problems without exposing real secrets.
 
-Exact paths and destructive effects remain written contracts; images are supporting explanation.
+Exact paths and destructive/executable effects remain written contracts; images are supporting explanation.
 
 ## Related documentation
 
@@ -369,6 +450,8 @@ Exact paths and destructive effects remain written contracts; images are support
 - [Interface Tour](../user-guide/interface-tour.md)
 - [Agents lineage](../user-guide/agents-lineage.md)
 - [Agents lineage architecture](../architecture/agents-lineage.md)
+- [Automation](../user-guide/automation.md)
+- [Automation architecture](../architecture/automation.md)
 - [Datasets](../user-guide/datasets.md)
 - [Training](../user-guide/training.md)
 - [Training pipeline specification](../training_pipeline.md)

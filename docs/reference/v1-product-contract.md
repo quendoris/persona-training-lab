@@ -23,7 +23,7 @@ The v1.0 contract includes:
 - Snapshots;
 - Tests/evaluation surfaces;
 - Analysis;
-- Automation execution and audit metadata;
+- Automation trusted-host recipe/ad-hoc execution and audit metadata;
 - Style, language, and UI-scale configuration;
 - configurable key bindings;
 - Inspector, Activity, Issues, and Telemetry supporting surfaces;
@@ -52,7 +52,15 @@ Agents local lineage state is also workspace-owned:
 <workspace>/agents_lineage_state.json
 ```
 
-A complete workspace backup therefore spans SQLite, Agents local state, generated artifacts, and other workspace-owned files; `app.db` alone is not a complete product backup.
+Automation custom manifests are workspace-owned under:
+
+```text
+<workspace>/automation/recipes/
+```
+
+A complete workspace backup therefore spans SQLite, Agents local state, Automation manifests, generated artifacts, and other workspace-owned files; `app.db` alone is not a complete product backup.
+
+Trusted-host Automation can still depend on or modify host resources outside the workspace. Those external dependencies/effects are not automatically captured by a workspace backup.
 
 Mutable runtime state must not be placed inside the installed/source package tree as a hidden input to product behavior.
 
@@ -126,13 +134,103 @@ The current UI does not expose a production LoRA/QLoRA workflow. Pause and Stop 
 
 Training executes through owned background work and runtime-resource coordination rather than running the fine-tune loop directly on the Qt GUI thread.
 
-## 10. Automation boundary
+## 10. Automation execution and trust contract
 
-Automation is an explicit execution surface.
+Automation is an explicit **trusted-host** execution surface.
 
-The product architecture includes controlled execution, timeout/cancellation behavior, process handling, and persistent audit metadata. Audit storage is designed not to persist environment-variable **values** merely because a child process inherited the environment; command audit data is reduced rather than stored as an unrestricted plaintext dump.
+The only current effect-scope identifier is:
 
-Automation is not a sandbox that makes arbitrary commands untrusted-safe. A user-approved command still executes with PTL/OS-account permissions subject to product controls.
+```text
+trusted_host
+```
+
+A recipe or authorized ad-hoc command executes under the PTL process/OS-account permissions.
+
+Automation is **not** a sandbox and does not claim to provide container isolation, restricted syscalls, filesystem confinement, network isolation, or a separate low-privilege identity.
+
+### 10.1 Recipe contract
+
+Workspace recipes use:
+
+```text
+ptl:automation-recipe:v1
+```
+
+and are discovered under:
+
+```text
+<workspace>/automation/recipes/
+```
+
+Recipe execution uses explicit argv/`exec` semantics. Inputs/placeholders/resource claims/timeout/working directory are validated/rendered before the execution snapshot is created.
+
+The built-in `workspace_health` diagnostic declares a workspace read claim.
+
+### 10.2 Ad-hoc authorization
+
+Ad-hoc host commands require explicit:
+
+```text
+host_effects_authorized = true
+```
+
+before launch.
+
+This authorization is an acknowledgement of host effects, not a sandbox switch.
+
+Ad-hoc commands support separate `exec` and `shell` modes. Their command representations are mutually exclusive and validated before runtime lease acquisition.
+
+### 10.3 Resource coordination
+
+Automation acquires runtime-operation claims before process launch.
+
+Read/write claims coordinate cooperative PTL workflows. Conflicting claims block launch.
+
+These claims are **runtime coordination semantics**, not OS permission enforcement. PTL does not inspect arbitrary process syscalls to prove that a command touches only declared resources.
+
+When an ad-hoc command declares no resources, v1 inserts a conservative workspace `write` claim.
+
+### 10.4 Timeout/cancellation/process-tree containment
+
+Automation captures child output through bounded pipes and owns the launched process tree.
+
+On POSIX, execution uses a separate session/process group and group termination. On Windows, execution uses a kill-on-close Job Object boundary.
+
+Cancellation/timeout target the contained process tree rather than only the immediate child.
+
+A one-shot Automation command should not rely on leaving unmanaged detached descendants alive after run finalization.
+
+### 10.5 Output bounds
+
+Stdout and stderr are captured independently with a default per-stream limit of 1 MiB and a hard per-stream maximum of 64 MiB.
+
+Excess bytes are drained but not retained; truncation is reported in the result/audit metadata.
+
+### 10.6 Audit contract
+
+Production composition wires Automation to the shared event log through:
+
+```text
+ptl:automation-audit:v1
+```
+
+The structured audit stores execution metadata including command SHA-256/part count, environment **keys**, working directory, timeout/output bound, resource claims, and terminal metadata.
+
+It intentionally does not store plaintext command text or environment-variable values as the normal command record, and it does not copy stdout/stderr contents into the structured audit payload.
+
+Ad-hoc execution fails closed when audit is unavailable or the start-audit record cannot be persisted.
+
+Audit rows can still reveal sensitive operational metadata such as paths, resource IDs, environment key names, errors, subjects, and timing information.
+
+### 10.7 Recipe mutability/provenance boundary
+
+Recipe IDs/versions are metadata, not signed/content-addressed execution identities.
+
+The Automation UI can display one discovered workspace recipe snapshot while `run_recipe()` reloads the recipe by ID before execution. v1.0 does not cryptographically pin the displayed manifest to the later Run click.
+
+Operators must Refresh/review after recipe edits and preserve exact manifest/tool/data revisions separately when exact reproducibility matters.
+
+The Automation command SHA-256 identifies the command snapshot PTL launched; it is not a transitive hash of every executable/script/data file that command can consume.
 
 ## 11. Runtime safety contract
 
@@ -145,11 +243,12 @@ Stable-release contracts include:
 - lineage runtime safety and persisted `lineage_resource_links`;
 - branch deletion planning/finalization/compensation paths;
 - protected branch-deletion undo/redo safety;
+- Automation pre-launch resource coordination;
 - workspace-leave guards;
 - background worker ownership/shutdown;
 - application, worker-thread, and Qt diagnostic error boundaries.
 
-Read/read claims can coexist; a conflicting write blocks. Destructive lineage work obtains a deletion lease before mutation rather than relying only on an earlier UI availability check.
+Read/read claims can coexist; a conflicting write blocks. Destructive lineage work obtains a deletion lease before mutation rather than relying only on an earlier UI availability check. Automation obtains its execution lease before launching a host process.
 
 ## 12. Agents lineage integrity contract
 
@@ -227,6 +326,10 @@ v1.0 does not claim exhaustive proof of:
 
 - long-duration soak behavior under arbitrary workloads;
 - maximum Automation concurrency/process-tree complexity;
+- malicious/untrusted-code containment for Automation;
+- filesystem/network isolation of Automation commands;
+- cryptographic signing/content-pinning of Automation recipe manifests;
+- transitive hashing of Automation executables/scripts/data dependencies;
 - extreme SQLite contention beyond audited contracts;
 - arbitrary model sizes/architectures;
 - every GPU/driver/OS combination;
@@ -261,6 +364,7 @@ It must provide:
 - security/trust boundaries;
 - Training/Dataset provenance and reproducibility boundaries;
 - Agents semantic-vs-local state and protected history boundaries;
+- Automation trusted-host authorization/claims/audit/process-containment/provenance boundaries;
 - development/test/visual-audit/packaging/release procedures;
 - clear separation between supported behavior and post-v1.0 stress/experimental work.
 
