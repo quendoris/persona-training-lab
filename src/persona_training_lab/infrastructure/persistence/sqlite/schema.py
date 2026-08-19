@@ -92,6 +92,7 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
             validation_errors_preview TEXT NOT NULL DEFAULT '',
             readiness TEXT NOT NULL,
             schema_name TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL
         );
@@ -107,7 +108,12 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
             base_model TEXT NOT NULL,
             profile TEXT NOT NULL,
             dataset_version TEXT NOT NULL,
+            profile_id TEXT NOT NULL DEFAULT '',
+            dataset_id TEXT NOT NULL DEFAULT '',
             mode TEXT NOT NULL,
+            epochs INTEGER NOT NULL DEFAULT 1,
+            batch_size INTEGER NOT NULL DEFAULT 1,
+            learning_rate REAL NOT NULL DEFAULT 0.0001,
             epoch_progress TEXT NOT NULL,
             loss TEXT NOT NULL,
             speed TEXT NOT NULL,
@@ -235,8 +241,7 @@ def _ensure_profile_columns(connection: sqlite3.Connection) -> None:
 
 def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
     columns = {
-        row[1]
-        for row in connection.execute("PRAGMA table_info(datasets)").fetchall()
+        row[1] for row in connection.execute("PRAGMA table_info(datasets)").fetchall()
     }
     additions = [
         ("path", "TEXT NOT NULL DEFAULT ''"),
@@ -244,13 +249,12 @@ def _ensure_dataset_columns(connection: sqlite3.Connection) -> None:
         ("valid_count", "INTEGER NOT NULL DEFAULT 0"),
         ("invalid_count", "INTEGER NOT NULL DEFAULT 0"),
         ("validation_errors_preview", "TEXT NOT NULL DEFAULT ''"),
+        ("content_sha256", "TEXT NOT NULL DEFAULT ''"),
         ("created_at", "TEXT NOT NULL DEFAULT ''"),
     ]
     for name, definition in additions:
         if name not in columns:
-            connection.execute(
-                f"ALTER TABLE datasets ADD COLUMN {name} {definition}"
-            )
+            connection.execute(f"ALTER TABLE datasets ADD COLUMN {name} {definition}")
 
 
 def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
@@ -259,6 +263,11 @@ def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
         for row in connection.execute("PRAGMA table_info(training_runs)").fetchall()
     }
     additions = [
+        ("profile_id", "TEXT NOT NULL DEFAULT ''"),
+        ("dataset_id", "TEXT NOT NULL DEFAULT ''"),
+        ("epochs", "INTEGER NOT NULL DEFAULT 1"),
+        ("batch_size", "INTEGER NOT NULL DEFAULT 1"),
+        ("learning_rate", "REAL NOT NULL DEFAULT 0.0001"),
         ("started_at", "TEXT NOT NULL DEFAULT ''"),
         ("finished_at", "TEXT NOT NULL DEFAULT ''"),
         ("progress", "REAL NOT NULL DEFAULT 0"),
@@ -286,9 +295,7 @@ def _ensure_training_log_table(connection: sqlite3.Connection) -> None:
     )
 
 
-def _ensure_lineage_resource_links_table(
-    connection: sqlite3.Connection,
-) -> None:
+def _ensure_lineage_resource_links_table(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS lineage_resource_links (

@@ -4,9 +4,7 @@ import sqlite3
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from persona_training_lab.infrastructure.persistence.sqlite.locking import (
-    connection_lock,
-)
+from persona_training_lab.infrastructure.persistence.sqlite.locking import connection_lock
 
 
 class SQLiteTrainingRepository:
@@ -19,35 +17,15 @@ class SQLiteTrainingRepository:
             rows = self._connection.execute(
                 """
                 SELECT id, title, subtitle, status, base_model, profile,
-                       dataset_version, mode, epoch_progress, loss, speed,
-                       checkpoints_count, progress, started_at, finished_at,
-                       artifact_path, error_message
+                       dataset_version, profile_id, dataset_id, mode,
+                       epochs, batch_size, learning_rate,
+                       epoch_progress, loss, speed, checkpoints_count, progress,
+                       started_at, finished_at, artifact_path, error_message
                 FROM training_runs
                 ORDER BY updated_at DESC, title ASC
                 """
             ).fetchall()
-        return [
-            {
-                "run_id": row["id"],
-                "title": row["title"],
-                "subtitle": row["subtitle"],
-                "status": row["status"],
-                "base_model": row["base_model"],
-                "profile": row["profile"],
-                "dataset_version": row["dataset_version"],
-                "mode": row["mode"],
-                "epoch_progress": row["epoch_progress"],
-                "loss": row["loss"],
-                "speed": row["speed"],
-                "checkpoints_count": row["checkpoints_count"],
-                "progress": str(row["progress"]),
-                "started_at": row["started_at"],
-                "finished_at": row["finished_at"],
-                "artifact_path": row["artifact_path"],
-                "error_message": row["error_message"],
-            }
-            for row in rows
-        ]
+        return [self._row_to_dict(row) for row in rows]
 
     def create_training_run(self, payload: dict[str, str]) -> None:
         with self._lock, self._connection:
@@ -55,9 +33,10 @@ class SQLiteTrainingRepository:
                 """
                 INSERT INTO training_runs (
                     id, title, subtitle, status, base_model, profile,
-                    dataset_version, mode, epoch_progress, loss, speed,
-                    checkpoints_count, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    dataset_version, profile_id, dataset_id, mode,
+                    epochs, batch_size, learning_rate,
+                    epoch_progress, loss, speed, checkpoints_count, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.get("id", ""),
@@ -67,7 +46,12 @@ class SQLiteTrainingRepository:
                     payload.get("base_model", ""),
                     payload.get("profile", ""),
                     payload.get("dataset_version", ""),
+                    payload.get("profile_id", ""),
+                    payload.get("dataset_id", ""),
                     payload.get("mode", ""),
+                    int(payload.get("epochs", "1") or 1),
+                    int(payload.get("batch_size", "1") or 1),
+                    float(payload.get("learning_rate", "0.0001") or 0.0001),
                     payload.get("epoch_progress", ""),
                     payload.get("loss", ""),
                     payload.get("speed", ""),
@@ -81,35 +65,16 @@ class SQLiteTrainingRepository:
             row = self._connection.execute(
                 """
                 SELECT id, title, subtitle, status, base_model, profile,
-                       dataset_version, mode, epoch_progress, loss, speed,
-                       checkpoints_count, progress, started_at, finished_at,
-                       artifact_path, error_message
+                       dataset_version, profile_id, dataset_id, mode,
+                       epochs, batch_size, learning_rate,
+                       epoch_progress, loss, speed, checkpoints_count, progress,
+                       started_at, finished_at, artifact_path, error_message
                 FROM training_runs
                 WHERE id = ?
                 """,
                 (run_id,),
             ).fetchone()
-        if row is None:
-            return None
-        return {
-            "run_id": row["id"],
-            "title": row["title"],
-            "subtitle": row["subtitle"],
-            "status": row["status"],
-            "base_model": row["base_model"],
-            "profile": row["profile"],
-            "dataset_version": row["dataset_version"],
-            "mode": row["mode"],
-            "epoch_progress": row["epoch_progress"],
-            "loss": row["loss"],
-            "speed": row["speed"],
-            "checkpoints_count": row["checkpoints_count"],
-            "progress": str(row["progress"]),
-            "started_at": row["started_at"],
-            "finished_at": row["finished_at"],
-            "artifact_path": row["artifact_path"],
-            "error_message": row["error_message"],
-        }
+        return self._row_to_dict(row) if row is not None else None
 
     def update_training_run_runtime(
         self,
@@ -152,9 +117,8 @@ class SQLiteTrainingRepository:
         with self._lock, self._connection:
             self._connection.execute(
                 """
-                INSERT INTO training_logs (
-                    id, run_id, level, message, created_at
-                ) VALUES (?, ?, ?, ?, ?)
+                INSERT INTO training_logs (id, run_id, level, message, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     f"log_{uuid4().hex[:12]}",
@@ -165,11 +129,7 @@ class SQLiteTrainingRepository:
                 ),
             )
 
-    def list_training_logs(
-        self,
-        run_id: str,
-        limit: int = 100,
-    ) -> list[str]:
+    def list_training_logs(self, run_id: str, limit: int = 100) -> list[str]:
         with self._lock:
             rows = self._connection.execute(
                 """
@@ -181,7 +141,31 @@ class SQLiteTrainingRepository:
                 """,
                 (run_id, limit),
             ).fetchall()
-        return [
-            f"[{row['level']}] {row['message']}"
-            for row in reversed(rows)
-        ]
+        return [f"[{row['level']}] {row['message']}" for row in reversed(rows)]
+
+    @staticmethod
+    def _row_to_dict(row: sqlite3.Row) -> dict[str, str]:
+        return {
+            "run_id": row["id"],
+            "title": row["title"],
+            "subtitle": row["subtitle"],
+            "status": row["status"],
+            "base_model": row["base_model"],
+            "profile": row["profile"],
+            "dataset_version": row["dataset_version"],
+            "profile_id": row["profile_id"],
+            "dataset_id": row["dataset_id"],
+            "mode": row["mode"],
+            "epochs": str(row["epochs"]),
+            "batch_size": str(row["batch_size"]),
+            "learning_rate": str(row["learning_rate"]),
+            "epoch_progress": row["epoch_progress"],
+            "loss": row["loss"],
+            "speed": row["speed"],
+            "checkpoints_count": row["checkpoints_count"],
+            "progress": str(row["progress"]),
+            "started_at": row["started_at"],
+            "finished_at": row["finished_at"],
+            "artifact_path": row["artifact_path"],
+            "error_message": row["error_message"],
+        }

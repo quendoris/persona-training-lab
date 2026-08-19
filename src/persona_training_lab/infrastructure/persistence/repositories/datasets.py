@@ -23,8 +23,10 @@ class SQLiteDatasetsRepository:
         with self._lock:
             rows = self._connection.execute(
                 """
-                SELECT id, title, subtitle, path, format, status, record_count, valid_count, invalid_count,
-                       quality_summary, validation_errors_preview, linked_profile, readiness, schema_name
+                SELECT id, title, subtitle, path, format, status, record_count,
+                       valid_count, invalid_count, quality_summary,
+                       validation_errors_preview, linked_profile, readiness,
+                       schema_name, content_sha256
                 FROM datasets
                 ORDER BY updated_at DESC, title ASC
                 """
@@ -35,8 +37,10 @@ class SQLiteDatasetsRepository:
         with self._lock:
             row = self._connection.execute(
                 """
-                SELECT id, title, subtitle, path, format, status, record_count, valid_count, invalid_count,
-                       quality_summary, validation_errors_preview, linked_profile, readiness, schema_name
+                SELECT id, title, subtitle, path, format, status, record_count,
+                       valid_count, invalid_count, quality_summary,
+                       validation_errors_preview, linked_profile, readiness,
+                       schema_name, content_sha256
                 FROM datasets
                 WHERE id = ?
                 """,
@@ -54,10 +58,10 @@ class SQLiteDatasetsRepository:
                     id, title, subtitle, path, format, status,
                     record_count, valid_count, invalid_count,
                     quality_summary, validation_errors_preview,
-                    linked_profile, readiness, schema_name,
+                    linked_profile, readiness, schema_name, content_sha256,
                     created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.get("id", ""),
@@ -77,6 +81,7 @@ class SQLiteDatasetsRepository:
                         DatasetReadinessStatus.AWAITING_VALIDATION.value,
                     ),
                     payload.get("schema_name", "jsonl_finetune_v1"),
+                    payload.get("content_sha256", ""),
                     payload.get("created_at", ""),
                     payload.get("updated_at", ""),
                 ),
@@ -98,6 +103,7 @@ class SQLiteDatasetsRepository:
                     quality_summary = ?,
                     validation_errors_preview = ?,
                     readiness = ?,
+                    content_sha256 = ?,
                     updated_at = ?
                 WHERE id = ?
                 """,
@@ -116,6 +122,7 @@ class SQLiteDatasetsRepository:
                             )
                         )
                     ),
+                    payload.get("content_sha256", ""),
                     payload.get("updated_at", ""),
                     dataset_id,
                 ),
@@ -137,9 +144,11 @@ class SQLiteDatasetsRepository:
             "linked_profile": row["linked_profile"],
             "readiness": row["readiness"],
             "schema_name": row["schema_name"],
+            "content_sha256": row["content_sha256"],
         }
 
-    def _readiness_from_status(self, status: str) -> str:
+    @staticmethod
+    def _readiness_from_status(status: str) -> str:
         status_code = normalize_dataset_status(status)
         if status_code is DatasetVersionStatus.APPROVED:
             return DatasetReadinessStatus.APPROVED.value

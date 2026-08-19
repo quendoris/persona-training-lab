@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
 import json
 from pathlib import Path
 from uuid import uuid4
@@ -36,6 +37,7 @@ class DatasetSummary:
     validation_errors_preview: str
     path: str
     format: str
+    content_sha256: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -46,6 +48,7 @@ class DatasetValidationResult:
     invalid_rows: int
     warning_count: int
     errors_preview: tuple[DatasetDiagnostic, ...]
+    content_sha256: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -88,6 +91,7 @@ class DatasetsService:
                 "linked_profile": "—",
                 "readiness": DatasetReadinessStatus.AWAITING_VALIDATION.value,
                 "schema_name": "jsonl_finetune_v1",
+                "content_sha256": "",
                 "created_at": now,
                 "updated_at": now,
             }
@@ -121,13 +125,23 @@ class DatasetsService:
             return ActionResult(False, "not_found")
         return ActionResult(False, "version_compare_unavailable")
 
-    def preview_dataset(self, dataset_id: str, limit: int = 25) -> tuple[DatasetPreviewRecord, ...]:
+    def preview_dataset(
+        self,
+        dataset_id: str,
+        limit: int = 25,
+    ) -> tuple[DatasetPreviewRecord, ...]:
         row = self.datasets_repo.get_dataset(dataset_id)
         if row is None:
             return ()
         return self._preview_jsonl_path(str(row.get("path", "")), limit=limit)
 
-    def _save_result(self, dataset_id: str, result: DatasetValidationResult, *, approve: bool) -> None:
+    def _save_result(
+        self,
+        dataset_id: str,
+        result: DatasetValidationResult,
+        *,
+        approve: bool,
+    ) -> None:
         status = (
             DatasetVersionStatus.APPROVED.value
             if approve and result.status == DatasetVersionStatus.VALIDATED.value
@@ -142,9 +156,9 @@ class DatasetsService:
                 "invalid_count": result.invalid_rows,
                 "quality_summary": "",
                 "validation_errors_preview": "\n".join(
-                    encode_dataset_diagnostic(item)
-                    for item in result.errors_preview
+                    encode_dataset_diagnostic(item) for item in result.errors_preview
                 ),
+                "content_sha256": result.content_sha256,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -168,8 +182,10 @@ class DatasetsService:
                 1,
                 0,
                 (dataset_diagnostic("only_jsonl"),),
+                self._sha256_path(path),
             )
 
+        content_hash = self._sha256_path(path)
         total_rows = 0
         valid_rows = 0
         invalid_rows = 0
@@ -185,9 +201,7 @@ class DatasetsService:
                 except json.JSONDecodeError:
                     invalid_rows += 1
                     if len(errors) < 8:
-                        errors.append(
-                            dataset_diagnostic("invalid_json", line=line_number)
-                        )
+                        errors.append(dataset_diagnostic("invalid_json", line=line_number))
                     continue
                 ok, diagnostic = self._validate_record(payload)
                 if ok:
@@ -210,7 +224,15 @@ class DatasetsService:
             status = DatasetVersionStatus.STRUCTURE_ERROR.value
         else:
             status = DatasetVersionStatus.VALIDATED.value
-        return DatasetValidationResult(status, total_rows, valid_rows, invalid_rows, 0, tuple(errors[:8]))
+        return DatasetValidationResult(
+            status,
+            total_rows,
+            valid_rows,
+            invalid_rows,
+            0,
+            tuple(errors[:8]),
+            content_hash,
+        )
 
     def _validate_record(
         self,
@@ -230,15 +252,9 @@ class DatasetsService:
                 role = item.get("role")
                 content = item.get("content")
                 if role not in {"system", "user", "assistant"}:
-                    return False, dataset_diagnostic(
-                        "invalid_role",
-                        role=str(role),
-                    )
+                    return False, dataset_diagnostic("invalid_role", role=str(role))
                 if not isinstance(content, str) or not content.strip():
-                    return False, dataset_diagnostic(
-                        "content_empty",
-                        role=str(role),
-                    )
+                    return False, dataset_diagnostic("content_empty", role=str(role))
                 has_user = has_user or role == "user"
                 has_assistant = has_assistant or role == "assistant"
             if not has_user or not has_assistant:
@@ -265,7 +281,11 @@ class DatasetsService:
             return True, None
         return False, dataset_diagnostic("unsupported_schema")
 
-    def _preview_jsonl_path(self, file_path: str, limit: int) -> tuple[DatasetPreviewRecord, ...]:
+    def _preview_jsonl_path(
+        self,
+        file_path: str,
+        limit: int,
+    ) -> tuple[DatasetPreviewRecord, ...]:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
             return (
@@ -327,7 +347,11 @@ class DatasetsService:
             )
         )
 
-    def _preview_record(self, line_number: int, payload: dict[str, object]) -> DatasetPreviewRecord:
+    def _preview_record(
+        self,
+        line_number: int,
+        payload: dict[str, object],
+    ) -> DatasetPreviewRecord:
         if "messages" in payload:
             messages = payload.get("messages") or []
             user_text = ""
@@ -342,20 +366,45 @@ class DatasetsService:
                         user_text = content
                     if role == "assistant":
                         assistant_text = content
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(user_text or assistant_text), "messages", "structure_ok")
+            return DatasetPreviewRecord(
+                f"#{line_number:03d}",
+                self._short(user_text or assistant_text),
+                "messages",
+                "structure_ok",
+            )
         if "instruction" in payload or "output" in payload:
             instruction = str(payload.get("instruction", "")).strip()
             input_text = str(payload.get("input", "")).strip()
             summary = instruction if not input_text else f"{instruction} · {input_text}"
-            return DatasetPreviewRecord(f"#{line_number:03d}", self._short(summary), "instruction/output", "structure_ok")
+            return DatasetPreviewRecord(
+                f"#{line_number:03d}",
+                self._short(summary),
+                "instruction/output",
+                "structure_ok",
+            )
         prompt = str(payload.get("prompt", "")).strip()
-        return DatasetPreviewRecord(f"#{line_number:03d}", self._short(prompt), "prompt/response", "structure_ok")
+        return DatasetPreviewRecord(
+            f"#{line_number:03d}",
+            self._short(prompt),
+            "prompt/response",
+            "structure_ok",
+        )
 
-    def _short(self, value: str, limit: int = 140) -> str:
+    @staticmethod
+    def _short(value: str, limit: int = 140) -> str:
         compact = " ".join(value.split())
         return compact if len(compact) <= limit else compact[: limit - 1] + "…"
 
-    def _row_to_summary(self, row: dict[str, str | int]) -> DatasetSummary:
+    @staticmethod
+    def _sha256_path(path: Path) -> str:
+        digest = sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _row_to_summary(row: dict[str, str | int]) -> DatasetSummary:
         return DatasetSummary(
             dataset_id=str(row.get("dataset_id", "")),
             title=str(row.get("title", "")),
@@ -368,4 +417,5 @@ class DatasetsService:
             validation_errors_preview=str(row.get("validation_errors_preview", "")),
             path=str(row.get("path", "")),
             format=str(row.get("format", "jsonl")),
+            content_sha256=str(row.get("content_sha256", "")),
         )
