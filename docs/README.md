@@ -15,6 +15,7 @@ Begin with:
 - [Profiles](user-guide/profiles.md) — define the personality fields used by downstream Training.
 - [Datasets](user-guide/datasets.md) — import/preview/validate/approve JSONL and understand approval SHA-256 semantics.
 - [Training](user-guide/training.md) — create a run, understand input pinning, launch local full fine-tuning, inspect logs/artifacts/provenance.
+- [Snapshots and model versions](user-guide/snapshots.md) — inspect registered model versions, understand lineage, artifact references, and the exact meaning of “snapshot” in v1.0.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — stable-release guarantees, trust/integrity boundaries, explicit non-goals.
 
 ### I operate or troubleshoot PTL
@@ -23,6 +24,7 @@ Start with:
 
 - [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, local models, Training artifacts, backup/reset.
 - [Training pipeline specification](training_pipeline.md) — exact Training input transformation, hashes, backend, artifacts, failure/reproducibility boundaries.
+- [Snapshots and model versions](user-guide/snapshots.md) — distinguish persisted model-version metadata from the referenced artifact and trace provenance back to a Training run.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — security/runtime/integrity boundaries before operational changes.
 
 The operator layer will continue with dedicated local-model, recovery/troubleshooting, Automation, and security-boundary guides.
@@ -35,6 +37,7 @@ Start with:
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
+- [Snapshots and model versions](user-guide/snapshots.md) — current `model_versions` persistence semantics, derived lifecycle presentation, and provenance limits.
 
 ## Current v1.0 documentation map
 
@@ -45,6 +48,7 @@ Start with:
 | [Profiles](user-guide/profiles.md) | User | Create/edit personality definitions |
 | [Datasets](user-guide/datasets.md) | User / operator | JSONL structure, validation, approval fingerprints, Training eligibility |
 | [Training](user-guide/training.md) | User / operator | End-to-end Training workflow and safe operating rules |
+| [Snapshots and model versions](user-guide/snapshots.md) | User / operator / auditor | Model-version registry, lineage, artifact references, lifecycle projection, reproducibility boundary |
 | [Training pipeline specification](training_pipeline.md) | Advanced user / developer / auditor | Exact Training persistence, hashing, parsing, execution, artifact/provenance contract |
 | [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Data roots, `app.db`, external inputs, local models, artifacts, backup/reset |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
@@ -77,7 +81,7 @@ The v1.0 documentation set follows these rules:
 3. **Show the interface when spatial understanding matters.** Screenshots/diagrams support comprehension rather than decorate.
 4. **State destructive effects before actions.** Deletion, replacement, Training, and Automation need persistence/recovery implications first.
 5. **Use machine terms exactly.** IDs, paths, status/error codes, environment variables, schemas, and commands keep product spelling.
-6. **Distinguish guarantees from assumptions.** In particular, Training content-pins Profile/Dataset inputs but v1.0 does not content-address the complete base-model directory.
+6. **Distinguish guarantees from assumptions.** In particular, Training content-pins Profile/Dataset inputs but v1.0 does not content-address the complete base-model directory or treat the Snapshots UI as an independent immutable artifact store.
 7. **Keep screenshots reproducible.** Capture from a clean known commit and documented locale/theme/scale/state.
 8. **Prefer a clean novice path.** Do not require repository history or unwritten project context.
 9. **Cross-link instead of duplicating contracts.** One authoritative storage/trust/integrity contract per concept.
