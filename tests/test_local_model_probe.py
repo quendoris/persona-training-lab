@@ -51,28 +51,51 @@ class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
         )
 
 
-def test_local_model_probe_missing_path() -> None:
+def test_local_model_probe_missing_path(tmp_path: Path) -> None:
     provider = FilesystemLocalModelProbeProvider()
+    workspace = tmp_path / "workspace"
     service = LocalModelService(
         probe_provider=provider,
         model_name="Qwen3.5-0.8B",
         model_path="models/does-not-exist",
+        workspace_root=workspace,
     )
 
     result = service.probe_model_files()
+    expected_path = str((workspace / "models" / "does-not-exist").resolve())
     assert result.status == LocalModelStatus.MISSING.value
     assert result.details == ""
     assert result.diagnostic is not None
     assert result.diagnostic.code == "model_directory_missing"
-    assert result.diagnostic.values["path"] == "models/does-not-exist"
+    assert result.diagnostic.values["path"] == expected_path
 
     vm = TrainingViewModel(local_model_service=service)
     vm.check_local_model()
     assert vm.local_model_status_code is LocalModelStatus.MISSING
     assert vm.local_model_status == "Модель не найдена"
-    assert vm.local_model_note == (
-        "Директория модели не найдена: models/does-not-exist."
+    assert vm.local_model_note == f"Директория модели не найдена: {expected_path}."
+
+
+def test_local_model_relative_paths_are_workspace_relative_not_cwd(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    unrelated_cwd = tmp_path / "unrelated-cwd"
+    unrelated_cwd.mkdir()
+    monkeypatch.chdir(unrelated_cwd)
+
+    service = LocalModelService(
+        probe_provider=StubLocalModelProbeProvider(),
+        model_path="models/base",
+        workspace_root=workspace,
     )
+
+    assert service.model_path == str((workspace / "models" / "base").resolve())
+    assert service.resolve_model_path("models/other") == str(
+        (workspace / "models" / "other").resolve()
+    )
+    assert service.resolve_model_path("Qwen3.5-0.8B") == service.model_path
 
 
 def test_local_model_probe_found_with_minimal_files(tmp_path: Path) -> None:
@@ -163,11 +186,12 @@ def test_local_model_inference_backend_missing() -> None:
     assert vm.local_inference_status == "Inference backend не подключён"
 
 
-def test_local_model_smoke_prompt_marker_and_missing_model() -> None:
+def test_local_model_smoke_prompt_marker_and_missing_model(tmp_path: Path) -> None:
     provider = FilesystemLocalModelProbeProvider()
     service = LocalModelService(
         probe_provider=provider,
         model_path="models/does-not-exist",
+        workspace_root=tmp_path / "workspace",
     )
     vm = TrainingViewModel(local_model_service=service)
     ok, prompt = vm.begin_local_inference("MIA_SENTINEL_FT_TEST_001")

@@ -208,7 +208,7 @@ class TrainingService:
 
         if self.local_model_service is None:
             raise TrainingConfigurationError(code="model_required")
-        model_path = base_model.strip() or self.local_model_service.model_path
+        model_path = self.local_model_service.resolve_model_path(base_model)
         model_probe = self.local_model_service.probe_model_files_at(model_path)
         if normalize_local_model_status(model_probe.status) is not LocalModelStatus.FOUND:
             raise TrainingConfigurationError(code="model_required")
@@ -281,6 +281,7 @@ class TrainingService:
     def _begin_training_operation(
         self,
         run: dict[str, str],
+        model_path: str,
     ) -> RuntimeOperationLease | None:
         if self.operation_coordinator is None:
             return None
@@ -290,7 +291,7 @@ class TrainingService:
             subject_id=run.get("run_id", ""),
             claims=(
                 ResourceClaim("training_run", run.get("run_id", ""), "write"),
-                ResourceClaim("model_path", run.get("base_model", ""), "read"),
+                ResourceClaim("model_path", model_path, "read"),
                 ResourceClaim(
                     "dataset",
                     run.get("dataset_id", "") or run.get("dataset_version", ""),
@@ -328,7 +329,9 @@ class TrainingService:
             self._set_terminal_error(run, "configuration_missing")
             return ActionResult(False, "start_failed")
 
-        model_path = run.get("base_model", "").strip() or self.local_model_service.model_path
+        model_path = self.local_model_service.resolve_model_path(
+            run.get("base_model", "")
+        )
         model_probe = self.local_model_service.probe_model_files_at(model_path)
         if normalize_local_model_status(model_probe.status) is not LocalModelStatus.FOUND:
             self._set_terminal_error(run, "model_missing")
@@ -365,7 +368,7 @@ class TrainingService:
 
         lease: RuntimeOperationLease | None = None
         try:
-            lease = self._begin_training_operation(run)
+            lease = self._begin_training_operation(run, model_path)
         except OperationConflictError as conflict:
             blocker = conflict.blockers[0] if conflict.blockers else None
             blocker_kind = blocker.operation.operation_kind if blocker is not None else ""

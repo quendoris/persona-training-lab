@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 import sqlite3
 
 import pytest
@@ -100,7 +101,17 @@ def _seed_dataset(connection: sqlite3.Connection, *, status: str) -> None:
     )
 
 
-def _build_service(connection: sqlite3.Connection, probe: object) -> TrainingService:
+def _build_service(
+    connection: sqlite3.Connection,
+    probe: object,
+    *,
+    workspace_root: Path | None = None,
+) -> TrainingService:
+    local_model_service = (
+        LocalModelService(probe_provider=probe, workspace_root=workspace_root)
+        if workspace_root is not None
+        else LocalModelService(probe_provider=probe)
+    )
     return TrainingService(
         training_repo=SQLiteTrainingRepository(connection),
         profiles_service=ProfilesService(
@@ -109,7 +120,7 @@ def _build_service(connection: sqlite3.Connection, probe: object) -> TrainingSer
         datasets_service=DatasetsService(
             datasets_repo=SQLiteDatasetsRepository(connection)
         ),
-        local_model_service=LocalModelService(probe_provider=probe),
+        local_model_service=local_model_service,
     )
 
 
@@ -140,14 +151,54 @@ def test_successful_create_training_run() -> None:
     assert created.epochs == 3
     assert created.batch_size == 8
     assert created.learning_rate == pytest.approx(0.0002)
+    assert service.local_model_service is not None
+    assert created.base_model == service.local_model_service.model_path
+    assert Path(created.base_model).is_absolute()
     runs = service.list_training_runs()
     assert len(runs) == 1
     assert runs[0].title == "Run A"
     assert runs[0].profile_id == "prf_001"
     assert runs[0].dataset_id == "ds_001"
+    assert runs[0].base_model == created.base_model
     assert runs[0].epochs == 3
     assert runs[0].batch_size == 8
     assert runs[0].learning_rate == pytest.approx(0.0002)
+
+
+def test_create_training_run_canonicalizes_relative_model_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    _seed_profile(connection)
+    _seed_dataset(connection, status="Одобрен для обучения")
+    connection.commit()
+
+    workspace = tmp_path / "workspace"
+    unrelated_cwd = tmp_path / "cwd"
+    unrelated_cwd.mkdir()
+    monkeypatch.chdir(unrelated_cwd)
+    service = _build_service(
+        connection,
+        _ReadyProbe(),
+        workspace_root=workspace,
+    )
+
+    created = service.create_training_run(
+        title="Canonical model path",
+        profile_id="prf_001",
+        dataset_id="ds_001",
+        base_model="models/custom-model",
+        epochs=1,
+        batch_size=1,
+        learning_rate=0.0001,
+    )
+
+    expected = str((workspace / "models" / "custom-model").resolve())
+    assert created.base_model == expected
+    assert service.list_training_runs()[0].base_model == expected
 
 
 def test_dataset_not_ready_configuration_error() -> None:
