@@ -59,6 +59,7 @@ tests/test_agents_i18n.py
 tests/test_agents_legacy_i18n.py
 tests/test_tests_connector.py
 tests/test_analysis_connector.py
+tests/test_analysis_protocol_guard.py
 tests/test_lineage_workflow_context.py
 tests/test_evaluation_i18n.py
 tests/test_lineage_projection_service.py
