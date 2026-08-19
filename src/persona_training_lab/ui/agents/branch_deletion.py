@@ -8,6 +8,7 @@ from persona_training_lab.application.runtime.operations import (
     OperationBlocker,
     OperationConflictError,
 )
+from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 from persona_training_lab.ui.agents.runtime_policy import (
     LineageBranchTransactions,
 )
@@ -39,6 +40,7 @@ class BranchDeletionResult:
     removed_ids: tuple[str, ...] = ()
     fallback_id: str = ""
     blockers: tuple[OperationBlocker, ...] = ()
+    history_transition: HistoryTransition | None = None
 
 
 class BranchDeletionStatePort(Protocol):
@@ -53,6 +55,11 @@ class BranchDeletionStatePort(Protocol):
     def capture_transaction_state(self) -> dict[str, Any]: ...
 
     def restore_transaction_state(self, snapshot: dict[str, Any]) -> None: ...
+
+    def redo_last_action(
+        self,
+        current_layout: dict[str, Any] | None = None,
+    ) -> HistoryTransition | None: ...
 
 
 class BranchDeletionExecutionError(RuntimeError):
@@ -205,13 +212,105 @@ class BranchDeletionController:
             removed_ids=removed_ids,
             fallback_id=plan.fallback_id,
         )
+        self._finalize_committed_deletion(lease, result)
+        return result
+
+    def execute_history_redo(
+        self,
+        plan: BranchDeletionPlan,
+        *,
+        current_layout: dict[str, Any] | None = None,
+    ) -> BranchDeletionResult:
+        """Redo one recorded branch deletion behind a fresh runtime lease."""
+
+        current_ids = self._state.custom_subtree_ids(plan.node_id)
+        if not current_ids:
+            return BranchDeletionResult(BranchDeletionStatus.NOOP)
+        if current_ids != plan.removed_ids:
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=current_ids,
+                fallback_id=plan.fallback_id,
+            )
+
+        try:
+            lease = self._transactions.begin_deletion(
+                plan.removed_ids,
+                subject_id=plan.node_id,
+            )
+        except OperationConflictError as conflict:
+            return BranchDeletionResult(
+                BranchDeletionStatus.BLOCKED,
+                blockers=conflict.blockers,
+            )
+        if lease is None:
+            return BranchDeletionResult(BranchDeletionStatus.UNAVAILABLE)
+
+        transaction_snapshot = self._state.capture_transaction_state()
+        try:
+            transition = self._state.redo_last_action(current_layout)
+        except Exception as error:
+            self._fail_lease_or_raise(lease, error)
+            raise
+
+        transition_is_delete = bool(
+            transition is not None
+            and transition.action_code == "branch_delete"
+            and transition.direction == "redo"
+        )
+        remaining_ids = self._state.custom_subtree_ids(plan.node_id)
+        if not transition_is_delete or remaining_ids:
+            message = "Lineage deletion redo no longer matches history"
+            compensation_errors = self._restore_and_close(
+                transaction_snapshot,
+                lease,
+                cancel=True,
+                message=message,
+            )
+            if compensation_errors:
+                raise BranchDeletionExecutionError(
+                    RuntimeError(message),
+                    compensation_errors,
+                )
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=remaining_ids,
+                fallback_id=plan.fallback_id,
+            )
+
+        try:
+            self._transactions.forget(plan.removed_ids)
+        except Exception as error:
+            compensation_errors = self._restore_and_close(
+                transaction_snapshot,
+                lease,
+                cancel=False,
+                message=str(error),
+            )
+            if compensation_errors:
+                raise BranchDeletionExecutionError(
+                    error,
+                    compensation_errors,
+                ) from error
+            raise
+
+        result = BranchDeletionResult(
+            BranchDeletionStatus.DELETED,
+            removed_ids=plan.removed_ids,
+            fallback_id=plan.fallback_id,
+            history_transition=transition,
+        )
+        self._finalize_committed_deletion(lease, result)
+        return result
+
+    @staticmethod
+    def _finalize_committed_deletion(lease, result: BranchDeletionResult) -> None:
         try:
             changed = lease.succeed()
             if changed is not True:
                 raise RuntimeError("Deletion lease was not finalized")
         except Exception as error:
             raise BranchDeletionCommittedError(result, error) from error
-        return result
 
     def _restore_and_close(
         self,

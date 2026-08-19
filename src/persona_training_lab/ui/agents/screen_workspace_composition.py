@@ -376,24 +376,40 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             self._refresh_lineage(center=False)
             return
         try:
-            result = self._branch_deletion_controller.execute(
+            result = self._branch_deletion_controller.execute_history_redo(
                 plan,
-                layout_snapshot=self._layout_snapshot(),
+                current_layout=self._layout_snapshot(),
             )
         except BranchDeletionCommittedError as error:
-            self._apply_branch_deletion_result(error.result)
+            self._apply_branch_delete_history_redo_result(error.result)
             raise
         if result.status is BranchDeletionStatus.BLOCKED:
             self._show_runtime_blockers(result.blockers)
             return
         if result.status is BranchDeletionStatus.DELETED:
-            self._apply_branch_deletion_result(result)
+            self._apply_branch_delete_history_redo_result(result)
             return
         if result.status in {
             BranchDeletionStatus.STALE,
             BranchDeletionStatus.NOOP,
         }:
             self._refresh_lineage(center=False)
+
+    def _apply_branch_delete_history_redo_result(
+        self,
+        result: BranchDeletionResult,
+    ) -> None:
+        transition = result.history_transition
+        if transition is None:
+            self._apply_branch_deletion_result(result)
+            return
+        try:
+            forgetter = getattr(self._graph, "forget_layout_nodes", None)
+            if callable(forgetter):
+                forgetter(result.removed_ids)
+        finally:
+            self._apply_history_transition(transition)
+            self._refresh_runtime_safety(force=True)
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
         if self._lineage_runtime_safety is None:

@@ -76,6 +76,9 @@ class _Safety:
             raise OperationConflictError((self.conflict,))
         return self.lease
 
+    def links_for_node(self, _node_id: str) -> tuple[ResourceClaim, ...]:
+        return ()
+
     def forget_nodes(self, node_ids):
         self.calls.append(("forget", tuple(node_ids)))
         if self.forget_error is not None:

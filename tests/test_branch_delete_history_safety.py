@@ -113,6 +113,7 @@ def test_controller_delete_history_restores_exact_resource_links(tmp_path) -> No
         ResourceClaim("model_version", "mdl_001", "read"),
         ResourceClaim("artifact_path", "/models/mdl_001", "read"),
     )
+    normalized_links = tuple(sorted(root_links))
     safety.bind_node(root_id, root_links)
     safety.inherit_node(child_id, root_id)
 
@@ -142,8 +143,146 @@ def test_controller_delete_history_restores_exact_resource_links(tmp_path) -> No
     transition = state.undo_only()
     assert transition is not None
     assert state.custom_subtree_ids(root_id) == (root_id, child_id)
-    assert safety.links_for_node(root_id) == root_links
-    assert safety.links_for_node(child_id) == root_links
+    assert safety.links_for_node(root_id) == normalized_links
+    assert safety.links_for_node(child_id) == normalized_links
+    connection.close()
+
+
+def test_guarded_redo_preserves_older_redo_entries_and_layout(tmp_path) -> None:
+    database_path = tmp_path / "runtime-redo.sqlite3"
+    connection = _connect(database_path)
+    create_minimal_schema(connection)
+    operations = RuntimeOperationCoordinator(
+        SQLiteRuntimeOperationsRepository(connection)
+    )
+    safety = LineageRuntimeSafety(
+        SQLiteLineageResourceLinksRepository(connection),
+        operations,
+    )
+    transactions = LineageBranchTransactions(safety)
+    state = AtomicLineageStateStore(tmp_path / "lineage-redo.json")
+    branch_id = state.continue_from("snapshot")
+    links = (ResourceClaim("model_version", "mdl_redo", "read"),)
+    safety.bind_node(branch_id, links)
+    controller = BranchDeletionController(state, transactions)
+    plan = controller.prepare(
+        branch_id,
+        node_title="Branch",
+        parent_id="snapshot",
+        graph_current_id="snapshot",
+    )
+    assert plan is not None
+    assert controller.execute(plan).status is BranchDeletionStatus.DELETED
+
+    state.record_layout_action(
+        "layout_reset_all",
+        {"schema": 1, "phase": "before-layout"},
+    )
+    layout_undo = state.undo_only(
+        {"schema": 1, "phase": "after-layout"}
+    )
+    assert layout_undo is not None
+    assert layout_undo.action_code == "layout_reset_all"
+
+    delete_preview = state.undo_preview()
+    assert delete_preview is not None
+    assert delete_preview.action_code == "branch_delete"
+    transactions.restore_deletion_history(delete_preview.metadata)
+    delete_undo = state.undo_only(
+        {"schema": 1, "phase": "deleted-layout"}
+    )
+    assert delete_undo is not None
+    assert state.is_custom_node(branch_id) is True
+
+    redo_plan = controller.prepare(
+        branch_id,
+        node_title="Branch",
+        parent_id="snapshot",
+        graph_current_id="snapshot",
+    )
+    assert redo_plan is not None
+    result = controller.execute_history_redo(
+        redo_plan,
+        current_layout={"schema": 1, "phase": "restored-layout"},
+    )
+
+    assert result.status is BranchDeletionStatus.DELETED
+    assert result.history_transition is not None
+    assert result.history_transition.action_code == "branch_delete"
+    assert result.history_transition.direction == "redo"
+    assert result.history_transition.layout_snapshot == {
+        "schema": 1,
+        "phase": "deleted-layout",
+    }
+    assert state.is_custom_node(branch_id) is False
+    assert safety.links_for_node(branch_id) == ()
+    payload = state.capture_transaction_state()
+    assert [entry["action_code"] for entry in payload["redo_stack"]] == [
+        "layout_reset_all"
+    ]
+    assert payload["undo_stack"][-1]["action_code"] == "branch_delete"
+    connection.close()
+
+
+def test_guarded_redo_stays_pending_when_runtime_resource_is_active(
+    tmp_path,
+) -> None:
+    database_path = tmp_path / "runtime-redo-blocked.sqlite3"
+    connection = _connect(database_path)
+    create_minimal_schema(connection)
+    operations = RuntimeOperationCoordinator(
+        SQLiteRuntimeOperationsRepository(connection)
+    )
+    safety = LineageRuntimeSafety(
+        SQLiteLineageResourceLinksRepository(connection),
+        operations,
+    )
+    transactions = LineageBranchTransactions(safety)
+    state = AtomicLineageStateStore(tmp_path / "lineage-redo-blocked.json")
+    branch_id = state.continue_from("snapshot")
+    links = (ResourceClaim("model_version", "mdl_guard", "read"),)
+    safety.bind_node(branch_id, links)
+    controller = BranchDeletionController(state, transactions)
+    plan = controller.prepare(
+        branch_id,
+        node_title="Branch",
+        parent_id="snapshot",
+        graph_current_id="snapshot",
+    )
+    assert plan is not None
+    assert controller.execute(plan).status is BranchDeletionStatus.DELETED
+
+    preview = state.undo_preview()
+    assert preview is not None
+    transactions.restore_deletion_history(preview.metadata)
+    assert state.undo_only() is not None
+    assert state.is_custom_node(branch_id) is True
+    normalized_links = safety.links_for_node(branch_id)
+
+    training = operations.begin(
+        operation_kind="training",
+        subject_kind="training_run",
+        subject_id="trn_guard",
+        claims=(ResourceClaim("model_version", "mdl_guard", "read"),),
+    )
+    redo_plan = controller.prepare(
+        branch_id,
+        node_title="Branch",
+        parent_id="snapshot",
+        graph_current_id="snapshot",
+    )
+    assert redo_plan is not None
+    result = controller.execute_history_redo(redo_plan)
+
+    assert result.status is BranchDeletionStatus.BLOCKED
+    assert result.blockers
+    assert state.is_custom_node(branch_id) is True
+    assert safety.links_for_node(branch_id) == normalized_links
+    pending = state.history_toggle_preview()
+    assert pending is not None
+    assert pending.action_code == "branch_delete"
+    assert pending.direction == "redo"
+    assert training.succeed() is True
     connection.close()
 
 
@@ -160,7 +299,12 @@ class _RedoController:
             fallback_id="snapshot",
         )
 
-    def execute(self, plan, *, layout_snapshot=None) -> BranchDeletionResult:
+    def execute_history_redo(
+        self,
+        plan,
+        *,
+        current_layout=None,
+    ) -> BranchDeletionResult:
         self.executed.append(plan)
         return self.result
 
@@ -227,6 +371,12 @@ def test_agents_redo_delete_reuses_guarded_deletion_controller() -> None:
         _refresh_lineage=lambda *, center: None,
         _sync_history_action=lambda: None,
     )
+    screen._redo_branch_delete_history = lambda value: (  # type: ignore[attr-defined]
+        WorkspaceCompositionAgentsScreen._redo_branch_delete_history(
+            screen,  # type: ignore[arg-type]
+            value,
+        )
+    )
 
     WorkspaceCompositionAgentsScreen._toggle_last_history_action(  # type: ignore[arg-type]
         screen
@@ -275,6 +425,12 @@ def test_agents_undo_delete_restores_links_before_lineage_state() -> None:
         _refresh_runtime_safety=lambda *, force: order.append("refresh"),
         _sync_history_action=lambda: None,
     )
+    screen._undo_branch_delete_history = lambda value: (  # type: ignore[attr-defined]
+        WorkspaceCompositionAgentsScreen._undo_branch_delete_history(
+            screen,  # type: ignore[arg-type]
+            value,
+        )
+    )
 
     WorkspaceCompositionAgentsScreen._undo_history_only(  # type: ignore[arg-type]
         screen
@@ -283,3 +439,42 @@ def test_agents_undo_delete_restores_links_before_lineage_state() -> None:
     assert order[:2] == ["links", "state"]
     assert applied == [transition]
     assert order[-1] == "refresh"
+
+
+def test_agents_redo_delete_applies_saved_layout_transition() -> None:
+    transition = HistoryTransition(
+        action_code="branch_delete",
+        direction="redo",
+        layout_snapshot={"schema": 1, "phase": "deleted"},
+        critical=True,
+    )
+    result = BranchDeletionResult(
+        BranchDeletionStatus.DELETED,
+        removed_ids=("branch_001",),
+        fallback_id="snapshot",
+        history_transition=transition,
+    )
+    forgotten: list[tuple[str, ...]] = []
+    applied: list[HistoryTransition] = []
+    refreshed: list[bool] = []
+    screen = SimpleNamespace(
+        _graph=SimpleNamespace(
+            forget_layout_nodes=lambda node_ids: forgotten.append(
+                tuple(node_ids)
+            )
+        ),
+        _apply_history_transition=applied.append,
+        _refresh_runtime_safety=lambda *, force: refreshed.append(force),
+        _apply_branch_deletion_result=lambda _result: (_ for _ in ()).throw(
+            AssertionError("guarded redo must apply its history transition")
+        ),
+    )
+
+    WorkspaceCompositionAgentsScreen._apply_branch_delete_history_redo_result(  # type: ignore[arg-type]
+        screen,
+        result,
+    )
+
+    assert forgotten == [("branch_001",)]
+    assert applied == [transition]
+    assert refreshed == [True]

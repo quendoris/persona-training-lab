@@ -54,6 +54,10 @@ class _Transactions:
         assert subject_id == "branch_001"
         return self.lease
 
+    def capture_deletion_history(self, _node_ids, *, subject_id: str):
+        assert subject_id == "branch_001"
+        return {}
+
     def forget(self, _node_ids):
         return 1
 
