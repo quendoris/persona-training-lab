@@ -17,7 +17,8 @@ class SQLiteTrainingRepository:
             rows = self._connection.execute(
                 """
                 SELECT id, title, subtitle, status, base_model, profile,
-                       dataset_version, profile_id, dataset_id, mode,
+                       dataset_version, profile_id, dataset_id,
+                       profile_sha256, dataset_sha256, mode,
                        epochs, batch_size, learning_rate,
                        epoch_progress, loss, speed, checkpoints_count, progress,
                        started_at, finished_at, artifact_path, error_message
@@ -33,10 +34,11 @@ class SQLiteTrainingRepository:
                 """
                 INSERT INTO training_runs (
                     id, title, subtitle, status, base_model, profile,
-                    dataset_version, profile_id, dataset_id, mode,
+                    dataset_version, profile_id, dataset_id,
+                    profile_sha256, dataset_sha256, mode,
                     epochs, batch_size, learning_rate,
                     epoch_progress, loss, speed, checkpoints_count, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.get("id", ""),
@@ -48,6 +50,8 @@ class SQLiteTrainingRepository:
                     payload.get("dataset_version", ""),
                     payload.get("profile_id", ""),
                     payload.get("dataset_id", ""),
+                    payload.get("profile_sha256", ""),
+                    payload.get("dataset_sha256", ""),
                     payload.get("mode", ""),
                     int(payload.get("epochs", "1") or 1),
                     int(payload.get("batch_size", "1") or 1),
@@ -65,7 +69,8 @@ class SQLiteTrainingRepository:
             row = self._connection.execute(
                 """
                 SELECT id, title, subtitle, status, base_model, profile,
-                       dataset_version, profile_id, dataset_id, mode,
+                       dataset_version, profile_id, dataset_id,
+                       profile_sha256, dataset_sha256, mode,
                        epochs, batch_size, learning_rate,
                        epoch_progress, loss, speed, checkpoints_count, progress,
                        started_at, finished_at, artifact_path, error_message
@@ -155,6 +160,8 @@ class SQLiteTrainingRepository:
             "dataset_version": row["dataset_version"],
             "profile_id": row["profile_id"],
             "dataset_id": row["dataset_id"],
+            "profile_sha256": row["profile_sha256"],
+            "dataset_sha256": row["dataset_sha256"],
             "mode": row["mode"],
             "epochs": str(row["epochs"]),
             "batch_size": str(row["batch_size"]),

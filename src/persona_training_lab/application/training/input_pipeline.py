@@ -23,6 +23,7 @@ class TrainingInputBundle:
     dataset_path: str
     dataset_sha256: str
     profile_instruction: str
+    profile_sha256: str
     schema_counts: tuple[tuple[str, int], ...]
 
 
@@ -54,6 +55,11 @@ def build_profile_instruction(profile: ProfileSummary) -> str:
     return "\n".join(rendered)
 
 
+def profile_training_sha256(profile: ProfileSummary) -> str:
+    instruction = build_profile_instruction(profile)
+    return sha256(instruction.encode("utf-8")).hexdigest()
+
+
 def load_training_input_bundle(
     dataset_path: str,
     profile: ProfileSummary,
@@ -65,6 +71,7 @@ def load_training_input_bundle(
         raise TrainingInputError("dataset_not_jsonl")
 
     profile_instruction = build_profile_instruction(profile)
+    profile_sha256 = sha256(profile_instruction.encode("utf-8")).hexdigest()
     samples: list[TrainingSample] = []
     digest = sha256()
 
@@ -100,6 +107,7 @@ def load_training_input_bundle(
         dataset_path=str(path),
         dataset_sha256=digest.hexdigest(),
         profile_instruction=profile_instruction,
+        profile_sha256=profile_sha256,
         schema_counts=tuple(sorted(counts.items())),
     )
 

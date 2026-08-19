@@ -20,12 +20,14 @@ tests/test_profiles_write_path.py
 tests/test_datasets_connector.py
 tests/test_datasets_i18n.py
 tests/test_dataset_import_validation.py
+tests/test_dataset_training_compatibility.py
 tests/test_training_connector.py
 tests/test_training_i18n.py
 tests/test_training_semantic_contracts.py
 tests/test_training_run_creation.py
 tests/test_training_runner.py
 tests/test_training_input_pipeline.py
+tests/test_training_input_snapshot_integrity.py
 tests/test_local_model_probe.py
 tests/test_telemetry_collector.py
 tests/test_model_versions_connector.py

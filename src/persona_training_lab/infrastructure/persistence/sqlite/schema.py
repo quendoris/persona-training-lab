@@ -110,6 +110,8 @@ def create_minimal_schema(connection: sqlite3.Connection) -> None:
             dataset_version TEXT NOT NULL,
             profile_id TEXT NOT NULL DEFAULT '',
             dataset_id TEXT NOT NULL DEFAULT '',
+            profile_sha256 TEXT NOT NULL DEFAULT '',
+            dataset_sha256 TEXT NOT NULL DEFAULT '',
             mode TEXT NOT NULL,
             epochs INTEGER NOT NULL DEFAULT 1,
             batch_size INTEGER NOT NULL DEFAULT 1,
@@ -265,6 +267,8 @@ def _ensure_training_run_columns(connection: sqlite3.Connection) -> None:
     additions = [
         ("profile_id", "TEXT NOT NULL DEFAULT ''"),
         ("dataset_id", "TEXT NOT NULL DEFAULT ''"),
+        ("profile_sha256", "TEXT NOT NULL DEFAULT ''"),
+        ("dataset_sha256", "TEXT NOT NULL DEFAULT ''"),
         ("epochs", "INTEGER NOT NULL DEFAULT 1"),
         ("batch_size", "INTEGER NOT NULL DEFAULT 1"),
         ("learning_rate", "REAL NOT NULL DEFAULT 0.0001"),

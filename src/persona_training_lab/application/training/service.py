@@ -41,6 +41,7 @@ from persona_training_lab.application.training.full_backend import (
 from persona_training_lab.application.training.input_pipeline import (
     TrainingInputError,
     load_training_input_bundle,
+    profile_training_sha256,
 )
 from persona_training_lab.application.training.status_mapping import (
     normalize_training_status,
@@ -69,6 +70,8 @@ class TrainingRunSummary:
     status_code: TrainingRunStatus = TrainingRunStatus.UNKNOWN
     profile_id: str = ""
     dataset_id: str = ""
+    profile_sha256: str = ""
+    dataset_sha256: str = ""
     epochs: int = 1
     batch_size: int = 1
     learning_rate: float = 1e-4
@@ -133,6 +136,8 @@ class TrainingService:
                 status_code=normalize_training_status(row.get("status", "")),
                 profile_id=row.get("profile_id", ""),
                 dataset_id=row.get("dataset_id", ""),
+                profile_sha256=row.get("profile_sha256", ""),
+                dataset_sha256=row.get("dataset_sha256", ""),
                 epochs=self._int_value(row.get("epochs", "1"), 1),
                 batch_size=self._int_value(row.get("batch_size", "1"), 1),
                 learning_rate=self._float_value(
@@ -187,6 +192,10 @@ class TrainingService:
         selected_profile = self._profile_by_id(profile_id)
         if selected_profile is None:
             raise TrainingConfigurationError(code="profile_required")
+        try:
+            profile_sha256 = profile_training_sha256(selected_profile)
+        except TrainingInputError as error:
+            raise TrainingConfigurationError(code="profile_required") from error
 
         selected_dataset = self._dataset_by_id(dataset_id)
         if (
@@ -220,6 +229,8 @@ class TrainingService:
             "dataset_version": selected_dataset.title,
             "profile_id": selected_profile.profile_id,
             "dataset_id": selected_dataset.dataset_id,
+            "profile_sha256": profile_sha256,
+            "dataset_sha256": selected_dataset.content_sha256,
             "mode": "Full fine-tune",
             "epochs": str(epochs),
             "batch_size": str(batch_size),
@@ -250,6 +261,8 @@ class TrainingService:
             status_code=TrainingRunStatus.READY,
             profile_id=selected_profile.profile_id,
             dataset_id=selected_dataset.dataset_id,
+            profile_sha256=profile_sha256,
+            dataset_sha256=selected_dataset.content_sha256,
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=float(learning_rate),
@@ -333,6 +346,23 @@ class TrainingService:
             self._set_terminal_error(run, "dataset_approval_hash_missing")
             return ActionResult(False, "start_failed")
 
+        expected_profile_sha256 = run.get("profile_sha256", "")
+        expected_dataset_sha256 = run.get("dataset_sha256", "")
+        if not expected_profile_sha256 or not expected_dataset_sha256:
+            self._set_terminal_error(run, "training_input_snapshot_missing")
+            return ActionResult(False, "start_failed")
+        try:
+            current_profile_sha256 = profile_training_sha256(profile)
+        except TrainingInputError:
+            self._set_terminal_error(run, "profile_invalid")
+            return ActionResult(False, "start_failed")
+        if current_profile_sha256 != expected_profile_sha256:
+            self._set_terminal_error(run, "profile_changed_after_run_creation")
+            return ActionResult(False, "start_failed")
+        if dataset.content_sha256 != expected_dataset_sha256:
+            self._set_terminal_error(run, "dataset_changed_after_run_creation")
+            return ActionResult(False, "start_failed")
+
         lease: RuntimeOperationLease | None = None
         try:
             lease = self._begin_training_operation(run)
@@ -376,7 +406,14 @@ class TrainingService:
                     lease.fail(technical_message)
                 return ActionResult(False, "start_failed")
 
-            if bundle.dataset_sha256 != dataset.content_sha256:
+            if bundle.profile_sha256 != expected_profile_sha256:
+                technical_message = "profile_changed_after_run_creation"
+                self._log(run_id, technical_message, "ERROR")
+                self._set_terminal_error(run, technical_message)
+                if lease is not None:
+                    lease.fail(technical_message)
+                return ActionResult(False, "start_failed")
+            if bundle.dataset_sha256 != expected_dataset_sha256:
                 technical_message = "dataset_changed_after_approval"
                 self._log(run_id, technical_message, "ERROR")
                 self._set_terminal_error(run, technical_message)
@@ -403,8 +440,9 @@ class TrainingService:
             self._log(
                 run_id,
                 "training_inputs: "
-                f"profile_id={profile.profile_id}, dataset_id={dataset.dataset_id}, "
-                f"dataset_sha256={bundle.dataset_sha256}, samples={len(bundle.samples)}",
+                f"profile_id={profile.profile_id}, profile_sha256={bundle.profile_sha256}, "
+                f"dataset_id={dataset.dataset_id}, dataset_sha256={bundle.dataset_sha256}, "
+                f"samples={len(bundle.samples)}",
             )
             self._log(
                 run_id,
@@ -414,11 +452,14 @@ class TrainingService:
             provenance = {
                 "profile_id": profile.profile_id,
                 "profile_title": profile.title,
+                "profile_sha256": bundle.profile_sha256,
+                "profile_instruction": bundle.profile_instruction,
                 "dataset_id": dataset.dataset_id,
                 "dataset_title": dataset.title,
                 "dataset_path": bundle.dataset_path,
                 "dataset_sha256": bundle.dataset_sha256,
                 "approved_dataset_sha256": dataset.content_sha256,
+                "run_dataset_sha256": expected_dataset_sha256,
                 "sample_count": len(bundle.samples),
                 "schema_counts": dict(bundle.schema_counts),
             }

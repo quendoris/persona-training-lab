@@ -246,6 +246,8 @@ class DatasetsService:
                 return False, dataset_diagnostic("messages_not_list")
             has_user = False
             has_assistant = False
+            user_seen = False
+            has_trainable_pair = False
             for item in messages:
                 if not isinstance(item, dict):
                     return False, dataset_diagnostic("message_not_object")
@@ -255,9 +257,13 @@ class DatasetsService:
                     return False, dataset_diagnostic("invalid_role", role=str(role))
                 if not isinstance(content, str) or not content.strip():
                     return False, dataset_diagnostic("content_empty", role=str(role))
-                has_user = has_user or role == "user"
-                has_assistant = has_assistant or role == "assistant"
-            if not has_user or not has_assistant:
+                if role == "user":
+                    has_user = True
+                    user_seen = True
+                elif role == "assistant":
+                    has_assistant = True
+                    has_trainable_pair = has_trainable_pair or user_seen
+            if not has_user or not has_assistant or not has_trainable_pair:
                 return False, dataset_diagnostic("messages_missing_pair")
             return True, None
         if "instruction" in payload or "output" in payload:
