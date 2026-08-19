@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
@@ -11,6 +12,9 @@ from persona_training_lab.application.runtime.operations import (
     ResourceClaim,
     RuntimeOperationLease,
 )
+
+
+_BRANCH_DELETE_HISTORY_KIND = "branch_delete_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +149,113 @@ class LineageBranchTransactions:
             return None
         return safety.begin_deletion(node_ids, subject_id=subject_id)
 
+    def capture_deletion_history(
+        self,
+        node_ids: Iterable[str],
+        *,
+        subject_id: str,
+    ) -> dict[str, Any]:
+        safety = self._safety
+        removed_ids = tuple(dict.fromkeys(item for item in node_ids if item))
+        if safety is None or not subject_id or not removed_ids:
+            return {}
+        links: dict[str, list[dict[str, str]]] = {}
+        for node_id in removed_ids:
+            links[node_id] = [
+                {
+                    "resource_kind": claim.resource_kind,
+                    "resource_id": claim.resource_id,
+                    "access_mode": claim.access_mode,
+                }
+                for claim in safety.links_for_node(node_id)
+            ]
+        return {
+            "kind": _BRANCH_DELETE_HISTORY_KIND,
+            "subject_node_id": subject_id,
+            "removed_ids": list(removed_ids),
+            "resource_links": links,
+        }
+
+    def restore_deletion_history(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> tuple[str, ...]:
+        safety = self._safety
+        parsed = self._parse_deletion_history(metadata)
+        if safety is None or parsed is None:
+            return ()
+        _, removed_ids, links = parsed
+        safety.restore_node_links(links)
+        return removed_ids
+
+    def deletion_history_subject(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> str:
+        parsed = self._parse_deletion_history(metadata)
+        return "" if parsed is None else parsed[0]
+
+    def deletion_history_removed_ids(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> tuple[str, ...]:
+        parsed = self._parse_deletion_history(metadata)
+        return () if parsed is None else parsed[1]
+
     def forget(self, node_ids: Iterable[str]) -> int:
         safety = self._safety
         return 0 if safety is None else safety.forget_nodes(node_ids)
+
+    @staticmethod
+    def _parse_deletion_history(
+        metadata: Mapping[str, Any],
+    ) -> tuple[
+        str,
+        tuple[str, ...],
+        dict[str, tuple[ResourceClaim, ...]],
+    ] | None:
+        if metadata.get("kind") != _BRANCH_DELETE_HISTORY_KIND:
+            return None
+        subject_id = str(metadata.get("subject_node_id", "")).strip()
+        raw_removed = metadata.get("removed_ids")
+        if not isinstance(raw_removed, list):
+            return None
+        removed_ids = tuple(
+            dict.fromkeys(
+                str(item).strip()
+                for item in raw_removed
+                if str(item).strip()
+            )
+        )
+        if not subject_id or not removed_ids or subject_id not in removed_ids:
+            return None
+
+        raw_links = metadata.get("resource_links")
+        if not isinstance(raw_links, dict):
+            return None
+        links: dict[str, tuple[ResourceClaim, ...]] = {}
+        for node_id in removed_ids:
+            raw_claims = raw_links.get(node_id, [])
+            if not isinstance(raw_claims, list):
+                return None
+            claims: list[ResourceClaim] = []
+            for raw_claim in raw_claims:
+                if not isinstance(raw_claim, dict):
+                    return None
+                resource_kind = str(
+                    raw_claim.get("resource_kind", "")
+                ).strip()
+                resource_id = str(
+                    raw_claim.get("resource_id", "")
+                ).strip()
+                if not resource_kind or not resource_id:
+                    return None
+                claims.append(
+                    ResourceClaim(
+                        resource_kind,
+                        resource_id,
+                        str(raw_claim.get("access_mode", "read") or "read"),
+                    )
+                )
+            links[node_id] = tuple(claims)
+        return subject_id, removed_ids, links

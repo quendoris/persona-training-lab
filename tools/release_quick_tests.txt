@@ -101,6 +101,7 @@ tests/test_lineage_atomic_state_store.py
 tests/test_branch_deletion_controller.py
 tests/test_branch_deletion_finalization_contract.py
 tests/test_agents_branch_deletion_adapter.py
+tests/test_branch_delete_history_safety.py
 tests/test_sidebar_compact_shortcuts_and_canvas_scroll.py
 tests/test_navigation_shortcuts_and_zoom.py
 tests/test_workspace_leave_guard.py

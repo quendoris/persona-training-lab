@@ -14,6 +14,7 @@ from persona_training_lab.application.runtime.operations import ResourceClaim
 from persona_training_lab.ui.agents.branch_deletion import (
     BranchDeletionCommittedError,
     BranchDeletionController,
+    BranchDeletionExecutionError,
     BranchDeletionResult,
     BranchDeletionStatus,
 )
@@ -299,6 +300,100 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             target.horizontal,
             target.vertical,
         )
+
+    def _toggle_last_history_action(self) -> None:
+        previewer = getattr(self._state, "history_toggle_preview", None)
+        preview = previewer() if callable(previewer) else None
+        if preview is None or preview.action_code != "branch_delete":
+            super()._toggle_last_history_action()
+            return
+        self._close_canvas_menu()
+        if preview.direction == "undo":
+            self._undo_branch_delete_history(preview)
+            return
+        self._redo_branch_delete_history(preview)
+
+    def _undo_history_only(self) -> None:
+        previewer = getattr(self._state, "undo_preview", None)
+        preview = previewer() if callable(previewer) else None
+        if preview is None or preview.action_code != "branch_delete":
+            super()._undo_history_only()
+            return
+        self._close_canvas_menu()
+        self._undo_branch_delete_history(preview)
+
+    def _undo_branch_delete_history(self, preview) -> None:
+        restored_ids = self._branch_transactions.restore_deletion_history(
+            preview.metadata
+        )
+        if not restored_ids:
+            self._sync_history_action()
+            return
+        try:
+            transition = self._state.undo_only(
+                self._layout_snapshot()
+            )
+        except Exception as error:
+            compensation_errors: list[BaseException] = []
+            try:
+                self._branch_transactions.forget(restored_ids)
+            except Exception as compensation_error:
+                compensation_errors.append(compensation_error)
+            if compensation_errors:
+                raise BranchDeletionExecutionError(
+                    error,
+                    tuple(compensation_errors),
+                ) from error
+            raise
+        if transition is None:
+            self._branch_transactions.forget(restored_ids)
+            self._sync_history_action()
+            return
+        self._apply_history_transition(transition)
+        self._refresh_runtime_safety(force=True)
+
+    def _redo_branch_delete_history(self, preview) -> None:
+        subject_id = self._branch_transactions.deletion_history_subject(
+            preview.metadata
+        )
+        expected_ids = self._branch_transactions.deletion_history_removed_ids(
+            preview.metadata
+        )
+        if not subject_id or not expected_ids:
+            self._sync_history_action()
+            return
+        node = self._node_by_id(subject_id)
+        if node is None or not self._state.is_custom_node(subject_id):
+            self._refresh_lineage(center=False)
+            return
+        plan = self._branch_deletion_controller.prepare(
+            subject_id,
+            node_title=self._render_text(node.title),
+            parent_id=node.parent_id or "",
+            graph_current_id=self._graph.current_node_id(),
+        )
+        if plan is None or plan.removed_ids != expected_ids:
+            self._refresh_lineage(center=False)
+            return
+        try:
+            result = self._branch_deletion_controller.execute(
+                plan,
+                layout_snapshot=self._layout_snapshot(),
+            )
+        except BranchDeletionCommittedError as error:
+            self._apply_branch_deletion_result(error.result)
+            raise
+        if result.status is BranchDeletionStatus.BLOCKED:
+            self._show_runtime_blockers(result.blockers)
+            return
+        if result.status is BranchDeletionStatus.DELETED:
+            self._apply_branch_deletion_result(result)
+            return
+        if result.status in {
+            BranchDeletionStatus.STALE,
+            BranchDeletionStatus.NOOP,
+        }:
+            self._refresh_lineage(center=False)
 
     def _delete_local_branch_subtree(self, node_id: str) -> None:
         if self._lineage_runtime_safety is None:

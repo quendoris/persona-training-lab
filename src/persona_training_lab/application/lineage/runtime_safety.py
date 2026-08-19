@@ -57,6 +57,30 @@ class LineageRuntimeSafety:
             self.repository.replace_links(node_id, normalized)
         return normalized
 
+    def restore_node_links(
+        self,
+        claims_by_node: Mapping[str, Iterable[ResourceClaim]],
+    ) -> tuple[str, ...]:
+        """Restore an exact node-link snapshot without deleting unrelated links."""
+
+        normalized = {
+            node_id: self._normalise_read_links(claims)
+            for node_id, claims in claims_by_node.items()
+            if node_id
+        }
+        node_ids = tuple(sorted(normalized))
+        reconciler = getattr(
+            self.repository,
+            "reconcile_projection_links",
+            None,
+        )
+        if callable(reconciler):
+            reconciler(normalized, ())
+            return node_ids
+        for node_id in node_ids:
+            self.bind_node(node_id, normalized[node_id])
+        return node_ids
+
     def reconcile_projection(
         self,
         claims_by_node: Mapping[str, Iterable[ResourceClaim]],

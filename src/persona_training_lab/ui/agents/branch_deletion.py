@@ -146,7 +146,15 @@ class BranchDeletionController:
             return BranchDeletionResult(BranchDeletionStatus.UNAVAILABLE)
 
         transaction_snapshot = self._state.capture_transaction_state()
+        history_metadata = self._transactions.capture_deletion_history(
+            plan.removed_ids,
+            subject_id=plan.node_id,
+        )
+        stager = getattr(self._state, "stage_history_metadata", None)
+        clearer = getattr(self._state, "clear_staged_history_metadata", None)
         try:
+            if callable(stager):
+                stager(history_metadata)
             removed_ids = self._state.delete_subtree(
                 plan.node_id,
                 layout_snapshot,
@@ -154,6 +162,9 @@ class BranchDeletionController:
         except Exception as error:
             self._fail_lease_or_raise(lease, error)
             raise
+        finally:
+            if callable(clearer):
+                clearer()
 
         if removed_ids != plan.removed_ids:
             compensation_errors = self._restore_and_close(
