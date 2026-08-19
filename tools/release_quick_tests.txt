@@ -64,6 +64,7 @@ tests/test_lineage_workflow_context.py
 tests/test_evaluation_i18n.py
 tests/test_lineage_projection_service.py
 tests/test_lineage_atomic_snapshot.py
+tests/test_lineage_persisted_identity.py
 tests/test_agents_atomic_lineage.py
 tests/test_agents_lineage_state.py
 tests/test_lineage_state_schema6_i18n.py

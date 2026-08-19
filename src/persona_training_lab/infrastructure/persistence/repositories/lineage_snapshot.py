@@ -69,7 +69,8 @@ class SQLiteLineageSnapshotRepository:
         rows = self._connection.execute(
             """
             SELECT id, title, status, base_model, profile,
-                   dataset_version, mode, progress, epoch_progress, loss,
+                   dataset_version, profile_id, dataset_id,
+                   mode, progress, epoch_progress, loss,
                    artifact_path, error_message, updated_at
             FROM training_runs
             ORDER BY updated_at DESC, title ASC, id ASC
@@ -81,8 +82,10 @@ class SQLiteLineageSnapshotRepository:
                 title=str(row["title"] or ""),
                 status=str(row["status"] or ""),
                 base_model=str(row["base_model"] or ""),
-                profile=str(row["profile"] or ""),
-                dataset_version=str(row["dataset_version"] or ""),
+                profile=str(row["profile_id"] or row["profile"] or ""),
+                dataset_version=str(
+                    row["dataset_id"] or row["dataset_version"] or ""
+                ),
                 mode=str(row["mode"] or ""),
                 progress=str(row["progress"] or "0"),
                 epoch_progress=str(row["epoch_progress"] or ""),
