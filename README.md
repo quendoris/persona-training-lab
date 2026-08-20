@@ -6,6 +6,55 @@ The application combines a PySide6 desktop interface, SQLite-backed workspace st
 
 > **Documentation status:** PTL is in the v1.0 documentation and packaging phase. The audited runtime baseline is complete; public documentation is being rebuilt against the current architecture before the v1.0 release.
 
+## Project evolution
+
+Persona Training Lab started as an MVP prototype for experimenting with AI personas and local AI workflows.
+
+During development, the project evolved through several architectural stages:
+
+### Stage 1 — MVP foundation
+
+Initial implementation of AI persona experiments, local workflows, and basic application structure.
+
+### Stage 2 — Architecture redesign
+
+The project was reorganized into clearer application boundaries with separated interface, application, infrastructure, and runtime responsibilities.
+
+### Stage 3 — Internationalization
+
+Added multilingual support and interface adaptation for different writing systems, including RTL language support.
+
+### Stage 4 — Research infrastructure
+
+Introduced the foundation for reproducible AI experimentation:
+
+- experiment workflows;
+- model and dataset management;
+- version lineage;
+- evaluation flows;
+- analysis tooling;
+- workspace state tracking.
+
+### Stage 5 — Engineering refactoring
+
+The codebase underwent a large-scale refactoring focused on maintainability and reliability:
+
+- stronger module boundaries;
+- expanded automated testing;
+- safer runtime operations;
+- improved error handling;
+- release validation workflows.
+
+### Stage 6 — Release preparation
+
+Current development stage:
+
+- complete technical documentation;
+- architecture review;
+- release audit pipeline;
+- packaging preparation;
+- final v1.0 quality validation.
+
 ## What PTL contains
 
 The desktop application exposes dedicated workspaces for:
@@ -60,7 +109,7 @@ Runtime data is intentionally kept outside the source tree and does not depend o
 | Platform | Default workspace |
 |---|---|
 | Linux / other Unix | `${XDG_DATA_HOME:-~/.local/share}/persona-training-lab` |
-| Windows | `%LOCALAPPDATA%\Persona Training Lab` |
+| Windows | `%LOCALAPPDATA%\\Persona Training Lab` |
 | macOS | `~/Library/Application Support/Persona Training Lab` |
 
 The workspace contains `app.db` plus runtime directories such as `artifacts/`, `exports/`, `temp/`, `cache/`, and `logs/`.
@@ -101,6 +150,10 @@ The documentation is organized for three different readers:
 3. **Developers / auditors** — architecture, persistence, runtime safety, localization, testing, packaging, and release contracts.
 
 The [v1.0 Product Contract](docs/reference/v1-product-contract.md) defines what the first stable release promises and, equally importantly, what is intentionally outside that promise.
+
+## Independent development
+
+◆ Solo developer · No donations · No sponsors
 
 ## License
 
