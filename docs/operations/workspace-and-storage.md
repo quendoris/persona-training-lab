@@ -1,10 +1,10 @@
 # Workspace & Storage
 
-This document defines where Persona Training Lab stores mutable research/workflow data, what each area owns, and how Training artifacts, Agents lineage state, Automation recipes/audit, model inputs, SQLite persistence, and shell presentation state fit into the v1.0 storage contract.
+This document defines where Persona Training Lab stores mutable research/workflow data, what each area owns, and how Training artifacts, Agents lineage state, Automation recipes/audit, model inputs, SQLite persistence, shell presentation state, and editable input bindings fit into the v1.0 storage contract.
 
 The central rule is:
 
-> **PTL research/workflow state belongs in the PTL workspace, not in the source tree and not in whichever directory happened to be the process current working directory. Shell window geometry/dock state/last-workspace selection is a documented exception stored through platform Qt `QSettings`.**
+> **PTL research/workflow state belongs in the PTL workspace, not in the source tree and not in whichever directory happened to be the process current working directory. Two current user-interface configuration surfaces are documented exceptions: shell geometry/docks/last-workspace use platform Qt `QSettings`, and editable keyboard/mouse bindings use `~/.persona_training_lab/key_bindings.json`.**
 
 ## 1. Default workspace location
 
@@ -22,11 +22,16 @@ Changing terminal CWD does not select a PTL workspace.
 
 ## 2. Explicit workspace override
 
-Controlled code/tests can create `AppSettings(workspace_dir=...)`. That explicit root becomes the base for the same workspace-owned persistence model.
+Controlled code/tests can create `AppSettings(workspace_dir=...)`. That explicit root becomes the base for the same workspace-owned research/workflow persistence model.
 
 This is useful for isolated tests, demo workspaces, documentation capture, and packaging checks.
 
-It does not relocate Qt `QSettings` used by `WindowStateStore`; that shell-state store follows Qt's platform/application settings location unless tests inject an explicit `QSettings` instance.
+It does **not** relocate:
+
+- Qt `QSettings` used by `WindowStateStore`;
+- the default `KeyBindingManager` file at `~/.persona_training_lab/key_bindings.json`.
+
+Tests/components can inject explicit settings/storage paths for those mechanisms, but production shell construction currently uses their defaults.
 
 ## 3. Core workspace layout
 
@@ -75,13 +80,42 @@ Consequences:
 
 Tests can inject an INI-backed `QSettings` instance to verify this behavior independently of the host platform settings backend.
 
+### 3.2 Editable key bindings also live outside the workspace
+
+`KeyBindingManager` currently defaults to:
+
+```text
+~/.persona_training_lab/key_bindings.json
+```
+
+This versioned JSON stores editable keyboard shortcuts and Agents mouse gestures.
+
+The shell constructs the manager without a workspace-specific `storage_path`, so the default file is user-home-relative and shared independently of the active PTL research workspace.
+
+Consequences:
+
+- a whole-workspace backup does not include custom bindings;
+- a fresh/reset workspace can retain existing custom bindings;
+- restoring an older workspace does not roll back the binding file;
+- deleting the binding file resets that manager to built-in defaults on next construction, but does not alter research/workflow persistence.
+
+The reviewed code/commit messages establish this behavior but do not establish why this path is intentionally outside the modern workspace. The storage contract therefore records the fact without inventing rationale.
+
 ## 4. `app.db`
 
 `app.db` is the primary SQLite database for persistent application/research state.
 
 It stores structured records for SQLite-backed UI/style preferences, Profiles, Datasets, Training, model versions, experiments/analysis, event metadata, runtime-operation coordination, lineage resource links, and other registered application state.
 
-Window geometry/dock state/current-workspace restoration is **not** stored in `app.db`; those values belong to `WindowStateStore`/Qt `QSettings` as described above.
+Neither of these shell/operator configuration surfaces lives in `app.db`:
+
+```text
+Qt QSettings
+  -> window geometry / docks / last workspace
+
+~/.persona_training_lab/key_bindings.json
+  -> editable keyboard/mouse bindings
+```
 
 Training-specific persisted state includes run IDs, configuration, status/progress, artifact paths, and input fingerprints such as `profile_sha256` and `dataset_sha256`.
 
@@ -112,6 +146,8 @@ It does **not** replace the Dataset/Training/model-version/evaluation records in
 Production `AtomicLineageStateStore` resolves this file from the same PTL workspace root used by the rest of the application. The historical home-relative location `~/.persona_training_lab/agents_lineage_state.json` is not the v1.0 production default.
 
 Because semantic lineage sources/resource links live in SQLite while local branch/history/layout state lives in this JSON, a complete Agents backup requires the whole workspace rather than either file alone.
+
+Do not confuse the removed historical Agents location with the still-current key-binding file under the same `~/.persona_training_lab/` parent directory.
 
 ## 6. `artifacts/`
 
@@ -288,7 +324,17 @@ Treat the **whole workspace root** as one backup unit unless a feature-specific 
 
 Then separately preserve important external Dataset/model/Automation dependencies that live outside the workspace.
 
-Qt `QSettings` shell geometry/dock/current-workspace state is outside this backup unit. It is not required to reconstruct the research/workflow state, but it must be preserved separately if exact shell presentation/session restoration matters.
+Two UI/operator settings stores are also outside this backup unit:
+
+```text
+Qt QSettings
+  -> shell geometry/docks/current workspace
+
+~/.persona_training_lab/key_bindings.json
+  -> editable keyboard/mouse bindings
+```
+
+They are not required to reconstruct authoritative research/workflow state, but preserve them separately when exact operator presentation/input configuration matters.
 
 ## 16. Important SQLite areas
 
@@ -306,7 +352,7 @@ Qt `QSettings` shell geometry/dock/current-workspace state is outside this backu
 | Runtime coordination | `runtime_operations`, `runtime_operation_resources` | Operation lifecycle and resource claims |
 | Lineage safety | `lineage_resource_links` | Protected lineage-node ↔ real-resource relationships |
 
-Shell window geometry/dock/current-workspace values are not in this table set; they are stored through Qt `QSettings`.
+Shell window state and editable key bindings are not in this table set.
 
 Do not manually add/remove schema columns as a normal user workflow.
 
@@ -330,7 +376,7 @@ Do not manually edit rows to "unlock" PTL; use a documented recovery path.
 
 ## 19. Automation host effects vs workspace ownership
 
-The workspace is PTL's persistence root, but Automation is not restricted to it.
+The workspace is PTL's research/workflow persistence root, but Automation is not restricted to it.
 
 Ad-hoc commands can use an explicit absolute working directory, and trusted recipes/commands can access other host paths permitted by the OS account.
 
@@ -340,7 +386,7 @@ Therefore:
 
 Runtime resource claims are coordination metadata; they do not create a filesystem sandbox.
 
-## 20. Source tree vs workspace
+## 20. Source tree vs runtime/settings stores
 
 A source checkout contains code/material such as:
 
@@ -361,7 +407,7 @@ Neither `app.db` nor `agents_lineage_state.json` should be created under a packa
 
 Automation custom manifests belong under the workspace registry rather than being silently discovered from arbitrary CWD/source locations.
 
-Qt `QSettings` is a deliberate platform settings mechanism outside both the source tree and workspace; it is limited here to the documented shell state owned by `WindowStateStore`.
+Qt `QSettings` and the home-relative binding JSON are deliberate/current settings mechanisms outside both the source tree and workspace. New domain/workflow state must not copy those exceptions silently.
 
 ## 21. Clean reset
 
@@ -383,11 +429,18 @@ Renaming first is safer than immediate deletion.
 
 A complete workspace reset can remove/disconnect Profiles, Dataset metadata, Training records/logs, model-version metadata, generated artifacts, experiment/analysis state, Agents custom branches/history/layout, Automation recipes/audit history, SQLite-backed style/language/UI-scale preferences, runtime-operation state, lineage links, logs/cache/temp/exports, and any workspace-local models.
 
-It does **not necessarily clear** `WindowStateStore` values held in platform Qt `QSettings`, so previous window geometry/dock layout/last-workspace selection can survive a fresh workspace.
+It does **not necessarily clear**:
+
+```text
+Qt QSettings
+~/.persona_training_lab/key_bindings.json
+```
+
+so previous window geometry/docks/last-workspace and custom input bindings can survive a fresh research workspace.
 
 It also does not undo side effects that prior trusted-host Automation commands already made outside the workspace.
 
-Do not describe a whole-workspace reset as "clear cache".
+Do not describe a whole-workspace reset as "clear cache" or as a reset of every user-global PTL setting.
 
 ## 22. Backup
 
@@ -408,7 +461,12 @@ cp -a ~/.local/share/persona-training-lab \
 
 This captures `app.db`, `agents_lineage_state.json` when present, and workspace Automation manifests.
 
-It does not copy platform Qt `QSettings` shell geometry/dock/current-workspace values. Preserve those separately only when exact shell presentation/session state matters.
+It does not copy:
+
+- platform Qt `QSettings` shell geometry/dock/current-workspace values;
+- `~/.persona_training_lab/key_bindings.json`.
+
+Preserve those separately only when exact shell/input configuration matters.
 
 Then separately back up any important external Dataset sources, explicit base-model directories, Automation companion scripts/tools/data, or other required resources that live outside the workspace.
 
@@ -431,7 +489,7 @@ Restoring `app.db` without the corresponding Agents JSON can preserve the semant
 
 Restoring Automation manifests without the external executables/scripts/data they call can leave valid-looking recipes that fail or behave differently at runtime.
 
-Restoring the workspace does not restore Qt `QSettings` shell presentation state unless that platform settings state was separately preserved/restored. Conversely, stale Qt geometry/dock/current-workspace settings can remain after a workspace restore without changing the restored research records.
+Restoring the workspace does not restore Qt `QSettings` or the key-binding JSON unless those settings stores were separately preserved/restored. Conversely, stale user-global shell/binding settings can remain after a research-workspace restore without changing the restored domain records.
 
 ## 24. Partial cleanup risk
 
@@ -444,24 +502,26 @@ Restoring the workspace does not restore Qt `QSettings` shell presentation state
 - `models/`: may remove required base-model inputs.
 - `artifacts/`: potentially highly destructive; not routine cleanup.
 - only `app.db`: dangerous split because files/local Agents state/recipes can remain without authoritative semantic/audit metadata.
-- Qt `QSettings` shell state: clearing it resets window geometry/docks/last-workspace selection but does not reset the PTL research/workflow workspace.
+- Qt `QSettings` shell state: clearing it resets window geometry/docks/last-workspace selection but does not reset research/workflow state or key bindings.
+- `~/.persona_training_lab/key_bindings.json`: removing it resets custom keyboard/mouse mappings to defaults on next manager construction, but does not reset research/workflow state or Qt shell geometry.
 
 ## 25. Troubleshooting evidence
 
-When reporting workspace/storage problems, collect:
+When reporting workspace/storage/settings problems, collect:
 
 - PTL version/commit;
 - OS;
 - actual workspace root;
 - relevant environment overrides such as `XDG_DATA_HOME`/`LOCALAPPDATA`;
-- whether the symptom concerns workspace data or only shell geometry/dock/current-workspace restoration;
+- whether the symptom concerns research/workflow data, Qt shell geometry/docks/current workspace, or key bindings;
+- the binding storage path shown by the Key bindings screen when relevant;
 - relevant log/Issues text;
 - whether `agents_lineage_state.json` exists when diagnosing Agents local-state/history problems;
 - relevant Automation recipe ID/version/source path and discovery issue;
 - Automation operation ID/result code when applicable;
-- whether the issue followed a crash, forced shutdown, manual file move, Dataset edit, model replacement, recipe edit/import, trusted-host command, or partial restore.
+- whether the issue followed a crash, forced shutdown, manual file move, Dataset edit, model replacement, recipe edit/import, trusted-host command, key-binding file edit, or partial restore.
 
-Do not publish a complete `app.db`, Agents state JSON, Dataset source, Training metadata, Automation recipe directory, command output, environment dump, or platform settings export without reviewing it for private content.
+Do not publish a complete `app.db`, Agents state JSON, Dataset source, Training metadata, Automation recipe directory, command output, environment dump, key-binding file, or platform settings export without reviewing it for private content.
 
 ## 26. Developer rules
 
@@ -471,7 +531,14 @@ Agents production state follows the same rule: `AtomicLineageStateStore` resolve
 
 Automation production recipe discovery follows the same rule: `FilesystemAutomationRecipeProvider` receives `<workspace>/automation/recipes` from composition.
 
-Shell window geometry/dock/current-workspace persistence is an explicit exception implemented through `WindowStateStore(QSettings)`. New feature/domain persistence must not silently copy that exception without a deliberate contract decision.
+Two current UI/config exceptions must remain explicit until deliberately redesigned:
+
+```text
+WindowStateStore(QSettings)
+KeyBindingManager(~/.persona_training_lab/key_bindings.json)
+```
+
+The code reviewed here does not provide a rationale for the key-binding path, so future migration/retention of that path should be an explicit architecture decision rather than accidental compatibility inertia.
 
 A clean `git status` is also not sufficient when ignored files exist. Release policy treats hidden runtime-affecting inputs under source/test/tool trees as release-integrity defects.
 
@@ -480,11 +547,11 @@ A clean `git status` is also not sufficient when ignored files exist. Release po
 The documentation asset pass should include:
 
 - a workspace directory diagram showing `app.db`, `agents_lineage_state.json`, `automation/recipes/`, `models/`, and `artifacts/`;
-- an external shell-state annotation showing Qt `QSettings` outside the workspace backup unit;
+- an external UI-settings annotation showing Qt `QSettings` plus `~/.persona_training_lab/key_bindings.json` outside the workspace backup unit;
 - a backup/reset decision diagram;
 - an Agents state-ownership diagram showing SQLite semantic state vs local JSON state;
 - an Automation state diagram showing recipe manifests + SQLite audit + external host effects;
-- operational screenshots that help diagnose workspace problems without exposing real secrets.
+- operational screenshots that help diagnose workspace/settings problems without exposing real secrets.
 
 Exact paths and destructive/executable effects remain written contracts; images are supporting explanation.
 
@@ -492,9 +559,12 @@ Exact paths and destructive/executable effects remain written contracts; images 
 
 - [Getting Started](../user-guide/getting-started.md)
 - [Interface Tour](../user-guide/interface-tour.md)
+- [Key Bindings & Mouse Gestures](../user-guide/key-bindings.md)
 - [Troubleshooting & Diagnostic Evidence](troubleshooting.md)
 - [Backup, Reset & Recovery](backup-reset-recovery.md)
 - [Security, Trust & Privacy Boundaries](security-boundaries.md)
+- [Persistence architecture](../architecture/persistence.md)
+- [UI shell architecture](../architecture/ui-shell.md)
 - [Agents lineage](../user-guide/agents-lineage.md)
 - [Agents lineage architecture](../architecture/agents-lineage.md)
 - [Automation](../user-guide/automation.md)
