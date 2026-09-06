@@ -140,7 +140,7 @@ PTL's core UI can run without the inference/training extras. Model-related featu
 
 Production model loading does **not** enable Hugging Face `trust_remote_code=True`. A model directory therefore cannot silently expand PTL's Python trust boundary by supplying arbitrary repository code through that mechanism.
 
-The v1.0 operations guide will document supported model expectations, readiness checks, training behavior, and troubleshooting in detail.
+Read [Local Models: Setup, Readiness & Health Checks](../operations/local-models.md) for the current supported model path, readiness probe, actual inference health check, Training integration, troubleshooting, trust boundary, and reproducibility limitations.
 
 ## 8. Verify a development checkout
 
