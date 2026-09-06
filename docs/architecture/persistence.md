@@ -1,75 +1,60 @@
 # Persistence Architecture
 
-This document describes the actual Persona Training Lab v1.0 persistence architecture: ownership, connection/transaction boundaries, repository contracts, SQLite configuration, filesystem state, Agents local state, Qt shell settings, runtime leases, and cross-medium consistency limits.
+This document describes the actual Persona Training Lab v1.0 persistence architecture: ownership, connection/transaction boundaries, repository contracts, SQLite configuration, filesystem state, Agents local state, Qt shell settings, user-home key bindings, runtime leases, and cross-medium consistency limits.
 
-It is an architecture document rather than a backup tutorial. For operator procedures, see [Workspace & Storage](../operations/workspace-and-storage.md) and [Backup, Reset & Recovery](../operations/backup-reset-recovery.md).
+It is an architecture document rather than a backup tutorial. For operator procedures, see [Workspace & Storage](../operations/workspace-and-storage.md), [Backup, Reset & Recovery](../operations/backup-reset-recovery.md), and the [Workspace layout reference](../reference/workspace-layout.md).
 
 The central rule is:
 
-> **PTL does not have one universal persistence mechanism or one global transaction. SQLite is the primary structured state store; Agents local organization, generated artifacts, Automation manifests, external model/Dataset inputs, logs, and Qt shell settings have distinct ownership and atomicity boundaries.**
+> **PTL does not have one universal persistence mechanism or one global transaction. SQLite is the primary structured research/workflow store; Agents local organization, generated artifacts, Automation manifests, external model/Dataset inputs, logs, Qt shell settings, and the user-home key-binding file have distinct ownership and atomicity boundaries.**
 
 ## 1. Persistence topology
 
 The production topology is approximately:
 
 ```text
-                         Persona Training Lab
-                                │
-                    ┌───────────┴───────────┐
-                    │                       │
-              main SQLite DB          filesystem / platform
-               <workspace>/              state
-                  app.db                    │
-                    │                       ├─ agents_lineage_state.json
-                    │                       ├─ artifacts/
-                    │                       ├─ automation/recipes/
-                    │                       ├─ logs/
-                    │                       ├─ models/ (optional)
-                    │                       ├─ external Dataset/model/tool files
-                    │                       └─ Qt QSettings shell state
-                    │
-       ┌────────────┼────────────────────────────────────┐
-       │            │            │           │           │
-    domain       Training     event log    runtime     lineage
-    records       logs                    operations    links
+                              Persona Training Lab
+                                      │
+              ┌───────────────────────┼────────────────────────┐
+              │                       │                        │
+        workspace state        user/platform state       external inputs/effects
+              │                       │                        │
+      <workspace>/app.db              ├─ Qt QSettings          ├─ Dataset JSONL
+              │                       │  shell geometry/docks  ├─ explicit model dirs
+              ├─ domain records       │  current workspace    ├─ Automation tools/data
+              ├─ Training/logs        │                        └─ trusted-host effects
+              ├─ event_log            └─ ~/.persona_training_lab/
+              ├─ runtime operations       key_bindings.json
+              └─ lineage links
+              │
+              ├─ agents_lineage_state.json
+              ├─ artifacts/
+              ├─ automation/recipes/
+              ├─ logs/
+              ├─ models/ (optional)
+              ├─ cache/
+              ├─ temp/
+              └─ exports/
 ```
 
-There is no single ACID transaction that atomically commits all of those media together.
+There is no single ACID transaction that atomically commits all of these media together.
 
 ## 2. Production composition owns one primary writable SQLite connection
 
-`build_container()` performs the primary application composition.
-
-It:
-
-1. resolves/creates workspace directories;
-2. configures logs;
-3. constructs `SQLiteDatabase(paths.sqlite_db)`;
-4. opens one writable SQLite connection;
-5. applies the minimal/additive schema bootstrap;
-6. constructs the normal application repositories over that same connection;
-7. injects those repositories into services/view-models.
+`build_container()` resolves workspace directories, configures logging, constructs `SQLiteDatabase(paths.sqlite_db)`, opens one writable connection, applies the additive schema bootstrap, and builds normal application repositories over that connection.
 
 Repositories for UI preferences, events, Projects, Profiles, Agents, Analysis, Datasets, Experiments, model versions, Training, runtime operations, and lineage resource links therefore share the same primary connection in production composition.
 
-## 3. The primary writable connection is long-lived application state
+## 3. Primary writable connection configuration
 
-The composition root keeps repositories/services that hold the primary connection for the running application lifetime.
-
-The connection is opened with:
+The long-lived writable connection is opened with:
 
 ```text
 timeout = 30.0 seconds
 check_same_thread = false
 ```
 
-PTL uses application-level synchronization around shared repository access rather than relying on SQLite's default Python same-thread restriction for this connection.
-
-This is distinct from the lineage read-only loader described later.
-
-## 4. SQLite connection configuration
-
-Writable connections apply:
+and applies:
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -77,6 +62,10 @@ PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA busy_timeout = 5000;
 ```
+
+PTL uses application-level synchronization around repositories sharing this connection rather than Python's default same-thread SQLite restriction.
+
+## 4. Read-only SQLite connections are a separate contract
 
 Read-only connections apply:
 
@@ -86,143 +75,97 @@ PRAGMA query_only = ON;
 PRAGMA busy_timeout = 5000;
 ```
 
-The read-only connection is opened through a URI using:
+and are opened through a URI with:
 
 ```text
 mode=ro
 ```
 
-These settings are implementation facts, not a promise that arbitrary contention/failure workloads are fully solved.
+The Agents semantic-lineage loader owns one such read-only connection in its calling thread. It is not the same connection as the application's primary writable one.
 
-## 5. WAL is a database-concurrency/recovery choice, not a backup format
+## 5. WAL is not a whole-product backup format
 
-WAL permits readers/writers to coexist under SQLite's WAL semantics and is used by the normal writable database.
+WAL is a SQLite concurrency/recovery choice. It does not turn an online copy of `app.db` into a coordinated snapshot of SQLite + Agents JSON + artifacts + recipe files + external files + settings.
 
-It also means an online filesystem copy of only `app.db` is not the documented PTL backup contract.
-
-PTL v1.0 does not expose one coordinated hot-backup operation that freezes SQLite plus Agents JSON plus artifacts/recipes/external state.
-
-The manual operator contract therefore stops PTL before copying the whole workspace.
+PTL v1.0 does not expose a coordinated whole-product hot-backup operation. Manual workspace backup therefore stops PTL first.
 
 ## 6. Process-local repository locking
 
-`connection_lock(connection)` returns one `threading.RLock` keyed by the Python connection object's identity.
+`connection_lock(connection)` returns a `threading.RLock` keyed by the Python connection object's identity.
 
-Every repository using that same connection and this helper receives the same process-local lock.
+Repositories over the same primary connection therefore share one process-local re-entrant lock.
 
-This provides serialization/reentrancy around repository operations sharing the connection.
-
-It is:
+This lock is:
 
 - process-local;
 - connection-local;
-- not a distributed lock;
-- not an OS/filesystem access-control mechanism.
+- not distributed;
+- not a filesystem lock;
+- not an authorization mechanism.
 
-## 7. Why one lock is shared across repositories
+It serializes use of the shared Python connection; it does not coordinate independent PTL processes on different connections/hosts.
 
-The lock registry is keyed by `id(connection)` rather than repository type.
+## 7. Repository ports separate application contracts from SQLite
 
-Therefore two repositories over the same SQLite connection coordinate through one `RLock` instead of each protecting only its own methods with unrelated locks.
+Application services depend on repository `Protocol` contracts rather than constructing SQLite directly.
 
-This matters because Python exposes one shared connection with `check_same_thread=False` to multiple application services/workers.
+Current examples include read/write ports for Profiles, Datasets, Training, Experiments, model versions, UI preferences, and other structured areas.
 
-## 8. Repository ports separate application contracts from SQLite
+The production infrastructure supplies explicit SQLite implementations.
 
-The application layer defines `Protocol` contracts for read/write responsibilities such as:
+This is a dependency-direction boundary, not an ORM/session/unit-of-work architecture.
 
-```text
-UIPreferencesRepositoryPort
-ProfilesReadRepositoryPort
-ProfilesWriteRepositoryPort
-DatasetsReadRepositoryPort
-DatasetsWriteRepositoryPort
-TrainingReadRepositoryPort
-TrainingWriteRepositoryPort
-ExperimentsRead/WriteRepositoryPort
-ModelVersionsRead/WriteRepositoryPort
-```
+## 8. Repository payloads are explicit rows/records
 
-Application services depend on those behavioral contracts rather than directly constructing SQL.
+Many persistence boundaries exchange lightweight dictionaries/records. Services and view models normalize them into stronger status/semantic objects where required.
 
-The production infrastructure supplies SQLite implementations.
+Do not infer SQLAlchemy-style entity/session identity or an implicit transaction spanning multiple service calls.
 
-This is a dependency-direction boundary, not an ORM.
+## 9. Ordinary SQLite write boundary
 
-## 9. Repository payloads are currently lightweight dictionaries/records
-
-Many repository boundaries exchange `dict[str, ...]` payloads rather than persistence-domain ORM entities.
-
-Services/view-models normalize those rows into stronger semantic objects/status enums where required.
-
-The persistence layer therefore remains explicit SQL + mapping code.
-
-Do not infer SQLAlchemy-style unit-of-work/session semantics; there is no ORM session in the current architecture.
-
-## 10. Ordinary repository writes use connection transactions
-
-Typical mutation methods use:
+Typical mutation methods use the connection as a context manager while holding the connection lock:
 
 ```python
 with self._lock, self._connection:
     self._connection.execute(...)
 ```
 
-Python's SQLite connection context manager commits the successful block and rolls it back when the block exits through an exception.
+A successful block commits; an exception rolls the transaction back.
 
-Examples include:
+Examples include normal domain mutation, Training run/log updates, event-log append, and UI preference writes.
 
-- Training run creation/update/log append;
-- event-log append;
-- UI preference save/schema additions;
-- normal domain repository mutations.
+The usual transaction boundary is the repository method, not the entire GUI action/application request.
 
-The transaction boundary is normally the individual repository method, not an implicit global application request.
+## 10. Ordinary reads are not automatically one multi-repository snapshot
 
-## 11. Reads normally acquire the shared lock without opening an explicit transaction
+Simple repository list/get calls normally execute while holding the shared connection lock, but sequential independent calls do not imply one database snapshot across several tables/repositories.
 
-Simple list/get methods generally execute their SELECT while holding the shared connection lock.
+When one coherent multi-source view matters, PTL creates an explicit transaction boundary instead.
 
-They do not automatically combine several independent repository calls into one coherent database snapshot.
+## 11. Schema bootstrap is additive compatibility
 
-When coherence across multiple source sets matters—most notably Agents semantic lineage—PTL uses a dedicated snapshot path instead of assuming sequential list calls are atomic together.
+Startup calls `create_minimal_schema(connection)` and uses `CREATE ... IF NOT EXISTS` plus explicit ensure helpers for known additions.
 
-## 12. Schema bootstrap is additive compatibility, not a general migration framework
+Known ensure paths cover later Profile, Dataset, Training, Training-log, and lineage-link fields/tables. `SQLiteUIPreferencesRepository` separately ensures its later `ui_scale` and `language` columns.
 
-Startup calls `create_minimal_schema(connection)`.
+## 12. There is no universal migration history engine
 
-It uses `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` and explicit column/table ensure helpers for known additions.
-
-Current ensure paths include later fields/tables for:
-
-- Profile content/created time;
-- Dataset path/validation/hash fields;
-- Training input IDs/hashes/hyperparameters/runtime fields;
-- Training logs;
-- lineage resource links.
-
-`SQLiteUIPreferencesRepository` also ensures its later `ui_scale` and `language` columns.
-
-## 13. There is no general schema-version migration engine in this path
-
-The current schema code does not implement a universal migration history capable of translating arbitrary historical/future database shapes.
-
-Known additive changes are handled explicitly.
+The current path does not implement a generic migration ledger capable of translating arbitrary historical/future schemas or guaranteeing downgrade compatibility.
 
 Consequences:
 
-- opening a known older compatible workspace can gain expected missing columns/tables;
-- arbitrary manual schema edits are not promised to be repaired;
-- downgrade compatibility is not generally guaranteed;
-- backup provenance should record the PTL version/commit.
+- known compatible older workspaces can gain expected additive columns/tables;
+- arbitrary manual schema edits are not guaranteed to be repaired;
+- older binaries are not promised to understand newer state;
+- backup provenance should record PTL version/commit.
 
-## 14. Core SQLite tables
+## 13. Core SQLite areas
 
-Current structured areas include:
+Current structured tables include:
 
 | Area | Table(s) |
 |---|---|
-| UI/style preferences | `ui_preferences` |
+| UI/style/localization preferences | `ui_preferences` |
 | events/errors/Automation audit | `event_log` |
 | Projects | `projects` |
 | Profiles | `persona_profiles` |
@@ -232,27 +175,25 @@ Current structured areas include:
 | Training | `training_runs`, `training_logs` |
 | Analysis | `analysis_results` |
 | model versions | `model_versions` |
-| runtime operation lifecycle | `runtime_operations` |
+| runtime lifecycle | `runtime_operations` |
 | runtime resource claims | `runtime_operation_resources` |
 | Agents/resource safety links | `lineage_resource_links` |
 
-This table map is not permission/ownership policy by itself; services define allowed workflow transitions.
+This table map is persistence layout, not workflow permission policy. Services define allowed transitions.
 
-## 15. Foreign-key enforcement is enabled on PTL-created SQLite connections
+## 14. Foreign-key enforcement is enabled
 
-Connections execute:
+PTL-created SQLite connections execute:
 
 ```sql
 PRAGMA foreign_keys = ON;
 ```
 
-For example, runtime operation resource rows reference operation IDs with `ON DELETE CASCADE` in the schema.
+Declared relational constraints are therefore enforced. This does not mean every semantic textual relationship/path/ID is represented as a SQL foreign key; many workflow invariants remain application logic.
 
-Foreign keys protect declared relational constraints only. Many semantic relationships—such as stored textual IDs/path provenance—remain enforced in application logic rather than through every possible SQL foreign key.
+## 15. SQLite UI preferences
 
-## 16. UI/style preferences in SQLite
-
-`ui_preferences` stores the Style/localization preference surface handled by `SQLiteUIPreferencesRepository`:
+`SQLiteUIPreferencesRepository` stores:
 
 ```text
 theme
@@ -263,11 +204,11 @@ language
 updated_at
 ```
 
-When no row exists, the repository returns defaults rather than requiring bootstrap seed data.
+When no row exists it returns defaults. The repository treats at most one row as effective (`LIMIT 1`) and updates that row on save.
 
-The repository uses at most one effective preference row (`LIMIT 1`) and updates that row when saving.
+These preferences belong to the active PTL workspace because they live in `app.db`.
 
-## 17. Shell geometry/docks/current workspace are **not** in SQLite
+## 16. Shell geometry/docks/current workspace use Qt `QSettings`
 
 `WindowStateStore` persists:
 
@@ -279,25 +220,100 @@ shell/current_workspace
 
 through Qt `QSettings`.
 
-Production sets Qt organization/application identity to `Persona Training Lab` before the shell is created.
+Production sets organization/application identity to `Persona Training Lab` before constructing the shell.
 
-This is a separate platform settings backend outside the PTL workspace/`app.db` ownership model.
+This storage is platform/backend state outside `<workspace>/app.db`. Its native location is not one cross-platform path defined by PTL.
 
-The split is deliberate current behavior and must be visible in backup/reset documentation.
+Missing/invalid geometry/dock byte arrays are treated as not restored rather than crashing normal shell initialization. `clear()` removes the three keys and synchronizes QSettings.
 
-## 18. Invalid/missing shell state is non-fatal
+## 17. Key bindings are a third settings surface
 
-`WindowStateStore.restore(...)` treats missing/invalid geometry/dock byte arrays as “not restored” rather than raising through normal shell initialization.
+`KeyBindingManager` does **not** store editable keyboard/mouse mappings in SQLite or QSettings.
 
-The saved workspace key is read independently.
+Its default path is:
 
-`clear()` removes the three shell keys and synchronizes `QSettings`.
+```text
+~/.persona_training_lab/key_bindings.json
+```
 
-Tests use an explicit INI `QSettings` instance to prove round-trip and invalid-state handling without relying on the host's native settings store.
+That path is user-home-relative and outside the default PTL workspace.
 
-## 19. Profiles persist editable persona fields, not just display labels
+Therefore the current settings architecture is deliberately documented as three distinct surfaces:
 
-The Profile table includes fields used by the training-input rendering path such as:
+```text
+app.db/ui_preferences
+  -> theme/accent/button preset/UI scale/language
+
+Qt QSettings
+  -> shell geometry/docks/current workspace
+
+~/.persona_training_lab/key_bindings.json
+  -> editable keyboard + mouse bindings
+```
+
+The code establishes the placement; this document does not invent an unproven historical rationale for it.
+
+## 18. Key-binding file format/version compatibility
+
+Current key-binding format version is:
+
+```text
+2
+```
+
+The manager explicitly supports old version:
+
+```text
+1
+```
+
+Current v2 payload contains:
+
+```text
+version
+bindings
+mouse_bindings
+```
+
+Version 1 contributes compatible keyboard state; mouse mappings are loaded only for the current v2 shape.
+
+Unsupported/non-object formats are rejected with semantic UI-message state rather than treated as valid mappings.
+
+## 19. Key-binding load repairs malformed conflict state conservatively
+
+At load time:
+
+- missing file leaves defaults active;
+- read/JSON failure sets `keybindings.error.read`;
+- unsupported root/version sets `keybindings.error.unsupported_format`;
+- invalid individual keyboard entries are skipped in favor of defaults;
+- duplicate keyboard sequences cause the keyboard mapping to fall back to defaults with `keybindings.error.keyboard_conflicts_repaired`;
+- invalid individual mouse entries are skipped;
+- conflicting mouse mappings cause mouse mappings to fall back to defaults with `keybindings.error.mouse_conflicts_repaired`.
+
+This is recovery behavior for one settings file, not a workspace migration system.
+
+## 20. Key-binding writes use temp-then-replace
+
+A full mapping write creates a sibling temporary file:
+
+```text
+key_bindings.json.tmp
+```
+
+writes formatted JSON, then performs:
+
+```python
+temporary.replace(self._storage_path)
+```
+
+On `OSError`, the temporary file is cleaned up best-effort and `keybindings.error.write` is returned/stored.
+
+This provides a single-file replacement boundary. It does **not** atomically commit with SQLite preferences, QSettings, or Agents JSON.
+
+## 21. Profile persistence and Training identity are related but different
+
+Profile persistence includes fields such as:
 
 ```text
 title
@@ -310,33 +326,19 @@ status
 created_at/updated_at
 ```
 
-Training computes a separate fingerprint of the exact Training-relevant representation at run creation.
+Training computes a separate SHA-256 over the exact Training-relevant Profile representation. Persistence row identity and Training input identity must not be conflated.
 
-Persistence identity and Training input identity are therefore related but not identical concepts.
+## 22. Dataset persistence stores metadata + external-file identity
 
-## 20. Dataset persistence stores metadata plus external-file identity
+Dataset rows persist path, format, status/count/validation data, readiness/schema metadata, and content SHA-256.
 
-The Dataset table stores metadata such as:
+The source JSONL bytes are not copied into SQLite by import.
 
-```text
-path
-format
-status
-record_count
-valid_count
-invalid_count
-validation_errors_preview
-content_sha256
-schema/readiness metadata
-```
+The path remains an external filesystem dependency. The stored SHA-256 can identify approved bytes but cannot restore a missing source file.
 
-The source JSONL bytes themselves are not copied into SQLite by import.
+## 23. Training rows pin selected input identity
 
-The path remains an external filesystem dependency; the SHA-256 is an integrity identity for approved content, not storage of that content.
-
-## 21. Training rows pin input identity
-
-A Training run persists both user-facing configuration and pinned input identifiers/fingerprints:
+A Training run stores configuration and pinned identifiers/fingerprints such as:
 
 ```text
 profile_id
@@ -344,83 +346,45 @@ profile_sha256
 dataset_id
 dataset_sha256
 base_model
-mode
 epochs
 batch_size
 learning_rate
 ```
 
-Runtime state adds fields such as:
+Runtime fields add status/progress/metrics/timestamps/artifact/error state.
 
-```text
-status
-progress
-epoch_progress
-loss
-speed
-checkpoints_count
-started_at
-finished_at
-artifact_path
-error_message
-```
+Start revalidates the current selected inputs against the pinned identity before executing.
 
-Training launch revalidates the current inputs against the persisted pinned identity.
+## 24. Training logs are separate structured rows
 
-## 22. Training logs are a separate append-only-by-workflow table
+`training_logs` stores per-run log entries independently from the rotating application logfile.
 
-`training_logs` stores:
+Repository listing selects a bounded newest set and returns it in chronological display order.
 
-```text
-id
-run_id
-level
-message
-created_at
-```
+Do not confuse Training logs with `<workspace>/logs/persona_training_lab.log` or SQLite `event_log`.
 
-The repository generates log IDs and timestamps for each append.
+## 25. Training artifacts are outside the SQLite transaction
 
-Listing retrieves newest rows then returns them in chronological display order for the selected limit.
-
-These logs are distinct from the rotating application log under `<workspace>/logs/`.
-
-## 23. Training filesystem artifacts are outside the SQLite transaction
-
-A successful full fine-tune writes files such as:
+A full fine-tune can write:
 
 ```text
 <workspace>/artifacts/full_finetune/<run_id>/model/
 <workspace>/artifacts/full_finetune/<run_id>/training_metadata.json
 ```
 
-SQLite subsequently/otherwise stores the artifact path/provenance state through the workflow.
+The filesystem artifact write and SQLite run/model-version mutations are not one database transaction.
 
-Filesystem model writes and SQLite row updates are not one SQLite transaction.
+A crash can therefore require feature-level inspection/recovery rather than one universal rollback.
 
-A crash can therefore require feature-level recovery/inspection rather than relying on one database rollback to restore the entire Training world.
+## 26. Model-version rows are registry metadata
 
-## 24. Model-version persistence is registry metadata, not a second artifact store
+`model_versions` persists identity/status/provenance references such as Training run and artifact path.
 
-`model_versions` persists model-version identity/status and provenance references including:
+The model bytes remain at the referenced filesystem path. Copying/deleting database rows does not recreate/delete those bytes transactionally.
 
-```text
-base_model
-profile_title
-dataset_title
-training_run_id
-artifact_path
-quality_summary
-created_at/updated_at
-```
+## 27. Evaluation persistence serializes the current result grammar into experiment text
 
-The actual model bytes remain at the referenced artifact path.
-
-Deleting/copying the database alone does not recreate those bytes.
-
-## 25. Evaluation persistence currently serializes structured cases into experiment text
-
-The `experiments` table is intentionally compact:
+The `experiments` table is compact:
 
 ```text
 id
@@ -430,11 +394,11 @@ status
 updated_at
 ```
 
-Current portrait/evaluation structure is serialized into the `subtitle` payload and parsed by the evaluation/Analysis code.
+Current portrait/evaluation case structure is serialized into `subtitle` and parsed by Tests/Analysis code under the documented evaluation contract.
 
-This is a versioned compatibility surface described by the evaluation contract, not a normalized SQL row-per-question schema.
+This is not a normalized row-per-question schema.
 
-## 26. Event log is structured but intentionally generic
+## 28. Event log is generic structured persistence
 
 `event_log` stores:
 
@@ -449,23 +413,21 @@ payload_json
 occurred_at
 ```
 
-The repository limits normal recent-event queries to at most 500 rows even when a larger limit is requested.
+Normal recent-event listing clamps requested limits to at most 500 rows.
 
-The payload is JSON text whose schema depends on the event family, for example application errors/notices or `ptl:automation-audit:v1` records.
+Payload JSON schema depends on the event family. Automation uses `ptl:automation-audit:v1`; application error/notice events use their event type/field contract without a separate current `ptl:error:v1` schema marker.
 
-## 27. Event logging is not the same as the rotating application log
+## 29. Event log and rotating file log are different sinks
 
-The SQLite event log supports structured UI/Operations Center history and correlation.
+SQLite events support structured Operations Center/history/correlation. The rotating logfile supports diagnostic logging independently.
 
-The rotating file log captures diagnostic logging independently.
+Application error event persistence is best-effort and may be duplicate-window throttled. An event-store failure is swallowed so it does not replace the original application workflow failure.
 
-Application error reporting is deliberately best-effort: event-log append failure is swallowed so an event-store problem does not replace the original application workflow failure.
+No one sink should be treated as an infallible complete forensic ledger.
 
-Therefore no single logging sink should be treated as an infallible complete forensic ledger.
+## 30. Runtime lease acquisition has a stronger transaction boundary
 
-## 28. Runtime-operation persistence has a stronger lease-acquisition transaction
-
-Atomic runtime lease creation uses:
+Atomic runtime-operation creation uses:
 
 ```sql
 BEGIN IMMEDIATE
@@ -473,28 +435,17 @@ BEGIN IMMEDIATE
 
 inside the shared connection lock.
 
-Within that transaction PTL:
+The transaction checks active conflicting claims and either returns blockers or inserts the operation + claims before commit.
 
-1. reads active conflicting resource claims;
-2. rolls back and returns blockers when a conflict exists; or
-3. inserts the operation;
-4. inserts its resource claims;
-5. commits.
+This prevents the supported check-then-insert path from being split into unrelated transactions.
 
-This prevents the normal check-then-insert lease path from being split into unrelated transactions within the database contract.
+## 31. Adding claims is likewise atomic against the runtime repository path
 
-## 29. Adding claims to an existing operation is also atomic
+`try_add_claims(...)` uses `BEGIN IMMEDIATE` to check conflicts excluding the current operation, verify the operation is still active, insert claims, and commit/rollback as one transaction.
 
-`try_add_claims(...)` similarly uses `BEGIN IMMEDIATE` to:
+This is a stronger local boundary than unrelated repository calls.
 
-- check conflicts excluding the current operation;
-- verify the target operation still exists and is active;
-- insert additional claims;
-- commit or rollback as one transaction.
-
-This is a deliberate stronger boundary than ordinary unrelated repository calls.
-
-## 30. Runtime resource identity is semantic application data
+## 32. Runtime resource identity is semantic application data
 
 Claims use:
 
@@ -504,180 +455,115 @@ resource_id
 access_mode = read|write
 ```
 
-The database prevents duplicate `(operation_id, resource_kind, resource_id)` rows through the primary key.
+Duplicate operation/resource rows are prevented by the database key. Application semantics permit read/read and reject conflicts involving a write.
 
-Conflict semantics are defined in application/runtime logic: read/read can coexist; any competing write conflicts.
+Claims coordinate PTL operations; they do not create filesystem locks, syscall policy, or OS permissions.
 
-The database does not turn these claims into filesystem locks or OS permissions.
+## 33. Runtime lifecycle persists crash evidence
 
-## 31. Runtime lifecycle survives process crashes as persisted evidence
+Operations store identity/kind/subject/state/correlation/owner PID/timestamps/error information.
 
-Operations store:
-
-```text
-operation ID/kind
-subject identity
-state
-correlation ID
-owner PID
-start/heartbeat/finish timestamps
-error message
-```
-
-Startup orphan recovery can convert active operations whose recorded owner PID is no longer alive to `abandoned`.
-
-That repairs persistence/coordination state; it is not a rollback of filesystem/Automation side effects.
-
-## 32. Lineage resource links are persistent safety metadata
-
-`lineage_resource_links` maps Agents node IDs to real resource identities/access modes.
-
-They allow destructive local lineage operations to ask whether a visible/custom node represents resources currently involved in active runtime work.
-
-These rows connect the local graph/history world to runtime-operation safety without making the graph itself the authoritative domain database.
-
-## 33. Agents semantic lineage uses a dedicated read-only connection
-
-`SQLiteLineageProjectionLoader` lazily creates its own `SQLiteDatabase(...).connect_read_only()` connection.
-
-That connection uses:
+Startup orphan recovery can mark active operations whose owner PID no longer exists as:
 
 ```text
-mode=ro
-check_same_thread=true
-query_only=ON
+abandoned
 ```
 
-and is owned by the loader in its calling thread.
+This repairs coordination state. It does not roll back Training files or Automation host effects.
 
-This deliberately differs from the long-lived primary writable application connection.
+## 34. Lineage resource links are persistent safety metadata
 
-## 34. The lineage loader has explicit lifetime ownership
+`lineage_resource_links` maps visible/local Agents nodes to real resource identities/access modes so destructive lineage operations can query active runtime ownership.
 
-The loader creates the read-only connection/service on first `build_snapshot()` and reuses it for that loader instance.
+The links bridge graph/history safety to runtime resources without making the graph the authoritative domain database.
 
-`close()`:
+## 35. Agents semantic lineage owns a dedicated read-only connection
 
-- marks the loader closed;
-- drops service/connection references;
-- closes the connection when it exists.
+`SQLiteLineageProjectionLoader` lazily opens its own read-only SQLite connection/service, reuses it for the loader instance, and explicitly closes it through `close()`.
 
-Calling `build_snapshot()` after close raises.
+Building after close raises rather than silently creating a new hidden lifetime.
 
-This makes worker/read-projection connection ownership explicit.
+## 36. Agents semantic lineage reads one coherent SQLite snapshot
 
-## 35. Semantic lineage reads one coherent SQLite snapshot
-
-`SQLiteLineageSnapshotRepository.read_lineage_snapshot()` acquires its connection lock and executes:
+`SQLiteLineageSnapshotRepository.read_lineage_snapshot()` holds its connection lock and executes:
 
 ```sql
 BEGIN DEFERRED
 ```
 
-then reads, in one transaction:
+then reads Datasets, Training runs, model versions, and evaluations before commit.
 
-```text
-Datasets
-Training runs
-model versions
-evaluations
-```
+Failure rolls the transaction back.
 
-It commits on success and rolls back on failure.
+This ensures one graph refresh is built from one coherent persisted SQLite snapshot rather than four independently timed reads.
 
-This is stronger than performing four independent repository list calls at different times.
+## 37. Agents local organization is a separate JSON layer
 
-## 36. Why Agents needs the snapshot path
-
-Agents builds cross-entity relationships.
-
-If Dataset, Training, model-version, and evaluation sets were read independently while writes occurred between them, one graph refresh could combine states that never coexisted as one committed database view.
-
-The dedicated read transaction avoids that class of projection inconsistency within SQLite.
-
-## 37. Agents local organization is a separate JSON persistence layer
-
-Semantic lineage source records remain in SQLite.
-
-Agents local research organization/history lives in:
+Semantic source records remain SQLite-backed. Local research organization/history lives in:
 
 ```text
 <workspace>/agents_lineage_state.json
 ```
 
-This includes custom branches/current/archive/overrides/undo/redo/layout state.
+including custom branches/current/archive/overrides/undo/redo/layout.
 
-The split avoids duplicating the complete semantic domain graph into a second authoritative database.
+The split avoids making the local presentation/history file a duplicate authoritative semantic database.
 
-## 38. Agents JSON writes use atomic replacement
+## 38. Agents JSON uses stronger file-durability steps than key bindings
 
-`AtomicLineageStateStore` saves by:
+`AtomicLineageStateStore` writes a temporary file, flushes/`fsync`s it, replaces the target with `os.replace(...)`, and attempts directory `fsync`. It also restores the remembered in-memory payload if persistence fails.
 
-1. deep-copying the payload;
-2. serializing JSON;
-3. creating a temporary file in the target directory;
-4. writing/flushing it;
-5. `fsync`ing the temporary file;
-6. replacing the target with `os.replace(...)`;
-7. attempting directory `fsync`;
-8. updating the remembered persisted payload.
+The key-binding file also uses temp-then-replace but does **not** implement the same explicit `fsync` sequence in the current manager.
 
-If save fails before completion, the in-memory payload is restored to the previous persisted copy and the temporary file is cleaned up best-effort.
+Do not call both files “equally durable atomic stores” merely because both replace a temporary file.
 
-## 39. Atomic file replacement is not a cross-store transaction
+## 39. Missing Agents JSON and corrupt Agents JSON differ
 
-The Agents JSON save can be atomic as a file replacement while SQLite resource-link changes are a different persistence medium/transaction.
+Missing Agents JSON produces default local state. Existing unreadable/invalid/non-object JSON raises `LineageStateLoadError` rather than silently becoming blank state.
 
-Protected lineage workflows therefore use explicit transaction/compensation orchestration described in [Agents lineage architecture](agents-lineage.md) rather than pretending SQLite and JSON share one ACID transaction manager.
+That preserves failure evidence.
 
-This is an important architecture boundary.
+## 40. SQLite + Agents JSON is not one ACID transaction
 
-## 40. Missing Agents JSON is different from corrupt Agents JSON
+An Agents JSON replacement and SQLite resource-link transaction are different media/boundaries.
 
-When the JSON file is absent, the store returns default local state.
+Protected lineage workflows therefore require explicit orchestration/compensation described in [Agents lineage architecture](agents-lineage.md).
 
-When the file exists but cannot be read, is invalid JSON, or has a non-object root, the atomic store raises `LineageStateLoadError`.
+## 41. Automation manifests are executable filesystem persistence inputs
 
-The system does not silently translate malformed existing data into a blank state in that load path.
-
-This preserves evidence instead of quietly discarding an unreadable persisted file.
-
-## 41. Automation recipe manifests are executable persistence inputs
-
-Workspace recipe manifests live under:
+Workspace manifests live under:
 
 ```text
 <workspace>/automation/recipes/**/*.ptl-recipe.json
 ```
 
-The recipe provider scans these files, validates `ptl:automation-recipe:v1`, and reports malformed/duplicate entries without making one bad manifest erase all valid recipes.
+The current filesystem provider validates `ptl:automation-recipe:v1`, reports invalid/duplicate manifests through discovery issues, and keeps valid recipes available when another manifest is bad.
 
-A manifest is ordinary mutable filesystem state, not a signed database record.
+A manifest is ordinary mutable trusted-host configuration, not a signed database record.
 
-## 42. Recipe Import is copy-based persistence
+## 42. Current recipe import is copy-based
 
-Import:
+Import loads/validates the selected manifest and copies it into the registry as:
 
-1. resolves/loads/validates the selected source manifest;
-2. copies it to `<registry>/<recipe_id>.ptl-recipe.json` when source and destination differ;
-3. reloads/validates the copied manifest;
-4. refreshes discovery state.
+```text
+<recipe_id>.ptl-recipe.json
+```
 
-Companion scripts/data are not transactionally copied with it.
+when source and destination differ, then reloads the imported manifest and refreshes discovery.
 
-## 43. Automation audit is persisted back into SQLite
+Companion scripts/data are not copied transactionally with the manifest.
 
-Production composition passes `AutomationAuditTrail(event_log_repo)` to the Automation service.
+## 43. Automation audit returns to SQLite
 
-Audit events are normal structured event-log rows with schema marker:
+`AutomationAuditTrail` writes event-log rows under schema:
 
 ```text
 ptl:automation-audit:v1
 ```
 
-The audit includes command hash/part count, environment keys, working directory, effect scope, timeout/output bounds, claims, and terminal metadata.
+The audit records execution mode/effect scope, command hash/part count, environment keys, working directory, timeout/output bounds, resource claims, and terminal metadata.
 
-The executed external side effects themselves are not persisted/rolled back by SQLite.
+External process side effects remain outside SQLite rollback.
 
 ## 44. Local models can be workspace-local or external
 
@@ -687,81 +573,83 @@ The default model reference resolves under:
 <workspace>/models/qwen3.5-0.8b
 ```
 
-but an explicit absolute model path can live elsewhere.
+but explicit paths can live elsewhere.
 
-Training stores the resolved base-model path/reference but not a whole-directory content hash.
+Training stores/resolves the path/reference and selected downstream fingerprints; v1.0 does not hash the entire base-model directory into the Training run.
 
-Persistence therefore captures the reference and selected downstream fingerprints, not every input byte required for exact rerun.
+## 45. File logs are another persistence surface
 
-## 45. Logs are filesystem persistence, not SQLite state
-
-The normal structured application file log lives under:
+Production rotating logs live under:
 
 ```text
 <workspace>/logs/persona_training_lab.log
 ```
 
-with rotation.
+Log-file creation failure is non-fatal to startup.
 
-Log creation failure is non-fatal to application startup.
+SQLite `event_log`, Training logs, and the rotating logfile have distinct availability/failure semantics.
 
-SQLite `event_log` and the rotating file log overlap in purpose but have separate availability/failure boundaries.
+## 46. Workspace directory names have different authority
 
-## 46. Cache/temp/export directories have different authority levels
-
-The directory names are not interchangeable persistence classes:
-
-- `cache/`: intended for regenerable cache material;
+- `cache/`: intended for regenerable cache;
 - `temp/`: temporary workspace material;
-- `exports/`: user-facing output whose reproducibility depends on the producer;
-- `artifacts/`: persistent generated workflow output and **not** routine cache.
+- `exports/`: user-facing output whose regenerability depends on producer;
+- `artifacts/`: persistent generated workflow output and **not** routine cache;
+- `models/`: model inputs, potentially authoritative for reproducibility.
 
-Architecture/recovery code must not implement “clean workspace” by deleting all four indiscriminately.
+“Clean workspace” must not indiscriminately delete them as one class.
 
 ## 47. Source tree is not a runtime persistence backend
 
-The repository contains code/tests/docs/tools/assets.
+`README.md`, `src/`, `tests/`, `tools/`, docs and packaged assets are source/project material.
 
-Release policy rejects hidden ignored runtime-affecting inputs under `src/`, `tests/`, and `tools/` outside narrow harmless debris exceptions.
+Release policy rejects hidden ignored runtime-affecting files under source/test/tool trees outside narrow debris exceptions.
 
-Runtime persistence must not silently move into package-relative paths just because a source checkout is editable.
+Mutable runtime state must not silently become package/CWD-relative input simply because a checkout is editable.
 
-## 48. Persistence transactions are deliberately local in scope
+## 48. Atomicity boundaries are local
 
-Examples of strong local boundaries include:
+Current strong/local examples include:
 
 ```text
-one repository write -> SQLite connection transaction
-runtime lease acquire -> BEGIN IMMEDIATE conflict-check + insert
+repository write      -> SQLite transaction
+runtime lease acquire -> BEGIN IMMEDIATE check + insert
 lineage source read   -> BEGIN DEFERRED multi-table snapshot
-Agents JSON save      -> temp + fsync + os.replace
+Agents JSON save      -> temp + fsync + replace (+ dir fsync attempt)
+key bindings save     -> sibling .tmp + replace
+QSettings save        -> Qt/native settings backend contract
 ```
 
-None of these implies one transaction across:
+None implies one transaction across:
 
 ```text
-SQLite + Agents JSON + model artifacts + external Dataset + Automation host effects + QSettings
+SQLite
++ Agents JSON
++ model artifacts
++ external Dataset/model/tool files
++ Automation host effects
++ Qt QSettings
++ key_bindings.json
 ```
 
 Cross-boundary workflows need explicit orchestration and recovery rules.
 
-## 49. Failure semantics should preserve the authoritative previous state where possible
+## 49. Failure semantics should preserve previous authoritative state where possible
 
 Examples:
 
-- SQLite context-manager/explicit transactions roll back database changes on exceptions;
-- runtime lease acquisition rolls back when blockers/errors occur;
-- lineage snapshot rolls back read transaction on error;
-- Agents atomic store restores the in-memory payload to the previously persisted copy if save fails;
-- failed background lineage refresh retains last-good projection at the UI integration layer.
+- SQLite transactions roll back on exceptions;
+- runtime lease acquisition rolls back on blockers/errors;
+- lineage snapshot rolls back on read failure;
+- Agents atomic store restores its remembered previous payload if save fails;
+- invalid persisted key-binding conflicts fall back to known defaults rather than activating ambiguous mappings;
+- failed background lineage refresh retains last-good projection in the UI integration layer.
 
-These mechanisms reduce partial-state exposure inside their own boundary.
+These are boundary-specific protections, not universal rollback.
 
-They do not create universal rollback across every external medium.
+## 50. Stable IDs outrank labels
 
-## 50. Persistence identity should use stable IDs before labels
-
-Tables/workflows persist IDs such as:
+Persistence/workflows use IDs such as:
 
 ```text
 profile_id
@@ -770,121 +658,136 @@ run_id
 model_version_id
 experiment_id
 operation_id
-node_id/resource identity
+node/resource identity
 ```
 
-Human-readable titles remain presentation/provenance information and are not guaranteed globally unique identity.
+Human titles are presentation/provenance and are not guaranteed globally unique.
 
-Lineage projection intentionally prefers persisted modern Training `profile_id`/`dataset_id` when available, falling back to older labels only for compatibility.
+Lineage projection prefers modern persisted IDs when available and uses older title-like compatibility data only where required.
 
-## 51. Timestamps are persistence metadata, not synchronization clocks
+See [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md) for exact current ID shapes and machine-string taxonomy.
 
-Rows record timestamps for ordering/history/diagnostics.
+## 51. Timestamps are metadata, not synchronization locks
 
-Runtime coordination correctness is not based solely on comparing wall-clock timestamps; lease conflict detection reads active states/resource identities transactionally.
+`created_at`/`updated_at`/runtime timestamps support ordering/history/diagnostics.
 
-Do not turn `updated_at` into an implicit lock/version token unless a future contract explicitly defines it that way.
+Runtime conflict correctness is based on active state/resource identity under transactional acquisition, not merely wall-clock comparison.
+
+Do not turn `updated_at` into an optimistic lock/version token unless a future contract explicitly defines it.
 
 ## 52. Persistence and localization are separate concerns
 
-Database status values increasingly use semantic machine codes/status enums, while UI text maps those semantics into the active locale.
+Canonical status/result semantics should remain machine-readable and locale-neutral. Compatibility aliases may accept historical rendered text, but new persistence should write canonical values.
 
-Legacy rendered-text aliases can exist at compatibility boundaries, but persistence/domain identity must not rely on translated presentation text when a semantic code is available.
+Changing UI language must not mutate domain meaning.
 
-This keeps changing UI language from mutating domain meaning.
+## 53. Backup boundary follows topology
 
-## 53. Backup boundary follows persistence topology
-
-A conservative research/workflow backup preserves the whole workspace because authoritative/referenced state spans:
+A conservative **research/workflow** backup preserves the whole workspace:
 
 ```text
 app.db
 agents_lineage_state.json
 artifacts/
 automation/recipes/
-workspace-local models (when present/important)
-other workspace files
+workspace-local models when required
+other workspace state
 ```
 
 It separately preserves external Dataset/model/Automation dependencies when required.
 
-Qt QSettings shell state is outside the workspace and is only needed when exact shell presentation/session restoration matters.
+For exact UI/input-personalization restoration it also separately preserves:
 
-## 54. Security/privacy follows storage ownership
+```text
+Qt QSettings shell state
+~/.persona_training_lab/key_bindings.json
+```
 
-PTL's SQLite/JSON/artifact/log/recipe files are ordinary host files; v1.0 does not add a workspace-wide encryption layer.
+Those two are not part of the whole-workspace backup merely because PTL uses them.
 
-The persistence architecture therefore relies on OS/filesystem/storage policy for confidentiality.
+## 54. Security/privacy follows every storage surface
 
-See [Security, Trust & Privacy Boundaries](../operations/security-boundaries.md) for the exact trust model.
+PTL's SQLite, JSON, artifacts, logs, recipe manifests, key-binding JSON, and Qt settings are ordinary host/platform state. v1.0 does not add a product-wide encryption layer.
+
+Confidentiality therefore depends on OS/filesystem/storage policy.
+
+See [Security, Trust & Privacy Boundaries](../operations/security-boundaries.md).
 
 ## 55. Current persistence non-goals
 
-The v1.0 persistence architecture does not claim:
+The v1.0 architecture does not claim:
 
-- one global ACID transaction across SQLite and filesystem/external effects;
+- one global ACID transaction across SQLite/filesystem/platform/external effects;
 - a general arbitrary schema migration/downgrade engine;
 - distributed/multi-host locking;
-- encrypted database/workspace storage;
+- encrypted database/workspace/settings storage;
 - signed whole-workspace snapshots;
 - automatic content-addressing of complete base-model directories;
 - automatic copying of Dataset source bytes into SQLite;
-- transactional garbage collection of model artifacts from Agents local branch deletion;
+- transactional artifact garbage collection from Agents branch deletion;
 - hot whole-workspace backup atomicity;
+- automatic inclusion of QSettings/key bindings in a workspace backup;
+- one universal settings database;
 - process-independent synchronization through the Python `RLock` registry.
-
-These are explicit boundaries.
 
 ## 56. Developer invariants
 
 Persistence changes must preserve these current rules unless the architecture/product contract is deliberately revised:
 
 1. research/workflow mutable state must not become source-CWD/package-relative hidden input;
-2. normal production repositories sharing the primary connection must share connection-level synchronization;
-3. SQLite connections keep foreign-key enforcement enabled;
-4. multi-source lineage projection must remain one coherent database snapshot rather than unrelated sequential reads;
-5. runtime claim check+acquire must remain atomic against competing application lease acquisition;
-6. Agents local JSON must remain distinguishable from authoritative semantic SQLite records;
-7. cross-store operations must not be documented as globally atomic when they depend on compensation/orchestration;
-8. Training artifacts must remain distinct from disposable cache;
-9. external Dataset/model/Automation dependencies must remain visible as external when they are external;
-10. Qt shell state must not be silently described as workspace-owned while `WindowStateStore` uses QSettings;
-11. schema compatibility claims must not exceed implemented explicit additions;
-12. machine status/identity must not be replaced by localized display text in persistence contracts;
-13. backup/recovery documentation must be updated whenever a persistence location or atomicity boundary moves.
+2. normal production repositories sharing the primary connection share connection-level synchronization;
+3. PTL-created SQLite connections keep foreign-key enforcement enabled;
+4. multi-source semantic lineage remains one coherent database snapshot;
+5. runtime claim check+acquire remains atomic against supported competing lease acquisition;
+6. Agents local JSON remains distinguishable from authoritative semantic SQLite records;
+7. cross-store workflows are not documented as globally atomic when they rely on orchestration/compensation;
+8. Training artifacts remain distinct from disposable cache;
+9. external Dataset/model/Automation dependencies remain visibly external when external;
+10. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
+11. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
+12. key-binding file format compatibility is not conflated with SQLite schema compatibility;
+13. schema compatibility claims do not exceed implemented additions;
+14. canonical machine status/identity is not replaced by localized display text;
+15. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
 
-## 57. Audit questions for future persistence changes
+## 57. Audit questions for future persistent features
 
 Before merging a new persistent feature, answer:
 
 ```text
-Where is the authoritative state?
-Who owns the path/connection?
-Is it workspace-local, QSettings, or external?
+Where is authoritative state?
+Who owns the path/connection/backend?
+Is it workspace-local, QSettings, user-home config, or external?
 What stable ID names the object?
+What format/schema version exists?
 What transaction/atomic-replace boundary exists?
+Does the write fsync durable state or only replace a file?
 Which other stores must change with it?
-What happens if the second store fails?
+What happens if a later store fails?
 How is recovery performed?
-Does backup include it?
-Does reset remove it?
+Does whole-workspace backup include it?
+Does whole-workspace reset remove it?
 Does it contain private data?
-Can background threads access the same connection safely?
+Can background threads access it safely?
 Does lineage need it in one coherent projection snapshot?
 ```
 
-If those answers are not explicit, the feature is not persistence-complete merely because it can write a file/row.
+If those answers are not explicit, the feature is not persistence-complete merely because it can write a row/file.
 
 ## Related documentation
 
 - [Architecture Overview](overview.md)
 - [Runtime resource safety](runtime-resource-safety.md)
+- [UI shell architecture](ui-shell.md)
 - [Agents lineage architecture](agents-lineage.md)
 - [Automation architecture](automation.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
 - [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Troubleshooting & Diagnostic Evidence](../operations/troubleshooting.md)
 - [Security, Trust & Privacy Boundaries](../operations/security-boundaries.md)
+- [Workspace layout reference](../reference/workspace-layout.md)
+- [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md)
+- [Keyboard & mouse bindings reference](../reference/keyboard-mouse-bindings.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Evaluation contract](../reference/evaluation-contract.md)
 - [v1.0 Product Contract](../reference/v1-product-contract.md)
