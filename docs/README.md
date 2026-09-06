@@ -28,6 +28,8 @@ Start with:
 - [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
 - [Local Models](operations/local-models.md) — model path resolution, readiness checks, inference-stack health, smoke generation, Training integration, trust and reproducibility boundaries.
 - [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
+- [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency preservation, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
+- [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
 - [Agents lineage](user-guide/agents-lineage.md) — deletion blockers, protected undo/redo, stable identity, last-good projection behavior.
 - [Automation](user-guide/automation.md) — recipe discovery/import, host-effect authorization, runtime blockers, output truncation, cancellation/timeout, audit failures, and safe operating rules.
 - [Training pipeline specification](training_pipeline.md) — exact Training input transformation, hashes, backend, artifacts, failure/reproducibility boundaries.
@@ -36,7 +38,7 @@ Start with:
 - [Evaluation contract](reference/evaluation-contract.md) — exact battery, generation, persistence, scoring, comparability, and reproducibility semantics.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — security/runtime/integrity boundaries before operational changes.
 
-The operator layer will continue with dedicated backup/reset/recovery and broader security-boundary guides.
+The dedicated v1.0 operator guides now cover workspace/storage, local models, troubleshooting, backup/reset/recovery, and security/trust/privacy boundaries. Feature-specific operating rules remain in their user/technical guides and are cross-linked rather than duplicated as competing contracts.
 
 ### I develop, audit, or extend PTL
 
@@ -69,6 +71,8 @@ Start with:
 | [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Data roots, `app.db`, Agents JSON, Automation recipes/audit, external inputs, local models, artifacts, backup/reset |
 | [Local Models](operations/local-models.md) | User / operator / developer | Model paths, readiness probe, inference health, Training integration, trust/reproducibility limits |
 | [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) | User / operator / developer | Evidence-first triage, error/operation identities, runtime blockers, subsystem diagnosis, source/release-audit troubleshooting |
+| [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, crash recovery, external dependency preservation, partial reset risks |
+| [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) | User / operator / developer / auditor | OS authority, unencrypted local state, model/data trust, Automation execution/audit, diagnostic privacy, source integrity |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
 | [Agents lineage architecture](architecture/agents-lineage.md) | Developer / auditor | Semantic snapshot/projection, local state, runtime links, history transactions, failure containment |
 | [Automation architecture](architecture/automation.md) | Developer / auditor | Recipe/provider/service/process/audit architecture, trusted-host boundary, runtime claims, containment, failure semantics |
@@ -111,6 +115,8 @@ The v1.0 documentation set follows these rules:
 13. **Distinguish semantic identity from presentation identity.** In Agents, stable persisted IDs and runtime claims outrank visible titles, aliases, placeholders, and graph labels.
 14. **Call executable trust boundaries what they are.** Automation `trusted_host` commands are host code; runtime claims and audit metadata do not transform them into sandboxed/untrusted-safe execution.
 15. **Distinguish a command snapshot from transitive executable provenance.** Automation command hashes identify what PTL launched, not the content hashes of every executable/script/data file that command can consume.
+16. **Preserve evidence before recovery.** Troubleshooting/reset guidance must not destroy the state needed to classify an incident before the failure is understood.
+17. **Do not overclaim privacy/security from partial controls.** Context-key redaction, process containment, hashing, runtime claims, and local-first storage each have narrow meanings and must not be renamed into encryption/sandboxing/authorization guarantees they do not implement.
 
 ## Planned v1.0 documentation structure
 
@@ -179,4 +185,4 @@ The Agents guide defines a concrete capture inventory for healthy lineage, place
 
 The planned documentation-capture tool should make those inventories reproducible from declared demo scenarios rather than manual screenshots.
 
-Images support the written contract; they do not replace exact paths, status/error semantics, integrity boundaries, methodology limits, executable trust boundaries, or destructive-action warnings.
+Images support the written contract; they do not replace exact paths, status/error semantics, integrity boundaries, methodology limits, executable trust boundaries, destructive-action warnings, or security/privacy boundaries.
