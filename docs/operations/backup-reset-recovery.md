@@ -2,17 +2,17 @@
 
 This guide defines conservative backup, restore, reset, and crash-recovery procedures for Persona Training Lab v1.0.
 
-It is intentionally stricter than “copy the database” advice because PTL state is split across SQLite, workspace files, generated artifacts, and optional external inputs.
+It is intentionally stricter than “copy the database” advice because PTL state is split across SQLite, workspace files, generated artifacts, external research inputs, and two presentation/configuration stores outside the workspace.
 
 The central rule is:
 
-> **Treat the complete PTL workspace as one persistence unit, perform manual backups offline, and preserve external Dataset/model/Automation dependencies separately.**
+> **Treat the complete PTL workspace as one research/workflow persistence unit, perform manual backups offline, preserve external Dataset/model/Automation dependencies separately, and preserve external shell/key-binding settings separately when exact UI/input-personalization restoration matters.**
 
-For the detailed ownership map, read [Workspace & Storage](workspace-and-storage.md). For incident triage before changing state, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md).
+For the detailed ownership map, read [Workspace & Storage](workspace-and-storage.md) and the [Workspace layout reference](../reference/workspace-layout.md). For incident triage before changing state, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md).
 
-## 1. What a complete PTL backup means
+## 1. What a complete research/workflow backup means
 
-A PTL backup is not equivalent to one `app.db` file.
+A PTL research/workflow backup is not equivalent to one `app.db` file.
 
 The workspace can contain authoritative or operationally important state such as:
 
@@ -32,13 +32,13 @@ The workspace can contain authoritative or operationally important state such as
 
 Not every directory/file is always present, and not every item has the same importance.
 
-A conservative backup captures the **whole workspace root** while PTL is stopped.
+A conservative research/workflow backup captures the **whole workspace root** while PTL is stopped.
 
 ## 2. Why `app.db` alone is incomplete
 
-SQLite contains structured PTL state including Profiles, Datasets metadata, Training runs/logs, model versions, experiments/analysis, event history, runtime operations, and lineage resource links.
+SQLite contains structured PTL state including Profiles, Datasets metadata, Training runs/logs, model versions, experiments/analysis, event history, runtime operations, lineage resource links, and SQLite-backed Style/localization preferences.
 
-But other state lives outside SQLite.
+Other state lives outside SQLite.
 
 Examples:
 
@@ -59,7 +59,89 @@ models/
 
 A database-only backup can therefore leave valid rows pointing to files/history that were not preserved.
 
-## 3. External dependencies are outside the workspace backup
+## 3. A whole workspace is still not every PTL setting
+
+Two current presentation/configuration surfaces are **outside** the PTL workspace:
+
+```text
+Qt QSettings
+  -> shell/window_geometry
+  -> shell/dock_state
+  -> shell/current_workspace
+
+~/.persona_training_lab/key_bindings.json
+  -> editable keyboard bindings
+  -> editable Agents mouse gestures
+```
+
+Therefore:
+
+> **“whole-workspace backup” means complete PTL-owned research/workflow workspace state, not byte-for-byte capture of every per-user presentation preference.**
+
+This distinction is deliberate documentation of current placement, not a claim about why the placement was originally chosen.
+
+## 4. Qt `QSettings` backup boundary
+
+`WindowStateStore` saves shell geometry, dock state, and last workspace through Qt `QSettings` under the application/organization identity `Persona Training Lab`.
+
+The native storage location is platform/backend dependent. PTL does not publish one portable filesystem path that can be copied identically on Linux, Windows, and macOS.
+
+A workspace backup therefore does not guarantee restoration of:
+
+- window geometry;
+- dock layout/floating state;
+- last-open workspace.
+
+Losing this state does not delete research/workflow records. It changes the restored shell presentation/session layout.
+
+If exact shell-state preservation matters, back up/export the platform's corresponding Qt settings using platform-appropriate tooling and record the OS/backend used.
+
+## 5. Key-binding backup boundary
+
+Editable keyboard and mouse bindings currently live at:
+
+```text
+~/.persona_training_lab/key_bindings.json
+```
+
+This file is outside the default PTL workspace.
+
+Current format:
+
+```text
+version = 2
+```
+
+Version 1 is accepted as an older compatibility format; v2 persists both keyboard and mouse mappings.
+
+A whole-workspace backup does **not** capture custom bindings unless this file is copied separately.
+
+For exact input-personalization recovery, preserve it with the workspace backup provenance.
+
+## 6. Key-binding write/recovery boundary
+
+`KeyBindingManager` writes a complete JSON payload to:
+
+```text
+key_bindings.json.tmp
+```
+
+and then replaces the target file.
+
+This gives a single-file temp-then-replace write boundary. It is not a transaction with SQLite or QSettings.
+
+On load:
+
+- a missing file means defaults remain active;
+- unreadable/invalid JSON produces a warning/error state and defaults remain available;
+- unsupported format is rejected;
+- conflicting persisted keyboard mappings are repaired by falling back to defaults;
+- conflicting persisted mouse mappings are likewise repaired to defaults;
+- valid v1 keyboard state can be loaded, while v2 adds persisted mouse mappings.
+
+Do not manually edit this file during PTL operation and assume a half-edited mapping is an atomic application state transition.
+
+## 7. External research dependencies are outside the workspace backup
 
 Some PTL records intentionally reference ordinary host filesystem inputs.
 
@@ -70,11 +152,11 @@ Important examples are:
 - Automation companion scripts/binaries/data outside the workspace;
 - host resources modified by trusted Automation commands.
 
-A whole-workspace backup does not automatically capture those external dependencies or effects.
+A whole-workspace backup does not automatically capture those dependencies or effects.
 
 For reproducible research, back them up/version them separately.
 
-## 4. Default workspace roots
+## 8. Default workspace roots
 
 The default workspace is independent of repository/current working directory.
 
@@ -88,7 +170,7 @@ An explicit `AppSettings(workspace_dir=...)` can select another root in controll
 
 Always identify the actual active root before backing up or resetting state.
 
-## 5. Why the recommended manual backup is offline
+## 9. Why the recommended manual workspace backup is offline
 
 PTL configures writable SQLite connections with:
 
@@ -98,17 +180,19 @@ synchronous = NORMAL
 busy_timeout = 5000 ms
 ```
 
-and uses persistent/runtime workers that can update SQLite or filesystem state while the application is open.
+and uses runtime/background workers that can update SQLite or filesystem state while the application is open.
 
 A naive copy of only `app.db` during active WAL writes can miss state residing in SQLite's write-ahead-log lifecycle or race with concurrent application changes.
 
-PTL v1.0 does not expose a dedicated coordinated hot-backup command that freezes all application/file state into one atomic backup capsule.
+PTL v1.0 does not expose a dedicated coordinated hot-backup command that freezes SQLite plus Agents JSON plus artifacts/recipes/external state into one atomic capsule.
 
 Therefore the documented manual procedure is:
 
 > stop PTL and its relevant owned work, then copy the entire workspace.
 
-## 6. Pre-backup checklist
+The external key-binding file should also be copied while PTL is stopped when preserving it.
+
+## 10. Pre-backup checklist
 
 Before copying a workspace:
 
@@ -118,11 +202,13 @@ Before copying a workspace:
 4. make sure the application process has exited;
 5. make sure intentionally launched external work is in a known state;
 6. record the PTL version/commit;
-7. identify external Dataset/model/Automation dependencies that need separate preservation.
+7. identify external Dataset/model/Automation dependencies that need separate preservation;
+8. decide whether shell QSettings state matters;
+9. decide whether `~/.persona_training_lab/key_bindings.json` should be preserved.
 
 Do not treat an Automation child process or another external tool as stopped merely because the PTL window disappeared unexpectedly.
 
-## 7. Conservative Linux backup example
+## 11. Conservative Linux workspace backup example
 
 With the default Linux workspace:
 
@@ -131,24 +217,33 @@ cp -a ~/.local/share/persona-training-lab \
       ~/Backups/persona-training-lab-2026-09-06
 ```
 
-`cp -a` is used here to preserve directory structure and filesystem metadata reasonably well.
+If exact key bindings matter, separately preserve:
 
-The destination should be a new or intentionally managed backup location.
+```bash
+cp -a ~/.persona_training_lab/key_bindings.json \
+      ~/Backups/persona-training-lab-2026-09-06.key_bindings.json
+```
+
+Only run the second command if the source file exists.
+
+`cp -a` is used here to preserve directory structure and filesystem metadata reasonably well. The destination should be a new or intentionally managed backup location.
 
 Do not copy a backup back on top of a running PTL workspace.
 
-## 8. Conservative backup on Windows/macOS
+## 12. Conservative backup on Windows/macOS
 
 The same logical procedure applies:
 
 1. close PTL;
 2. copy the complete workspace directory as a directory tree;
 3. preserve it under a distinct backup name/location;
-4. separately preserve important external dependencies.
+4. separately preserve important external research dependencies;
+5. preserve the key-binding JSON if exact bindings matter;
+6. preserve native Qt settings only if exact shell layout/session restoration matters.
 
-The exact shell/file-copy tool is an operator/platform choice. PTL does not currently ship a platform-specific backup executable.
+The exact shell/file-copy/settings-export tool is an operator/platform choice. PTL does not currently ship a platform-specific backup executable.
 
-## 9. Record backup provenance
+## 13. Record backup provenance
 
 A useful backup record contains:
 
@@ -161,11 +256,13 @@ backup destination
 important external Dataset sources
 base-model source/revision/checksum when required
 Automation recipe/tool revisions when required
+key-binding file captured: yes/no
+Qt QSettings shell state captured: yes/no + platform/backend when relevant
 ```
 
 For research reproducibility, the commit/version matters because persisted structures and interpretation rules can evolve.
 
-## 10. Generated Training artifacts are persistent output
+## 14. Generated Training artifacts are persistent output
 
 Do not classify:
 
@@ -186,7 +283,7 @@ artifacts/
 
 so run/model-version metadata and actual generated bytes remain together.
 
-## 11. Training artifact provenance still has an external boundary
+## 15. Training artifact provenance still has an external boundary
 
 `training_metadata.json` and Training persistence record Profile/Dataset provenance and the base-model path/reference.
 
@@ -194,7 +291,7 @@ v1.0 does not cryptographically fingerprint the complete base-model directory as
 
 Therefore a backup that preserves the trained artifact still may not fully reproduce the original run unless the base model identity/environment was preserved separately.
 
-## 12. Dataset backup boundary
+## 16. Dataset backup boundary
 
 Dataset import stores a source path; it does not copy the source JSONL into SQLite.
 
@@ -204,7 +301,7 @@ If a Dataset JSONL lives outside the workspace, preserve it separately.
 
 For an exact historical run, preserve the approved bytes corresponding to the stored hash.
 
-## 13. Automation backup boundary
+## 17. Automation backup boundary
 
 Workspace Automation manifests are preserved by a whole-workspace backup:
 
@@ -212,19 +309,17 @@ Workspace Automation manifests are preserved by a whole-workspace backup:
 <workspace>/automation/recipes/
 ```
 
-But Import copies the manifest file only. A recipe can still depend on external scripts, executables, models, or data.
+Import copies the manifest file only. A recipe can still depend on external scripts, executables, models, or data.
 
-Also, structured Automation audit stores a command snapshot hash/metadata rather than a transitive content hash of every executable dependency.
+Structured Automation audit stores a command snapshot hash/metadata rather than a transitive content hash of every executable dependency.
 
 Preserve the recipe manifest **and** relevant external tool/data revisions for reproducible Automation research.
 
-## 14. Automation side effects are not rolled back by restore
+## 18. Automation side effects are not rolled back by restore
 
 Trusted-host Automation can modify resources outside the PTL workspace with the permissions of the PTL OS account.
 
 Restoring an older workspace does not undo those already-applied external effects.
-
-Example:
 
 ```text
 Automation changed /some/external/file
@@ -236,7 +331,7 @@ restore old PTL workspace
 
 This is an explicit trust/recovery boundary of v1.0.
 
-## 15. Agents backup boundary
+## 19. Agents backup boundary
 
 Agents combines:
 
@@ -254,7 +349,7 @@ A database-only restore can leave the semantic graph intact while losing local A
 
 An Agents-JSON-only restore can restore local organization that no longer matches the intended SQLite snapshot.
 
-## 16. Agents state writes are atomic at the file level
+## 20. Agents state writes are atomic at the file level
 
 `AtomicLineageStateStore` saves `agents_lineage_state.json` by:
 
@@ -269,7 +364,7 @@ This reduces the chance of a partially written JSON file during normal saves.
 
 It does not make the entire PTL workspace one cross-file/database transaction.
 
-## 17. If `agents_lineage_state.json` is unreadable or invalid
+## 21. If `agents_lineage_state.json` is unreadable or invalid
 
 The atomic store distinguishes:
 
@@ -287,8 +382,6 @@ Before any recovery experiment:
 
 If you deliberately want to reset only Agents local organization/history, **rename** the JSON out of the active workspace rather than deleting the only copy immediately.
 
-Example:
-
 ```bash
 mv ~/.local/share/persona-training-lab/agents_lineage_state.json \
    ~/.local/share/persona-training-lab/agents_lineage_state.json.recovery-backup
@@ -298,21 +391,15 @@ On the next state-store creation, a missing active file produces default local A
 
 This does **not** delete semantic Dataset/Training/model/evaluation rows from SQLite, but it does remove the active local custom branches/current/history/layout until the saved file is restored.
 
-## 18. Do not “fix” Agents JSON by hand unless performing forensic recovery
+## 22. Do not “fix” Agents JSON by hand unless performing forensic recovery
 
 Agents state contains schema/history/layout/protected-deletion metadata whose consistency matters.
 
 Manual deletion of one field can produce a state that looks simpler but no longer represents a valid history transition or runtime-safety snapshot.
 
-Normal recovery should prefer:
+Normal recovery should prefer UI history behavior, restoring a known-good whole-workspace backup, or moving the entire local Agents state file aside for an explicit local-state reset.
 
-- UI undo/redo/archive/delete behavior when the application can load state;
-- restoring a known-good whole-workspace backup;
-- moving the entire local Agents state file aside for an explicit local-state reset.
-
-Do not edit it casually in place.
-
-## 19. SQLite concurrency and locking boundary
+## 23. SQLite concurrency and locking boundary
 
 Writable PTL SQLite connections use WAL mode and a 30-second connection timeout, plus `busy_timeout = 5000`.
 
@@ -322,7 +409,7 @@ These mechanisms improve in-process serialization/SQLite contention behavior; th
 
 Do not run multiple independent PTL instances against the same live workspace over a shared/distributed filesystem and assume the v1.0 runtime-operation contract becomes distributed coordination.
 
-## 20. Runtime-operation crash recovery
+## 24. Runtime-operation crash recovery
 
 PTL persists runtime operations/resource claims in SQLite.
 
@@ -338,7 +425,7 @@ and a warning notice is reported when recovery releases one or more operations.
 
 This prevents dead persisted leases from blocking PTL indefinitely after an ordinary process crash.
 
-## 21. What `abandoned` does not mean
+## 25. What `abandoned` does not mean
 
 `abandoned` is a coordination-state recovery result.
 
@@ -352,7 +439,7 @@ It does not mean:
 
 After crash recovery, inspect the feature-specific external/persisted state before retrying the operation.
 
-## 22. Normal application shutdown is preferable to force termination
+## 26. Normal application shutdown is preferable to force termination
 
 The shell owns workspace background workers and guards shutdown.
 
@@ -362,22 +449,26 @@ Let normal shutdown complete whenever possible.
 
 Force termination should be treated as crash recovery afterward: inspect runtime-operation state, artifacts, external side effects, and logs before starting new destructive work.
 
-## 23. Restoring a whole workspace
+## 27. Restoring a whole workspace
 
-Conservative procedure:
+Conservative research/workflow procedure:
 
 1. stop PTL completely;
 2. preserve the current workspace by moving/renaming it rather than overwriting it;
-3. copy the chosen backup into the expected workspace root;
+3. copy the chosen workspace backup into the expected root;
 4. restore required external Dataset/model/Automation dependencies;
-5. start PTL;
-6. inspect Dashboard, Agents, Automation, Issues, and logs;
-7. verify model/artifact/Dataset paths before Training/Tests;
-8. verify runtime-operation recovery state before destructive Agents actions.
+5. optionally restore the separately preserved key-binding file;
+6. optionally restore the platform Qt settings when exact shell state matters;
+7. start PTL;
+8. inspect Dashboard, Agents, Automation, Issues, and logs;
+9. verify model/artifact/Dataset paths before Training/Tests;
+10. verify runtime-operation recovery state before destructive Agents actions.
 
 Keeping the pre-restore workspace aside makes rollback/investigation possible if the selected backup was wrong.
 
-## 24. Example conservative Linux restore
+Do not overwrite a newer key-binding/QSettings state merely because a workspace restore occurred unless you intentionally want the older presentation state too.
+
+## 28. Example conservative Linux workspace restore
 
 Suppose the current workspace is:
 
@@ -401,9 +492,11 @@ cp -a ~/Backups/persona-training-lab-2026-09-06 \
       ~/.local/share/persona-training-lab
 ```
 
+Restore `~/.persona_training_lab/key_bindings.json` separately only when the matching binding snapshot was intentionally captured.
+
 Only remove the pre-restore copy after the restored workspace has been validated and you no longer need the evidence/rollback point.
 
-## 25. Restore validation checklist
+## 29. Restore validation checklist
 
 After launch, verify:
 
@@ -421,9 +514,18 @@ runtime operations are not unexpectedly active
 local model path resolves to expected bytes/source
 ```
 
+If exact presentation restoration was requested, additionally verify:
+
+```text
+keyboard/mouse bindings
+window geometry
+dock layout
+last workspace
+```
+
 For exact research work, also verify external checksums/revisions.
 
-## 26. Schema bootstrap behavior
+## 30. Schema bootstrap behavior
 
 Current startup creates missing core tables/indexes with `CREATE ... IF NOT EXISTS` and ensures a known set of later Profile/Dataset/Training columns/tables exist.
 
@@ -431,45 +533,34 @@ This provides limited additive compatibility for known older workspace schemas.
 
 It is **not** a general arbitrary migration/downgrade system.
 
-Do not assume:
+Do not assume every future database can be opened safely by every older PTL binary, arbitrary manual schema edits will be repaired, or restoring a newer workspace into an older checkout is supported.
 
-- every future database can be opened safely by every older PTL binary;
-- arbitrary manual schema edits will be repaired;
-- restoring a newer workspace into an older checkout is supported.
-
-Record the PTL commit/version with backups and prefer restoring into the same version first.
-
-## 27. Downgrade caution
+## 31. Downgrade caution
 
 A workspace that has been opened by newer code may contain columns, values, state versions, or files an older checkout does not understand.
 
+The key-binding file also has its own explicit format version independent of the SQLite schema.
+
 v1.0 does not publish a general downgrade guarantee.
 
-If testing an older version:
+When testing an older version, use isolated copies and preserve the newer authoritative workspace/settings first.
 
-1. copy the workspace first;
-2. use an isolated copy with the older checkout;
-3. do not point both versions at the same authoritative workspace simultaneously;
-4. preserve the original newer workspace unchanged.
-
-## 28. Clean reset of the entire workspace
+## 32. Clean reset of the entire workspace
 
 A complete fresh-workspace experiment is performed with PTL stopped by moving the whole workspace root aside.
-
-Linux example:
 
 ```bash
 mv ~/.local/share/persona-training-lab \
    ~/.local/share/persona-training-lab.before-reset
 ```
 
-Then launch PTL. Bootstrap creates the required new workspace/database state on demand.
+Then launch PTL. Bootstrap creates required new workspace/database state on demand.
 
 This is safer than immediate recursive deletion because the previous state remains available.
 
-## 29. What a complete reset removes/disconnects
+## 33. What a whole-workspace reset removes/disconnects
 
-Depending on what exists in the workspace, a complete reset removes from the active workspace:
+Depending on what exists in the workspace, a complete reset removes from the **active workspace**:
 
 - Profiles;
 - Dataset metadata/approval state;
@@ -483,14 +574,31 @@ Depending on what exists in the workspace, a complete reset removes from the act
 - generated Training artifacts;
 - workspace Automation recipes;
 - workspace-local models;
-- preferences;
+- SQLite-backed theme/accent/UI-scale/language preferences;
 - logs/cache/temp/exports.
 
 External Dataset/model/Automation files remain wherever they already exist.
 
 External Automation side effects also remain.
 
-## 30. Reset is not “clear cache”
+Crucially, a whole-workspace reset **does not by itself reset**:
+
+```text
+Qt QSettings shell state
+~/.persona_training_lab/key_bindings.json
+```
+
+Those must be reset independently if that is the intended experiment.
+
+## 34. Presentation-only reset is a different operation
+
+Resetting shell geometry/docks/current workspace through `WindowStateStore` or removing/resetting key-binding state changes presentation/input configuration; it is not a clean research-workspace reset.
+
+Likewise, moving the research workspace aside does not prove the application is using default window/binding configuration.
+
+For reproducible UI/visual-audit work, explicitly declare both research state and presentation state.
+
+## 35. Reset is not “clear cache”
 
 A whole-workspace reset removes authoritative and generated state.
 
@@ -498,7 +606,7 @@ Do not describe it as cache cleanup and do not recommend it as the first respons
 
 Use [Troubleshooting](troubleshooting.md) to classify the incident first.
 
-## 31. Partial cleanup: `cache/`
+## 36. Partial cleanup: `cache/`
 
 `cache/` is intended for regenerable cache material.
 
@@ -506,15 +614,13 @@ It is lower risk than deleting persistence/artifacts, but cleanup should still b
 
 A cache clear should not be expected to repair missing SQLite rows, invalid Dataset bytes, Training input-hash mismatches, or broken external model files.
 
-## 32. Partial cleanup: `temp/`
+## 37. Partial cleanup: `temp/`
 
-`temp/` is temporary workspace state.
-
-It is a lower-risk cleanup target only after PTL and relevant owned operations have stopped.
+`temp/` is temporary workspace state and is a lower-risk cleanup target only after PTL and relevant owned operations have stopped.
 
 Do not remove temporary state while a Training/Automation/helper workflow is using it unless a feature-specific procedure explicitly allows that.
 
-## 33. Partial cleanup: logs
+## 38. Partial cleanup: logs
 
 Deleting `logs/` removes diagnostic evidence.
 
@@ -522,23 +628,23 @@ Do not clear logs before capturing a bug report or before understanding a crash.
 
 Logs are not authoritative domain state, but losing them can make a failure significantly harder to reconstruct.
 
-## 34. Partial cleanup: `exports/`
+## 39. Partial cleanup: `exports/`
 
 Exports can be user-facing outputs.
 
 They are not automatically guaranteed to be regenerable from current state, so treat them as user data rather than cache unless the producing workflow explicitly says otherwise.
 
-## 35. Partial cleanup: `artifacts/`
+## 40. Partial cleanup: `artifacts/`
 
 Do not use `artifacts/` as a routine cleanup target.
 
 Model-version and Training rows can reference generated artifact paths. Removing the bytes can leave metadata pointing to missing models.
 
-If storage pressure requires artifact pruning, v1.0 does not currently provide a general transactional artifact garbage collector tied to all lineage/model-version references.
+v1.0 does not currently provide a general transactional artifact garbage collector tied to all lineage/model-version references.
 
 Back up and inspect references before deletion.
 
-## 36. Partial cleanup: `models/`
+## 41. Partial cleanup: `models/`
 
 Removing workspace-local models can make local-model checks, Training creation, Training launch, and Tests/inference unavailable.
 
@@ -546,19 +652,15 @@ Because Training does not content-address the complete base-model directory, rep
 
 Treat model directories as deliberate inputs, not cache.
 
-## 37. Partial cleanup: `automation/recipes/`
+## 42. Partial cleanup: `automation/recipes/`
 
 Deleting custom recipe manifests removes them from future workspace discovery.
 
-It does not:
-
-- erase already-recorded Automation audit rows;
-- undo commands already executed;
-- delete external scripts/data they used.
+It does not erase already-recorded Automation audit rows, undo commands already executed, or delete external scripts/data they used.
 
 Preserve recipes required for reproducible operational history.
 
-## 38. Partial reset: Agents local state only
+## 43. Partial reset: Agents local state only
 
 Moving only:
 
@@ -572,9 +674,23 @@ This is narrower than a whole-workspace reset but still destructive to the activ
 
 Always keep the moved file until the recovery outcome is confirmed.
 
-## 39. Partial reset: SQLite only is dangerous
+## 44. Partial reset: key bindings only
 
-Replacing/removing only `app.db` while leaving the rest of the workspace can create a split state:
+With PTL stopped, preserving then moving:
+
+```text
+~/.persona_training_lab/key_bindings.json
+```
+
+causes a later `KeyBindingManager` instance to use defaults because the file is absent.
+
+This does not reset the workspace, Style preferences, Agents history, or shell QSettings.
+
+Prefer rename/copy over immediate deletion until the result is verified.
+
+## 45. Partial reset: SQLite only is dangerous
+
+Replacing/removing only `app.db` while leaving the rest of the workspace can create split state:
 
 ```text
 old artifacts + old Agents JSON + old recipes
@@ -585,45 +701,33 @@ That state may be useful for a deliberate forensic experiment, but it is not a n
 
 For a normal fresh start, move the whole workspace root together.
 
-## 40. Restoring only `app.db`
+## 46. Restoring only `app.db`
 
 A database-only restore may be appropriate only when you deliberately understand and accept the split-state consequences.
 
-Potential mismatches include:
-
-- model-version paths referencing current/newer artifact bytes;
-- Agents JSON from a different semantic snapshot;
-- recipes from a different backup date;
-- logs/events not matching external effects;
-- external Dataset bytes differing from stored approval hashes.
+Potential mismatches include model-version paths referencing other artifact bytes, Agents JSON from another semantic snapshot, recipes from another date, logs/events not matching external effects, and external Dataset bytes differing from stored approval hashes.
 
 Prefer whole-workspace restore.
 
-## 41. Restoring only artifacts
+## 47. Restoring only artifacts
 
 Copying artifact directories without their corresponding Training/model-version metadata produces files PTL may not know how to identify through normal lineage/registry workflows.
 
-Artifact bytes are valuable, but they are not a substitute for the database/provenance state.
+Artifact bytes are valuable, but they are not a substitute for database/provenance state.
 
 Restore the matching workspace snapshot when possible.
 
-## 42. Recovering after a failed Training run
+## 48. Recovering after a failed Training run
 
 Do not edit the failed run back to `ready` manually.
 
-Preserve:
-
-- run row/logs;
-- correlation/error IDs;
-- partial artifact directory if one exists;
-- application log evidence;
-- Profile/Dataset/model input identity.
+Preserve run row/logs, correlation/error IDs, partial artifacts if present, application logs, and Profile/Dataset/model input identity.
 
 Correct the underlying condition, then create a new Training run if the original terminal run is not designed to be restarted.
 
 A failed run is research/diagnostic evidence.
 
-## 43. Recovering after a crash during Training
+## 49. Recovering after a crash during Training
 
 After restart:
 
@@ -632,35 +736,29 @@ After restart:
 3. inspect the expected artifact directory for partial output;
 4. do not assume partial model files are a valid completed artifact;
 5. verify Dataset/Profile/model state before a new run;
-6. preserve the interrupted output if it is useful for diagnosis.
+6. preserve interrupted output if useful for diagnosis.
 
 The v1.0 backend does not expose a general resumable checkpoint/restart contract.
 
-## 44. Recovering after Automation cancellation/timeout/crash
+## 50. Recovering after Automation cancellation/timeout/crash
 
 For cancellation/timeout, PTL attempts to terminate the contained process tree.
 
-After abnormal application/OS termination, verify host state explicitly:
-
-- output files;
-- external files/directories;
-- service/process state;
-- partial command output;
-- Automation audit/runtime-operation state.
+After abnormal application/OS termination, verify host state explicitly: output files, external files/directories, service/process state, partial command output, Automation audit, and runtime-operation state.
 
 Do not assume workspace restore reverses an external command effect.
 
-## 45. Recovering after a failed Agents delete/redo
+## 51. Recovering after a failed Agents delete/redo
 
 Agents destructive transitions use runtime leases and protected history/resource-link handling.
 
-If a delete/redo is blocked, the correct recovery is normally to resolve the active resource blocker and retry through the UI.
+If a delete/redo is blocked, resolve the active resource blocker and retry through the UI.
 
 Do not manually delete lineage resource links to make the button work.
 
-If a true persistence failure occurs mid-transaction, preserve the workspace and use the last known-good backup/evidence rather than editing state piecemeal.
+If a true persistence failure occurs mid-transition, preserve the workspace and use last-known-good backup/evidence rather than editing state piecemeal.
 
-## 46. Recovering from an apparently stale Agents graph
+## 52. Recovering from an apparently stale Agents graph
 
 A background projection failure can intentionally retain the last-good semantic graph.
 
@@ -673,27 +771,23 @@ Before restoring/resetting anything:
 
 An old but coherent last-good graph is not equivalent to corrupted persistence.
 
-## 47. Recovering from a missing external Dataset source
+## 53. Recovering from a missing external Dataset source
 
 The stored approval hash cannot restore missing bytes.
 
-If the exact source was backed up:
-
-1. restore it to the expected path or intentionally update the Dataset workflow to the new path/state;
-2. validate/approve through PTL as appropriate;
-3. create a new Training run if the authorized input state changed.
+If the exact source was backed up, restore it to the expected path or intentionally re-run the Dataset workflow for a changed path/state. Create a new Training run when authorized input identity changes.
 
 Do not fabricate a file merely to satisfy the stored path.
 
-## 48. Recovering from a replaced base-model directory
+## 54. Recovering from a replaced base-model directory
 
-Because v1.0 stores a path/reference rather than a complete model-directory hash, PTL cannot automatically reconstruct or prove the previous base-model bytes.
+Because v1.0 stores a path/reference rather than a complete model-directory hash, PTL cannot automatically reconstruct or prove previous base-model bytes.
 
 If exact identity matters, restore the separately preserved model revision/checksum.
 
 A model path becoming readable again is not proof that it is the same model used by an older Training run.
 
-## 49. Recovery evidence before destructive action
+## 55. Recovery evidence before destructive action
 
 Capture at least:
 
@@ -707,75 +801,67 @@ relevant Issues/Activity/logs
 affected entity IDs
 artifact/model/Dataset paths
 whether crash/force-kill/manual edit/restore preceded the issue
+key-binding storage state when input configuration is involved
+Qt shell-state relevance when geometry/docks/session are involved
 ```
 
 When recovery concerns Agents, preserve `agents_lineage_state.json` and matching `app.db` together.
 
 When recovery concerns Automation, preserve relevant audit metadata and inspect external effects separately.
 
-## 50. Backup privacy
+## 56. Backup privacy
 
 A whole workspace can contain private research material and operational metadata.
 
-Potentially sensitive areas include:
+Potentially sensitive areas include Profiles, Dataset metadata/paths, experiment responses, Training logs/metadata, model artifacts, Agents local research labels/history, Automation recipe manifests, event/audit metadata, and filesystem paths/usernames.
 
-- Profiles;
-- Dataset metadata/paths;
-- experiment responses;
-- Training logs/metadata;
-- model artifacts;
-- Agents local research labels/history;
-- Automation recipe manifests;
-- event/audit metadata;
-- filesystem paths/usernames.
+External presentation stores can also reveal user behavior/preferences:
 
-Encrypt/protect backups according to the sensitivity of the contained research data.
+```text
+key_bindings.json -> customized input mappings
+QSettings         -> shell layout / last workspace
+```
 
-Do not publish a complete workspace as a bug attachment without reviewing it.
+PTL does not add an application-level encryption layer to these stores. Protect backups according to their sensitivity and do not publish complete state without review.
 
-## 51. Backup integrity verification
+## 57. Backup integrity verification
 
 PTL v1.0 does not currently produce a signed whole-workspace backup manifest.
 
-For high-value research backups, operators can separately record filesystem/archive hashes using their normal backup tooling.
+For high-value research backups, operators can separately record filesystem/archive hashes using normal backup tooling.
 
 Do not claim PTL itself cryptographically attests the whole backup when it does not.
 
 The hashes PTL does maintain for specific contracts—such as approved Dataset bytes and Training Profile representation—have narrower meanings.
 
-## 52. Suggested backup cadence
+## 58. Suggested backup cadence
 
 PTL does not enforce a schedule.
 
-A practical operator policy is to create a backup before actions that would be expensive to reconstruct, such as:
+A practical operator policy is to create a backup before actions expensive to reconstruct, such as large Training runs, major Dataset/Profile changes, substantial Agents history reorganization, recipe/toolchain changes, schema/version experiments, or destructive recovery/reset work.
 
-- large Training runs;
-- major Dataset/Profile changes;
-- substantial Agents history reorganization;
-- recipe/toolchain changes used for research output;
-- schema/version upgrade experiments;
-- destructive recovery/reset work.
+The cadence remains operator/research policy rather than a v1.0 application guarantee.
 
-The cadence remains an operator/research policy rather than a v1.0 application guarantee.
-
-## 53. Developer/source checkout backup is separate
+## 59. Developer/source checkout backup is separate
 
 Git is the source-code/version-history mechanism; the PTL workspace is runtime/research state.
 
-Backing up the repository does not back up the default user workspace.
+Backing up the repository does not back up the default user workspace, QSettings, or the user-home binding file.
 
 Backing up the PTL workspace does not preserve uncommitted source changes.
 
-For a reproducible development investigation preserve both identities:
+For reproducible development investigation preserve the identities separately:
 
 ```text
 Git commit/branch/worktree state
 PTL workspace snapshot
+external research dependencies
+external presentation state when relevant
 ```
 
-Do not mix the two by storing runtime `app.db`/Agents state inside `src/`, `tests/`, or `tools/`.
+Do not mix them by storing runtime `app.db`/Agents state inside `src/`, `tests/`, or `tools/`.
 
-## 54. Recovery acceptance checklist
+## 60. Recovery acceptance checklist
 
 Before declaring a restore/recovery successful:
 
@@ -788,16 +874,20 @@ Before declaring a restore/recovery successful:
 7. no unexpected active runtime operations remain;
 8. Issues/logs show no unresolved recovery errors;
 9. local-model readiness is rechecked before inference/Training;
-10. a small non-destructive workflow succeeds before large/destructive work resumes.
+10. a small non-destructive workflow succeeds before large/destructive work resumes;
+11. if exact input personalization was part of the restore, bindings match the intended snapshot;
+12. if exact shell presentation was part of the restore, geometry/docks/current workspace match the intended snapshot.
 
 For source/release work, validate the source checkout independently with the release gate after it is clean.
 
-## 55. Current v1.0 recovery boundaries
+## 61. Current v1.0 recovery boundaries
 
 PTL v1.0 does not claim:
 
 - atomic hot backup of the complete multi-file workspace;
-- automatic external Dataset/model/Automation dependency capture;
+- automatic capture of external Dataset/model/Automation dependencies;
+- automatic capture of Qt QSettings/key-binding state inside a workspace backup;
+- portable cross-platform backup path for native Qt settings;
 - automatic rollback of trusted-host command effects;
 - automatic repair of arbitrary SQLite corruption/manual edits;
 - arbitrary database downgrade compatibility;
@@ -808,26 +898,30 @@ PTL v1.0 does not claim:
 
 These are explicit operating boundaries.
 
-## 56. Developer invariants
+## 62. Developer invariants
 
 Backup/recovery changes must preserve these rules unless the product contract is deliberately revised:
 
 1. workspace ownership remains independent of process CWD;
 2. `app.db` is not documented as the complete backup by itself;
 3. Agents local JSON and SQLite semantic state remain distinguishable;
-4. external Dataset/model/Automation dependencies remain explicitly identified as external when they are external;
-5. manual backup guidance remains offline until PTL implements and audits a coordinated hot-backup contract;
-6. runtime orphan recovery must not be described as external side-effect rollback;
-7. artifact/model deletion must not be presented as cache cleanup;
-8. recovery procedures prefer reversible rename/copy steps over immediate deletion;
-9. version/schema compatibility claims must not exceed implemented migrations;
-10. recovery documentation must be updated when persistence or migration behavior changes.
+4. external Dataset/model/Automation dependencies remain explicitly external when they are external;
+5. QSettings and the user-home key-binding JSON remain explicitly outside the workspace while code stores them there;
+6. manual workspace backup guidance remains offline until PTL implements/audits a coordinated hot-backup contract;
+7. runtime orphan recovery must not be described as external side-effect rollback;
+8. artifact/model deletion must not be presented as cache cleanup;
+9. recovery procedures prefer reversible rename/copy steps over immediate deletion;
+10. version/schema compatibility claims must not exceed implemented migrations;
+11. key-binding format compatibility must be documented separately from SQLite schema compatibility;
+12. recovery documentation must be updated whenever a persistence location or atomicity boundary moves.
 
 ## Next steps
 
 - Workspace ownership/details: [Workspace & Storage](workspace-and-storage.md)
+- Exact store/path matrix: [Workspace layout reference](../reference/workspace-layout.md)
 - Diagnose before modifying state: [Troubleshooting](troubleshooting.md)
 - Local models/reproducibility: [Local Models](local-models.md)
+- Input personalization: [Key Bindings & Mouse Gestures](../user-guide/key-bindings.md)
 - Training provenance: [Training](../user-guide/training.md)
 - Agents state/history: [Agents lineage](../user-guide/agents-lineage.md)
 - Automation external-effects boundary: [Automation](../user-guide/automation.md)
