@@ -26,6 +26,7 @@ Begin with:
 Start with:
 
 - [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
+- [Local Models](operations/local-models.md) — model path resolution, readiness checks, inference-stack health, smoke generation, Training integration, trust and reproducibility boundaries.
 - [Agents lineage](user-guide/agents-lineage.md) — deletion blockers, protected undo/redo, stable identity, last-good projection behavior.
 - [Automation](user-guide/automation.md) — recipe discovery/import, host-effect authorization, runtime blockers, output truncation, cancellation/timeout, audit failures, and safe operating rules.
 - [Training pipeline specification](training_pipeline.md) — exact Training input transformation, hashes, backend, artifacts, failure/reproducibility boundaries.
@@ -34,7 +35,7 @@ Start with:
 - [Evaluation contract](reference/evaluation-contract.md) — exact battery, generation, persistence, scoring, comparability, and reproducibility semantics.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — security/runtime/integrity boundaries before operational changes.
 
-The operator layer will continue with dedicated local-model, recovery/troubleshooting, and broader security-boundary guides.
+The operator layer will continue with dedicated recovery/troubleshooting and broader security-boundary guides.
 
 ### I develop, audit, or extend PTL
 
@@ -47,7 +48,7 @@ Start with:
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
 - [Snapshots and model versions](user-guide/snapshots.md) — current `model_versions` persistence semantics, derived lifecycle presentation, and provenance limits.
-- [Evaluation contract](reference/evaluation-contract.md) — machine-level Tests/Analysis protocol, score parsing, persistence grammar, factor math, and protocol-comparison guard.
+- [Evaluation contract](reference/evaluation-contract.md) — machine-level Tests/Analysis protocol, score parsing, persistence grammar, factor math, protocol-comparison guard.
 
 ## Current v1.0 documentation map
 
@@ -65,6 +66,7 @@ Start with:
 | [Training pipeline specification](training_pipeline.md) | Advanced user / developer / auditor | Exact Training persistence, hashing, parsing, execution, artifact/provenance contract |
 | [Evaluation contract](reference/evaluation-contract.md) | Developer / auditor / researcher | Battery identity, inference settings, score parser, serialized result grammar, factor/delta math, comparability and methodology boundaries |
 | [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Data roots, `app.db`, Agents JSON, Automation recipes/audit, external inputs, local models, artifacts, backup/reset |
+| [Local Models](operations/local-models.md) | User / operator / developer | Model paths, readiness probe, inference health, Training integration, trust/reproducibility limits |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
 | [Agents lineage architecture](architecture/agents-lineage.md) | Developer / auditor | Semantic snapshot/projection, local state, runtime links, history transactions, failure containment |
 | [Automation architecture](architecture/automation.md) | Developer / auditor | Recipe/provider/service/process/audit architecture, trusted-host boundary, runtime claims, containment, failure semantics |
