@@ -2,51 +2,44 @@
 
 This guide defines the security/trust/privacy boundaries that Persona Training Lab v1.0 actually implements.
 
-It is not a generic security checklist and it does not infer guarantees from UI wording. The statements here follow current PTL composition, persistence, model-loading, Automation, runtime-coordination, logging, and release-policy code.
+It is not a generic security checklist and it does not infer guarantees from UI wording. The statements here follow current composition, persistence, model-loading, Dataset/Training, Automation, runtime-coordination, diagnostic, shell/settings, and release-policy code.
 
 The central rule is:
 
-> **PTL coordinates trusted local research workflows inside the authority of the current operating-system account. It is not a sandbox, privilege boundary, secret vault, or hostile-input execution environment.**
+> **PTL coordinates trusted local research workflows inside the authority of the current operating-system account. It is not a sandbox, privilege boundary, encrypted secret vault, or hostile-input execution environment.**
 
-For operational failures and evidence handling, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md). For backup/storage boundaries, read [Backup, Reset & Recovery](backup-reset-recovery.md) and [Workspace & Storage](workspace-and-storage.md).
+For operational failures and evidence handling, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md). For backup/storage boundaries, read [Backup, Reset & Recovery](backup-reset-recovery.md), [Workspace & Storage](workspace-and-storage.md), and the [Workspace layout reference](../reference/workspace-layout.md).
 
 ## 1. Security model at a glance
 
-PTL v1.0 combines several different kinds of boundaries:
-
 | Boundary | What PTL currently does | What it does **not** mean |
 |---|---|---|
-| OS account | Runs the desktop application and trusted-host Automation under the current user's authority | PTL is not a lower-privilege sandbox |
-| Workspace ownership | Keeps PTL mutable state under a stable workspace root | The workspace is not an access-control sandbox |
+| OS account | Runs PTL and trusted-host child processes with current-user authority | PTL is not a lower-privilege sandbox |
+| Workspace ownership | Keeps normal research/workflow mutable state under a stable root | Workspace is not an access-control sandbox |
+| External presentation stores | Uses QSettings + a user-home key-binding JSON for shell/input configuration | These stores are not encrypted/secret merely because they are outside the workspace |
 | Runtime claims | Coordinates read/write use of known PTL resources | Claims do not constrain syscalls/files/network |
-| Model loading | Does not enable `trust_remote_code=True` | Model files are not untrusted-safe/sandboxed |
-| Dataset approval | SHA-256 fingerprints approved JSONL bytes | A hash does not make content confidential or restore deleted bytes |
-| Training pinning | Pins Profile Training text and Dataset SHA-256 | Base-model bytes are not fully content-addressed |
-| Automation authorization | Ad-hoc host commands require explicit host-effects authorization | Authorization does not reduce command privileges |
-| Automation audit | Records structured execution metadata | Audit is not prevention/rollback and is not secret-free by definition |
-| Process containment | Owns/terminates Automation descendant process trees | Containment is not filesystem/network isolation |
-| Error context redaction | Redacts selected structured-context key names | Tracebacks/exception text are not comprehensively secret-scrubbed |
-| Release gate | Requires a clean recorded source state and rejects hidden source inputs | A green gate is not formal proof against all vulnerabilities |
+| Model loading | Does not opt into `trust_remote_code=True` | Model parsing is not hostile-input sandboxing |
+| Dataset approval | SHA-256 fingerprints approved JSONL bytes | Hashing is not confidentiality/authorship/signing |
+| Training pinning | Pins Profile representation + Dataset SHA-256 | Complete base-model bytes are not content-addressed |
+| Automation authorization | Ad-hoc host commands require explicit host-effect authorization | Authorization does not reduce child privileges |
+| Automation audit | Records structured execution metadata | Audit is not prevention/rollback and not a secret vault |
+| Process containment | Owns/terminates ordinary descendant process trees | Containment is not filesystem/network isolation |
+| Error context redaction | Redacts selected top-level structured-context key names | Exception text/traceback and arbitrary nested data are not comprehensively secret-scrubbed |
+| Release gate | Binds validation evidence to a clean recorded source state | Green validation is not formal proof against every vulnerability |
 
-Keep these concepts separate. Most dangerous misunderstandings come from treating one boundary as if it provided another.
+Keep these concepts separate. Most dangerous overclaims come from treating one narrow boundary as if it provided another.
 
-## 2. The operating-system account is the primary authority boundary
+## 2. The OS account is the primary authority boundary
 
-PTL is a local desktop process.
+PTL is a local desktop process. Files it can read/write, libraries it loads, and trusted child commands it executes are ultimately constrained by the authority of the OS account that launched it.
 
-Files that PTL itself can read/write, child commands it can execute, and host resources accessible to trusted Automation are ultimately constrained by the permissions of the OS account that launched PTL.
+PTL v1.0 does not create a separate low-privilege identity for model loading, Dataset parsing, Training, evaluation, or Automation.
 
-PTL v1.0 does not create a separate low-privilege user identity for model loading, Training, Dataset parsing, or Automation.
+If stronger isolation is required, use OS account separation, filesystem permissions, disk encryption, network controls, containers/VMs, or other host controls appropriate to the threat model.
 
-If the PTL account can modify a host path, trusted-host Automation can potentially modify that path too.
+## 3. Workspace ownership is organization, not isolation
 
-Use OS filesystem permissions, account separation, disk encryption, network controls, and host security policy when stronger boundaries are required.
-
-## 3. The PTL workspace is a persistence root, not a sandbox
-
-The workspace gives PTL a stable ownership location for mutable state.
-
-Typical root:
+Typical workspace state is:
 
 ```text
 <workspace>/
@@ -61,17 +54,48 @@ Typical root:
 └── temp/
 ```
 
-This prevents accidental dependence on repository/process CWD for normal runtime state.
+This prevents ordinary runtime state from silently depending on repository/process CWD.
 
-It does **not** prevent PTL or trusted child processes from accessing paths outside the workspace when the code/workflow explicitly uses them.
+It does not prevent PTL or an authorized trusted process from accessing external Dataset/model/tool paths allowed by the OS account.
 
-Examples include external Dataset files, explicit model directories, and Automation absolute working directories.
+## 4. Security/privacy must include state outside the workspace
 
-## 4. Data at rest is ordinary host filesystem state
+Two PTL presentation/configuration stores are outside the workspace:
 
-The current persistence implementation uses normal SQLite and ordinary files/directories.
+```text
+Qt QSettings
+  -> shell geometry
+  -> dock state
+  -> last workspace
 
-PTL v1.0 does not add an application-level encryption layer to:
+~/.persona_training_lab/key_bindings.json
+  -> keyboard mappings
+  -> Agents mouse mappings
+```
+
+Security/privacy statements about “the workspace” do not automatically cover those stores.
+
+They are ordinary local configuration state governed by the host/platform. PTL does not add application-level encryption to either.
+
+## 5. Key-binding JSON is not a secret store
+
+`~/.persona_training_lab/key_bindings.json` is readable JSON containing input mappings and format version state.
+
+It can reveal operator customization/interaction preferences. It does not normally contain research content by design, but it must not be treated as encrypted or inherently public.
+
+The manager writes through a temporary sibling file followed by replace. That is a file-write integrity/recovery technique, not confidentiality or authentication.
+
+## 6. Qt `QSettings` state is platform configuration
+
+Shell geometry/dock/current-workspace values are stored through the platform Qt settings backend under the PTL organization/application identity.
+
+PTL does not define one portable encrypted file for this state.
+
+The exact native backend/location is platform-dependent. Protect it according to the host account/platform policy when shell/session metadata matters.
+
+## 7. Data at rest is ordinary host state
+
+PTL v1.0 does not add product-level encryption to:
 
 ```text
 app.db
@@ -81,55 +105,43 @@ artifacts/
 automation/recipes/
 exports/
 workspace-local model files
+~/.persona_training_lab/key_bindings.json
+Qt QSettings shell state
 ```
 
-Confidentiality at rest therefore depends on the underlying OS/filesystem/storage protection chosen by the operator.
+Nor does it encrypt arbitrary external Dataset/model/Automation dependencies.
 
-A whole-workspace backup likewise contains ordinary research data unless the backup destination/tool provides encryption.
+Confidentiality at rest therefore depends on the OS/filesystem/storage/backup controls chosen by the operator.
 
-## 5. `app.db` can contain sensitive research metadata/content
+## 8. `app.db` can contain sensitive research data
 
-SQLite stores structured state including Profiles, Dataset metadata, Training information/logs, model-version metadata, experiments/evaluation payloads, event history, runtime operations, and lineage links.
+SQLite stores Profiles, Dataset metadata/paths/hashes, Training state/logs, model-version metadata, experiments/evaluation payloads, event history, runtime operations, lineage links, and Style/localization preferences.
 
-Evaluation case payloads and operational messages can contain research/model behavior that should not be assumed public.
+Evaluation payloads and operational messages can contain model behavior/research data that should not be assumed public.
 
-Do not upload a complete `app.db` as a bug attachment without reviewing its contents and the surrounding privacy requirements.
+Do not attach a complete database to a bug report without review.
 
-## 6. `agents_lineage_state.json` can be sensitive
+## 9. Agents local JSON can expose research structure
 
-Agents local state can contain custom branch names, current research position, archive/override state, undo/redo history, layout snapshots, and protected deletion metadata.
+`agents_lineage_state.json` can contain custom branches, current research position, archive/override state, undo/redo history, layouts, and protected-deletion metadata.
 
-Even though it is not the semantic Dataset/Training/model database, those labels/history can disclose research plans or internal project structure.
+It is not “just cache”. Treat it according to the sensitivity of the research organization/history it describes.
 
-Treat the file as workspace data, not harmless UI cache.
+## 10. Logs are evidence, not a privacy boundary
 
-## 7. Logs are diagnostic data, not a privacy boundary
-
-Production logging writes to:
+Production rotating logs live under:
 
 ```text
 <workspace>/logs/persona_training_lab.log
 ```
 
-with rotation.
-
-The application error reporter can include:
-
-- component;
-- operation/error/correlation identity;
-- exception type;
-- exception message;
-- a bounded traceback tail;
-- structured context;
-- diagnostic notice text.
-
-This is useful evidence and can also be sensitive.
+Diagnostics can contain component names, IDs, exception type/message, bounded traceback text, structured context, paths, notices, and workflow detail.
 
 Review log excerpts before sharing them.
 
-## 8. Structured context redaction is intentionally narrow
+## 11. Structured context redaction is narrow and top-level
 
-`ApplicationErrorReporter` redacts a structured context value when the **context key name** contains one of:
+`ApplicationErrorReporter._safe_context(...)` currently redacts a value when its **top-level context key name** contains one of:
 
 ```text
 password
@@ -145,35 +157,36 @@ The replacement is:
 <redacted>
 ```
 
-This filter applies to the explicit `context` mapping passed through `_safe_context(...)`.
+The current implementation does not recursively walk nested mappings/lists looking for secret-like child keys.
 
-It is not a general secret scanner.
+Do not describe this as a general secret scanner.
 
-## 9. Exception messages and tracebacks are not passed through that context-key redactor
+## 12. Exception messages and tracebacks bypass that key-name filter
 
-The reporter stores `str(error)` as `exception_message` and records a traceback tail separately.
+Captured errors store:
 
-If an exception message/traceback itself contains credentials, private prompt/data text, paths, command fragments, or other sensitive values, the structured-context key filter does not automatically remove them.
+```text
+exception_message = str(error)
+traceback = bounded traceback tail
+```
+
+separately from the structured-context redactor.
+
+If exception text contains credentials, private prompts/data, paths, command fragments, or other sensitive material, the top-level context-key filter does not remove it.
 
 Therefore:
 
-> **Do not describe PTL logs/error events as automatically secret-safe.**
+> **PTL logs/error events are not automatically secret-safe.**
 
-The operator/developer remains responsible for not embedding secrets into exception text where avoidable and for reviewing diagnostics before disclosure.
+## 13. Error/event persistence is best-effort, not tamper-evident audit
 
-## 10. Error-report persistence is best-effort, not tamper-proof audit
+Application error event persistence is deliberately allowed to fail without replacing the original workflow failure.
 
-Application error reporting deliberately avoids crashing the original workflow when logging/event persistence fails.
+Repeated identical incidents can also be throttled from SQLite event persistence inside a duplicate window while still reaching the normal logging path.
 
-That is a resilience property.
+This improves resilience/storage behavior; it means the ordinary error/event system is not a cryptographically complete append-only forensic ledger.
 
-It also means the normal application error path is not a security-grade append-only/tamper-evident audit ledger.
-
-Repeated identical incidents can be throttled from SQLite event persistence within the duplicate window while still being sent to the normal logging path.
-
-Use the error/event system for diagnosis, not as a cryptographically complete forensic ledger.
-
-## 11. Correlation IDs are identifiers, not secrets
+## 14. Error/correlation/operation IDs are not credentials
 
 Identifiers such as:
 
@@ -183,166 +196,123 @@ corr_<...>
 op_<...>
 ```
 
-help correlate incidents and operations.
+exist for correlation/diagnosis. Possessing one does not authenticate a user, authorize an operation, or prove ownership.
 
-They are not authentication tokens and should not be treated as proof of authorization or ownership.
+See [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md) for exact current shapes.
 
-Sharing a correlation ID may still expose project timing/context when combined with other data, but possession of the ID does not grant PTL privileges.
+## 15. Local model files are trusted inputs
 
-## 12. Local model files are trusted inputs
+The local model path can point inside or outside the workspace.
 
-PTL's local model path can point inside or outside the workspace.
+The readiness probe checks a shallow expected file shape. It does not prove provenance, scan for malicious content, verify every tensor/config/tokenizer file, or guarantee runtime compatibility/resource availability.
 
-The file readiness probe checks only a shallow expected shape, including model config/tokenizer/weight markers.
+Use model files from sources whose integrity/provenance you are prepared to trust.
 
-It does not scan model files for malicious content, prove tensor/config integrity, or sandbox the libraries that parse/load them.
+## 16. `trust_remote_code=True` is deliberately prohibited in production loaders
 
-Use model files from a source whose integrity/provenance you are prepared to trust.
+Release policy audits production model-loading calls and rejects explicit:
 
-## 13. `trust_remote_code=True` is deliberately absent
-
-Production model loading does not opt into Hugging Face:
-
-```text
+```python
 trust_remote_code=True
 ```
 
-The release-policy test scans production model-loading calls and rejects this opt-in.
+This narrows one Transformers remote-code execution surface.
 
-This narrows the model-loading trust surface by not intentionally authorizing repository-supplied Python through that Transformers mechanism.
+It does not turn model/config/tokenizer/weight parsing or third-party libraries into hostile-input-safe sandbox execution.
 
-It does **not** turn model/config/tokenizer/weight parsing into hostile-input-safe sandbox execution.
+## 17. Model readiness is not trust approval
 
-## 14. Model readiness is not model trust validation
-
-A model probe result:
+A local-model status:
 
 ```text
 found
 ```
 
-means the expected local file categories are present under the current shallow contract.
+means expected file categories were found under the shallow readiness contract.
 
-It does not mean:
+It does not mean the model is signed, trusted, compatible, complete, memory-safe to load, or guaranteed to generate successfully.
 
-- the source is trustworthy;
-- every file is structurally valid;
-- model bytes match a known checksum;
-- the model architecture is safe/compatible;
-- enough memory exists;
-- inference/Training will succeed.
+## 18. Base-model identity is path/reference based in v1.0
 
-Do not use `found` as a security approval badge.
+Training stores/resolves the base-model path/reference but does not persist a digest of every file in the base-model directory.
 
-## 15. Base-model identity is path-based in v1.0
+Replacing bytes under the same path can therefore change effective model input without changing the stored path identity.
 
-Training stores the resolved base-model path/reference and re-probes the path at operation boundaries.
+For controlled research, preserve external revision/checksum provenance and keep intended model directories immutable by operating policy.
 
-It does not persist a cryptographic digest of the entire base-model directory.
+## 19. Dataset files are external data inputs
 
-Replacing bytes under the same path can therefore change the effective model input without changing the stored path identity.
+Import stores a path; it does not copy source bytes into SQLite.
 
-For controlled research, make model directories immutable by operating policy and record external revision/checksum information when exact identity matters.
+Validation/approval computes SHA-256 over current JSONL bytes, and Training pins the approved digest.
 
-## 16. Dataset files are external trusted data inputs
+This protects supported downstream content identity. It does not encrypt the Dataset, attest authorship/ethics/legal status, or recover deleted bytes.
 
-Dataset records can point to external `.jsonl` files.
+## 20. Dataset SHA-256 has narrow integrity meaning
 
-Import does not copy the complete source into SQLite.
+The stored hash answers:
 
-Validation/approval fingerprints the current bytes with SHA-256 and Training pins the approved hash, which protects against silent content substitution in the supported downstream workflow.
+> Are these bytes identical to the bytes PTL approved/pinned?
 
-This integrity mechanism does not encrypt the Dataset or make arbitrary private content safe to publish.
+It does not answer who authored them, whether they are private, whether they are trustworthy, or whether another party signed them.
 
-## 17. Dataset SHA-256 is integrity identity, not confidentiality/authenticity by itself
+Keep byte identity separate from provenance/authorship/confidentiality.
 
-The stored Dataset hash answers a narrow question:
+## 21. Profile Training fingerprints have narrow meaning
 
-> Are these bytes the same bytes PTL approved/pinned?
+Training hashes the exact Training-relevant Profile representation. Operator notes are excluded from that representation by the current input contract.
 
-It does not by itself answer:
+The digest protects run-input identity for the supported workflow. It is not author authentication and does not encrypt the Profile.
 
-- who authored the data;
-- whether the data is trustworthy/ethical/legal to use;
-- whether it contains private material;
-- whether another party signed/attested it;
-- whether deleted bytes can be restored.
+## 22. Runtime resource claims are cooperative coordination
 
-Keep provenance/authorship policy separate from content identity.
-
-## 18. Profile Training fingerprints have a narrow meaning
-
-Training fingerprints the exact rendered Profile Training representation that includes the current Training-relevant persona fields and deliberately excludes operator notes.
-
-That hash protects run input identity for the supported contract.
-
-It is not a signature of the human author, and it does not encrypt the Profile.
-
-## 19. Runtime resource claims are cooperative coordination
-
-PTL operations can declare resource claims:
+Runtime claims use:
 
 ```text
 (resource_kind, resource_id, read|write)
 ```
 
-Read/read can coexist. A write conflicts with another claim for the same resource identity.
+Read/read can coexist; a competing write conflicts for the same semantic resource key.
 
-This protects PTL workflows from known conflicting application operations.
+Deletion safety can treat any active claim as a blocker.
 
-The claims are **not** OS access-control rules.
+Claims coordinate cooperating PTL workflows. They are not OS ACLs.
 
-## 20. Runtime claims do not police arbitrary filesystem/network effects
+## 23. Runtime claims do not police arbitrary effects
 
-A runtime claim such as:
+A declared claim does not constrain syscalls or prove that model/library/Automation code only accesses declared paths/resources.
 
-```text
-workspace=<path>, access=read
-```
+Claims express application coordination intent and enforce PTL's own supported conflict checks.
 
-does not make the process unable to write elsewhere.
+This distinction is critical for Automation.
 
-PTL does not intercept arbitrary system calls to prove that a command/model/library touches only declared resources.
+## 24. Runtime rows are not user-editable lock bypasses
 
-Resource claims express coordination intent inside PTL.
+`runtime_operations`, `runtime_operation_resources`, and `lineage_resource_links` participate in safety/integrity behavior.
 
-This distinction is especially important for Automation.
+Do not hand-edit/delete them to make a blocked action proceed.
 
-## 21. Runtime operation rows are not user-editable locks
+Resolve/cancel/recover the owning workflow instead.
 
-The persisted `runtime_operations`, `runtime_operation_resources`, and `lineage_resource_links` participate in safety/integrity semantics.
+## 25. Orphan recovery is not security rollback
 
-Do not hand-edit/delete them to bypass a blocker.
+Startup can mark active operations `abandoned` when their recorded owner PID is no longer alive.
 
-An action being blocked because another operation owns a resource is a safety result, not a database defect.
+That repairs coordination state. It does not undo external filesystem/network effects or prove all descendant effects/processes disappeared after abnormal termination.
 
-Use the owning workflow's lifecycle/cancellation/recovery path.
+## 26. Automation effect scope is explicitly `trusted_host`
 
-## 22. Crash orphan recovery is not security rollback
-
-At startup PTL can mark persisted active operations `abandoned` when their recorded owner PID is no longer alive.
-
-That repairs PTL coordination state.
-
-It does not roll back external filesystem/Automation side effects or prove that every process/resource effect from the interrupted work disappeared.
-
-After abnormal termination, inspect the affected host state before retrying sensitive operations.
-
-## 23. Automation is explicitly `trusted_host`
-
-The only current Automation effect scope is:
+The current execution effect scope is:
 
 ```text
 trusted_host
 ```
 
-The executed process is a normal host process with the authority of the PTL OS account.
+Automation runs a normal host process with the authority available to the PTL OS account.
 
 Automation is **not** a hostile-code sandbox.
 
-This is the single most important Automation security boundary.
-
-## 24. Automation does not provide container/syscall/filesystem/network isolation
+## 27. Automation does not provide host isolation primitives
 
 Current Automation does not claim:
 
@@ -350,266 +320,235 @@ Current Automation does not claim:
 - chroot/filesystem virtualization;
 - syscall filtering;
 - network isolation;
-- a separate low-privilege user;
+- a separate low-privilege account;
 - automatic filesystem allowlisting;
 - automatic rollback of host effects.
 
 Process-tree ownership and runtime claims solve different problems.
 
-## 25. Ad-hoc commands require explicit host-effects authorization
+## 28. Ad-hoc commands require explicit host-effects authorization
 
-`run_command(...)` checks:
+`AutomationService.run_command(...)` checks:
 
 ```text
 host_effects_authorized
 ```
 
-before constructing/launching the ad-hoc execution.
+before constructing/executing the request.
 
-Without authorization the result is:
+Without it, the stable result code is:
 
 ```text
 host_effects_not_authorized
 ```
 
-This acknowledgement prevents an accidental ad-hoc launch through the intended UI/service contract.
+This is explicit user-intent acknowledgement through the intended service/UI contract. It does not reduce command privileges after authorization.
 
-It does **not** reduce the permissions of an authorized command.
+## 29. Recipe consent/trust is different from ad-hoc authorization
 
-## 26. Trusted recipes have a different consent boundary
+`run_recipe(...)` does not use the ad-hoc `host_effects_authorized` flag.
 
-Recipe execution does not use the ad-hoc `host_effects_authorized` flag.
+A recipe is trusted executable configuration because it is built-in or present/imported into the workspace recipe registry and then selected for execution.
 
-A recipe is treated as trusted executable input because it is a built-in recipe or a manifest present/imported into the trusted workspace recipe registry and deliberately selected for execution.
+Operators must review workspace/imported recipes as code-like trusted inputs.
 
-Therefore operators must review imported/workspace recipes as code-like executable configuration.
+Do not imply that an ad-hoc authorization checkbox also gates recipes.
 
-Do not infer that the ad-hoc authorization checkbox also protects recipe execution.
+## 30. Recipe manifests are structurally validated, not signed
 
-## 27. Recipe manifests are validated structurally, not signed
-
-Workspace manifests must use:
+Workspace manifests use:
 
 ```text
 ptl:automation-recipe:v1
 ```
 
-and satisfy ID/input/resource/command schema checks.
+with validated recipe/input/resource/command fields.
 
-Structural validation prevents malformed contract fields from silently becoming execution state.
+Structural validation rejects malformed contract state. It does not authenticate the author or cryptographically sign/content-address the recipe/dependencies.
 
-It does not authenticate the manifest author and does not cryptographically sign/content-address the recipe.
+## 31. Current recipe execution is `exec`, not shell
 
-## 28. Recipe import copies the manifest, not a sealed executable bundle
+The current filesystem recipe schema stores a command array and `run_recipe(...)` constructs:
 
-Import validates and copies the manifest to the workspace recipe registry.
+```text
+AutomationExecution(mode="exec")
+```
 
-It does not automatically copy/hash every companion executable, script, model, or data file referenced by the recipe.
+Current recipe manifests therefore do not select shell-mode parsing.
 
-A valid imported manifest can therefore depend on mutable external files.
-
-Preserve/review those dependencies separately when reproducibility or trust matters.
-
-## 29. Recipe review and Run are not cryptographically bound
-
-The UI can show a discovered recipe snapshot, while `run_recipe(recipe_id)` resolves the recipe again through the provider before execution.
-
-v1.0 does not persist a signed/content hash binding the reviewed detail pane to the later execution request.
-
-Avoid concurrent external modification of the trusted recipe registry between review and Run.
-
-Refresh and re-review after edits.
-
-## 30. `exec` mode and `shell` mode have different parsing boundaries
-
-Automation distinguishes:
+Ad-hoc `AutomationCommandRequest` can select either:
 
 ```text
 exec
 shell
 ```
 
-`exec` requires non-empty argv and uses `shell=False` on POSIX.
-
-`shell` requires a command string and deliberately enables shell semantics.
-
-When shell mode is selected, quoting, expansion, pipelines, redirects, substitutions, and shell-specific behavior become part of the trusted command surface.
+When ad-hoc shell mode is selected, quoting/expansion/pipelines/redirects/substitution become part of the trusted shell surface.
 
 Prefer `exec` when shell semantics are unnecessary.
 
-## 31. Absolute Automation working directories are allowed
+## 32. Recipe import copies a manifest, not a sealed bundle
 
-An empty working directory defaults to the workspace.
+Import validates/loads the selected manifest and copies it into the workspace registry.
 
-A relative ad-hoc working directory is resolved under the workspace, but an absolute path remains an absolute host path.
+It does not automatically copy or hash every external executable, script, model, or data dependency the command can use.
 
-Recipes can also resolve explicit working directories according to their source/manifest semantics.
+A valid manifest can therefore depend on mutable external files.
 
-The workspace therefore does not confine command CWD to itself.
+## 33. Recipe review and execution are not cryptographically bound
 
-## 32. Automation environment inheritance can expose process secrets to trusted commands
+The UI can show one discovered recipe snapshot while `run_recipe(recipe_id)` resolves the recipe again before execution.
 
-Recipe execution snapshots the current PTL process environment and adds:
+v1.0 does not persist a signed hash binding the reviewed detail pane to the later Run request.
+
+Avoid concurrent external mutation; refresh/re-review after recipe edits.
+
+## 34. Automation working directories are not workspace confinement
+
+Empty ad-hoc CWD defaults to the workspace. Relative ad-hoc paths resolve under the workspace. Absolute paths remain absolute host paths.
+
+Recipe relative working directories resolve according to recipe source-path semantics.
+
+The command CWD therefore does not imply filesystem confinement.
+
+## 35. Environment inheritance can expose process secrets
+
+Recipe execution snapshots the current PTL process environment and forces:
 
 ```text
 PTL_WORKSPACE=<resolved workspace>
 ```
 
-Ad-hoc commands can either inherit the current environment or use only explicit overrides plus the forced PTL workspace marker.
+Ad-hoc commands may inherit the parent environment or use only explicit overrides plus the forced PTL workspace marker.
 
-If the PTL process environment contains credentials or private configuration, an inherited trusted command can receive those values.
+If the parent environment contains credentials/private configuration, an inherited trusted process receives them.
 
-Use environment inheritance deliberately.
+Use inheritance deliberately.
 
-## 33. `PTL_WORKSPACE` cannot be overridden by ad-hoc environment values
+## 36. `PTL_WORKSPACE` cannot be overridden by ad-hoc overrides
 
-The environment builder applies user overrides and then sets:
+The environment builder applies supplied overrides and then sets `PTL_WORKSPACE` to the actual resolved workspace.
 
-```text
-PTL_WORKSPACE=<actual resolved workspace>
-```
+This protects the marker's meaning. It is not a general environment sandbox.
 
-This prevents a supplied environment mapping from redefining PTL's workspace marker to another value.
+## 37. Automation audit stores environment keys, not values
 
-This is an identity/contract protection, not a general environment sandbox.
+The structured audit records sorted environment variable **names** and does not copy values into the normal audit payload.
 
-## 34. Automation audit stores environment **keys**, not values
+That reduces one obvious persistence exposure, but key names can still reveal operational context and child processes still receive the actual inherited/overridden values.
 
-The structured audit records sorted environment variable names.
+## 38. Automation audit hashes the command snapshot
 
-It does not write their values into the normal Automation audit payload.
-
-This reduces one obvious secret-exposure path.
-
-Environment key names themselves can still reveal sensitive operational information, and child processes still receive actual values according to inheritance/overrides.
-
-## 35. Automation audit does not persist plaintext command as the normal command record
-
-The audit serializes the execution command snapshot, computes SHA-256, and stores:
+The audit serializes the command snapshot and stores:
 
 ```text
 command_sha256
 command_parts
 ```
 
-rather than copying plaintext command content into the structured audit payload.
+rather than plaintext command content in the normal structured command metadata.
 
-This is a privacy-conscious metadata choice.
+This is not transitive executable provenance. Command content can still be exposed through UI/process/errors/external tooling/operator captures.
 
-It is not transitive executable provenance and it does not mean command content can never appear elsewhere (for example, UI state, child error text, external shell/process diagnostics, or user-captured output).
+## 39. stdout/stderr are not secret-redacted
 
-## 36. Automation stdout/stderr are not automatically secret-redacted
+The runner captures bounded stdout/stderr into the run result.
 
-The process runner captures bounded stdout and stderr for the run result.
+PTL does not scan those streams for passwords/tokens/private data.
 
-PTL does not automatically scan those streams for passwords/tokens/private Dataset content.
+A trusted command can print any value it can access. Review output before sharing it.
 
-A trusted child command can print secrets it received from environment/files.
+## 40. Structured Automation audit omits stdout/stderr bodies
 
-Review command output before sharing screenshots/log captures.
+`ptl:automation-audit:v1` terminal records keep return/truncation/terminal metadata, not stream contents.
 
-## 37. Structured Automation audit does not copy stdout/stderr payloads
+This reduces persistent audit exposure but does not make the output itself safe/public.
 
-The normal `ptl:automation-audit:v1` terminal record stores return state/truncation metadata but not stdout/stderr contents.
+## 41. Ad-hoc audit path fails closed before launch
 
-This reduces persistent audit exposure.
-
-It does not make the command/output harmless: output remains visible in the Automation result/UI and may be captured elsewhere by the operator/toolchain.
-
-## 38. Ad-hoc Automation audit fails closed before launch
-
-For ad-hoc commands, `AutomationService.run_command(...)` returns:
+For ad-hoc execution:
 
 ```text
-audit_unavailable
+no audit trail -> audit_unavailable
+start audit write failure -> audit_failed
 ```
 
-when no audit trail is configured.
+The process is not launched in those conditions.
 
-When an audit trail is configured but the start audit write fails, execution returns:
+This is a deliberate accountability property of the ad-hoc service path.
+
+## 42. Production recipe audit is wiring-dependent
+
+Production composition supplies `AutomationAuditTrail(event_log_repo)`, so normal production recipe runs are audited.
+
+The service-level hard `audit_unavailable` precondition exists specifically in `run_command(...)`. A separately constructed `AutomationService` without an audit trail can execute a recipe.
+
+Do not elevate production wiring into an unconditional type-level guarantee for arbitrary test/custom composition.
+
+## 43. Audit start failure prevents audited process launch
+
+When `_execute(...)` has an audit trail, it creates the runtime lease and records `started` before calling the process runner.
+
+If that audit write raises, the lease is failed and the result is:
 
 ```text
 audit_failed
 ```
 
-and the process is not launched.
+without launching the process.
 
-This is a deliberate security/accountability property of the ad-hoc path.
+## 44. Terminal audit failure cannot undo already-run host effects
 
-## 39. Production recipe audit vs service-level recipe construction
+After a child process has executed, a failure while writing its terminal audit record can produce `audit_failed` and fail the lease.
 
-Production composition wires one `AutomationAuditTrail(event_log_repo)` into `AutomationService`, so normal production recipe runs receive structured audit handling too.
+It cannot reverse filesystem/network/other effects the process already completed.
 
-However, the service-level hard `audit_unavailable` precondition exists specifically in `run_command(...)` for ad-hoc execution.
+Audit success/failure and host transactionality are separate concepts.
 
-A separately constructed/test `AutomationService` with no audit trail can execute a recipe through the service contract.
+## 45. Process containment is lifecycle containment
 
-Do not generalize the ad-hoc precondition into a universal type-level guarantee for every possible service construction.
+On POSIX, Automation starts a new session/process group and terminates the group on cancellation/timeout/finalization.
 
-## 40. Audit failure during an audited recipe/command start prevents process launch
+On Windows, the runner uses a Job Object with kill-on-close semantics around the helper/process tree.
 
-When `_execute(...)` has an audit trail, it creates the runtime lease and writes the `started` audit record before invoking the process runner.
+This owns ordinary descendants for lifecycle cleanup. It does not restrict what those descendants can do while running.
 
-If that start record raises, the lease is failed and the result is `audit_failed` without calling the process runner.
+## 46. Cancellation/timeout do not roll back side effects
 
-This applies to production recipe/ad-hoc execution because production wiring supplies the audit trail.
+Killing the process tree cannot automatically undo a file write, network request, database mutation, or other effect already performed.
 
-## 41. Automation process containment is lifecycle containment
+Design trusted commands to be idempotent/transactional when their own operation requires those properties.
 
-On POSIX, the runner creates a new session/process group and terminates the group on cancellation/timeout/finalization.
+## 47. Output bounds are resource-safety controls
 
-On Windows, it uses a Job Object with kill-on-close behavior around the launched helper/process tree.
-
-This is designed to prevent ordinary descendant processes from escaping the one-shot Automation lifecycle.
-
-It is not a security sandbox around what those descendants can do while alive.
-
-## 42. Automation timeout/cancellation cannot undo already completed effects
-
-If a command writes a file, sends a request, modifies a database, or performs another side effect before cancellation/timeout, terminating the process tree does not automatically reverse that effect.
-
-Treat cancellation as process-lifecycle control, not transaction rollback.
-
-Design trusted commands to be idempotent/transactional when the operation itself requires those properties.
-
-## 43. Automation output bounds are a resource-safety boundary
-
-Stdout and stderr are drained independently with:
+Stdout/stderr retained limits are:
 
 ```text
-default retained limit: 1 MiB per stream
-hard maximum:          64 MiB per stream
+default: 1 MiB per stream
+hard max: 64 MiB per stream
 ```
 
-Excess bytes are still drained but not retained.
+Excess data is drained but not retained, reducing memory growth/pipe blockage risk.
 
-This reduces unbounded in-memory output growth and pipe deadlock risk.
+These bounds do not limit files or network output created directly by the child.
 
-It does not limit files/network output produced directly by the child process.
+## 48. Built-in `workspace_health` is diagnostic, not a sandbox proof
 
-## 44. Built-in `workspace_health` is diagnostic, not a sandbox proof
+The built-in recipe declares a workspace read claim and runs through the trusted-host execution path.
 
-The built-in recipe declares a workspace `read` runtime claim and is intended as a safe first Automation workflow.
+The claim coordinates PTL resources. It does not prove every syscall/library can only read the workspace.
 
-That declaration participates in PTL runtime coordination.
+## 49. Release validation is tied to recorded source state
 
-Like all claims, it is not an OS-level proof that every library/syscall involved in executing the Python process can only read the workspace.
+The release gate refuses a dirty worktree before producing release-audit evidence/running the gated validation sequence.
 
-Use it as a product diagnostic, not as a general host security verifier.
+This prevents a report for commit X from silently validating unrecorded source edits.
 
-## 45. Source-checkout integrity is part of the release boundary
+A dirty-tree refusal is a source-integrity/configuration refusal, not a failing pytest/Ruff result.
 
-The release gate binds audit evidence to one Git commit.
+## 50. Ignored hidden source inputs are release defects
 
-It refuses a dirty worktree before creating the audit report/running validation.
-
-This prevents release evidence from claiming to validate commit X while actually executing unrecorded source edits.
-
-A dirty-tree refusal is a source-integrity control, not a failed test result.
-
-## 46. Hidden ignored source inputs are rejected by release policy
-
-Release-policy tests inspect ignored/untracked content under:
+Release-policy tests inspect ignored/untracked material under:
 
 ```text
 src/
@@ -617,239 +556,202 @@ tests/
 tools/
 ```
 
-and reject unexpected hidden runtime-affecting files outside narrow harmless debris exceptions.
+and reject unexpected runtime-affecting hidden inputs outside narrow debris exceptions.
 
-This protects against a local editable checkout passing because of a helper/data/module absent from the recorded commit/clean clone.
+Do not make a required source/runtime input “pass” by hiding it in `.gitignore`.
 
-Do not “fix” a release failure by hiding required source inputs with `.gitignore`.
+## 51. Release policy audits remote-code opt-in
 
-## 47. Production model loaders are audited for remote-code opt-in
+Production model-loader calls are parsed and explicit `trust_remote_code=True` is rejected.
 
-The release policy parses production Python calls and rejects explicit:
+This is executable policy for one trust boundary. It is not formal proof that all model/dependency parsing is vulnerability-free.
 
-```python
-trust_remote_code=True
-```
+## 52. Green release gates are evidence, not formal verification
 
-This makes that model trust rule executable policy rather than documentation-only intent.
+Quick/full gates cover compilation, static/test/i18n/source policies and additional full-release checks.
 
-It remains one narrow check; it does not prove every dependency/file format is vulnerability-free.
-
-## 48. The release gate is validation evidence, not formal security verification
-
-Quick/full gates cover compilation, static checks, type policy, tests, i18n/source policies, codebase stats, and—in the full profile—mypy/build.
-
-A green release gate does **not** claim formal proof against:
-
-- malicious host code;
-- unknown dependency vulnerabilities;
-- all filesystem races;
-- all denial-of-service cases;
-- all privacy leaks;
-- hostile model/data parser exploits;
-- all platform-specific process behavior.
+They do not formally prove absence of malicious host code, dependency vulnerabilities, every race/DoS/privacy leak, hostile parser exploits, or all platform-specific process behavior.
 
 Security claims remain limited to implemented/audited contracts.
 
-## 49. Dependency trust remains outside PTL's own code boundary
+## 53. Third-party dependencies remain trusted code
 
-PTL relies on packages such as PySide6, psutil, and optional Torch/Transformers/training dependencies.
+PTL relies on PySide6, psutil, and optional Torch/Transformers/training dependencies.
 
-Installing/running those packages executes third-party code inside the same Python/OS-account trust environment.
+Installing/running them executes third-party code in the same host/Python authority boundary.
 
-`uv.lock` helps make the resolved source environment reproducible, but dependency provenance/vulnerability management is still a supply-chain responsibility rather than a PTL sandbox feature.
+Locking dependencies improves reproducibility; it is not a sandbox or complete supply-chain security solution.
 
-Do not interpret local-only application design as “no third-party code trust.”
+## 54. Localization is not an authorization boundary
 
-## 50. UI localization is not an authorization boundary
+Localized labels are presentation. Canonical statuses/result codes/IDs carry machine meaning.
 
-Localized labels/status descriptions are presentation.
+Do not build security/recovery automation by matching rendered Russian/English/Spanish/Arabic text when a semantic code exists.
 
-Machine semantic codes/IDs drive application contracts.
+Changing UI language does not change Automation authority, runtime claims, model trust, or Dataset integrity semantics.
 
-Do not build security/recovery automation by matching a Russian/English/Spanish/Arabic rendered sentence when a semantic status/result/diagnostic code exists.
+## 55. Visible titles are not stable security identity
 
-Changing UI language does not change the authority of an Automation command, runtime claim, model file, or Dataset approval hash.
+Profiles/Datasets/Training/model versions/Agents expose human-readable titles while persistence/runtime safety uses stable IDs/resource identities where available.
 
-## 51. Visible titles are not stable security/resource identity
+Titles may collide or change. Use stable IDs and explicit claims for blockers/provenance/safety logic.
 
-Agents/Training/Datasets/Profiles can display human-readable titles while persistence/runtime safety uses stable IDs where available.
+## 56. Agents custom branches are organization, not data isolation
 
-Two entities can share a visible title.
+Creating/renaming/archiving/deleting a local Agents branch does not clone/sandbox referenced model/Dataset/Training bytes.
 
-When diagnosing access/blocking/provenance, use stable IDs and resource claims rather than relying on labels.
+Runtime links guard supported destructive graph operations while resources are in use; they do not isolate real resources from other host processes.
 
-## 52. Agents custom branches are not filesystem/model isolation
+## 57. Protected history is integrity machinery, not secure erasure
 
-A custom Agents branch is local research organization.
+Agents delete/Undo/Redo preserve/restore resource-link metadata and reacquire runtime deletion leases where required.
 
-Creating/renaming/archiving/deleting it does not clone/sandbox model bytes or Dataset files.
+This prevents history actions from bypassing current PTL runtime safety.
 
-Runtime resource links help prevent unsafe local branch deletion while real resources are in use; they do not isolate those real resources from other OS processes.
+It does not securely wipe referenced artifacts or storage sectors.
 
-## 53. Protected Agents deletion history is integrity machinery
+## 58. Delete/archive does not imply secure deletion
 
-Delete/Undo/Redo preserve/restore resource-link metadata and reacquire runtime deletion leases where required.
+Across PTL, removing something from a UI/local state does not imply overwriting WAL/history/backups/external files/artifacts/storage media.
 
-This prevents history actions from becoming a bypass around current PTL runtime safety.
+v1.0 does not claim cryptographic secure deletion. Apply OS/storage destruction procedures when required by policy.
 
-It is not a secure erase mechanism.
+## 59. Backups inherit all contained sensitivity
 
-Deleting a local branch does not securely wipe referenced Training/model/Dataset artifacts from disk.
+Workspace backups can contain database records, Agents state, generated models, logs, recipes, paths, and evaluation data.
 
-## 54. “Delete” and “archive” do not imply secure erasure
+Separately preserved key-binding/QSettings state can reveal operator personalization/session layout.
 
-Across PTL, removal from a UI/local state should not be assumed to overwrite underlying storage sectors, backups, WAL/history, external files, or generated artifacts.
+PTL does not automatically encrypt/sign these backup sets.
 
-v1.0 does not claim cryptographic secure deletion.
+## 60. Recipe manifests are not secret stores
 
-When regulated/private-data destruction requirements matter, apply appropriate OS/storage procedures outside the normal PTL UI contract.
+Recipe manifests are ordinary JSON in the workspace registry and are included in normal workspace backups.
 
-## 55. Backups inherit the sensitivity of the workspace
+Do not place secrets there merely because structured Automation audit does not persist plaintext commands/environment values.
 
-A backup can include database content, local Agents research state, generated models, logs, recipes, paths, and evaluation data.
+Use appropriate host/runtime secret management while remembering trusted child processes can access values deliberately provided/inherited.
 
-PTL does not automatically encrypt/sign whole-workspace backups.
+## 61. Command lines and exception text are observable diagnostic material
 
-Use backup tooling/storage policy appropriate to the confidentiality/integrity requirements of the research.
+Do not treat them as secret channels.
 
-## 56. Do not place secrets in recipe manifests unless you intend them to be ordinary workspace files
+Command text can appear through UI/process/external tooling even though structured audit stores a hash; exception messages/tracebacks can enter logs/event payloads.
 
-Recipe manifests are ordinary JSON files in the workspace registry and are included in normal whole-workspace backups.
+## 62. Network effects are governed by the host
 
-The manifest schema is not a secret-store format.
+Automation does not provide network isolation. Trusted commands can use network access allowed by the host account/firewall/network policy.
 
-Prefer runtime/environment/OS secret management appropriate to the command when secrets are required, while remembering inherited environment values are visible to the trusted child process.
+Runtime claims are not network ACLs.
 
-## 57. Do not use command-line/exception text as a secret channel
+## 63. Local-first is not an air gap
 
-Even though structured Automation audit hashes command snapshots instead of storing plaintext, command text can still be exposed through UI/process/tooling pathways outside that audit record.
+PTL uses local persistence/processing as its core architecture, but dependencies, trusted commands, external tools, and the host can still possess network capability.
 
-Likewise, application exception messages/tracebacks can be logged.
+An air-gap requirement must be enforced and verified outside PTL at the host/environment/network boundary.
 
-Treat command lines and exception strings as observable diagnostic material, not protected secret storage.
+## 64. Safe normal-operation assumptions
 
-## 58. Network effects of trusted-host commands are governed by the host, not PTL
+The current contract assumes:
 
-Automation does not provide network isolation.
+1. the host/OS account is trusted and appropriately protected;
+2. model and Dataset inputs come from sources the operator is willing to process locally;
+3. recipes/ad-hoc commands are reviewed as trusted host execution;
+4. dependencies/external tools are part of the trusted software supply chain;
+5. users with filesystem access are allowed to see/modify ordinary local PTL state according to OS policy;
+6. runtime claims coordinate cooperating PTL workflows rather than defend against malicious local processes.
 
-A trusted host command can use whatever network access the OS account/process environment and host firewall/network policy permit.
+If these assumptions do not hold, additional external isolation is required.
 
-Runtime resource claims do not represent network ACLs.
+## 65. PTL v1.0 non-claims
 
-Apply host/network controls when a command must be offline or restricted.
+PTL v1.0 does not claim:
 
-## 59. PTL's local-first design is not equivalent to an air gap
-
-The application stores/operates on local workspace state and does not rely on a remote SaaS service as its core persistence model.
-
-That architectural property alone does not guarantee that every installed dependency, operator command, external tool, or host process has no network capability.
-
-An air-gapped requirement must be enforced and verified at the host/environment/network boundary.
-
-## 60. Threat assumptions for safe normal operation
-
-The current v1.0 contract is suitable when these assumptions are reasonable:
-
-1. the OS account/device is trusted and appropriately protected;
-2. model files and external Dataset inputs come from sources the operator is willing to process locally;
-3. workspace Automation recipes and ad-hoc commands are reviewed as trusted host execution;
-4. external tools/dependencies are managed as part of the host/software supply chain;
-5. users with filesystem access to the workspace are allowed to see/modify its unencrypted research state according to OS policy;
-6. PTL runtime claims coordinate cooperating PTL workflows rather than defending against malicious local processes.
-
-If these assumptions do not hold, additional isolation outside PTL is required.
-
-## 61. What PTL v1.0 does not claim to defend against
-
-PTL v1.0 does not claim protection against an attacker who already has equivalent/higher privileges on the same OS account/host.
-
-It also does not claim:
-
+- defense against an attacker already holding equivalent/higher host-account privileges;
 - hostile-code sandboxing for Automation;
 - hostile model-file parsing sandboxing;
-- encrypted workspace/database storage;
+- encrypted workspace/database/QSettings/key-binding storage;
 - built-in secret-vault semantics;
 - network isolation;
 - signed Automation manifests;
 - secure deletion;
 - distributed authorization/locking;
-- cryptographic whole-workspace backup signing;
+- cryptographic whole-backup signing;
 - complete automatic secret redaction from logs/output;
 - formal proof of dependency security.
 
-These are explicit boundaries, not missing footnotes.
+These are explicit boundaries.
 
-## 62. Operator security checklist before sensitive work
+## 66. Operator checklist before sensitive work
 
-Before using PTL with sensitive research data:
+1. protect the host account/device/storage appropriately;
+2. verify workspace location/permissions;
+3. remember that workspace files, key bindings, and QSettings are ordinary local state;
+4. trust/verify model and Dataset sources;
+5. avoid placing secrets into loggable exception/command/config text unless required;
+6. review recipes/ad-hoc commands before execution;
+7. disable ad-hoc environment inheritance when unnecessary;
+8. treat shell mode as shell execution;
+9. review diagnostics/output before sharing;
+10. protect/encrypt backups according to contained data sensitivity.
 
-1. protect the OS account/device/storage appropriately;
-2. verify the actual workspace path and its filesystem permissions;
-3. understand that `app.db`, logs, Agents JSON, recipes, and artifacts are ordinary local files;
-4. trust/verify local model and Dataset sources;
-5. avoid embedding secrets in Profiles/Datasets/loggable exception text unless required by the research;
-6. review Automation recipes/ad-hoc commands before execution;
-7. disable ad-hoc environment inheritance when a trusted command does not need the parent environment;
-8. treat shell mode as shell execution, not argv-safe exec mode;
-9. review diagnostic/output data before sharing;
-10. encrypt/protect backups according to data sensitivity.
+## 67. Security-relevant bug-report evidence
 
-## 63. Security-relevant bug-report evidence
-
-When reporting a security/trust-boundary defect, include only the minimum reviewed evidence required to reproduce it:
+Provide only reviewed minimum evidence:
 
 ```text
 PTL commit/version
 OS/Python
-workspace location type (not necessarily private full path)
+workspace location type
 feature/workflow
 semantic result/error code
 operation/correlation ID when safe
-whether input was model/Dataset/recipe/ad-hoc command
-whether Automation used exec or shell
+input class: model/Dataset/recipe/ad-hoc/settings
+Automation mode when relevant
 whether environment inheritance was enabled
 expected vs actual trust-boundary behavior
 ```
 
-Do not attach live credentials, full environment dumps, private workspaces, raw model weights, or sensitive Dataset/model responses unless an explicitly secure disclosure channel requires them.
+Do not attach live credentials, complete environment dumps, private workspaces, raw weights, or sensitive responses unless a specifically secure disclosure channel requires them.
 
-## 64. Security findings must change either code or contract
+## 68. Security findings must change code or contract
 
-If code review discovers a real behavior that weakens an existing documented guarantee, it is a release defect.
+If audited code weakens an existing documented guarantee, treat it as a release defect.
 
-Resolve it by either:
+Either fix implementation + regression evidence or deliberately narrow the guarantee when the behavior is intended/acceptable.
 
-- fixing the implementation and adding regression evidence; or
-- narrowing the product/documentation guarantee when the behavior is intentional and acceptable.
+Do not hide a boundary behind vague terms like “safe”, “isolated”, or “protected” when implementation only supplies coordination, hashing, bounded output, replacement, or best-effort redaction.
 
-Do not hide a trust boundary behind vague wording such as “safe”, “isolated”, or “protected” when the implementation only provides coordination, hashing, bounded output, or best-effort redaction.
-
-## 65. Developer invariants
+## 69. Developer invariants
 
 Security-sensitive changes must preserve these rules unless the product contract is deliberately revised:
 
-1. Automation `trusted_host` must never be described as sandboxed execution;
-2. resource claims remain coordination semantics, not OS permissions;
+1. Automation `trusted_host` is never described as sandboxed execution;
+2. runtime claims remain coordination semantics, not OS permissions;
 3. ad-hoc commands require explicit host-effects authorization;
 4. production ad-hoc execution fails closed when its audit path is unavailable/fails at start;
-5. production model loaders must not silently opt into `trust_remote_code=True`;
-6. release validation remains tied to a clean recorded Git commit;
-7. hidden ignored runtime-affecting inputs must not become release dependencies;
-8. Dataset/Profile hashes are described only for their implemented integrity identities;
-9. base-model path identity must not be documented as complete content-addressed provenance;
-10. log/audit redaction claims must not exceed the actual fields passed through redaction;
-11. process containment must not be described as filesystem/network isolation;
-12. workspace/backup confidentiality must not be implied without an actual encryption layer;
-13. recipe validation/version fields must not be described as cryptographic signing;
-14. security documentation must be updated whenever trust/authorization/audit/isolation behavior changes.
+5. current recipe execution is documented as exec-array execution unless the recipe schema/service deliberately adds shell mode;
+6. production model loaders must not silently opt into `trust_remote_code=True`;
+7. release validation remains tied to a clean recorded Git commit;
+8. hidden ignored runtime-affecting inputs do not become release dependencies;
+9. Dataset/Profile hashes are described only for their implemented integrity identities;
+10. base-model path identity is not documented as complete content-addressed provenance;
+11. redaction claims do not exceed the exact structured fields/key levels passed through `_safe_context`;
+12. process containment is not described as filesystem/network isolation;
+13. workspace, QSettings, key-binding and backup confidentiality are not implied without encryption;
+14. recipe validation/version fields are not described as cryptographic signatures;
+15. external presentation stores remain in the security map while code stores them outside the workspace;
+16. security documentation is updated whenever trust/authorization/audit/isolation/persistence behavior changes.
 
 ## Next steps
 
 - Diagnose incidents safely: [Troubleshooting](troubleshooting.md)
 - Backup/restore/reset: [Backup, Reset & Recovery](backup-reset-recovery.md)
 - Workspace/data ownership: [Workspace & Storage](workspace-and-storage.md)
+- Exact store/path map: [Workspace layout reference](../reference/workspace-layout.md)
+- Machine codes/IDs: [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md)
+- Input configuration: [Key Bindings & Mouse Gestures](../user-guide/key-bindings.md)
 - Local model trust: [Local Models](local-models.md)
-- Automation trust/process/audit details: [Automation](../user-guide/automation.md)
+- Automation trust/process/audit: [Automation](../user-guide/automation.md)
 - Runtime coordination architecture: [Runtime resource safety](../architecture/runtime-resource-safety.md)
 - Stable release promises/non-goals: [v1.0 Product Contract](../reference/v1-product-contract.md)
