@@ -61,6 +61,11 @@ Start with:
 - [Keyboard & mouse bindings reference](reference/keyboard-mouse-bindings.md) — exact binding IDs/defaults and gesture semantics.
 - [Snapshots and model versions](user-guide/snapshots.md) — current `model_versions` persistence semantics, derived lifecycle presentation, and provenance limits.
 - [Evaluation contract](reference/evaluation-contract.md) — machine-level Tests/Analysis protocol, score parsing, persistence grammar, factor math, protocol-comparison guard.
+- [Development setup](development/setup.md) — locked source environment, optional model stacks, launch/headless rules, clean-worktree release precondition.
+- [Testing and engineering audits](development/testing.md) — pytest, compile, Ruff, mypy, typing/i18n audits, codebase statistics and quick/full release profiles.
+- [Visual audit](development/visual-audit.md) — real-application automatic/interactive Qt capture, manifests, geometry, privacy and publication boundaries.
+- [Packaging](development/packaging.md) — Hatchling/uv build contract, optional extras, bundled docs and current native-packaging non-goals.
+- [Release process](development/release-process.md) — candidate identity, locked dependencies, release-gate evidence, visual review, package inspection and final-tag discipline.
 
 ## Current v1.0 documentation map
 
@@ -95,6 +100,11 @@ Start with:
 | [v1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release guarantees/boundaries/non-goals |
 | [Localization architecture](architecture/localization.md) | Developer / auditor | i18n/RTL architecture |
 | [Runtime resource safety](architecture/runtime-resource-safety.md) | Developer / auditor | Runtime resource safety |
+| [Development setup](development/setup.md) | Developer / contributor | Locked environment, source launch, headless Qt, repository layout and release preconditions |
+| [Testing and engineering audits](development/testing.md) | Developer / auditor | Behavioral/static/audit layers and exact quick/full release-gate scope |
+| [Visual audit](development/visual-audit.md) | Developer / auditor / documentation author | Reproducible Qt captures, manifest evidence, interactive mode and sensitive-data boundaries |
+| [Packaging](development/packaging.md) | Developer / release operator | Python build metadata, docs inclusion, extras and distribution verification |
+| [Release process](development/release-process.md) | Developer / release operator / auditor | Candidate-to-tag validation/evidence sequence and limits of automated proof |
 
 ## Research/methodology references
 
@@ -188,7 +198,7 @@ docs/
     └── diagrams/
 ```
 
-The development subtree and final screenshot/diagram asset population remain ongoing. Existing links in the sections above point only to created/reviewed documents.
+The development subtree now exists. Final screenshot/diagram asset population remains ongoing. Existing links in the sections above point only to created/reviewed documents.
 
 ## Screenshot and diagram strategy
 
@@ -203,6 +213,6 @@ The final v1.0 documentation will use:
 
 The Agents guide defines a concrete capture inventory for healthy lineage, placeholders, local branches, archive/delete/history, runtime blockers, protocol-compatible/incompatible Delta, contextual navigation, and last-good refresh behavior. The Tests/Analysis guide similarly defines the evaluation capture inventory. The Automation guide defines a capture inventory for recipe discovery/import, trusted-host authorization, exec/shell modes, runtime conflicts, cancellation/timeout, bounded output, and audit/privacy behavior. The Key Bindings guide defines captures for direct input capture, dialogs, conflicts, and persisted-location diagnostics.
 
-The planned documentation-capture tool should make those inventories reproducible from declared demo scenarios rather than manual screenshots.
+The repository now includes `tools/visual_audit.py` for reproducible automatic route/locale capture and interactive top-level-window capture. Scenario-specific demo-state preparation and final curated documentation assets remain separate review work; the capture harness does not make captured content automatically publication-safe.
 
 Images support the written contract; they do not replace exact paths, status/error semantics, integrity boundaries, methodology limits, executable trust boundaries, destructive-action warnings, settings ownership, or security/privacy boundaries.
