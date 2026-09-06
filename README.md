@@ -149,8 +149,6 @@ The documentation is organized for three different readers:
 2. **Operators / advanced users** — workspace behavior, automation, model handling, recovery, and troubleshooting.
 3. **Developers / auditors** — architecture, persistence, runtime safety, localization, testing, packaging, and release contracts.
 
-Developer documentation now includes dedicated guides for source setup, testing, visual audit, packaging, and the release process. These guides are intended to describe the current audited implementation rather than historical plans.
-
 The [v1.0 Product Contract](docs/reference/v1-product-contract.md) defines what the first stable release promises and, equally importantly, what is intentionally outside that promise.
 
 ## Independent development
