@@ -19,17 +19,19 @@ Begin with:
 - [Agents lineage](user-guide/agents-lineage.md) — read the integrated research graph, distinguish real persisted entities from local branches/placeholders, use protected history, and understand runtime-blocked deletion.
 - [Tests and Analysis](user-guide/tests-and-analysis.md) — build a scored portrait, review actual model responses, understand factor KPI values, and compare protocol-compatible model versions.
 - [Automation](user-guide/automation.md) — run trusted recipes/ad-hoc commands, understand authorization, runtime claims, timeout/cancel, bounded output, process containment, and audit/privacy boundaries.
+- [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — edit application navigation and Agents graph bindings, understand draft conflicts, persistence, reset, and current shortcut coverage.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — stable-release guarantees, trust/integrity boundaries, explicit non-goals.
 
 ### I operate or troubleshoot PTL
 
 Start with:
 
-- [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
+- [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, external UI/settings stores, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
 - [Local Models](operations/local-models.md) — model path resolution, readiness checks, inference-stack health, smoke generation, Training integration, trust and reproducibility boundaries.
 - [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
 - [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency preservation, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
 - [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
+- [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — user-home binding storage, conflict recovery, direct capture, reset semantics, and live shell shortcut synchronization.
 - [Agents lineage](user-guide/agents-lineage.md) — deletion blockers, protected undo/redo, stable identity, last-good projection behavior.
 - [Automation](user-guide/automation.md) — recipe discovery/import, host-effect authorization, runtime blockers, output truncation, cancellation/timeout, audit failures, and safe operating rules.
 - [Training pipeline specification](training_pipeline.md) — exact Training input transformation, hashes, backend, artifacts, failure/reproducibility boundaries.
@@ -45,11 +47,14 @@ The dedicated v1.0 operator guides now cover workspace/storage, local models, tr
 Start with:
 
 - [Architecture Overview](architecture/overview.md) — composition root, layers, UI shell, persistence, runtime coordination, models, Automation, telemetry, error boundaries.
+- [Persistence architecture](architecture/persistence.md) — SQLite connection/transaction boundaries, repository locking, schema/bootstrap behavior, lineage snapshots, Agents JSON, filesystem artifacts, external state, and cross-store atomicity limits.
+- [UI shell architecture](architecture/ui-shell.md) — workspace ownership/guards, background shutdown, docks/panels, Operations Center integration, application shortcuts, QSettings/key-binding persistence, style/localization boundaries.
 - [Agents lineage architecture](architecture/agents-lineage.md) — atomic semantic snapshot, projection/local-state split, stable IDs, runtime links, protected deletion history, guarded Redo, background last-good behavior.
 - [Automation architecture](architecture/automation.md) — recipe schema/discovery, trusted-host command contract, runtime leases, audit fail-closed behavior, bounded process execution, process-tree containment, and explicit trust limitations.
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
+- [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — current binding IDs/defaults, draft/activation semantics, and persistence behavior.
 - [Snapshots and model versions](user-guide/snapshots.md) — current `model_versions` persistence semantics, derived lifecycle presentation, and provenance limits.
 - [Evaluation contract](reference/evaluation-contract.md) — machine-level Tests/Analysis protocol, score parsing, persistence grammar, factor math, protocol-comparison guard.
 
@@ -66,14 +71,17 @@ Start with:
 | [Agents lineage](user-guide/agents-lineage.md) | User / operator / researcher | Integrated lineage workflow, custom branches, protected history, runtime deletion safety, screenshot plan |
 | [Tests and Analysis](user-guide/tests-and-analysis.md) | User / operator / researcher | Portrait execution, case review, KPI interpretation, exact version comparison, screenshot plan |
 | [Automation](user-guide/automation.md) | User / operator / auditor | Trusted-host recipes/ad-hoc commands, authorization, claims, process/output containment, audit/privacy, screenshot plan |
+| [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) | User / operator / developer | Editable keyboard/mouse bindings, direct capture, draft conflicts, user-home persistence, shell synchronization |
 | [Training pipeline specification](training_pipeline.md) | Advanced user / developer / auditor | Exact Training persistence, hashing, parsing, execution, artifact/provenance contract |
 | [Evaluation contract](reference/evaluation-contract.md) | Developer / auditor / researcher | Battery identity, inference settings, score parser, serialized result grammar, factor/delta math, comparability and methodology boundaries |
-| [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Data roots, `app.db`, Agents JSON, Automation recipes/audit, external inputs, local models, artifacts, backup/reset |
+| [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Research/workflow data roots, SQLite/filesystem ownership, external UI settings stores, local models, artifacts, backup/reset |
 | [Local Models](operations/local-models.md) | User / operator / developer | Model paths, readiness probe, inference health, Training integration, trust/reproducibility limits |
 | [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) | User / operator / developer | Evidence-first triage, error/operation identities, runtime blockers, subsystem diagnosis, source/release-audit troubleshooting |
 | [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, crash recovery, external dependency preservation, partial reset risks |
 | [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) | User / operator / developer / auditor | OS authority, unencrypted local state, model/data trust, Automation execution/audit, diagnostic privacy, source integrity |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
+| [Persistence architecture](architecture/persistence.md) | Developer / auditor | SQLite/filesystem/settings ownership, transaction/locking boundaries, schema bootstrap, cross-store consistency |
+| [UI shell architecture](architecture/ui-shell.md) | Developer / auditor | Workspace/navigation lifecycle, background ownership, docks, Operations Center, shortcuts, shell persistence |
 | [Agents lineage architecture](architecture/agents-lineage.md) | Developer / auditor | Semantic snapshot/projection, local state, runtime links, history transactions, failure containment |
 | [Automation architecture](architecture/automation.md) | Developer / auditor | Recipe/provider/service/process/audit architecture, trusted-host boundary, runtime claims, containment, failure semantics |
 | [v1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release guarantees/boundaries/non-goals |
@@ -117,6 +125,8 @@ The v1.0 documentation set follows these rules:
 15. **Distinguish a command snapshot from transitive executable provenance.** Automation command hashes identify what PTL launched, not the content hashes of every executable/script/data file that command can consume.
 16. **Preserve evidence before recovery.** Troubleshooting/reset guidance must not destroy the state needed to classify an incident before the failure is understood.
 17. **Do not overclaim privacy/security from partial controls.** Context-key redaction, process containment, hashing, runtime claims, and local-first storage each have narrow meanings and must not be renamed into encryption/sandboxing/authorization guarantees they do not implement.
+18. **Document every persistence surface that materially affects reproducibility or operator behavior.** Workspace state, Qt shell settings, key-binding JSON, and external model/Dataset/Automation inputs must not be collapsed into one fictional store.
+19. **Do not invent rationale from placement.** A path/shortcut/state split can be documented as current behavior without asserting why it was chosen when code/history does not prove the reason.
 
 ## Planned v1.0 documentation structure
 
@@ -181,8 +191,8 @@ The final v1.0 documentation will use:
 - explicit error/empty-state screenshots where understanding recovery matters;
 - recorded commit/locale/theme/scale/state metadata for reproducibility.
 
-The Agents guide defines a concrete capture inventory for healthy lineage, placeholders, local branches, archive/delete/history, runtime blockers, protocol-compatible/incompatible Delta, contextual navigation, and last-good refresh behavior. The Tests/Analysis guide similarly defines the evaluation capture inventory. The Automation guide defines a capture inventory for recipe discovery/import, trusted-host authorization, exec/shell modes, runtime conflicts, cancellation/timeout, bounded output, and audit/privacy behavior.
+The Agents guide defines a concrete capture inventory for healthy lineage, placeholders, local branches, archive/delete/history, runtime blockers, protocol-compatible/incompatible Delta, contextual navigation, and last-good refresh behavior. The Tests/Analysis guide similarly defines the evaluation capture inventory. The Automation guide defines a capture inventory for recipe discovery/import, trusted-host authorization, exec/shell modes, runtime conflicts, cancellation/timeout, bounded output, and audit/privacy behavior. The Key Bindings guide defines captures for direct input capture, dialogs, conflicts, and persisted-location diagnostics.
 
 The planned documentation-capture tool should make those inventories reproducible from declared demo scenarios rather than manual screenshots.
 
-Images support the written contract; they do not replace exact paths, status/error semantics, integrity boundaries, methodology limits, executable trust boundaries, destructive-action warnings, or security/privacy boundaries.
+Images support the written contract; they do not replace exact paths, status/error semantics, integrity boundaries, methodology limits, executable trust boundaries, destructive-action warnings, settings ownership, or security/privacy boundaries.
