@@ -19,6 +19,7 @@ Begin with:
 - [Agents lineage](user-guide/agents-lineage.md) — read the integrated research graph, distinguish real persisted entities from local branches/placeholders, use protected history, and understand runtime-blocked deletion.
 - [Tests and Analysis](user-guide/tests-and-analysis.md) — build a scored portrait, review actual model responses, understand factor KPI values, and compare protocol-compatible model versions.
 - [Automation](user-guide/automation.md) — run trusted recipes/ad-hoc commands, understand authorization, runtime claims, timeout/cancel, bounded output, process containment, and audit/privacy boundaries.
+- [Appearance & Language](user-guide/appearance-and-language.md) — themes, accents, custom accent behavior, live UI scale, locale switching, RTL text-direction policy, and persistence.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — edit application navigation and Agents graph bindings, understand draft conflicts, persistence, reset, and current shortcut coverage.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — stable-release guarantees, trust/integrity boundaries, explicit non-goals.
 
@@ -29,9 +30,10 @@ Start with:
 - [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, external UI/settings stores, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
 - [Local Models](operations/local-models.md) — model path resolution, readiness checks, inference-stack health, smoke generation, Training integration, trust and reproducibility boundaries.
 - [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
-- [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency preservation, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
+- [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency/presentation-state preservation, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
 - [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — user-home binding storage, conflict recovery, direct capture, reset semantics, and live shell shortcut synchronization.
+- [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) — canonical states, action/diagnostic codes, event families, schema markers, ID shapes, and compatibility aliases.
 - [Agents lineage](user-guide/agents-lineage.md) — deletion blockers, protected undo/redo, stable identity, last-good projection behavior.
 - [Automation](user-guide/automation.md) — recipe discovery/import, host-effect authorization, runtime blockers, output truncation, cancellation/timeout, audit failures, and safe operating rules.
 - [Training pipeline specification](training_pipeline.md) — exact Training input transformation, hashes, backend, artifacts, failure/reproducibility boundaries.
@@ -40,7 +42,7 @@ Start with:
 - [Evaluation contract](reference/evaluation-contract.md) — exact battery, generation, persistence, scoring, comparability, and reproducibility semantics.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — security/runtime/integrity boundaries before operational changes.
 
-The dedicated v1.0 operator guides now cover workspace/storage, local models, troubleshooting, backup/reset/recovery, and security/trust/privacy boundaries. Feature-specific operating rules remain in their user/technical guides and are cross-linked rather than duplicated as competing contracts.
+The dedicated v1.0 operator guides cover workspace/storage, local models, troubleshooting, backup/reset/recovery, and security/trust/privacy boundaries. Feature-specific operating rules remain in their user/technical guides and are cross-linked rather than duplicated as competing contracts.
 
 ### I develop, audit, or extend PTL
 
@@ -54,7 +56,9 @@ Start with:
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
-- [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — current binding IDs/defaults, draft/activation semantics, and persistence behavior.
+- [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) — machine-semantic taxonomy, canonical domain/runtime states, result/diagnostic/event contracts, generated-ID formats and compatibility rules.
+- [Workspace layout reference](reference/workspace-layout.md) — exact persistence/path ownership including workspace, QSettings, user-home bindings and external inputs.
+- [Keyboard & mouse bindings reference](reference/keyboard-mouse-bindings.md) — exact binding IDs/defaults and gesture semantics.
 - [Snapshots and model versions](user-guide/snapshots.md) — current `model_versions` persistence semantics, derived lifecycle presentation, and provenance limits.
 - [Evaluation contract](reference/evaluation-contract.md) — machine-level Tests/Analysis protocol, score parsing, persistence grammar, factor math, protocol-comparison guard.
 
@@ -71,13 +75,17 @@ Start with:
 | [Agents lineage](user-guide/agents-lineage.md) | User / operator / researcher | Integrated lineage workflow, custom branches, protected history, runtime deletion safety, screenshot plan |
 | [Tests and Analysis](user-guide/tests-and-analysis.md) | User / operator / researcher | Portrait execution, case review, KPI interpretation, exact version comparison, screenshot plan |
 | [Automation](user-guide/automation.md) | User / operator / auditor | Trusted-host recipes/ad-hoc commands, authorization, claims, process/output containment, audit/privacy, screenshot plan |
+| [Appearance & Language](user-guide/appearance-and-language.md) | User / operator / developer | Theme/accent, live scale, language switching, RTL leaf direction/font policy, SQLite preference persistence |
 | [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) | User / operator / developer | Editable keyboard/mouse bindings, direct capture, draft conflicts, user-home persistence, shell synchronization |
 | [Training pipeline specification](training_pipeline.md) | Advanced user / developer / auditor | Exact Training persistence, hashing, parsing, execution, artifact/provenance contract |
 | [Evaluation contract](reference/evaluation-contract.md) | Developer / auditor / researcher | Battery identity, inference settings, score parser, serialized result grammar, factor/delta math, comparability and methodology boundaries |
+| [Workspace layout reference](reference/workspace-layout.md) | Operator / developer / auditor | Exact workspace/external persistence surfaces, path ownership and backup/reset meaning |
+| [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) | Developer / operator / auditor | Canonical statuses, compatibility aliases, action/diagnostic/event codes, schemas and generated identifiers |
+| [Keyboard & mouse bindings reference](reference/keyboard-mouse-bindings.md) | User / developer / auditor | Exact binding IDs/defaults, categories, targets, trigger/conflict semantics |
 | [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Research/workflow data roots, SQLite/filesystem ownership, external UI settings stores, local models, artifacts, backup/reset |
 | [Local Models](operations/local-models.md) | User / operator / developer | Model paths, readiness probe, inference health, Training integration, trust/reproducibility limits |
 | [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) | User / operator / developer | Evidence-first triage, error/operation identities, runtime blockers, subsystem diagnosis, source/release-audit troubleshooting |
-| [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, crash recovery, external dependency preservation, partial reset risks |
+| [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, external presentation/dependency preservation, crash recovery, partial reset risks |
 | [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) | User / operator / developer / auditor | OS authority, unencrypted local state, model/data trust, Automation execution/audit, diagnostic privacy, source integrity |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
 | [Persistence architecture](architecture/persistence.md) | Developer / auditor | SQLite/filesystem/settings ownership, transaction/locking boundaries, schema bootstrap, cross-store consistency |
@@ -127,10 +135,12 @@ The v1.0 documentation set follows these rules:
 17. **Do not overclaim privacy/security from partial controls.** Context-key redaction, process containment, hashing, runtime claims, and local-first storage each have narrow meanings and must not be renamed into encryption/sandboxing/authorization guarantees they do not implement.
 18. **Document every persistence surface that materially affects reproducibility or operator behavior.** Workspace state, Qt shell settings, key-binding JSON, and external model/Dataset/Automation inputs must not be collapsed into one fictional store.
 19. **Do not invent rationale from placement.** A path/shortcut/state split can be documented as current behavior without asserting why it was chosen when code/history does not prove the reason.
+20. **Classify machine strings before documenting them.** Canonical status, compatibility alias, action/result code, diagnostic, event type, schema marker, message key and identifier are separate contracts even when their spelling looks similar.
+21. **Do not invent universal ID formats.** Current feature IDs use multiple prefix/hex widths; document the generator actually used by each feature.
 
 ## Planned v1.0 documentation structure
 
-The remaining documentation work continues toward:
+The documentation structure is:
 
 ```text
 docs/
@@ -178,7 +188,7 @@ docs/
     └── diagrams/
 ```
 
-The tree is a plan, not a claim that every listed file already exists. Placeholder links are avoided until a document is created/reviewed.
+The development subtree and final screenshot/diagram asset population remain ongoing. Existing links in the sections above point only to created/reviewed documents.
 
 ## Screenshot and diagram strategy
 
