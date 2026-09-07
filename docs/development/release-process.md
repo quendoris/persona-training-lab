@@ -10,6 +10,8 @@ The release gate therefore refuses to start from a dirty worktree and records Gi
 
 A release should not be declared from memory, an old successful run, or a test result produced before the candidate commit changed.
 
+PTL's release proof is also tied to the repository-local implementations under `tools/`. Reusable descendants may exist in `quendoris/snippets`, but they do not silently replace the commands, policies, manifests or tests committed here. Any future migration to a shared snippet is itself a candidate-changing dependency/architecture change and must be validated explicitly. See [Developer tooling](tooling.md).
+
 ## 1. Resolve the candidate commit
 
 Before final validation:
@@ -86,6 +88,8 @@ The full profile currently blocks on this sequence:
 
 No current step is informational-only in the full profile.
 
+The `codebase statistics` step above means PTL's committed `tools/codebase_stats.py`, not the independently generalized `codebase-anatomy` snippet. The same rule applies to every other local gate component until the release gate implementation itself is deliberately changed.
+
 ## 5. Preserve the release-gate evidence
 
 The gate writes to:
@@ -126,6 +130,8 @@ uv run --locked python tools/visual_audit.py --interactive
 Use a clean/demo workspace for captures intended to leave the development machine. Review screenshots and metadata for sensitive workspace information before publication.
 
 Preserve the visual-audit manifest/bundle together with the commit it records when screenshots are part of the release evidence.
+
+The independent `app-screenshotter`/`archive-bundler` snippets are reusable descendants of lower-level capture/evidence ideas; they are not substitutes for running PTL's own harness because they do not own PTL navigation, locale traversal, workspace setup, manifest schema or scenario coverage.
 
 See [Visual audit](visual-audit.md) for the capture contract and limitations.
 
