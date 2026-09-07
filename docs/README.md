@@ -63,6 +63,7 @@ Start with:
 - [Evaluation contract](reference/evaluation-contract.md) — machine-level Tests/Analysis protocol, score parsing, persistence grammar, factor math, protocol-comparison guard.
 - [Development setup](development/setup.md) — locked source environment, optional model stacks, launch/headless rules, clean-worktree release precondition.
 - [Testing and engineering audits](development/testing.md) — pytest, compile, Ruff, mypy, typing/i18n audits, codebase statistics and quick/full release profiles.
+- [Developer tooling](development/tooling.md) — exact `tools/` inventory, PTL-local release ownership, reusable extraction boundaries, and current `quendoris/snippets` relationship.
 - [Visual audit](development/visual-audit.md) — real-application automatic/interactive Qt capture, manifests, geometry, privacy and publication boundaries.
 - [Packaging](development/packaging.md) — Hatchling/uv build contract, optional extras, bundled docs and current native-packaging non-goals.
 - [Release process](development/release-process.md) — candidate identity, locked dependencies, release-gate evidence, visual review, package inspection and final-tag discipline.
@@ -102,6 +103,7 @@ Start with:
 | [Runtime resource safety](architecture/runtime-resource-safety.md) | Developer / auditor | Runtime resource safety |
 | [Development setup](development/setup.md) | Developer / contributor | Locked environment, source launch, headless Qt, repository layout and release preconditions |
 | [Testing and engineering audits](development/testing.md) | Developer / auditor | Behavioral/static/audit layers and exact quick/full release-gate scope |
+| [Developer tooling](development/tooling.md) | Developer / auditor | Repository-local tool contracts, release coupling and reusable-snippet extraction boundaries |
 | [Visual audit](development/visual-audit.md) | Developer / auditor / documentation author | Reproducible Qt captures, manifest evidence, interactive mode and sensitive-data boundaries |
 | [Packaging](development/packaging.md) | Developer / release operator | Python build metadata, docs inclusion, extras and distribution verification |
 | [Release process](development/release-process.md) | Developer / release operator / auditor | Candidate-to-tag validation/evidence sequence and limits of automated proof |
@@ -147,6 +149,7 @@ The v1.0 documentation set follows these rules:
 19. **Do not invent rationale from placement.** A path/shortcut/state split can be documented as current behavior without asserting why it was chosen when code/history does not prove the reason.
 20. **Classify machine strings before documenting them.** Canonical status, compatibility alias, action/result code, diagnostic, event type, schema marker, message key and identifier are separate contracts even when their spelling looks similar.
 21. **Do not invent universal ID formats.** Current feature IDs use multiple prefix/hex widths; document the generator actually used by each feature.
+22. **Do not silently replace project-local release contracts with shared utilities.** A generalized snippet may descend from PTL tooling, but PTL keeps its committed/tested local behavior until dependency migration is an explicit reviewed change.
 
 ## Planned v1.0 documentation structure
 
@@ -190,6 +193,7 @@ docs/
 ├── development/
 │   ├── setup.md
 │   ├── testing.md
+│   ├── tooling.md
 │   ├── visual-audit.md
 │   ├── packaging.md
 │   └── release-process.md
