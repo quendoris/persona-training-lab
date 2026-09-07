@@ -2,7 +2,7 @@
 
 Persona Training Lab keeps a small set of repository-local developer tools under `tools/`. These files are part of the PTL development/release contract, not a generic utility library.
 
-This document describes the tools that exist in the current repository, what they actually own, and which parts are reasonable candidates for later extraction into reusable engineering snippets.
+This document describes the tools that exist in the current repository, what they actually own, and which reusable mechanisms have been or may later be extracted into independent engineering snippets.
 
 The distinction matters because a reusable implementation elsewhere does **not** automatically replace the version that a release gate, test, or audit in this repository depends on.
 
@@ -51,7 +51,9 @@ The generic ideas are reusable:
 
 The current category rules are PTL-specific. For example, every `src/*.py` file is called Production Python and every `tests/*.py` file Tests Python. A generic tool must not pretend these directory names encode universal architecture.
 
-A generalized descendant belongs in the independent `quendoris/snippets` repository as `codebase-anatomy`. PTL keeps `tools/codebase_stats.py` until an explicit migration changes the release contract and its tests.
+An independent generalized descendant now exists in `quendoris/snippets` as `codebase-anatomy`. It adds multi-language accounting and explicit repository-declared semantic groups instead of exporting PTL's path taxonomy as universal truth.
+
+PTL still keeps and uses `tools/codebase_stats.py`. The existence of `codebase-anatomy` is not a dependency migration and does not alter PTL release evidence.
 
 ## `i18n_audit.py`
 
@@ -175,17 +177,16 @@ See [Visual Audit](visual-audit.md) for the exact harness contract.
 
 ### Reuse boundary
 
-Reusable primitives include:
+The reusable surface has now been split deliberately rather than copying PTL's harness wholesale:
 
-- capture naming;
-- widget/window image acquisition;
-- metadata/manifests;
-- archive assembly;
-- deterministic scenario result recording.
+- `quendoris/snippets/app-screenshotter` contains small PySide6 in-process widget/top-level capture and PNG-manifest primitives;
+- `quendoris/snippets/archive-bundler` contains an independent deterministic file-inventory/ZIP evidence primitive.
 
-PTL navigation registry, dependency container, LocalizationManager, workspace preparation and scenario definitions remain PTL-specific.
+PTL's navigation registry, dependency container, LocalizationManager, workspace preparation, route/locale traversal, interactive scenario semantics, PTL manifest schema and release/documentation rules remain PTL-specific.
 
-A generic `app-screenshotter` should be extracted from those primitives rather than by copying the current harness wholesale.
+Neither reusable snippet replaces `tools/visual_audit.py` in PTL. The project-local harness still owns the end-to-end PTL visual-audit contract and its tests.
+
+This separation is also intentional because the generic snippets have different guarantees: `app-screenshotter` does not claim deterministic PNG bytes across Qt/platform/rendering environments, while `archive-bundler` is designed around deterministic archive representation for unchanged selected bytes/metadata.
 
 ## `vendor_noto_arabic_fonts.py`
 
@@ -232,14 +233,28 @@ The independent reusable repository is:
 quendoris/snippets
 ```
 
-Its current first extraction is `codebase-anatomy`, descended conceptually from `tools/codebase_stats.py` but designed to separate automatic language/line facts from repository-declared semantic groups such as `core`, `architecture`, or `critical`.
+Current extractions relevant to PTL are:
 
-## Candidate extraction matrix
+```text
+codebase-anatomy
+    ← conceptually descended from tools/codebase_stats.py
 
-| PTL source | Reusable candidate | Current action |
+app-screenshotter
+    ← capture/evidence primitives distilled from tools/visual_audit.py
+
+archive-bundler
+    ← generic deterministic evidence-packaging primitive applicable to visual/release artifacts
+```
+
+These relationships record engineering provenance, not dependency edges. PTL does not import these snippets at v1.0 documentation time.
+
+## Extraction matrix
+
+| PTL source / need | Reusable snippet or candidate | Current action |
 |---|---|---|
-| `codebase_stats.py` | `codebase-anatomy` | extract/generalize independently; keep PTL tool |
-| `visual_audit.py` | `app-screenshotter` primitives | candidate after capture contracts stabilize |
+| `codebase_stats.py` | `codebase-anatomy` | independently extracted; keep PTL release tool |
+| widget/top-level capture ideas from `visual_audit.py` | `app-screenshotter` | independently extracted; PTL harness remains canonical |
+| generic evidence ZIP/inventory need | `archive-bundler` | independently extracted; no PTL dependency migration |
 | release audit orchestration | `repro-gate` | candidate; PTL policy must remain configuration, not default truth |
 | `typing_audit.py` scanner | typing-suppression audit | candidate after policy/scanner separation is explicit |
 | font vendoring integrity flow | pinned-asset vendor | possible later extraction; current script strongly PTL-specific |
@@ -250,3 +265,5 @@ Its current first extraction is `codebase-anatomy`, descended conceptually from 
 A successful extraction into `snippets` is **not** proof that PTL should depend on it immediately.
 
 During release stabilization, source-of-truth behavior remains the code and tests committed in this repository. Replacing a release-critical local tool with a shared snippet is an architectural/dependency change and must receive the same audit, tests and reproducibility evidence as any other release-critical modification.
+
+Conversely, PTL documentation should not describe an independently extracted snippet as part of PTL's release guarantee unless PTL actually imports/invokes that version and the migration is covered by tests. Provenance and dependency are different relationships.
