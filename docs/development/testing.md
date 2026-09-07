@@ -2,6 +2,8 @@
 
 PTL uses several validation layers because no single test runner proves the properties needed for a desktop research workstation. This document describes what each current layer checks and, just as importantly, what it does not prove.
 
+The commands below refer to the repository-local implementations committed under `tools/`. A reusable descendant in another repository does not silently replace these release/audit contracts. See [Developer tooling](tooling.md) for ownership and extraction boundaries.
+
 ## Test suite
 
 Run the complete pytest suite from the repository root:
@@ -112,6 +114,8 @@ uv run --locked python tools/codebase_stats.py --json
 It counts tracked UTF-8 text files and separates categories including production Python, tests, tools, documentation, styles, SVG assets and configuration. For Python, it additionally derives a code-line count that excludes comments, blank lines and recognized docstrings.
 
 The result is an engineering inventory, not a complexity or quality metric. A larger number of lines does not imply more functionality or better architecture.
+
+A generalized `codebase-anatomy` implementation now exists independently in `quendoris/snippets`. It adds multi-language and project-declared semantic grouping, but PTL release evidence continues to use this repository's `tools/codebase_stats.py` until an explicit dependency/migration change is reviewed and tested.
 
 ## Release-policy tests
 
