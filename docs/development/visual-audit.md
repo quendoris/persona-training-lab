@@ -4,6 +4,8 @@ PTL includes a repository-local Qt capture harness in `tools/visual_audit.py`. I
 
 That distinction matters: the harness builds the real container, creates `SafeApplication`, applies persisted style preferences through the normal view-model path, creates `MainWindow`, and navigates the registered application routes.
 
+The independent `quendoris/snippets` repository now contains reusable descendants of some low-level ideas (`app-screenshotter` for in-process Qt capture/manifests and `archive-bundler` for deterministic evidence packaging). PTL does **not** use those repositories as release dependencies at this point. `tools/visual_audit.py` remains the PTL visual-audit source of truth.
+
 ## What the harness captures
 
 The tool supports two modes:
@@ -215,6 +217,36 @@ QT_QPA_PLATFORM=offscreen uv run --locked python tools/visual_audit.py \
 The automated tests use this pattern.
 
 Offscreen captures prove that the Qt composition can render and be traversed in that environment. They do not prove pixel-equivalent rendering on Linux/X11/Wayland, Windows or macOS native desktops.
+
+## Reusable extraction vs PTL evidence
+
+The independent snippets intentionally expose narrower contracts:
+
+```text
+app-screenshotter
+  -> caller-selected QWidget / visible top-level capture
+  -> PNG + per-capture metadata + SHA-256 manifest
+
+archive-bundler
+  -> caller-selected files/directories
+  -> deterministic ZIP representation + SHA-256 inventory
+```
+
+PTL's harness does substantially more:
+
+```text
+production PTL composition
+  -> workspace/container/style/localization setup
+  -> route and locale traversal
+  -> PTL-specific geometry/readiness checks
+  -> PTL visual-audit schema/state records
+  -> automatic and interactive workflows
+  -> PTL-specific ZIP/session layout
+```
+
+Therefore an independently passing `app-screenshotter` or `archive-bundler` test does not prove PTL visual-audit behavior, and PTL's harness tests do not automatically prove every generic snippet contract. The code bases share engineering provenance, not a hidden dependency relationship.
+
+See [Developer tooling](tooling.md) for the project-local/shared-tool ownership rule.
 
 ## Relationship to the release gate
 
