@@ -224,6 +224,8 @@ The smoke path is intended to answer an operational question:
 
 It is **not** the Tests/Analysis evaluation protocol and must not be treated as personality/evaluation evidence.
 
+The generic Training smoke path calls local generation without an instruction prompt. The infrastructure provider therefore does not add a hidden system instruction to that request.
+
 PTL prevents a second Training-workspace smoke generation from being started while the current one is marked in progress.
 
 ## 10. Generation path
@@ -280,22 +282,42 @@ The normal OS/Python dependency trust boundary still applies to the installed To
 
 If the tokenizer has no `pad_token` but does have an EOS token, the provider uses the EOS token as the pad token before generation.
 
-## 13. Chat-template handling
+## 13. Chat-template and instruction ownership
+
+The provider always constructs a user message from the requested prompt. A system message is included **only** when the caller supplies a non-blank `instruction_prompt`.
+
+Conceptually:
+
+```text
+instruction_prompt absent/blank
+    -> user message only
+
+instruction_prompt supplied
+    -> system message + user message
+```
+
+This means the infrastructure layer does not invent a locale-specific or behavioral instruction for a generic generation request. Workflows that require a protocol instruction must own and pass that instruction explicitly. The current personality-portrait path does this with its scored-response instruction; the generic Training smoke path does not.
 
 The provider first attempts the tokenizer's chat template with:
 
-- a system message;
-- a user message;
+- the caller-owned message sequence described above;
 - `add_generation_prompt=True`;
 - tensor output;
 - `enable_thinking=False` where the tokenizer accepts that argument.
 
 For tokenizer/template compatibility, PTL retries without `enable_thinking` when the first call raises `TypeError`.
 
-If chat-template construction still cannot be used, the provider falls back to a plain combined prompt of the form:
+If chat-template construction still cannot be used, the provider falls back to a plain combined prompt. With an explicit instruction the shape is:
 
 ```text
 System: <instruction>
+User: <prompt>
+Assistant:
+```
+
+Without an instruction the fallback is:
+
+```text
 User: <prompt>
 Assistant:
 ```
@@ -485,4 +507,5 @@ Changes to local-model support must preserve these current architectural rules u
 4. the desktop core remains launchable without optional inference dependencies;
 5. Training validates the resolved model path at run creation and again before execution;
 6. local model loading must not silently broaden the trust boundary through `trust_remote_code=True`;
-7. documentation must not claim complete base-model reproducibility while the model directory lacks a persisted content fingerprint.
+7. documentation must not claim complete base-model reproducibility while the model directory lacks a persisted content fingerprint;
+8. infrastructure must not invent a system instruction for generic generation; protocol/workflow layers own any explicit `instruction_prompt` they require.
