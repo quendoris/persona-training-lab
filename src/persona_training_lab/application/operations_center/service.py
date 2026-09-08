@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 from typing import Protocol
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.ports.event_log import EventRecord
 from persona_training_lab.application.runtime.operations import RuntimeOperation
 
@@ -34,6 +35,8 @@ class OperationsCenterItem:
     operation_subject: str = ""
     operation_error: str = ""
     focus_key: str = ""
+    error_id: str = ""
+    user_message: UserMessage | None = None
 
 
 @dataclass(slots=True)
@@ -145,6 +148,8 @@ class OperationsCenterService:
                 or ""
             ),
             focus_key=focus_key,
+            error_id=str(payload.get("error_id", "") or "").strip(),
+            user_message=_event_user_message(payload),
         )
 
     @staticmethod
@@ -168,6 +173,21 @@ def _payload(raw: str) -> dict[str, object]:
     except (TypeError, ValueError, json.JSONDecodeError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _event_user_message(payload: dict[str, object]) -> UserMessage | None:
+    raw = payload.get("user_message")
+    if not isinstance(raw, dict):
+        return None
+    key = str(raw.get("key", "") or "").strip()
+    if not key:
+        return None
+    raw_values = raw.get("values", {})
+    values = raw_values if isinstance(raw_values, dict) else {}
+    try:
+        return UserMessage(key, values)
+    except ValueError:
+        return None
 
 
 def _operation_target(kind: str) -> tuple[str, str]:
