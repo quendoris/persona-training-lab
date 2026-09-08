@@ -1,6 +1,6 @@
 # Persona Training Lab v1.0 Product Contract
 
-This document defines the intended contract of the first stable Persona Training Lab release.
+This document defines the contract of the first stable Persona Training Lab release candidate.
 
 It is stricter than a feature list: it states what behavior is part of the product promise, what integrity/security/storage boundaries exist, and what v1.0 deliberately does not claim.
 
@@ -316,7 +316,7 @@ Before packaging/release acceptance, PTL is validated through multiple independe
 - i18n catalog/reference/UI-literal auditing;
 - visual audit tooling across routes/locales;
 - source-tree/release-policy checks;
-- build and clean-install acceptance during packaging.
+- build and installed-package acceptance during packaging review.
 
 The evidence for a specific release belongs in that release's verification record rather than being frozen into this general contract.
 
@@ -343,11 +343,13 @@ v1.0 does not claim exhaustive proof of:
 
 These are explicit operating boundaries, not hidden promises.
 
-## 16. Stability does not mean immobility
+## 16. Stable baseline vs separate stress evidence
 
-A v1.0 release means the documented behavior/boundaries form a coherent, usable baseline.
+A v1.0 release candidate means the documented behavior and boundaries form a coherent baseline that can be validated and reviewed as one product contract.
 
-Post-release stress testing may justify internal, instrumentation, persistence, performance, or subsystem changes. Later versions must preserve or deliberately revise the public contracts documented here.
+A separate adversarial/stress/falsification program is a different evidence layer. Findings from that program can require implementation, test, persistence, performance, instrumentation, or documentation changes before final release evidence is accepted. Any such change creates a new candidate and invalidates release-gate evidence tied to the previous commit.
+
+Do not infer exhaustive stress qualification from an ordinary architecture review, documentation freeze, visual audit, or release-gate PASS.
 
 ## 17. Documentation is part of the product contract
 
@@ -366,6 +368,6 @@ It must provide:
 - Agents semantic-vs-local state and protected history boundaries;
 - Automation trusted-host authorization/claims/audit/process-containment/provenance boundaries;
 - development/test/visual-audit/packaging/release procedures;
-- clear separation between supported behavior and post-v1.0 stress/experimental work.
+- clear separation between supported behavior and separate adversarial/stress/experimental evidence.
 
 If documentation and code disagree, the discrepancy is a release defect to resolve before stable publication.
