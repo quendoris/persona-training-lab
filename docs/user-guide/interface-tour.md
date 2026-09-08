@@ -122,7 +122,7 @@ Agents is one of the most interaction-dense PTL workspaces. It includes lineage/
 
 Do not treat the graph as a decorative visualization. It reflects persistent lineage/resource relationships and participates in runtime safety.
 
-A dedicated [Agents & Lineage](agents-lineage.md) guide will document gestures, history semantics, selection/context behavior, and deletion safety in detail.
+See [Agents & Lineage](agents-lineage.md) for gestures, history semantics, selection/context behavior, and deletion safety.
 
 ### Datasets
 
@@ -130,13 +130,13 @@ A dedicated [Agents & Lineage](agents-lineage.md) guide will document gestures, 
 
 Dataset persistence includes source path/format, validation counts, readiness information, linked profile information, and validation diagnostics.
 
-A dedicated dataset workflow guide will explain supported import/validation behavior step by step.
+See [Datasets](datasets.md) for supported import, validation, approval, and Training-eligibility behavior.
 
 ### Training
 
 **Use Training when:** you need to inspect the local model and create/monitor training work.
 
-Training integrates profile, dataset, local-model, runtime-operation, artifact, and model-version concerns. Because training can be long-running and resource-sensitive, follow the Training guide rather than treating every control as a harmless preview action.
+Training integrates profile, dataset, local-model, runtime-operation, artifact, and model-version concerns. Because training can be long-running and resource-sensitive, follow the [Training](training.md) guide rather than treating every control as a harmless preview action.
 
 Inference/training Python dependencies are optional installation extras; the core PTL shell can launch without installing the complete model-training stack.
 
@@ -146,6 +146,8 @@ Inference/training Python dependencies are optional installation extras; the cor
 
 Snapshots should be understood as explicit persistent product state, not as the same thing as copying the whole PTL workspace directory. Workspace backup/reset is documented separately.
 
+See [Snapshots and model versions](snapshots.md) for the current registry, provenance, lifecycle projection, and reproducibility boundary.
+
 ### Tests
 
 **Use Tests when:** you need to run or inspect the product's personality/evaluation testing workflows.
@@ -154,11 +156,15 @@ The Tests workspace can direct the shell to Analysis when a result needs deeper 
 
 This workspace is unrelated to the repository's `pytest` developer test suite. User-facing Tests are product evaluation workflows; `pytest` validates PTL itself.
 
+See [Tests and Analysis](tests-and-analysis.md) for the current evaluation workflow and comparison semantics.
+
 ### Analysis
 
 **Use Analysis when:** you need to inspect stored analysis/evaluation results and comparisons.
 
 The analysis persistence model includes left/right comparison fields, deltas, insights, and example output comparisons.
+
+The Tests and Analysis workspaces share one documented evaluation contract; use [Tests and Analysis](tests-and-analysis.md) for the user workflow and [Evaluation contract](../reference/evaluation-contract.md) for machine-level semantics.
 
 ### Style
 
@@ -177,13 +183,15 @@ Complete v1.0 catalogs ship for:
 
 Arabic uses RTL text behavior without mirroring the complete shell geometry.
 
+See [Appearance & Language](appearance-and-language.md) for exact persistence, scale, accent, locale, and RTL behavior.
+
 ### Automation
 
 **Use Automation when:** you want PTL to execute an explicit workspace automation recipe/command under the Automation execution controls.
 
 Automation is powerful. Commands execute with the permissions of the PTL process and operating-system account. PTL provides lifecycle controls and audit metadata; it does not transform arbitrary commands into sandboxed untrusted code.
 
-Read the Automation guide before using recipes that modify files, spawn child processes, or affect external tools.
+Read [Automation](automation.md) before using recipes that modify files, spawn child processes, or affect external tools.
 
 ### Key bindings
 
@@ -191,11 +199,17 @@ Read the Automation guide before using recipes that modify files, spawn child pr
 
 This is particularly important for Agents, where history/navigation gestures have explicit routing and ownership rules.
 
+See [Key Bindings & Mouse Gestures](key-bindings.md) for draft/commit, conflict, capture, persistence, and reset behavior.
+
 ### Documentation
 
-**Use Documentation when:** you want the documentation surface available from inside PTL.
+**Use Documentation when:** you want the compact documentation surface available from inside PTL.
 
-The repository `docs/` tree is the canonical documentation source. The in-app Documentation workspace reads packaged documentation rather than relying on the process current working directory.
+The complete repository `docs/` tree is the canonical documentation source, but the current in-app workspace exposes a curated five-topic subset rather than discovering every canonical document automatically. It reads packaged/source documentation independently of the process current working directory.
+
+The body is currently displayed as read-only **plain Markdown source text**, not as rendered Markdown, and changing application locale localizes the surrounding topic metadata without translating the body.
+
+See [Documentation Workspace](documentation.md) for the exact topic set, layout, localization, packaging, and troubleshooting behavior.
 
 ## 9. Themes, accents, and density
 
@@ -241,7 +255,7 @@ For a first session, explore in this order:
 3. open **Style** and inspect theme/language controls;
 4. switch to **Profiles** and **Datasets** without creating important data yet;
 5. open **Agents** and inspect the graph workspace without performing deletion actions;
-6. open **Documentation** so you know where task-specific instructions live;
+6. open **Documentation** so you know where the embedded quick/reference topics live;
 7. leave **Automation** for after reading its dedicated safety guide.
 
 This gives you a mental map of PTL without starting a long-running or destructive workflow.
@@ -260,6 +274,7 @@ The screenshots will be captured from a recorded commit and documented UI state 
 ## Next steps
 
 - New installation: [Getting Started](getting-started.md)
+- Embedded Documentation workspace: [Documentation Workspace](documentation.md)
 - Data location and reset/backup behavior: [Workspace & Storage](../operations/workspace-and-storage.md)
 - Stable-release promises and boundaries: [v1.0 Product Contract](../reference/v1-product-contract.md)
 - Internal system map: [Architecture Overview](../architecture/overview.md)
