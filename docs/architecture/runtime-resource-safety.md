@@ -21,8 +21,9 @@ For the Agents-specific projection/history implementation, see
    lease is stored in SQLite together with every resource used by the operation.
 3. **Read/read is compatible.** Several analyses may inspect the same immutable
    model version.
-4. **Every write is exclusive.** Training, deletion, replacement, or any future
-   mutation conflicts with all readers and writers of the same resource.
+4. **Every write claim is exclusive against conflicting access.** A write claim
+   conflicts with readers and writers of the same resource under the runtime
+   coordination contract.
 5. **Deletion is itself an operation.** A subtree deletion atomically acquires
    write claims for the subtree and all linked real resources after user
    confirmation and before changing state. This closes the check-to-delete race.
@@ -90,9 +91,9 @@ persistent id exists. Current kinds include:
 Modern Training lineage uses persisted `profile_id` and `dataset_id` where
 available. Human-readable titles remain presentation metadata.
 
-Future storage services should introduce stable artifact ids instead of relying
-only on paths. Paths remain claimed during the transition so physical weights
-are still protected.
+Physical artifact/model paths remain resource identities where the current
+persistence model does not provide a stronger stable artifact identifier. The
+runtime-safety contract therefore protects those path identities explicitly.
 
 ## Operation lifecycle
 
@@ -130,9 +131,9 @@ If link cleanup fails after local state mutation, PTL restores the captured loca
 transaction state before reporting the failure where compensation succeeds.
 
 Registered model-version rows and physical artifact directories are not deleted
-by the local-tree command. A future storage transaction must implement
-quarantine/trash, dependency validation, rollback, and eventual garbage
-collection before destructive artifact deletion is enabled.
+by the local-tree command. PTL v1.0 does not provide transactional/quarantine
+artifact deletion through this operation, so destructive artifact removal is
+outside the custom-branch delete contract.
 
 ## Protected deletion Undo/Redo
 
@@ -200,20 +201,24 @@ Production composition configures the rotating log under the PTL workspace:
 The current rotating handler uses an approximately 5 MB file size and five
 backups. Failure to create the diagnostic file does not block application startup.
 
-## Current limitations and post-v1.0 hardening
+## Current limitations and separate stress evidence
 
 - Training's current full fine-tune backend does not expose cooperative per-step
   cancellation; the UI Pause/Stop controls are disabled in v1.0.
-- Persisted artifact deletion is deliberately disabled until a transactional
-  artifact store with quarantine is implemented.
-- Agents background projection refresh is designed around the current local
-  desktop/SQLite scale. Large-graph interaction/soak behavior belongs to the
-  post-v1.0 stress campaign rather than an undocumented stable guarantee.
-- Multi-host coordination requires a server-side/distributed lock service or
-  database; SQLite atomic leases cover coordinated local processes sharing the
-  same persistence store, not distributed hosts.
-- Additional progress/cancellation/retry/incident UX may be added in later
-  releases without weakening the v1.0 ownership/conflict contracts.
+- Persisted physical artifact deletion is not part of the current Agents
+  custom-branch deletion contract.
+- Agents background projection refresh is documented for the current local
+  desktop/SQLite operating model. Large-graph interaction/soak limits require
+  separate adversarial/stress evidence and are not implied by this architecture
+  contract.
+- SQLite atomic leases coordinate local processes sharing the same persistence
+  store; PTL does not provide distributed/multi-host locking.
+- A normal release-gate PASS does not by itself prove extreme contention,
+  resource-exhaustion, duration, or fault-injection envelopes.
+
+These are current boundaries. If a separate stress/falsification pass causes
+implementation or contract changes, those changes form a new candidate and must
+be revalidated rather than being described as already covered by this document.
 
 ## Related documentation
 
