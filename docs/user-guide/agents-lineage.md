@@ -503,7 +503,7 @@ The final documentation capture pass should include at least:
 14. contextual jump from Agents to Analysis;
 15. last-good projection retained after an injected refresh failure.
 
-These should be generated from a clean demo workspace by the planned reproducible documentation-capture tool rather than manually accumulated screenshots.
+Generate these from a clean demo workspace with the existing [`tools/visual_audit.py`](../development/visual-audit.md) automatic/interactive capture workflow rather than manually accumulating screenshots. Review captures and manifests for sensitive data before publication.
 
 ## Related documentation
 
