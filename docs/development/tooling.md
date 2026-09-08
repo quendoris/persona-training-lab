@@ -2,7 +2,7 @@
 
 Persona Training Lab keeps a small set of repository-local developer tools under `tools/`. These files are part of the PTL development/release contract, not a generic utility library.
 
-This document describes the tools that exist in the current repository, what they actually own, and which reusable mechanisms have been or may later be extracted into independent engineering snippets.
+This document describes the tools that exist in the current repository, what they actually own, and which reusable mechanisms already have independent descendants outside PTL.
 
 The distinction matters because a reusable implementation elsewhere does **not** automatically replace the version that a release gate, test, or audit in this repository depends on.
 
@@ -51,7 +51,7 @@ The generic ideas are reusable:
 
 The current category rules are PTL-specific. For example, every `src/*.py` file is called Production Python and every `tests/*.py` file Tests Python. A generic tool must not pretend these directory names encode universal architecture.
 
-An independent generalized descendant now exists in `quendoris/snippets` as `codebase-anatomy`. It adds multi-language accounting and explicit repository-declared semantic groups instead of exporting PTL's path taxonomy as universal truth.
+An independent generalized descendant exists in `quendoris/snippets` as `codebase-anatomy`. It adds multi-language accounting and explicit repository-declared semantic groups instead of exporting PTL's path taxonomy as universal truth.
 
 PTL still keeps and uses `tools/codebase_stats.py`. The existence of `codebase-anatomy` is not a dependency migration and does not alter PTL release evidence.
 
@@ -70,9 +70,9 @@ The command returns non-zero when the resulting localization report does not pas
 
 ### Reuse boundary
 
-The wrapper itself should not be copied as a generic snippet: its meaning depends on PTL localization architecture and catalog semantics.
+The wrapper itself is PTL-specific: its meaning depends on PTL localization architecture and catalog semantics.
 
-Reusable lower-level ideas, if extracted later, would need their own independent catalog/source contracts rather than hard-coded PTL paths or locale assumptions.
+No independent generic catalog/source-audit package is part of the current PTL toolchain. Any reusable implementation would need an explicit contract for catalog roots, base locale, literal policy and failure semantics rather than inheriting PTL paths or assumptions implicitly.
 
 ## `typing_audit.py`
 
@@ -109,7 +109,7 @@ The JSON form records total, blocking, informational and per-finding details.
 
 ### Reuse boundary
 
-The scanner/classifier split is a strong candidate for a future reusable snippet, but PTL's exact blocking policy is product/release policy. A reusable version must parameterize policy instead of silently exporting PTL's rule as a universal typing standard.
+The scanner/classifier mechanics are separable from policy in principle, but PTL's exact blocking policy is product/release policy. No independently versioned typing-suppression snippet is part of PTL's current dependency or release contract.
 
 ## `release_quick_tests.txt`
 
@@ -163,7 +163,7 @@ Useful generic ideas include:
 - repeated tests;
 - machine-readable summaries.
 
-The current commands, environment variables, quick-test manifest and release policy are PTL-specific. A future generic `repro-gate` snippet must receive those policies as configuration rather than inheriting PTL names and commands.
+The current commands, environment variables, quick-test manifest and release policy are PTL-specific. No shared `repro-gate` implementation is part of the current PTL release path; PTL release evidence is produced by this repository's `tools/release_gate.py`.
 
 ## `visual_audit.py`
 
@@ -177,7 +177,7 @@ See [Visual Audit](visual-audit.md) for the exact harness contract.
 
 ### Reuse boundary
 
-The reusable surface has now been split deliberately rather than copying PTL's harness wholesale:
+The reusable surface has been split deliberately rather than copying PTL's harness wholesale:
 
 - `quendoris/snippets/app-screenshotter` contains small PySide6 in-process widget/top-level capture and PNG-manifest primitives;
 - `quendoris/snippets/archive-bundler` contains an independent deterministic file-inventory/ZIP evidence primitive.
@@ -205,29 +205,27 @@ The command also prints SHA-256 values as diagnostic/provenance information, whi
 
 ### Reuse boundary
 
-The integrity-vendoring pattern may be reusable, but the current script owns PTL-specific asset paths, manifest schema, upstream URL construction, user-agent string and font provenance. It therefore remains project-local.
+The integrity-vendoring pattern is conceptually reusable, but the current script owns PTL-specific asset paths, manifest schema, upstream URL construction, user-agent string and font provenance. It remains project-local and has no shared-tool dependency in the current PTL release path.
 
 ## Project-local tools vs reusable snippets
 
-The extraction rule for PTL is:
+The extraction rule that preserves PTL release identity is:
 
 ```text
 working PTL-local tool
     ↓
 audit what is PTL-specific
     ↓
-extract only the reusable mechanism
+extract only a reusable mechanism into an independent project
     ↓
-specify and test it independently
+specify and test that project independently
     ↓
-keep PTL local behavior unchanged
-    ↓
-consider migration only as a separate reviewed change
+keep PTL local behavior/dependencies unchanged
 ```
 
-This prevents a new shared repository from silently becoming a release dependency during v1.0 stabilization.
+An external extraction records engineering provenance. It does not create a PTL dependency edge by itself.
 
-The independent reusable repository is:
+The independent reusable repository relevant to the already-created descendants is:
 
 ```text
 quendoris/snippets
@@ -246,24 +244,24 @@ archive-bundler
     ← generic deterministic evidence-packaging primitive applicable to visual/release artifacts
 ```
 
-These relationships record engineering provenance, not dependency edges. PTL does not import these snippets at v1.0 documentation time.
+These relationships record engineering provenance, not dependency edges. PTL does not import these snippets in the current v1.0 documentation/release contract.
 
-## Extraction matrix
+## Current extraction/dependency matrix
 
-| PTL source / need | Reusable snippet or candidate | Current action |
+| PTL source / need | Independent reusable implementation | Current PTL dependency state |
 |---|---|---|
-| `codebase_stats.py` | `codebase-anatomy` | independently extracted; keep PTL release tool |
+| `codebase_stats.py` | `codebase-anatomy` | independently extracted; PTL still uses local release tool |
 | widget/top-level capture ideas from `visual_audit.py` | `app-screenshotter` | independently extracted; PTL harness remains canonical |
 | generic evidence ZIP/inventory need | `archive-bundler` | independently extracted; no PTL dependency migration |
-| release audit orchestration | `repro-gate` | candidate; PTL policy must remain configuration, not default truth |
-| `typing_audit.py` scanner | typing-suppression audit | candidate after policy/scanner separation is explicit |
-| font vendoring integrity flow | pinned-asset vendor | possible later extraction; current script strongly PTL-specific |
-| `i18n_audit.py` | generic catalog/source audit | do not extract until a non-PTL contract is defined |
+| release audit orchestration | none in the PTL dependency graph | local `release_gate.py` is authoritative |
+| `typing_audit.py` scanner/policy | none in the PTL dependency graph | local tool/policy is authoritative |
+| font vendoring integrity flow | none in the PTL dependency graph | local font-vendoring tool is authoritative |
+| `i18n_audit.py` | none in the PTL dependency graph | local localization audit is authoritative |
 
 ## Development invariant
 
-A successful extraction into `snippets` is **not** proof that PTL should depend on it immediately.
+A successful extraction into `snippets` is **not** proof that PTL should depend on it.
 
-During release stabilization, source-of-truth behavior remains the code and tests committed in this repository. Replacing a release-critical local tool with a shared snippet is an architectural/dependency change and must receive the same audit, tests and reproducibility evidence as any other release-critical modification.
+Source-of-truth release behavior remains the code and tests committed in this repository. Replacing a release-critical local tool with a shared implementation would be an architectural/dependency change and would need its own audit, tests and reproducibility evidence before it could become part of the PTL release contract.
 
-Conversely, PTL documentation should not describe an independently extracted snippet as part of PTL's release guarantee unless PTL actually imports/invokes that version and the migration is covered by tests. Provenance and dependency are different relationships.
+Conversely, PTL documentation must not describe an independently extracted snippet as part of PTL's release guarantee unless PTL actually imports/invokes that version and the relationship is covered by tests. Provenance and dependency are different relationships.
