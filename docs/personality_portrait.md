@@ -141,13 +141,13 @@ RESPONSE: INVALID: ...
 - whitespace схлопывается;
 - literal `<think>` / `</think>` удаляются;
 - пустой ответ превращается в диагностический marker;
-- длинный текст ограничивается примерно 120 символами.
+- итоговая строка сохраняется максимум в 120 символах; если она длиннее, PTL оставляет первые 119 символов и добавляет `…`.
 
 Следовательно:
 
 > `RAW_RESPONSE` в v1.0 — bounded diagnostic representation, а не lossless forensic capture полного generation output.
 
-Если исследованию нужны полные поколения, их надо сохранять отдельным механизмом.
+Текущий Tests/Analysis workflow не предоставляет отдельного lossless full-generation export для этого portrait protocol. Если исследованию нужен полный transcript, его надо сохранять отдельным внешним или специально реализованным capture-механизмом; нельзя считать `RAW_RESPONSE` таким архивом.
 
 ## Reverse scoring
 
