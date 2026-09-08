@@ -184,7 +184,7 @@ Major persisted areas include:
 
 The schema initializer is also responsible for compatibility additions for columns/tables introduced after the earliest schema shape. The current codebase therefore treats schema creation and limited in-place evolution as startup responsibilities.
 
-For table-level details, see the persistence specification later in the v1.0 documentation set.
+For the exact storage/transaction/schema boundaries, see [Persistence architecture](persistence.md).
 
 ## 8. Workspace filesystem
 
@@ -307,15 +307,15 @@ PTL's release policy treats the recorded Git tree as an execution input.
 
 Ignored/untracked runtime-affecting files under `src/`, `tests/`, or `tools/` are blocked by release-policy tests because an editable checkout must not silently execute code or assets that are absent from a clean clone or wheel.
 
-This policy exists because the final code audit found a real hidden-source failure mode. It is now part of the permanent regression contract.
+This is part of the current release-integrity regression contract.
 
 ## 17. What architecture documentation does not claim
 
-This document describes the audited v1.0 architecture and the operating contracts proven before the documentation phase.
+This document describes the current audited v1.0 architecture baseline.
 
-It does **not** claim that PTL has already completed the post-v1.0 stress campaign. The stress phase is intentionally a later engineering program intended to discover scale, duration, fault-injection, resource-exhaustion, and concurrency limits that may require significant new work.
+It does **not** claim completion of a separate adversarial/stress/falsification program covering extreme scale, duration, fault injection, resource exhaustion, or concurrency envelopes. Evidence from such a program is a distinct validation layer and must not be inferred from ordinary architecture documentation or a normal release-gate PASS.
 
-The v1.0 architecture is therefore a stable product baseline, not a claim of having explored every failure envelope.
+The v1.0 architecture is therefore a defined product baseline, not a claim that every possible failure envelope has already been explored.
 
 ## 18. Source landmarks
 
