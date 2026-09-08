@@ -4,7 +4,7 @@ This guide explains the stable v1.0 desktop shell before you begin a specific wo
 
 You do not need to understand PTL's internal architecture to use the interface. The goal of this page is spatial: know where navigation lives, where feature work happens, where PTL reports context and problems, and which workspace to open for a task.
 
-> The final v1.0 screenshot set will add a numbered full-window reference image to this page. The text below is written so the guide remains usable without that image.
+> This page is intentionally usable without screenshots. The final documentation capture pass should add a numbered full-window reference image from the reproducible visual-audit workflow.
 
 ## 1. The window at a glance
 
@@ -126,9 +126,9 @@ See [Agents & Lineage](agents-lineage.md) for gestures, history semantics, selec
 
 ### Datasets
 
-**Use Datasets when:** you need to import, validate, inspect, or manage dataset records/versions used by PTL workflows.
+**Use Datasets when:** you need to import, preview, validate, approve, or inspect Dataset records used by PTL workflows.
 
-Dataset persistence includes source path/format, validation counts, readiness information, linked profile information, and validation diagnostics.
+Dataset persistence includes source path/format, validation counts, readiness information, linked profile information, validation diagnostics, and the approval content fingerprint. The current v1.0 **Compare versions** action is unavailable; the workspace does not silently pretend to compare Dataset versions.
 
 See [Datasets](datasets.md) for supported import, validation, approval, and Training-eligibility behavior.
 
@@ -142,9 +142,9 @@ Inference/training Python dependencies are optional installation extras; the cor
 
 ### Snapshots
 
-**Use Snapshots when:** you need to inspect or work with persisted snapshot/version state exposed by the snapshot workflow.
+**Use Snapshots when:** you need to inspect the persisted `model_versions` registry, its Training lineage, and artifact references.
 
-Snapshots should be understood as explicit persistent product state, not as the same thing as copying the whole PTL workspace directory. Workspace backup/reset is documented separately.
+A v1.0 Snapshot is a read-only registry view of a model version. It is not a second immutable copy of model weights or a whole-workspace backup.
 
 See [Snapshots and model versions](snapshots.md) for the current registry, provenance, lifecycle projection, and reproducibility boundary.
 
@@ -160,9 +160,9 @@ See [Tests and Analysis](tests-and-analysis.md) for the current evaluation workf
 
 ### Analysis
 
-**Use Analysis when:** you need to inspect stored analysis/evaluation results and comparisons.
+**Use Analysis when:** you need to inspect calculations and comparisons derived from persisted evaluation results.
 
-The analysis persistence model includes left/right comparison fields, deltas, insights, and example output comparisons.
+The primary v1.0 Analysis path reads saved `experiments` portrait payloads and derives factor KPI values and protocol-guarded comparisons without running new inference. A separate `analysis_results` repository remains as compatibility/fallback infrastructure; its existence does not mean every current Analysis render persists a new analysis row.
 
 The Tests and Analysis workspaces share one documented evaluation contract; use [Tests and Analysis](tests-and-analysis.md) for the user workflow and [Evaluation contract](../reference/evaluation-contract.md) for machine-level semantics.
 
@@ -244,7 +244,7 @@ Machine-oriented strings such as IDs, paths, model names, key combinations, and 
 
 The shell has a minimum supported window geometry and density-aware default sizing. Docks are rebalanced after visibility/floating changes.
 
-If you make the window unusually narrow, feature workspaces may become more constrained. The post-v1.0 stress program will explore additional extreme geometry envelopes; v1.0 documentation describes the audited normal operating UI rather than claiming every pathological dimension is equally usable.
+If you make the window unusually narrow, feature workspaces may become more constrained. A separate adversarial/stress phase can probe additional extreme geometry envelopes; this guide documents the audited normal operating UI and does not claim that every pathological dimension is equally usable.
 
 ## 12. A safe first exploration
 
@@ -262,14 +262,14 @@ This gives you a mental map of PTL without starting a long-running or destructiv
 
 ## 13. Screenshot reference plan for v1.0
 
-During the final documentation capture session this page will receive a reproducible visual set captured from a clean demo workspace:
+The final documentation capture pass should include a reproducible visual set from a clean demo workspace:
 
 1. **Full shell overview** — numbered callouts for Sidebar, Workspace, Inspector, lower docks, Status bar.
 2. **Sidebar close-up** — navigation, Panels control, appearance/scale controls, active-workflow area.
 3. **Dock controls** — Inspector plus Activity/Telemetry/Issues tabs.
 4. **Arabic shell reference** — demonstrates RTL text with stable shell geometry.
 
-The screenshots will be captured from a recorded commit and documented UI state so they remain auditable documentation assets rather than arbitrary development screenshots.
+Use `tools/visual_audit.py` for reproducible automatic/interactive capture and retain the recorded commit, locale, theme, scale, geometry, and demo-workspace state with published screenshots.
 
 ## Next steps
 
@@ -278,3 +278,4 @@ The screenshots will be captured from a recorded commit and documented UI state 
 - Data location and reset/backup behavior: [Workspace & Storage](../operations/workspace-and-storage.md)
 - Stable-release promises and boundaries: [v1.0 Product Contract](../reference/v1-product-contract.md)
 - Internal system map: [Architecture Overview](../architecture/overview.md)
+- Reproducible screenshot capture: [Visual audit](../development/visual-audit.md)
