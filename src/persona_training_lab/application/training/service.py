@@ -384,6 +384,7 @@ class TrainingService:
                     entity_kind="training_run",
                     entity_id=run_id,
                     context={"blockers": [item.message for item in conflict.blockers]},
+                    user_message=UserMessage("training.message.resource_busy"),
                 )
             return ActionResult(
                 False,
