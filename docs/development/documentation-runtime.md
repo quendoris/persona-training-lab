@@ -110,7 +110,7 @@ Consequences:
 - repository Markdown remains readable as source text but is not presented as a browser-like rendered document;
 - link navigation inside the body is not implied by the current screen implementation.
 
-A future Markdown renderer would be a user-visible behavior change, not a documentation-only correction.
+Changing this surface to rendered Markdown/HTML would be a user-visible behavior and safety-contract change, not a documentation-only correction.
 
 ## Documentation root resolution
 
@@ -275,7 +275,7 @@ The runtime Docs workspace currently does not claim:
 - equivalence with the complete canonical `docs/README.md` navigation tree;
 - independent versioning of individual bundled documents.
 
-These are current implementation limits, not statements about what the product may support later.
+These are current implementation limits and should be documented as such rather than implied features.
 
 ## Related documentation
 
