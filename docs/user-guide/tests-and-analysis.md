@@ -137,11 +137,9 @@ The `R` suffix is a human-readable convention in the current keys; the actual sc
 
 The current battery statements and user prompt used by the evaluation service are written in Russian.
 
-The PTL interface itself can be localized independently. Changing the UI locale does not translate the questionnaire battery at runtime.
+The PTL interface itself can be localized independently. Changing the UI locale does not translate or rewrite the questionnaire battery at runtime.
 
-This is intentional protocol stability: two runs should not become different experiments merely because the shell language changed.
-
-If a future battery uses another language, it should receive a distinct versioned protocol identity rather than silently replacing the content of `big_five_short_v1`.
+Battery language/content is part of the protocol meaning. If that content changes, the protocol version discipline in the [Evaluation contract](../reference/evaluation-contract.md) requires a new battery and/or scoring identity as appropriate rather than silently reusing `big_five_short_v1`.
 
 ## 8. What the model is asked to return
 
@@ -236,7 +234,7 @@ Before persistence PTL:
 
 The local generator itself is currently limited to 24 new tokens, so the preview is often sufficient for questionnaire debugging. It must nevertheless not be described as archival storage of the complete raw generation.
 
-If complete raw generations are required for a publication protocol, store them through a dedicated future provenance/export path rather than assuming this field is lossless.
+PTL v1.0 does not provide lossless full-generation provenance through this field. If a publication protocol requires complete generations, preserve them through an explicitly designed additional capture/export mechanism rather than treating `RAW_RESPONSE` as lossless evidence.
 
 ## 12. What is persisted for each case
 
@@ -524,7 +522,7 @@ If either exact version has no portrait, Analysis reports the missing version an
 
 If both exist but their protocol identities differ, the exact comparison is also blocked.
 
-The intended workflow is:
+The exact comparison workflow is:
 
 1. Select the first model version in lineage.
 2. Open Tests for that version and build its portrait.
@@ -736,7 +734,7 @@ Required Analysis captures:
 5. protocol-mismatch state with delta blocked;
 6. factor/case details visible at a readable scale.
 
-Each screenshot should record:
+Use [`tools/visual_audit.py`](../development/visual-audit.md) automatic/interactive capture from a clean demo workspace. For each published screenshot retain:
 
 ```text
 commit
@@ -747,7 +745,7 @@ scale/density
 demo workspace state
 ```
 
-Do not use mock screenshots to imply behavior that the current application does not implement.
+Do not use mock screenshots to imply behavior that the current application does not implement, and inspect capture metadata/output for sensitive workspace-derived data before publication.
 
 ## 34. Where to go next
 
