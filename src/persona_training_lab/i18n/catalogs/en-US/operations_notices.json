@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "en-US",
+    "fragment": "operations_notices"
+  },
+  "messages": {
+    "operations.notice.recovered_abandoned": "Recovered abandoned operations from the previous PTL process: {count}."
+  }
+}
