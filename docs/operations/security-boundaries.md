@@ -24,7 +24,7 @@ For operational failures and evidence handling, read [Troubleshooting & Diagnost
 | Automation authorization | Ad-hoc host commands require explicit host-effect authorization | Authorization does not reduce child privileges |
 | Automation audit | Records structured execution metadata | Audit is not prevention/rollback and not a secret vault |
 | Process containment | Owns/terminates ordinary descendant process trees | Containment is not filesystem/network isolation |
-| Error context redaction | Redacts selected top-level structured-context key names | Exception text/traceback and arbitrary nested data are not comprehensively secret-scrubbed |
+| Error context redaction | Recursively redacts selected sensitive structured-context key names through bounded mappings/collections | Exception text/traceback and arbitrary values are not comprehensively secret-scrubbed |
 | Release gate | Binds validation evidence to a clean recorded source state | Green validation is not formal proof against every vulnerability |
 
 Keep these concepts separate. Most dangerous overclaims come from treating one narrow boundary as if it provided another.
@@ -139,9 +139,15 @@ Diagnostics can contain component names, IDs, exception type/message, bounded tr
 
 Review log excerpts before sharing them.
 
-## 11. Structured context redaction is narrow and top-level
+## 11. Structured context redaction is recursive but key-name based
 
-`ApplicationErrorReporter._safe_context(...)` currently redacts a value when its **top-level context key name** contains one of:
+`ApplicationErrorReporter._safe_context(...)` recursively walks structured mappings and common collection containers before persistence/logging. When a mapping key name contains one of the current sensitive tokens, its value is replaced with:
+
+```text
+<redacted>
+```
+
+Current key-name tokens are:
 
 ```text
 password
@@ -149,17 +155,18 @@ secret
 token
 api_key
 key_material
+authorization
+cookie
+credential
+private_key
+access_key
 ```
 
-The replacement is:
+The traversal is bounded to avoid pathological diagnostic structures. Revisited cyclic containers are represented by a cycle marker and over-deep structures by a truncation marker rather than allowing diagnostic serialization to recurse indefinitely.
 
-```text
-<redacted>
-```
+The filter is still **key-name based**. It does not inspect arbitrary string values for credential-like content. A password placed under an innocuous key such as `value` can therefore still be logged.
 
-The current implementation does not recursively walk nested mappings/lists looking for secret-like child keys.
-
-Do not describe this as a general secret scanner.
+Do not describe this as a general secret scanner or data-loss-prevention system.
 
 ## 12. Exception messages and tracebacks bypass that key-name filter
 
@@ -172,7 +179,7 @@ traceback = bounded traceback tail
 
 separately from the structured-context redactor.
 
-If exception text contains credentials, private prompts/data, paths, command fragments, or other sensitive material, the top-level context-key filter does not remove it.
+If exception text contains credentials, private prompts/data, paths, command fragments, or other sensitive material, the structured key-name filter does not remove it.
 
 Therefore:
 
@@ -736,7 +743,7 @@ Security-sensitive changes must preserve these rules unless the product contract
 8. hidden ignored runtime-affecting inputs do not become release dependencies;
 9. Dataset/Profile hashes are described only for their implemented integrity identities;
 10. base-model path identity is not documented as complete content-addressed provenance;
-11. redaction claims do not exceed the exact structured fields/key levels passed through `_safe_context`;
+11. redaction claims do not exceed the recursive bounded key-name filtering applied by `_safe_context`; exception messages, tracebacks and arbitrary non-key content remain outside that guarantee;
 12. process containment is not described as filesystem/network isolation;
 13. workspace, QSettings, key-binding and backup confidentiality are not implied without encryption;
 14. recipe validation/version fields are not described as cryptographic signatures;
