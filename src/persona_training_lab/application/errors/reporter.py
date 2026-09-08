@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -13,6 +14,21 @@ from uuid import uuid4
 
 from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.ports.event_log import EventLogPort, EventRecord
+
+
+_SENSITIVE_CONTEXT_TOKENS = (
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "key_material",
+    "authorization",
+    "cookie",
+    "credential",
+    "private_key",
+    "access_key",
+)
+_MAX_CONTEXT_DEPTH = 8
 
 
 @dataclass(slots=True, frozen=True)
@@ -200,22 +216,69 @@ class ApplicationErrorReporter:
             "values": cls._safe_context(message.values),
         }
 
-    @staticmethod
-    def _safe_context(context: Mapping[str, Any] | None) -> dict[str, Any]:
+    @classmethod
+    def _safe_context(cls, context: Mapping[str, Any] | None) -> dict[str, Any]:
         if not context:
             return {}
-        result: dict[str, Any] = {}
-        for key, value in context.items():
-            clean_key = str(key)
-            if any(
-                token in clean_key.casefold()
-                for token in ("password", "secret", "token", "api_key", "key_material")
-            ):
-                result[clean_key] = "<redacted>"
-                continue
+        value = cls._safe_value(context, depth=0, seen=set())
+        return value if isinstance(value, dict) else {}
+
+    @classmethod
+    def _safe_value(
+        cls,
+        value: Any,
+        *,
+        depth: int,
+        seen: set[int],
+    ) -> Any:
+        if depth >= _MAX_CONTEXT_DEPTH:
+            return "<truncated>"
+
+        if isinstance(value, MappingABC):
+            identity = id(value)
+            if identity in seen:
+                return "<cycle>"
+            seen.add(identity)
             try:
-                json.dumps(value, default=str)
-                result[clean_key] = value
-            except Exception:
-                result[clean_key] = repr(value)
-        return result
+                result: dict[str, Any] = {}
+                for key, child in value.items():
+                    clean_key = str(key)
+                    if cls._is_sensitive_context_key(clean_key):
+                        result[clean_key] = "<redacted>"
+                    else:
+                        result[clean_key] = cls._safe_value(
+                            child,
+                            depth=depth + 1,
+                            seen=seen,
+                        )
+                return result
+            finally:
+                seen.remove(identity)
+
+        if isinstance(value, (list, tuple, set, frozenset)):
+            identity = id(value)
+            if identity in seen:
+                return "<cycle>"
+            seen.add(identity)
+            try:
+                return [
+                    cls._safe_value(
+                        child,
+                        depth=depth + 1,
+                        seen=seen,
+                    )
+                    for child in value
+                ]
+            finally:
+                seen.remove(identity)
+
+        try:
+            json.dumps(value, default=str)
+            return value
+        except Exception:
+            return repr(value)
+
+    @staticmethod
+    def _is_sensitive_context_key(key: str) -> bool:
+        folded = key.casefold()
+        return any(token in folded for token in _SENSITIVE_CONTEXT_TOKENS)
