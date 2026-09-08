@@ -437,6 +437,7 @@ Screenshots should be captured from a clean documented demo workspace and record
 
 - Prepare data: [Datasets](datasets.md)
 - Understand personality input: [Profiles](profiles.md)
+- Inspect the registered output/version lineage: [Snapshots and model versions](snapshots.md)
+- Evaluate the trained version: [Tests and Analysis](tests-and-analysis.md)
 - Read the exact technical contract: [Training pipeline specification](../training_pipeline.md)
 - Understand storage/backup: [Workspace & Storage](../operations/workspace-and-storage.md)
-- Continue into model versions, Snapshots, Tests, and Analysis as those v1.0 guides are completed.
