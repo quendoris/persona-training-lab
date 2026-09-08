@@ -299,7 +299,7 @@ They are not two independent registries.
 
 ## 17. Relationship to Tests and Analysis
 
-The current intended progression is:
+The normal workflow progression is:
 
 ```text
 Training completed
@@ -339,7 +339,7 @@ Use the Training → publication flow as the supported creation path.
 
 ## 20. Screenshot plan for v1.0
 
-The final documentation capture session should include:
+The final documentation capture pass should include:
 
 1. empty Snapshots registry before any completed Training artifact exists;
 2. registry containing a newly registered model version;
@@ -349,11 +349,12 @@ The final documentation capture session should include:
 6. the same model version visible in Training's personality-version area;
 7. a documented missing-artifact example only if it can be produced safely in a disposable demo workspace.
 
-Screenshots should use the normal reproducible documentation capture metadata: commit, locale, theme, scale, and demo-workspace state.
+Use the reproducible visual-audit workflow and record commit, locale, theme, scale, and demo-workspace state for published captures.
 
 ## Next steps
 
 - Understand how the version was produced: [Training](training.md)
 - Inspect the exact Training provenance contract: [Training pipeline specification](../training_pipeline.md)
 - Preserve database + artifact state correctly: [Workspace & Storage](../operations/workspace-and-storage.md)
-- Continue to Tests/Evaluation, then Analysis, once those v1.0 guides are completed.
+- Run and interpret model evaluation: [Tests and Analysis](tests-and-analysis.md)
+- Audit score/comparison semantics: [Evaluation contract](../reference/evaluation-contract.md)
