@@ -24,6 +24,12 @@ _CONTEXT_CHECK_COUNTS: dict[str, int] = {
     "docs": 3,
     "default": 3,
 }
+_CONTEXT_STATUS_KEYS: dict[str, str] = {
+    # The runtime Documentation workspace displays read-only Markdown source;
+    # reuse its own accurate content description instead of the historical
+    # inspector wording that described the body as rendered Markdown.
+    "docs": "docs.card.content.subtitle",
+}
 INSPECTOR_CONTEXT_IDS = tuple(_CONTEXT_CHECK_COUNTS)
 
 
@@ -122,7 +128,11 @@ class InspectorPanel(QFrame):
         context_id = self._current_screen
         prefix = f"inspector.context.{context_id}"
         self._title.setText(self._text(f"{prefix}.title"))
-        self._status.setText(self._text(f"{prefix}.status"))
+        status_key = _CONTEXT_STATUS_KEYS.get(
+            context_id,
+            f"{prefix}.status",
+        )
+        self._status.setText(self._text(status_key))
         self._next.setText(
             self._text(
                 "inspector.next_step",
