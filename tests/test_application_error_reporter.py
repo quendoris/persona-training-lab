@@ -47,6 +47,38 @@ def test_capture_returns_safe_user_reference_and_structured_event() -> None:
     assert payload["exception_type"] == "RuntimeError"
     assert payload["context"]["token"] == "<redacted>"
     assert payload["context"]["epoch"] == 2
+    assert payload["user_message"] == {
+        "key": "error.python.worker_thread",
+        "values": {},
+    }
+
+
+def test_report_message_can_persist_a_semantic_user_message() -> None:
+    events = _MemoryEventLog()
+    reporter = ApplicationErrorReporter(events)
+    message = UserMessage(
+        "operations.notice.recovered_abandoned",
+        {"count": 2},
+    )
+
+    correlation = reporter.report_message(
+        "runtime_operations_recovered",
+        component="bootstrap.runtime_recovery",
+        level="WARNING",
+        entity_kind="runtime",
+        entity_id="startup",
+        context={"abandoned_operations": 2},
+        user_message=message,
+    )
+
+    assert correlation.startswith("corr_")
+    assert len(events.records) == 1
+    payload = json.loads(events.records[0].payload_json)
+    assert payload["message"] == "runtime_operations_recovered"
+    assert payload["user_message"] == {
+        "key": "operations.notice.recovered_abandoned",
+        "values": {"count": 2},
+    }
 
 
 def test_duplicate_error_does_not_flood_event_storage() -> None:
