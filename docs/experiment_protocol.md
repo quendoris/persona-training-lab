@@ -218,7 +218,7 @@ VALID_SCORE: 1
 
 Перед persistence строка очищается/схлопывается и ограничивается по длине. Она полезна как bounded diagnostic evidence для короткого `SCORE` protocol, но не как полный forensic record.
 
-Если исследованию нужны полные generations, сохраняйте их отдельным versioned capture/export механизмом.
+Текущий Tests/Analysis workflow не предоставляет встроенный lossless full-generation export для portrait cases. Если исследованию нужны полные generations, сохраняйте их внешним исследовательским capture-процессом либо добавляйте отдельный versioned capture/export contract; не считайте существующий `RAW_RESPONSE` таким механизмом.
 
 ## 13. Generation/environment provenance
 
