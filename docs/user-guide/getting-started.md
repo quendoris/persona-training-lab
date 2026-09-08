@@ -44,7 +44,7 @@ Run:
 uv run --locked python -m persona_training_lab.bootstrap.app
 ```
 
-The current source distribution uses the Python module entry point. Installer/package launchers are finalized during the v1.0 packaging phase.
+This is the documented source-checkout entry point. The current `pyproject.toml` does not declare a `persona-training-lab` console script, and the repository does not define a native Windows/macOS/Linux installer layer.
 
 ## 3. Understand the workspace
 
@@ -107,11 +107,11 @@ The left sidebar is the primary workspace navigator. PTL currently exposes these
 | Dashboard | Overview of the current workspace and operational state |
 | Profiles | Create and manage personality profiles |
 | Agents | Inspect lineage/version relationships and use history/branch interactions |
-| Datasets | Import, validate, inspect, and version datasets |
-| Training | Check local-model readiness and work with training runs/model versions |
-| Snapshots | Work with persisted snapshots |
-| Tests | Run and inspect test/evaluation workflows |
-| Analysis | Inspect analysis results and related stored data |
+| Datasets | Import, preview, validate, and approve Dataset sources |
+| Training | Check local-model readiness and work with Training runs/model versions |
+| Snapshots | Inspect the persisted model-version registry, lineage, and artifact references |
+| Tests | Run and inspect model evaluation workflows |
+| Analysis | Inspect persisted evaluation-derived analysis and protocol-compatible comparisons |
 | Style | Change theme, accent, UI scale, and interface language |
 | Automation | Configure and run controlled automation commands/recipes |
 | Documentation | Read documentation from inside PTL |
@@ -162,6 +162,6 @@ The release gate requires a clean Git worktree and also checks for ignored runti
 
 ## Next steps
 
-Return to the [Documentation Hub](../README.md) for the evolving v1.0 guide and reference set.
+Return to the [Documentation Hub](../README.md) for the canonical v1.0 guide and reference set.
 
 Before relying on PTL for an advanced workflow, read the [v1.0 Product Contract](../reference/v1-product-contract.md) so the release guarantees and deliberate non-goals are clear.
