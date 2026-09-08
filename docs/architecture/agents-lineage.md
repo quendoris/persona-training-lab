@@ -572,7 +572,7 @@ Local branch deletion is not an artifact garbage collector.
 
 Deleting a custom branch does not delete the registered model-version row or physical model artifact that may be linked to it.
 
-Transactional artifact deletion would require separate storage semantics such as dependency validation, quarantine/trash, rollback, and eventual garbage collection.
+The current storage/runtime contract does not provide transactional artifact deletion with dependency validation, quarantine/trash, rollback, and garbage collection. Therefore no such destructive artifact behavior is implied by Agents branch deletion.
 
 ## 27. Persistence and backup boundary
 
@@ -618,9 +618,9 @@ The audited v1.0 architecture deliberately does not claim:
 - that a visible label is unique identity;
 - that protocol-incompatible portraits can produce a valid exact Delta;
 - that background refresh never fails;
-- post-v1.0 stress/soak qualification of extreme interaction rates.
+- stress/soak qualification of extreme interaction rates beyond separately recorded evidence.
 
-SQLite runtime leases cover coordinated local processes using the same persistence model, not a distributed cluster.
+SQLite runtime leases cover coordinated local processes using the same persistence model, not a distributed cluster. Separate adversarial/stress/falsification evidence must not be inferred from this architecture contract alone.
 
 ## 30. Release/audit expectations
 
