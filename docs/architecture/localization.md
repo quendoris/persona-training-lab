@@ -368,7 +368,32 @@ UI localization therefore must not be interpreted as silently translating the sc
 
 Battery/scoring identity and comparison rules are documented in the [Evaluation contract](../reference/evaluation-contract.md).
 
-## 16. Current invariants
+## 16. Structured operational messages
+
+Activity and Issues can display durable structured application events from `event_log`. Those rows are a presentation surface even though the underlying event also carries diagnostic data.
+
+Current error/notice reporting can therefore persist an optional semantic `UserMessage` reference alongside the raw diagnostic fields:
+
+```text
+user_message.key
+user_message.values
+```
+
+`OperationsCenterService` preserves that semantic reference in the projected item, and the panel localization boundary renders it against the **current** application locale. Diagnostic identity such as `error_id`/`correlation_id` remains separate from the translated sentence.
+
+This matters for startup/runtime notices: application code must not persist a source-language sentence merely because the event is first created before the UI is visible. The orphaned-runtime-operation recovery notice, for example, persists a machine diagnostic plus:
+
+```text
+operations.notice.recovered_abandoned
+```
+
+with structured `count`, so the same persisted notice can render in Arabic, English, Spanish, or Russian after the shell opens or the locale changes.
+
+Historical or externally produced events can lack a semantic message reference. In that compatibility case the Operations Center can still show the stored diagnostic summary. Likewise, if a persisted semantic key is invalid or no longer renderable, the panel falls back to the diagnostic summary instead of allowing one malformed event row to break the panel.
+
+Raw exception text, Qt diagnostics, paths, IDs, component names, and other machine/diagnostic material are not automatically translated. The semantic user-facing message and the diagnostic evidence are deliberately separate layers.
+
+## 17. Current invariants
 
 The v1.0 localization contract includes:
 
@@ -381,9 +406,11 @@ The v1.0 localization contract includes:
 7. machine-oriented/path/ID text can remain LTR inside Arabic mode;
 8. Qt base translations and PTL application catalogs are separate translation layers;
 9. persisted machine status/result identifiers are not replaced by translated labels;
-10. UI locale changes do not rewrite the in-app Markdown body or evaluation battery content.
+10. user-facing operational notices can persist semantic message identity separately from raw diagnostic text;
+11. malformed/legacy event-message metadata does not remove the diagnostic fallback;
+12. UI locale changes do not rewrite the in-app Markdown body or evaluation battery content.
 
-## 17. Validation boundaries
+## 18. Validation boundaries
 
 A passing catalog/i18n audit proves catalog/reference/source-literal properties checked by that tool. It does not by itself prove:
 
