@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from persona_training_lab.application.operations_center import OperationsCenterItem
+from persona_training_lab.i18n.catalog import CatalogValidationError
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import render_user_message, text
 
@@ -65,7 +66,10 @@ def item_summary(
     if not item.operation_kind:
         if item.user_message is None:
             return item.summary
-        summary = render_user_message(localization, item.user_message)
+        try:
+            summary = render_user_message(localization, item.user_message)
+        except (CatalogValidationError, TypeError, ValueError):
+            return item.summary
         suffix = " · ".join(
             value
             for value in (item.error_id, item.correlation_id)
