@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.operations_center import OperationsCenterService
 from persona_training_lab.application.ports.event_log import EventRecord
 from persona_training_lab.application.runtime.operations import RuntimeOperation
@@ -167,6 +168,43 @@ def test_warning_and_error_events_appear_in_problems() -> None:
     assert issues[0].summary == "diagnostic · corr_evt_warning"
     assert issues[1].title == "application.error · training.backend"
     assert all(item.focus_text == "" for item in issues)
+
+
+def test_semantic_event_message_survives_operations_projection() -> None:
+    event = EventRecord(
+        id="evt_recovery",
+        event_type="application.notice",
+        entity_kind="runtime",
+        entity_id="startup",
+        correlation_id="corr_recovery",
+        causation_id=None,
+        payload_json=json.dumps(
+            {
+                "component": "bootstrap.runtime_recovery",
+                "level": "WARNING",
+                "message": "runtime_operations_recovered",
+                "correlation_id": "corr_recovery",
+                "user_message": {
+                    "key": "operations.notice.recovered_abandoned",
+                    "values": {"count": 2},
+                },
+            }
+        ),
+        occurred_at="2026-08-04T11:30:00+00:00",
+    )
+    service = OperationsCenterService(
+        event_log=_EventLog((event,)),
+        runtime_operations=_Operations(),
+    )
+
+    item = service.issue_items()[0]
+
+    assert item.summary == "runtime_operations_recovered · corr_recovery"
+    assert item.correlation_id == "corr_recovery"
+    assert item.user_message == UserMessage(
+        "operations.notice.recovered_abandoned",
+        {"count": 2},
+    )
 
 
 def test_recent_activity_is_sorted_and_deduplicated() -> None:
