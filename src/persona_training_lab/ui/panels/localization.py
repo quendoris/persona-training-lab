@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from persona_training_lab.application.operations_center import OperationsCenterItem
 from persona_training_lab.ui.i18n.manager import LocalizationManager
-from persona_training_lab.ui.i18n.text import text
+from persona_training_lab.ui.i18n.text import render_user_message, text
 
 
 _OPERATION_KIND_KEYS: dict[str, str] = {
@@ -63,7 +63,15 @@ def item_summary(
     localization: LocalizationManager | None,
 ) -> str:
     if not item.operation_kind:
-        return item.summary
+        if item.user_message is None:
+            return item.summary
+        summary = render_user_message(localization, item.user_message)
+        suffix = " · ".join(
+            value
+            for value in (item.error_id, item.correlation_id)
+            if value
+        )
+        return f"{summary} · {suffix}" if suffix else summary
     state = item_status(item, localization)
     summary = text(
         localization,
