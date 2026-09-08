@@ -276,6 +276,7 @@ class ExperimentsService:
                             for blocker in conflict.blockers
                         ],
                     },
+                    user_message=UserMessage("tests.message.resource_busy"),
                 )
             return experiment_result(
                 False,
