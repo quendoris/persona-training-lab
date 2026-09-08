@@ -49,6 +49,7 @@ tests/test_experiments_connector.py
 tests/test_experiments_i18n.py
 tests/test_experiments_selected_model.py
 tests/test_portrait_semantic_contracts.py
+tests/test_resource_busy_semantic_notices.py
 tests/test_key_binding_manager.py
 tests/test_key_binding_draft_session.py
 tests/test_key_bindings_direct_capture.py
