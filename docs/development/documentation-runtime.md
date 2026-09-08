@@ -7,6 +7,8 @@ Persona Training Lab has two related but distinct documentation surfaces:
 
 They share source files, but they are **not equivalent navigation surfaces**. This distinction is part of the current v1.0 behavior and must not be collapsed into the claim that every canonical document is automatically exposed inside the application.
 
+For the user-facing workflow and troubleshooting behavior, see [Documentation Workspace](../user-guide/documentation.md). This document owns the implementation/packaging contract behind that surface.
+
 ## Canonical documentation vs runtime topics
 
 `docs/README.md` is the canonical documentation home and indexes the current user/operator/architecture/reference/development set.
@@ -260,7 +262,7 @@ tests/test_docs_service.py
 tests/test_docs_i18n.py
 ```
 
-If runtime rendering changes from plain text to Markdown/HTML, update screen behavior, safety assumptions, tests and documentation in the same change.
+If runtime rendering changes from plain text to Markdown/HTML, update screen behavior, safety assumptions, tests and both the developer/user documentation in the same change.
 
 ## Current non-goals / limits
 
@@ -274,3 +276,10 @@ The runtime Docs workspace currently does not claim:
 - independent versioning of individual bundled documents.
 
 These are current implementation limits, not statements about what the product may support later.
+
+## Related documentation
+
+- [Documentation Workspace](../user-guide/documentation.md)
+- [Interface Tour](../user-guide/interface-tour.md)
+- [Packaging](packaging.md)
+- [Release Process](release-process.md)
