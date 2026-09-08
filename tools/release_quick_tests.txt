@@ -9,6 +9,7 @@ tests/test_typing_audit.py
 tests/test_release_gate_policy.py
 tests/test_sidebar_i18n.py
 tests/test_operations_center_i18n.py
+tests/test_operations_center_semantic_events.py
 tests/test_operations_center_service.py
 tests/test_dashboard_viewmodel.py
 tests/test_dashboard_i18n.py
