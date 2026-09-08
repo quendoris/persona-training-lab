@@ -51,6 +51,29 @@ class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
         )
 
 
+class _RecordingTokenizer:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, str]] | None = None
+        self.kwargs: dict[str, object] = {}
+
+    def apply_chat_template(self, messages, **kwargs):
+        self.messages = list(messages)
+        self.kwargs = dict(kwargs)
+        return {"input_ids": "chat"}
+
+
+class _FallbackTokenizer:
+    def __init__(self) -> None:
+        self.prompt = ""
+
+    def apply_chat_template(self, _messages, **_kwargs):
+        raise RuntimeError("chat template unavailable")
+
+    def __call__(self, prompt: str, **_kwargs):
+        self.prompt = prompt
+        return {"input_ids": "plain"}
+
+
 def test_local_model_probe_missing_path(tmp_path: Path) -> None:
     provider = FilesystemLocalModelProbeProvider()
     workspace = tmp_path / "workspace"
@@ -170,6 +193,39 @@ def build(raw_details):
         ("LocalModelDiagnostic code", "Красивый код"),
         ("local_model_diagnostic code", "Плохой код"),
     }
+
+
+def test_local_model_prompt_without_instruction_has_no_implicit_system_message() -> None:
+    provider = FilesystemLocalModelProbeProvider()
+    tokenizer = _RecordingTokenizer()
+
+    encoded = provider._encode_prompt(tokenizer, "PING", None)
+
+    assert encoded == {"input_ids": "chat"}
+    assert tokenizer.messages == [{"role": "user", "content": "PING"}]
+    assert tokenizer.kwargs["enable_thinking"] is False
+
+
+def test_local_model_explicit_instruction_is_preserved_as_system_message() -> None:
+    provider = FilesystemLocalModelProbeProvider()
+    tokenizer = _RecordingTokenizer()
+
+    provider._encode_prompt(tokenizer, "PING", "Return exactly: PONG")
+
+    assert tokenizer.messages == [
+        {"role": "system", "content": "Return exactly: PONG"},
+        {"role": "user", "content": "PING"},
+    ]
+
+
+def test_local_model_plain_fallback_does_not_invent_system_instruction() -> None:
+    provider = FilesystemLocalModelProbeProvider()
+    tokenizer = _FallbackTokenizer()
+
+    encoded = provider._encode_prompt(tokenizer, "PING", "  ")
+
+    assert encoded == {"input_ids": "plain"}
+    assert tokenizer.prompt == "User: PING\nAssistant:"
 
 
 def test_local_model_inference_backend_missing() -> None:
