@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "schema": 1,
+    "locale": "ru-RU",
+    "fragment": "operations_notices"
+  },
+  "messages": {
+    "operations.notice.recovered_abandoned": "Освобождено зависших операций после предыдущего процесса PTL: {count}."
+  }
+}
