@@ -86,10 +86,12 @@ A new run ID is `trn_<8 hexadecimal characters>`.
 - `learning_rate > 0`;
 - the selected Profile exists and renders a non-empty Training instruction;
 - the selected Dataset exists;
-- the Dataset status normalizes to `approved`;
+- the Dataset status normalizes to `DatasetVersionStatus.APPROVED`, whose canonical machine value is `approved_for_training`;
 - the Dataset has a non-empty `content_sha256` recorded by approval;
 - a local-model service is configured;
 - the resolved model path passes the local model-file probe.
+
+The Dataset status normalizer accepts compatibility aliases such as `approved`, but the canonical persisted/readiness spelling documented for current v1.0 data is `approved_for_training`.
 
 A successful run is stored as `ready`.
 
