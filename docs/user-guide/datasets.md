@@ -19,7 +19,7 @@ Validated
     ↓
 Explicit Approve
     ↓
-Approved + content SHA-256
+Approved for Training + content SHA-256
     ↓
 Eligible for Training run creation
 ```
@@ -197,12 +197,15 @@ Approval is an explicit authorization step, not a label toggle.
 
 When you choose **Approve**, PTL validates the current source file again. Approval succeeds only if that fresh validation result is `validated`.
 
-A successful approval persists:
+A successful approval persists the canonical Dataset/readiness state:
 
 ```text
-status = approved
+status = approved_for_training
+readiness = approved_for_training
 content_sha256 = SHA256(current source bytes)
 ```
+
+The enum member used by the code is named `APPROVED`, but its machine value is **`approved_for_training`**. Documentation, logs, migrations, database inspection and integrations should use the persisted machine value when exact status spelling matters.
 
 This hash is the **approval fingerprint** for the current external JSONL content.
 
@@ -287,6 +290,8 @@ Dataset metadata is stored in the SQLite `datasets` table, including:
 
 The source JSONL itself remains filesystem input at the stored path.
 
+For the exact canonical Dataset status/readiness strings, see [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md).
+
 ## 16. Backup implications
 
 A complete PTL workspace backup does **not** automatically include Dataset sources located outside the workspace.
@@ -315,7 +320,7 @@ Then import, preview, Validate, verify counts, and Approve it. Once the flow is 
 
 ## 18. Screenshot plan for v1.0
 
-The final capture pass should include the workspace overview, add-file dialog, successful validation, a failed validation example, and the approved state.
+The final capture pass should include the workspace overview, add-file dialog, successful validation, a failed validation example, and the approved-for-Training state.
 
 The demo source should be deterministic so the walkthrough can be reproduced.
 
@@ -323,5 +328,6 @@ The demo source should be deterministic so the walkthrough can be reproduced.
 
 - Define personality intent: [Profiles](profiles.md)
 - Run a fine-tune: [Training](training.md)
+- Understand exact machine states: [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md)
 - Understand file/database ownership: [Workspace & Storage](../operations/workspace-and-storage.md)
 - Learn the shell: [Interface Tour](interface-tour.md)
