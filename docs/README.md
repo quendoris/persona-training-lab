@@ -21,6 +21,7 @@ Begin with:
 - [Automation](user-guide/automation.md) — run trusted recipes/ad-hoc commands, understand authorization, runtime claims, timeout/cancel, bounded output, process containment, and audit/privacy boundaries.
 - [Appearance & Language](user-guide/appearance-and-language.md) — themes, accents, custom accent behavior, live UI scale, locale switching, RTL text-direction policy, and persistence.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — edit application navigation and Agents graph bindings, understand draft conflicts, persistence, reset, and current shortcut coverage.
+- [Documentation Workspace](user-guide/documentation.md) — use the in-app five-topic documentation subset, understand plain-Markdown display, locale behavior, bundled/source resolution, and its boundary from the complete canonical docs tree.
 - [v1.0 Product Contract](reference/v1-product-contract.md) — stable-release guarantees, trust/integrity boundaries, explicit non-goals.
 
 ### I operate or troubleshoot PTL
@@ -33,6 +34,7 @@ Start with:
 - [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency/presentation-state preservation, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
 - [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — user-home binding storage, conflict recovery, direct capture, reset semantics, and live shell shortcut synchronization.
+- [Documentation Workspace](user-guide/documentation.md) — distinguish a missing registered runtime topic from the normal absence of unregistered canonical documents in the in-app subset.
 - [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) — canonical states, action/diagnostic codes, event families, schema markers, ID shapes, and compatibility aliases.
 - [Agents lineage](user-guide/agents-lineage.md) — deletion blockers, protected undo/redo, stable identity, last-good projection behavior.
 - [Automation](user-guide/automation.md) — recipe discovery/import, host-effect authorization, runtime blockers, output truncation, cancellation/timeout, audit failures, and safe operating rules.
@@ -84,6 +86,7 @@ Start with:
 | [Automation](user-guide/automation.md) | User / operator / auditor | Trusted-host recipes/ad-hoc commands, authorization, claims, process/output containment, audit/privacy, screenshot plan |
 | [Appearance & Language](user-guide/appearance-and-language.md) | User / operator / developer | Theme/accent, live scale, language switching, RTL leaf direction/font policy, SQLite preference persistence |
 | [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) | User / operator / developer | Editable keyboard/mouse bindings, direct capture, draft conflicts, user-home persistence, shell synchronization |
+| [Documentation Workspace](user-guide/documentation.md) | User / operator / developer | In-app topic registry, three-column workflow, plain-Markdown rendering boundary, locale/body behavior, packaged/source docs resolution |
 | [Training pipeline specification](training_pipeline.md) | Advanced user / developer / auditor | Exact Training persistence, hashing, parsing, execution, artifact/provenance contract |
 | [Evaluation contract](reference/evaluation-contract.md) | Developer / auditor / researcher | Battery identity, inference settings, score parser, serialized result grammar, factor/delta math, comparability and methodology boundaries |
 | [Workspace layout reference](reference/workspace-layout.md) | Operator / developer / auditor | Exact workspace/external persistence surfaces, path ownership and backup/reset meaning |
@@ -172,7 +175,8 @@ docs/
 │   ├── tests-and-analysis.md
 │   ├── automation.md
 │   ├── appearance-and-language.md
-│   └── key-bindings.md
+│   ├── key-bindings.md
+│   └── documentation.md
 ├── operations/
 │   ├── workspace-and-storage.md
 │   ├── local-models.md
@@ -219,7 +223,7 @@ The final v1.0 documentation will use:
 - explicit error/empty-state screenshots where understanding recovery matters;
 - recorded commit/locale/theme/scale/state metadata for reproducibility.
 
-The Agents guide defines a concrete capture inventory for healthy lineage, placeholders, local branches, archive/delete/history, runtime blockers, protocol-compatible/incompatible Delta, contextual navigation, and last-good refresh behavior. The Tests/Analysis guide similarly defines the evaluation capture inventory. The Automation guide defines a capture inventory for recipe discovery/import, trusted-host authorization, exec/shell modes, runtime conflicts, cancellation/timeout, bounded output, and audit/privacy behavior. The Key Bindings guide defines captures for direct input capture, dialogs, conflicts, and persisted-location diagnostics.
+The Agents guide defines a concrete capture inventory for healthy lineage, placeholders, local branches, archive/delete/history, runtime blockers, protocol-compatible/incompatible Delta, contextual navigation, and last-good refresh behavior. The Tests/Analysis guide similarly defines the evaluation capture inventory. The Automation guide defines a capture inventory for recipe discovery/import, trusted-host authorization, exec/shell modes, runtime conflicts, cancellation/timeout, bounded output, and audit/privacy behavior. The Key Bindings guide defines captures for direct input capture, dialogs, conflicts, and persisted-location diagnostics. The Documentation guide defines captures for the three-column runtime workspace, plain-Markdown body display, locale/body separation, and a controlled missing-content state.
 
 The repository now includes `tools/visual_audit.py` for reproducible automatic route/locale capture and interactive top-level-window capture. Scenario-specific demo-state preparation and final curated documentation assets remain separate review work; the capture harness does not make captured content automatically publication-safe.
 
