@@ -69,6 +69,7 @@ class ApplicationErrorReporter:
                 traceback.format_exception(type(error), error, error.__traceback__)
             )[-12_000:],
             "context": self._safe_context(context),
+            "user_message": self._user_message_payload(user_message),
             "fingerprint": fingerprint,
         }
         self._write_log(payload)
@@ -93,6 +94,7 @@ class ApplicationErrorReporter:
         operation_id: str = "",
         correlation_id: str = "",
         context: Mapping[str, Any] | None = None,
+        user_message: UserMessage | None = None,
     ) -> str:
         correlation = correlation_id.strip() or f"corr_{uuid4().hex[:12]}"
         fingerprint = sha256(
@@ -107,6 +109,8 @@ class ApplicationErrorReporter:
             "context": self._safe_context(context),
             "fingerprint": fingerprint,
         }
+        if user_message is not None:
+            payload["user_message"] = self._user_message_payload(user_message)
         self._write_log(payload, level=level)
         if self._should_persist(fingerprint):
             self._append_event(
@@ -188,6 +192,13 @@ class ApplicationErrorReporter:
     def _fingerprint(component: str, error: BaseException) -> str:
         raw = f"{component}|{type(error).__name__}|{error}"
         return sha256(raw.encode("utf-8", errors="replace")).hexdigest()
+
+    @classmethod
+    def _user_message_payload(cls, message: UserMessage) -> dict[str, object]:
+        return {
+            "key": message.key,
+            "values": cls._safe_context(message.values),
+        }
 
     @staticmethod
     def _safe_context(context: Mapping[str, Any] | None) -> dict[str, Any]:
