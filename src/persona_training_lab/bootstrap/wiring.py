@@ -14,6 +14,7 @@ from persona_training_lab.application.experiments.service import ExperimentsServ
 from persona_training_lab.application.lineage.loader import LineageLoaderFactory
 from persona_training_lab.application.lineage.runtime_safety import LineageRuntimeSafety
 from persona_training_lab.application.local_model.service import LocalModelService
+from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.model_versions.service import ModelVersionsService
 from persona_training_lab.application.operations_center import OperationsCenterService
 from persona_training_lab.application.projects.service import ProjectsService
@@ -163,12 +164,16 @@ def build_container() -> AppContainer:
     abandoned = runtime_operations.recover_orphaned_operations()
     if abandoned:
         error_reporter.report_message(
-            f"После предыдущего завершения освобождено операций: {abandoned}",
+            "runtime_operations_recovered",
             component="bootstrap.runtime_recovery",
             level="WARNING",
             entity_kind="runtime",
             entity_id="startup",
             context={"abandoned_operations": abandoned},
+            user_message=UserMessage(
+                "operations.notice.recovered_abandoned",
+                {"count": abandoned},
+            ),
         )
 
     workflow_supervisor = WorkflowSupervisor()
