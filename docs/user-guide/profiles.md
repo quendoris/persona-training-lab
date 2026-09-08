@@ -225,17 +225,18 @@ It defines persistent profile state used by other PTL systems.
 
 ## 13. Screenshot plan for v1.0
 
-The final documentation capture session will add:
+The final documentation capture pass should include:
 
 1. **Profiles workspace overview** — registry, selected profile summary/traits, linked/next-step column.
 2. **Create Profile dialog** — numbered required fields and Save/Cancel.
 3. **Validation example** — one required field intentionally omitted, showing what the user sees.
 
-Screenshots will use a clean demo profile rather than private research content.
+Use a clean demo profile rather than private research content.
 
 ## Next steps
 
 - Learn the shell: [Interface Tour](interface-tour.md)
 - Understand persistence: [Workspace & Storage](../operations/workspace-and-storage.md)
-- Prepare data: `datasets.md` (next v1.0 user-guide chapter)
+- Prepare data: [Datasets](datasets.md)
+- Run a fine-tune: [Training](training.md)
 - Understand the stable release boundary: [v1.0 Product Contract](../reference/v1-product-contract.md)
