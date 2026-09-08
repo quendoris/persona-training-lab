@@ -147,11 +147,11 @@ class FilesystemLocalModelProbeProvider:
         prompt: str,
         instruction_prompt: str | None,
     ) -> dict[str, Any]:
-        instruction = instruction_prompt or "Отвечай строго по запросу пользователя."
-        messages = [
-            {"role": "system", "content": instruction},
-            {"role": "user", "content": prompt},
-        ]
+        instruction = (instruction_prompt or "").strip()
+        messages = []
+        if instruction:
+            messages.append({"role": "system", "content": instruction})
+        messages.append({"role": "user", "content": prompt})
         try:
             return tokenizer.apply_chat_template(
                 messages,
@@ -174,7 +174,11 @@ class FilesystemLocalModelProbeProvider:
                 pass
         except Exception:
             pass
-        combined = f"System: {instruction}\nUser: {prompt}\nAssistant:"
+        combined = (
+            f"System: {instruction}\nUser: {prompt}\nAssistant:"
+            if instruction
+            else f"User: {prompt}\nAssistant:"
+        )
         return tokenizer(combined, return_tensors="pt")
 
     def _clean_response(self, value: str) -> str:
