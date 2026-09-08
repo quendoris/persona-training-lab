@@ -112,13 +112,25 @@ Training выполняется как управляемая runtime operation.
 
 Успешный UI-переход сам по себе не является доказательством существования пригодного model artifact. Финальный Training flow валидирует publishable artifact перед регистрацией model version.
 
-Артефакты конкретного run находятся под:
+Артефакты конкретного full-fine-tune run находятся под:
 
 ```text
-<workspace>/artifacts/training/<run_id>/
+<workspace>/artifacts/full_finetune/<run_id>/
 ```
 
-При failure/cancel/interruption каталог может существовать частично. Наличие файлов в нём не означает `completed`.
+Финальная model directory:
+
+```text
+<workspace>/artifacts/full_finetune/<run_id>/model/
+```
+
+а metadata:
+
+```text
+<workspace>/artifacts/full_finetune/<run_id>/training_metadata.json
+```
+
+При failure/interruption каталог может существовать частично. Наличие файлов в нём не означает `completed`.
 
 Подробности: `docs/user-guide/training.md` и `docs/training_pipeline.md`.
 
