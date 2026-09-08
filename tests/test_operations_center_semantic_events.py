@@ -75,3 +75,25 @@ def test_semantic_event_summary_follows_active_locale(
     assert item_summary(item, manager) == (
         "تم تحرير العمليات المتروكة من عملية PTL السابقة: 2. · corr_recovery"
     )
+
+
+def test_unknown_persisted_message_key_falls_back_to_diagnostic_summary() -> None:
+    app = _app()
+    manager = LocalizationManager(
+        app,
+        initial_locale="en-US",
+        catalog_directory=CATALOGS,
+    )
+    item = OperationsCenterItem(
+        item_id="event:evt_unknown",
+        title="WARNING · component",
+        summary="legacy diagnostic · corr_unknown",
+        status="warning",
+        severity="warning",
+        occurred_at="2026-09-08T20:00:00Z",
+        target_screen="dashboard",
+        correlation_id="corr_unknown",
+        user_message=UserMessage("missing.persisted.message.key"),
+    )
+
+    assert item_summary(item, manager) == "legacy diagnostic · corr_unknown"
