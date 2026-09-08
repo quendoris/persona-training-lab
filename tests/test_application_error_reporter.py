@@ -81,6 +81,60 @@ def test_report_message_can_persist_a_semantic_user_message() -> None:
     }
 
 
+def test_nested_sensitive_context_is_redacted_recursively() -> None:
+    events = _MemoryEventLog()
+    reporter = ApplicationErrorReporter(events)
+
+    reporter.report_message(
+        "nested_context",
+        component="diagnostics.test",
+        context={
+            "request": {
+                "headers": {
+                    "Authorization": "Bearer private-value",
+                    "X-Trace": "trace-001",
+                },
+                "credentials": [
+                    {"access_key": "AKIA-private"},
+                    {"name": "safe"},
+                ],
+            },
+            "safe": "visible",
+        },
+    )
+
+    payload = json.loads(events.records[0].payload_json)
+    assert payload["context"] == {
+        "request": {
+            "headers": {
+                "Authorization": "<redacted>",
+                "X-Trace": "trace-001",
+            },
+            "credentials": "<redacted>",
+        },
+        "safe": "visible",
+    }
+
+
+def test_context_cycles_do_not_break_error_reporting() -> None:
+    events = _MemoryEventLog()
+    reporter = ApplicationErrorReporter(events)
+    nested: dict[str, object] = {"value": "safe"}
+    nested["self"] = nested
+
+    reporter.report_message(
+        "cyclic_context",
+        component="diagnostics.test",
+        context={"nested": nested},
+    )
+
+    payload = json.loads(events.records[0].payload_json)
+    assert payload["context"]["nested"] == {
+        "value": "safe",
+        "self": "<cycle>",
+    }
+
+
 def test_duplicate_error_does_not_flood_event_storage() -> None:
     events = _MemoryEventLog()
     reporter = ApplicationErrorReporter(
