@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from persona_training_lab.bootstrap.app import _drain_background_work
 from persona_training_lab.ui.automation.screen import AutomationScreen
 from persona_training_lab.ui.shell.main_window_background import MainWindow
 from persona_training_lab.ui.tests.screen import TestsScreen
@@ -91,6 +92,24 @@ def test_main_window_shutdown_visits_every_background_owner() -> None:
 
     assert MainWindow.shutdown_background_work(window, 0) is False  # type: ignore[arg-type]
     assert calls == [("first", 0), ("second", 0)]
+
+
+def test_shutdown_drain_does_not_release_after_one_failed_attempt() -> None:
+    calls: list[int] = []
+    results = iter((False, False, True))
+    window = SimpleNamespace(
+        shutdown_background_work=lambda timeout: (
+            calls.append(timeout) or next(results)
+        )
+    )
+
+    _drain_background_work(
+        window,  # type: ignore[arg-type]
+        slice_ms=17,
+        retry_sleep_seconds=0,
+    )
+
+    assert calls == [17, 17, 17]
 
 
 def test_training_shutdown_waits_without_destroying_running_worker() -> None:
