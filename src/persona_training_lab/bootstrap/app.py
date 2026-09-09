@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import threading
+from time import sleep
 
 from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 
@@ -42,6 +43,7 @@ def main() -> int:
         print(str(error), file=sys.stderr)
         return 2
 
+    window: MainWindow | None = None
     try:
         container = build_container(settings)
         app.set_error_reporter(container.error_reporter)
@@ -92,7 +94,24 @@ def main() -> int:
         window.show()
         return app.exec()
     finally:
+        if window is not None:
+            _drain_background_work(window)
         workspace_ownership.release()
+
+
+def _drain_background_work(
+    window: MainWindow,
+    *,
+    slice_ms: int = 500,
+    retry_sleep_seconds: float = 0.05,
+) -> None:
+    """Keep the workspace writer lease until every registered worker is done."""
+
+    slice_ms = max(1, int(slice_ms))
+    retry_sleep_seconds = max(0.0, float(retry_sleep_seconds))
+    while not window.shutdown_background_work(slice_ms):
+        if retry_sleep_seconds:
+            sleep(retry_sleep_seconds)
 
 
 def _install_exception_boundaries(error_reporter) -> None:
