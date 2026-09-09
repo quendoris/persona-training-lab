@@ -2,7 +2,7 @@
 
 > **Branch audited:** `agent/history-keyguard-poller`
 >
-> **Measured content baseline for this refresh:** `b00310b976c643bcaac4bebff6e995c0cfc9cff2`
+> **Measured content baseline for this refresh:** `b2f287b688cbe42e13e467bc68882a17d9c3a8c7`
 >
 > This file is a maintenance map, not a second source of product truth. Feature behavior remains authoritative in the linked user/operations/architecture/reference documents and ultimately in audited code/tests.
 
@@ -21,7 +21,7 @@ This map records coverage, remaining gaps, and documentation scale so that new w
 
 ## 2. Current documentation scale
 
-At the measured baseline above, `docs/` contains **56 Markdown documents**.
+At the measured baseline above, `docs/` contains **57 Markdown documents**.
 
 By role:
 
@@ -30,12 +30,12 @@ By role:
 | `docs/user-guide/` | 12 | 188 KB | end-user workflows |
 | `docs/operations/` | 5 | 160 KB | storage, recovery, diagnostics, security, models |
 | `docs/architecture/` | 9 | 211 KB | current architecture + proposed training-dynamics research architecture |
-| `docs/reference/` | 6 | 114 KB | machine-level contracts including current SQLite schema |
+| `docs/reference/` | 7 | 129 KB | machine-level contracts, SQLite schema and diagnostic evidence |
 | `docs/development/` | 7 | 57 KB | setup, tests, tooling, packaging, release, docs runtime |
-| root canonical/map/methodology docs | 7 | 110 KB | docs hub/map, quickstart, Training pipeline, experiment/methodology material |
+| root canonical/map/methodology docs | 7 | 112 KB | docs hub/map, quickstart, Training pipeline, experiment/methodology material |
 | `docs/context/` | 7 | 23 KB | historical/internal project context |
 | `docs/releases/` | 3 | 21 KB | historical release/audit records |
-| **Total** | **56** | **~884 KB** | documentation source only |
+| **Total** | **57** | **~901 KB** | documentation source only |
 
 The repository itself is now on the order of **10^5 tracked physical text lines**. The last locally observed integration statistics were already near that scale before the newest documentation and lineage-safety work. Exact line counts must be regenerated on a clean checkout with `tools/codebase_stats.py`; this map intentionally does not turn an older dirty-worktree statistic into a false exact current number.
 
@@ -70,7 +70,7 @@ The useful scale statement is therefore:
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
 | Telemetry | C | `interface-tour.md`, `ui-shell.md`, troubleshooting | **G:** dedicated telemetry semantics/limitations if used as research evidence |
-| Operations Center / Issues / Activity | C | `interface-tour.md`, `troubleshooting.md`, `ui-shell.md` | **G:** one operator-facing contract for retention, ordering, identities, and failure meanings |
+| Operations Center / Issues / Activity | B | `interface-tour.md`, `troubleshooting.md`, `ui-shell.md`, `reference/event-and-diagnostic-schema.md` | operator workflow is now mechanically specified; a dedicated user/operator page is optional rather than a schema gap |
 
 ## 5. Operations coverage
 
@@ -78,9 +78,9 @@ The useful scale statement is therefore:
 |---|---|---|---|
 | Workspace and path ownership | A | `operations/workspace-and-storage.md`, `reference/workspace-layout.md` | final consistency pass after any new research artifact roots are introduced |
 | Local models | A | `operations/local-models.md` | record stronger base-model content provenance if implementation gains it |
-| Troubleshooting / evidence preservation | A | `operations/troubleshooting.md` | continue adding concrete recovery classes discovered during architecture audit |
+| Troubleshooting / evidence preservation | A | `operations/troubleshooting.md`, `reference/event-and-diagnostic-schema.md` | continue adding concrete recovery classes discovered during architecture audit |
 | Backup / reset / recovery | A | `operations/backup-reset-recovery.md` | keep Agents JSON ↔ SQLite same-snapshot rules synchronized with lineage changes |
-| Security / trust / privacy | A | `operations/security-boundaries.md` | re-audit every new diagnostics/research artifact before release |
+| Security / trust / privacy | A | `operations/security-boundaries.md`, `reference/event-and-diagnostic-schema.md` | re-audit every new diagnostics/research artifact before release |
 | Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, troubleshooting | document any new resource kinds introduced by Training Dynamics instrumentation |
 | Export / portability | C | storage + backup docs | **G:** dedicated export/portability contract if PTL adds supported workspace migration/export rather than raw backup |
 
@@ -101,7 +101,7 @@ The useful scale statement is therefore:
 | Training Dynamics instrumentation | R | `architecture/training-dynamics-instrumentation.md` | define artifact schema, sampling tiers, structural signatures, probe battery, storage cost budget |
 | Telemetry architecture | C | shell/troubleshooting + telemetry code | **G:** dedicated page if telemetry feeds future research analysis |
 | Workflow supervision/background jobs | C | `ui-shell.md`, runtime safety docs | **G:** dedicated lifecycle/state-machine contract may be justified |
-| Error reporting/event log | C | troubleshooting/security/persistence | **G:** dedicated event/evidence architecture would improve auditability |
+| Error reporting/event log | A | `reference/event-and-diagnostic-schema.md`, troubleshooting/security/persistence | mechanical payload, dedup, log rotation, Operations Center projection and privacy limits now have one authority |
 
 ## 7. Machine/reference coverage
 
@@ -112,13 +112,13 @@ Already strong:
 - `reference/statuses-and-identifiers.md` — states, codes, identifiers, compatibility aliases;
 - `reference/workspace-layout.md` — persistence surfaces and path ownership;
 - `reference/keyboard-mouse-bindings.md` — binding IDs/defaults/semantics;
-- `reference/persistence-schema.md` — exact current SQLite tables, columns, indexes, foreign-key boundaries and additive bootstrap rules.
+- `reference/persistence-schema.md` — exact current SQLite tables, columns, indexes, foreign-key boundaries and additive bootstrap rules;
+- `reference/event-and-diagnostic-schema.md` — reporter/event payloads, IDs, duplicate windows, rotating-log contract, Operations Center projection and evidence/privacy limits.
 
 High-value additions still open:
 
 1. **`reference/automation-recipe-schema.md`** — exact recipe fields, types, defaults, validation, execution mode, trust implications.
-2. **`reference/event-and-diagnostic-schema.md`** — event log fields, error IDs, correlation/causation IDs, redaction boundary, retention/ordering semantics.
-3. **Training Dynamics artifact/schema reference** once instrumentation leaves proposed status.
+2. **Training Dynamics artifact/schema reference** once instrumentation leaves proposed status.
 
 ## 8. Development/release coverage
 
@@ -195,9 +195,8 @@ Before final documentation freeze, every cross-link from canonical docs into his
 
 ### P1 — close dedicated reference gaps
 
-1. event/error/diagnostic schema reference;
-2. Automation recipe schema reference;
-3. operator-facing Operations Center semantics if the current distributed coverage proves too hard to use.
+1. Automation recipe schema reference;
+2. operator-facing Operations Center page only if user testing shows the current interface-tour/troubleshooting/reference split is hard to navigate.
 
 ### P2 — usability and evidence
 
