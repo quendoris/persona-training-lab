@@ -81,11 +81,12 @@ It contains state such as:
 - archive state;
 - undo history;
 - redo history;
-- saved layout/history snapshots.
+- saved layout/history snapshots;
+- protected branch-history metadata used to keep local history aligned with SQLite runtime-safety links.
 
 The file belongs to the workspace backup unit. It is not stored relative to the repository CWD.
 
-Deleting only this JSON resets local Agents organization/history, but does **not** delete the persisted Dataset, Training, model-version, or evaluation rows represented by the semantic projection. Do not use manual file deletion as a normal workflow; use the UI unless you are deliberately performing recovery/reset work.
+Deleting only this JSON resets local Agents organization/history, but does **not** delete the persisted Dataset, Training, model-version, or evaluation rows represented by the semantic projection. It also does not automatically clean custom-node `lineage_resource_links` stored in SQLite. Do not use manual file deletion as a normal workflow; use the UI unless you are deliberately performing recovery/reset work.
 
 ## 5. Reading the graph
 
@@ -171,6 +172,8 @@ selected parent
 
 The child inherits the parent's known runtime resource links. This is important: a new visual branch is not treated as resource-free just because it has not yet materialized into a Training run or model version.
 
+For modern branch creation, PTL does not expose/select the child until both the local branch state and its persisted safety-link/history identity have been committed successfully. If that cross-store creation workflow fails, the branch is not intentionally left visible as a successful safety-empty child.
+
 A branch becomes meaningful persisted research only when you subsequently create real workflow entities in the corresponding PTL workspaces.
 
 ## 8. Rename a custom branch
@@ -239,7 +242,7 @@ This is deliberate. A visual action is not allowed to invalidate the safety mean
 
 ## 12. Undo and redo
 
-Agents history is more than a visual convenience. It restores lineage state and layout, and branch deletion has extra runtime-safety semantics.
+Agents history is more than a visual convenience. It restores lineage state and layout, and modern branch creation/deletion entries can carry exact cross-store runtime-safety metadata.
 
 Default history bindings are:
 
@@ -260,7 +263,30 @@ This differs from the conventional assumption that every `Ctrl+Z` press is neces
 
 The default `Ctrl+Shift+Z` path requests undo-only semantics. Use it when you want to keep walking backward rather than toggling the last transition.
 
-### 12.3 Protected branch-deletion history
+### 12.3 Protected branch-creation history
+
+Modern branch creation records exact `branch_create_v1` metadata for the child and the runtime resource links it inherited/bound.
+
+That makes **Undo create** a destructive action: it removes the currently existing branch and its safety-link association. Before consuming that history entry, PTL therefore:
+
+1. verifies that the current subtree is exactly the originally created child;
+2. acquires a fresh runtime deletion lease for that child and its linked resources;
+3. only then removes the local branch through Undo;
+4. removes the exact saved safety links;
+5. finalizes the lease;
+6. applies the saved history/layout transition.
+
+If another active operation owns a conflicting linked resource, Undo create is blocked and the branch/history/links remain unchanged. The blocker is shown through the normal Agents runtime-blocker presentation.
+
+If the branch unexpectedly has a descendant subtree at the moment this creation-history entry is being undone, the protected path fails closed rather than deleting more than the recorded creation.
+
+On **Redo create**, PTL requires the recorded child ID to be absent, restores the branch from the existing redo entry, verifies that exactly that child returned, restores its exact saved resource links, and only then applies the visible history transition.
+
+History is therefore not allowed to make a modern branch disappear while an active operation still depends on the resource identity it represents.
+
+Historical creation entries that predate `branch_create_v1` metadata remain compatibility history. PTL cannot reconstruct exact old resource-link provenance that was never stored.
+
+### 12.4 Protected branch-deletion history
 
 Branch deletion has additional guarantees.
 
@@ -434,11 +460,25 @@ Check:
 
 If a refresh failed, the screen may intentionally retain the last-good projection.
 
-### Delete is disabled or blocked
+### Delete or Undo-create is disabled/blocked
 
 Inspect the runtime dependency/blocker text. An active operation can hold a conflicting resource claim.
 
-Do not edit SQLite rows manually to force deletion through.
+For protected `branch_create_v1` Undo, a blocker means the branch/history/links remain unchanged. Wait for or normally cancel the owning operation, then retry through Agents.
+
+Do not edit SQLite rows manually to force deletion/history through.
+
+### Undo-create refuses to run even though no blocker is shown
+
+A modern protected creation Undo expects the current subtree to be exactly the recorded created child. If the current state does not match that identity, the path fails closed instead of deleting an unexpected descendant subtree.
+
+Preserve the workspace and inspect history/state rather than forcing the operation by editing JSON or SQLite.
+
+### A creation Undo reports a committed/finalization error
+
+If diagnostics report `BranchCreationHistoryCommittedError`, the branch and its exact saved safety links were already removed, but finalizing the temporary runtime lease failed afterward. The UI applies the committed history transition before the error is reported.
+
+Treat this as a committed-state/finalization incident. Inspect Activity/Issues/logs and do not manually recreate the branch or edit runtime rows as an immediate fix.
 
 ### Two same-title Datasets look suspicious
 
@@ -450,7 +490,7 @@ Check `battery_version` and `scoring_version` in the evaluation/Analysis workflo
 
 ### A branch came back after Undo
 
-That is expected. For a protected deletion, its runtime resource links are restored before the local lineage snapshot is restored.
+That is expected when undoing a protected deletion. Its runtime resource links are restored before the local lineage snapshot is restored.
 
 ### Redo deletion is blocked after Undo
 
@@ -458,16 +498,21 @@ That is also expected. Redo acquires a new runtime lease and can be blocked by a
 
 ## 23. Backup and reset implications
 
-Because Agents local state now lives inside the PTL workspace, a whole-workspace backup includes:
+Agents cross-store state spans:
 
-- `agents_lineage_state.json`;
-- SQLite semantic records;
-- lineage resource links;
-- other PTL workspace state.
+```text
+<workspace>/app.db
+  -> semantic records + lineage_resource_links
 
-A backup of `app.db` alone does **not** include the local Agents JSON layout/history/custom branches.
+<workspace>/agents_lineage_state.json
+  -> local branches/history/layout + protected history metadata
+```
 
-See [Workspace & Storage](../operations/workspace-and-storage.md).
+For normal recovery, those files should come from the **same offline whole-workspace backup snapshot**. Protected `branch_create_v1` / `branch_delete_v1` metadata can describe the exact safety-link identity expected in SQLite, so mixing backup generations can create history/link mismatch.
+
+A backup of `app.db` alone does **not** include local Agents JSON layout/history/custom branches. An Agents-JSON-only restore likewise does not restore the matching SQLite safety-link state.
+
+See [Backup, Reset & Recovery](../operations/backup-reset-recovery.md) and [Workspace & Storage](../operations/workspace-and-storage.md).
 
 ## 24. v1.0 boundaries
 
@@ -475,8 +520,10 @@ The v1.0 Agents contract does not claim:
 
 - unlimited graph size or interaction-rate stress qualification;
 - distributed/multi-host locking;
+- one ACID transaction spanning Agents JSON, SQLite links, and runtime leases;
 - destructive deletion of registered model artifacts from the local branch command;
 - that local custom branches are persisted ML artifacts;
+- that historical creation entries without `branch_create_v1` metadata have reconstructable exact safety provenance;
 - that a visible title is a globally unique identifier;
 - that every protocol-incompatible evaluation pair can be compared;
 - that background refresh can never fail.
@@ -495,13 +542,14 @@ The final documentation capture pass should include at least:
 6. archived branch/subtree;
 7. delete confirmation for a custom subtree;
 8. runtime-blocked deletion with blocker detail visible;
-9. branch restored by Undo;
-10. guarded Redo blocked by a newly active operation;
-11. two protocol-compatible portraits with Delta ready;
-12. protocol-mismatched portraits with Delta pending;
-13. contextual jump from Agents to Tests;
-14. contextual jump from Agents to Analysis;
-15. last-good projection retained after an injected refresh failure.
+9. modern branch-creation Undo blocked by a linked active operation;
+10. branch restored by deletion Undo;
+11. guarded deletion Redo blocked by a newly active operation;
+12. two protocol-compatible portraits with Delta ready;
+13. protocol-mismatched portraits with Delta pending;
+14. contextual jump from Agents to Tests;
+15. contextual jump from Agents to Analysis;
+16. last-good projection retained after an injected refresh failure.
 
 Generate these from a clean demo workspace with the existing [`tools/visual_audit.py`](../development/visual-audit.md) automatic/interactive capture workflow rather than manually accumulating screenshots. Review captures and manifests for sensitive data before publication.
 
@@ -514,6 +562,7 @@ Generate these from a clean demo workspace with the existing [`tools/visual_audi
 - [Snapshots and model versions](snapshots.md)
 - [Tests and Analysis](tests-and-analysis.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
+- [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Agents lineage architecture](../architecture/agents-lineage.md)
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)
 - [v1.0 Product Contract](../reference/v1-product-contract.md)
