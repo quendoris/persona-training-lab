@@ -11,6 +11,9 @@ from persona_training_lab.application.lineage.runtime_safety import (
 )
 from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.ui.agents.branch_creation import (
+    BranchCreationController,
+)
 from persona_training_lab.ui.agents.branch_deletion import (
     BranchDeletionCommittedError,
     BranchDeletionController,
@@ -132,6 +135,10 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
                 coordinator.shutdown()
             raise
 
+        self._branch_creation_controller = BranchCreationController(
+            self._state,
+            self._branch_transactions,
+        )
         self._branch_deletion_controller = BranchDeletionController(
             self._state,
             self._branch_transactions,
@@ -225,16 +232,15 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         parent_id = getattr(self, "_selected_node_id", "")
         fallback_claims = self._runtime_claims_for_node(parent_id)
         parent_is_custom = self._state.is_custom_node(parent_id)
-        super()._continue_from_selected()
-        child_id = getattr(self, "_selected_node_id", "")
-        if not child_id:
-            return
-        self._branch_transactions.bind_child(
-            child_id,
+        child_id = self._branch_creation_controller.execute(
             parent_id,
             parent_is_custom=parent_is_custom,
             fallback_claims=fallback_claims,
         )
+        if not child_id:
+            return
+        self._selected_node_id = child_id
+        self._refresh_lineage(center=True)
         self._refresh_runtime_safety(force=True)
 
     def _open_workspace(self, workspace_key: str) -> None:
