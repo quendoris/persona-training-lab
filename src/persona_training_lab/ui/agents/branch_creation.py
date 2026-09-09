@@ -155,12 +155,34 @@ class BranchCreationController:
             raise RuntimeError(
                 "Lineage branch creation Undo no longer matches current subtree"
             )
+        if not self.transactions.creation_history_matches_current_links(metadata):
+            raise RuntimeError(
+                "Lineage branch creation Undo safety links no longer match "
+                "recorded history"
+            )
 
         transaction_snapshot = self.state.capture_transaction_state()
         lease = self.transactions.begin_deletion(
             current_ids,
             subject_id=child_id,
         )
+        if not self.transactions.creation_history_matches_current_links(metadata):
+            error = RuntimeError(
+                "Lineage branch creation Undo safety links changed during "
+                "runtime guard acquisition"
+            )
+            compensation_errors = self._close_lease(
+                lease,
+                cancel=True,
+                message=str(error),
+            )
+            if compensation_errors:
+                raise BranchCreationExecutionError(
+                    error,
+                    compensation_errors,
+                ) from error
+            raise error
+
         try:
             transition = self.state.undo_only(current_layout)
         except Exception as error:
@@ -259,6 +281,13 @@ class BranchCreationController:
                 raise RuntimeError(
                     "Lineage branch creation Redo lost its safety identity"
                 )
+            if not self.transactions.creation_history_matches_current_links(
+                metadata
+            ):
+                raise RuntimeError(
+                    "Lineage branch creation Redo did not restore recorded "
+                    "safety links"
+                )
             return transition
         except Exception as error:
             self._restore_state_or_raise(
@@ -303,20 +332,37 @@ class BranchCreationController:
             except Exception as error:
                 errors.append(error)
 
-        if lease is not None:
-            try:
-                changed = (
-                    lease.cancel(message)
-                    if cancel
-                    else lease.fail(message)
-                )
-                if changed is not True:
-                    raise RuntimeError(
-                        "Branch creation Undo lease was not finalized"
-                    )
-            except Exception as error:
-                errors.append(error)
+        errors.extend(
+            self._close_lease(
+                lease,
+                cancel=cancel,
+                message=message,
+            )
+        )
         return tuple(errors)
+
+    @staticmethod
+    def _close_lease(
+        lease: RuntimeOperationLease | None,
+        *,
+        cancel: bool,
+        message: str,
+    ) -> tuple[BaseException, ...]:
+        if lease is None:
+            return ()
+        try:
+            changed = (
+                lease.cancel(message)
+                if cancel
+                else lease.fail(message)
+            )
+            if changed is not True:
+                raise RuntimeError(
+                    "Branch creation Undo lease was not finalized"
+                )
+        except Exception as error:
+            return (error,)
+        return ()
 
     @staticmethod
     def _fail_lease_or_raise(
