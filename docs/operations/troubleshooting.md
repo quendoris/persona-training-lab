@@ -26,7 +26,7 @@ PTL failures usually belong to one of these layers:
 | Training backend | run reaches execution then fails | Training logs + application log + artifact directory |
 | Tests/evaluation | portrait is partial or exact version cannot be evaluated | Tests case review + persisted run status |
 | Analysis | Delta unavailable or unexpected | protocol IDs + exact selected model-version IDs |
-| Agents lineage | stale graph, blocked delete/redo, local history issue | Agents detail + Activity/Issues + workspace state |
+| Agents lineage | stale graph, blocked delete/Undo/Redo, local history issue | Agents detail + Activity/Issues + workspace state |
 | Automation | recipe/command blocked, cancelled, timed out, failed | Automation result + operation ID + audit metadata |
 | Telemetry | GPU/process metrics absent or refresh failed | Telemetry semantic status |
 | Shutdown/background ownership | application refuses immediate close | current workspace/background-worker state |
@@ -648,31 +648,85 @@ Check:
 
 A failed background refresh intentionally keeps the last successful projection when one exists. Seeing old-but-consistent lineage can therefore be safer behavior than replacing it with a partial/broken projection.
 
-## 32. Agents delete or Redo is blocked
+## 32. Agents destructive history action is blocked or refuses to run
 
-Custom-branch deletion and protected deletion Redo obtain fresh runtime safety leases.
-
-An operation that uses a linked real resource can block the destructive transition.
-
-This can happen even if the original deletion succeeded earlier: after Undo, another operation may begin before Redo.
-
-Inspect the active-operation/resource blocker. Do not remove resource links or runtime-operation rows manually to bypass the check.
-
-## 33. Agents local history/layout appears missing after restore
-
-Agents local state lives in:
+Three current Agents paths use destructive runtime-safety semantics:
 
 ```text
-<workspace>/agents_lineage_state.json
+normal custom-branch deletion
+protected branch_delete Redo
+protected branch_create_v1 Undo
 ```
 
-Semantic Dataset/Training/model/evaluation records live in SQLite.
+They must not remove a branch/resource association while an active operation owns a conflicting linked resource.
 
-Restoring only `app.db` can therefore restore the semantic graph while losing custom branches/current marker/undo/redo/layout history.
+For a modern `branch_create_v1` Undo, the controller first requires that the current custom subtree is exactly the originally created child. It then acquires a fresh `lineage_delete` lease before consuming the history entry or deleting safety links.
 
-Before calling this corruption, verify whether the Agents JSON came from the same backup snapshot.
+Therefore two controlled outcomes are important:
 
-## 34. Automation recipe is missing or invalid
+- **runtime blocker:** the branch, history entry, and links remain unchanged; the UI shows the active blockers;
+- **subtree mismatch:** Undo fails closed before lease/history mutation because the recorded creation no longer corresponds to exactly one current child node.
+
+For protected deletion Redo, a new operation may have started after the earlier deletion was undone, so Redo also rechecks current runtime ownership rather than trusting old conditions.
+
+When one of these actions is blocked:
+
+1. inspect the blocker shown in Agents and Activity;
+2. record operation kind/subject/ID and linked resource identity;
+3. let the owning operation reach a terminal state or use its supported cancellation path;
+4. retry the history/destructive action through the UI.
+
+Do not remove `runtime_operation_resources`, `runtime_operations`, or `lineage_resource_links` manually to bypass the guard.
+
+A blocker is not evidence that Agents history is corrupt. It is the expected concurrency-safety result.
+
+## 33. Agents reports `BranchCreationHistoryCommittedError`
+
+This error has a narrow meaning.
+
+During protected `branch_create_v1` Undo, PTL has already:
+
+```text
+removed the branch from Agents JSON
+forgotten its exact saved lineage_resource_links
+```
+
+but finalizing the temporary `lineage_delete` runtime lease failed afterward.
+
+The screen applies the committed history transition before the error is allowed to propagate to the normal error-reporting boundary. Therefore the visible branch state should reflect the committed removal rather than pretending the Undo rolled back.
+
+Treat this as a **committed-state / lease-finalization incident**, not as a normal pre-commit failure:
+
+1. preserve the current workspace before manual repair experiments;
+2. inspect Activity/Issues/application log for the affected runtime operation/finalization failure;
+3. inspect current Agents state and runtime-operation state;
+4. after an actual process crash, allow normal orphan recovery to mark a dead lease `abandoned` when its owner PID is gone;
+5. do not manually recreate the branch, reinsert links, or edit runtime-operation rows merely to make the error disappear.
+
+If a compensation error is instead reported through `BranchCreationExecutionError`, preserve both `app.db` and `agents_lineage_state.json` together because the exception deliberately records that the original failure and recovery failure both occurred.
+
+## 34. Agents local history/layout appears missing or inconsistent after restore
+
+Agents state is split across a coordinated recovery pair:
+
+```text
+<workspace>/app.db
+  -> semantic records + lineage_resource_links
+
+<workspace>/agents_lineage_state.json
+  -> custom branches/current/archive/undo/redo/layout
+     + protected branch_create_v1 / branch_delete_v1 metadata
+```
+
+A normal restore should take both files from the **same offline whole-workspace backup snapshot**.
+
+Restoring only `app.db` can preserve the semantic graph while losing local branches/history and the protected metadata that explains exact safety-link transitions.
+
+Restoring only `agents_lineage_state.json`, or mixing JSON from backup A with `app.db` from backup B, can produce local history whose recorded link identity belongs to another SQLite state.
+
+Before calling this corruption, verify backup provenance and whether the JSON/database were restored together. Do not hand-edit history metadata or `lineage_resource_links` to “make them match.”
+
+## 35. Automation recipe is missing or invalid
 
 Refresh re-discovers built-in and workspace manifests.
 
@@ -693,7 +747,7 @@ Valid recipes remain available when another manifest is bad.
 
 Import copies the manifest only; companion scripts/data may still be missing.
 
-## 35. Automation command/recipe is blocked before launch
+## 36. Automation command/recipe is blocked before launch
 
 Important pre-launch result codes include:
 
@@ -717,7 +771,7 @@ For `audit_unavailable` / start `audit_failed`, PTL intentionally does not launc
 
 Do not work around an audit failure by moving the command into an untracked helper under `src/`, `tests/`, or `tools/`.
 
-## 36. Automation launched but failed
+## 37. Automation launched but failed
 
 Important terminal results include:
 
@@ -748,7 +802,7 @@ Inspect:
 
 Remember that Automation is trusted-host execution, not a filesystem/network sandbox.
 
-## 37. Automation output is truncated
+## 38. Automation output is truncated
 
 Stdout and stderr are captured independently with bounded storage.
 
@@ -758,7 +812,7 @@ PTL keeps draining the pipe after the retained prefix reaches the limit, so trun
 
 If full output is required, make the command write a reviewed output file intentionally and preserve it as an external/workspace artifact according to the workflow's trust model.
 
-## 38. Automation appears to leave or kill child processes
+## 39. Automation appears to leave or kill child processes
 
 Automation owns the process tree for the one-shot run lifecycle.
 
@@ -768,7 +822,7 @@ A command should not depend on starting a detached long-lived background service
 
 If a persistent service is required, manage it through an explicit service/supervisor outside this one-shot Automation contract.
 
-## 39. Workspace navigation is blocked during work
+## 40. Workspace navigation is blocked during work
 
 Some workspaces deliberately prevent ordinary navigation away while owned background work is active.
 
@@ -778,7 +832,7 @@ Wait for the owned operation to finish or use the feature's supported cancellati
 
 Do not destroy the workspace widget/process to bypass ownership guards unless performing controlled crash recovery.
 
-## 40. Development checkout: release gate refuses to start
+## 41. Development checkout: release gate refuses to start
 
 The release gate requires a clean Git worktree **before it creates a release report directory or runs validation steps**.
 
@@ -801,7 +855,7 @@ Resolve/commit the intended source state (or stash unrelated work when that is t
 
 Do not label the build "release-gate failed tests" when no gate step ran.
 
-## 41. Development checkout: unresolved merge conflicts
+## 42. Development checkout: unresolved merge conflicts
 
 Unmerged paths appear in `git status --short` with states such as:
 
@@ -818,7 +872,7 @@ Avoid mass choosing "ours" or "theirs" across architecture/persistence/UI/tests 
 
 For PTL specifically, conflict resolution should preserve the current contracts for stable IDs, runtime safety, localization, Training input integrity, background ownership, and tests that prove those behaviors.
 
-## 42. `codebase_stats.py` on a dirty tree
+## 43. `codebase_stats.py` on a dirty tree
 
 `tools/codebase_stats.py` deliberately has a different purpose from the release gate.
 
@@ -834,7 +888,7 @@ Such output is useful as an **integration/worktree size snapshot**, but it is no
 
 For a release baseline, use the `codebase-stats` result produced by a successful clean release gate, or run the standalone tool only after confirming the worktree is clean.
 
-## 43. Quick release gate
+## 44. Quick release gate
 
 The quick profile runs, in order:
 
@@ -856,7 +910,7 @@ build
 
 The quick profile is therefore a faster regression gate, not a substitute for the complete release audit.
 
-## 44. Full release gate
+## 45. Full release gate
 
 The full profile includes blocking:
 
@@ -875,7 +929,7 @@ All current full-profile setup/final steps are blocking.
 
 Removed bypass flags such as `--skip-mypy` / `--skip-build` are not accepted by the current CLI contract.
 
-## 45. Release gate cannot resolve Git HEAD
+## 46. Release gate cannot resolve Git HEAD
 
 The gate requires a Git worktree with a resolvable `HEAD`.
 
@@ -889,7 +943,7 @@ git rev-parse HEAD
 
 before investigating test infrastructure.
 
-## 46. Hidden ignored inputs under `src/`, `tests/`, or `tools/`
+## 47. Hidden ignored inputs under `src/`, `tests/`, or `tools/`
 
 PTL's release policy protects against local ignored files that can alter execution without appearing in the recorded commit.
 
@@ -899,7 +953,7 @@ If an ignored Python/data/helper file under these trees affects your local run, 
 
 This is part of the source-integrity contract.
 
-## 47. A quick gate step fails
+## 48. A quick gate step fails
 
 When the gate has actually begun, inspect the first blocking failing step and its generated log in the audit directory.
 
@@ -918,7 +972,7 @@ Useful classification:
 
 The report records the seed, platform, Python, commit, branch, quick/full mode, and per-step logs.
 
-## 48. Repeated pytest runs disagree
+## 49. Repeated pytest runs disagree
 
 The release gate can execute pytest multiple times through `--runs` while recording one seed/environment envelope.
 
@@ -934,7 +988,7 @@ Collect:
 - all preceding run logs;
 - whether the test touches temporary files, Qt state, background workers, SQLite, process state, or persistent environment variables.
 
-## 49. What not to delete during diagnosis
+## 50. What not to delete during diagnosis
 
 Until the root cause is known, avoid casually deleting:
 
@@ -952,7 +1006,7 @@ release-audit logs for a failing build
 
 Renaming/copying state before a destructive experiment is safer than irreversible deletion.
 
-## 50. What not to edit manually
+## 51. What not to edit manually
 
 Normal recovery should not require manual edits to:
 
@@ -969,7 +1023,7 @@ Those values participate in integrity/safety semantics. Changing them can hide t
 
 If a future documented migration/recovery tool explicitly owns such a repair, use that tool rather than hand-editing SQLite.
 
-## 51. Minimal evidence bundle for a reproducible bug
+## 52. Minimal evidence bundle for a reproducible bug
 
 Before applying a destructive fix, collect this minimum bundle where applicable:
 
@@ -987,9 +1041,11 @@ Before applying a destructive fix, collect this minimum bundle where applicable:
 11. whether the failure followed a crash, restore, external file edit, model replacement, recipe edit, or merge
 ```
 
+For Agents cross-store/history incidents, also preserve the matching `app.db` + `agents_lineage_state.json` pair before a destructive experiment.
+
 For ML/research workflows also record model source/revision and whether the model directory or Dataset source changed in place.
 
-## 52. Privacy-safe sharing checklist
+## 53. Privacy-safe sharing checklist
 
 Before sharing diagnostic material publicly, review for:
 
@@ -1007,7 +1063,7 @@ Before sharing diagnostic material publicly, review for:
 
 PTL redacts a subset of structured context key names, but the operator remains responsible for reviewing exported/logged evidence.
 
-## 53. Conservative escalation sequence
+## 54. Conservative escalation sequence
 
 When the cause is not obvious, use this order:
 
@@ -1034,7 +1090,7 @@ For a source checkout, add:
 15. Run full release gate before release acceptance.
 ```
 
-## 54. Reset is a recovery tool, not a diagnostic default
+## 55. Reset is a recovery tool, not a diagnostic default
 
 A complete workspace reset disconnects or removes a large amount of authoritative and derived state.
 
@@ -1045,9 +1101,9 @@ Do it only after:
 - you understand that the reset will not undo external Automation host effects;
 - you specifically want a fresh-workspace experiment or recovery baseline.
 
-The detailed backup/reset contract is in [Workspace & Storage](workspace-and-storage.md).
+The detailed backup/reset contract is in [Backup, Reset & Recovery](backup-reset-recovery.md).
 
-## 55. Current v1.0 troubleshooting boundaries
+## 56. Current v1.0 troubleshooting boundaries
 
 PTL v1.0 does not claim automatic diagnosis or repair of every failure mode.
 
@@ -1064,27 +1120,31 @@ In particular, it does not provide:
 
 The supported contract is to preserve clear operational boundaries, semantic status/result codes, persisted coordination state, feature-specific evidence, and best-effort structured error reporting so failures can be investigated without inventing behavior that the code does not implement.
 
-## 56. Developer invariants
+## 57. Developer invariants
 
 Changes to diagnostics/recovery should preserve these rules unless the product contract is deliberately revised:
 
 1. error reporting must not crash the original workflow when its own persistence/log path fails;
 2. user-visible/localized text must not replace semantic status/result/diagnostic identity;
 3. runtime blockers must be resolved through operation lifecycle rather than silently bypassed;
-4. source release evidence must be tied to a clean recorded commit;
-5. hidden ignored runtime inputs under source/test/tool trees must not become release dependencies;
-6. background workers must remain owned through workspace/application shutdown;
-7. whole-workspace persistence must remain distinguishable from external Dataset/model/Automation dependencies;
-8. destructive reset/cleanup must not be presented as the default fix for an unclassified incident;
-9. troubleshooting documentation must distinguish a controlled integrity rejection from corruption;
-10. documentation must be updated when status/result/error/recovery behavior changes.
+4. destructive Agents history paths that remove current linked state must not bypass their audited runtime guard;
+5. committed/finalization errors must be documented and presented as committed outcomes, not falsely described as rollbacks;
+6. source release evidence must be tied to a clean recorded commit;
+7. hidden ignored runtime inputs under source/test/tool trees must not become release dependencies;
+8. background workers must remain owned through workspace/application shutdown;
+9. whole-workspace persistence must remain distinguishable from external Dataset/model/Automation dependencies;
+10. Agents protected-history recovery must preserve/restore the matching SQLite + Agents JSON pair rather than inventing cross-snapshot provenance;
+11. destructive reset/cleanup must not be presented as the default fix for an unclassified incident;
+12. troubleshooting documentation must distinguish a controlled integrity rejection from corruption;
+13. documentation must be updated when status/result/error/recovery behavior changes.
 
 ## Next steps
 
-- Workspace paths, backup and reset: [Workspace & Storage](workspace-and-storage.md)
+- Workspace paths and ownership: [Workspace & Storage](workspace-and-storage.md)
+- Offline backup/reset/recovery: [Backup, Reset & Recovery](backup-reset-recovery.md)
 - Local model readiness/generation: [Local Models](local-models.md)
 - Training workflow/integrity: [Training](../user-guide/training.md)
-- Agents lineage/runtime deletion safety: [Agents lineage](../user-guide/agents-lineage.md)
+- Agents lineage/runtime/history safety: [Agents lineage](../user-guide/agents-lineage.md)
 - Tests/evaluation/Delta: [Tests and Analysis](../user-guide/tests-and-analysis.md)
 - Automation execution/audit/process containment: [Automation](../user-guide/automation.md)
 - Stable guarantees/non-goals: [v1.0 Product Contract](../reference/v1-product-contract.md)
