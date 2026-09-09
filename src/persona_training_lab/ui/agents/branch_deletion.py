@@ -140,6 +140,19 @@ class BranchDeletionController:
                 fallback_id=plan.fallback_id,
             )
 
+        history_metadata = self._transactions.capture_deletion_history(
+            plan.removed_ids,
+            subject_id=plan.node_id,
+        )
+        if history_metadata and not self._transactions.deletion_history_matches_current_links(
+            history_metadata
+        ):
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=current_ids,
+                fallback_id=plan.fallback_id,
+            )
+
         try:
             lease = self._transactions.begin_deletion(
                 plan.removed_ids,
@@ -153,11 +166,21 @@ class BranchDeletionController:
         if lease is None:
             return BranchDeletionResult(BranchDeletionStatus.UNAVAILABLE)
 
+        if history_metadata and not self._transactions.deletion_history_matches_current_links(
+            history_metadata
+        ):
+            error = RuntimeError(
+                "Lineage deletion safety links changed during runtime guard "
+                "acquisition"
+            )
+            self._cancel_lease_or_raise(lease, error)
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=current_ids,
+                fallback_id=plan.fallback_id,
+            )
+
         transaction_snapshot = self._state.capture_transaction_state()
-        history_metadata = self._transactions.capture_deletion_history(
-            plan.removed_ids,
-            subject_id=plan.node_id,
-        )
         stager = getattr(self._state, "stage_history_metadata", None)
         clearer = getattr(self._state, "clear_staged_history_metadata", None)
         try:
