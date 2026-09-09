@@ -180,6 +180,8 @@ class _Transactions:
         self.forget_error = forget_error
         self.restore_links_error = restore_links_error
         self.begin_error = begin_error
+        self.links_after_begin: tuple[ResourceClaim, ...] | None = None
+        self.current_links: tuple[ResourceClaim, ...] = ()
         self.lease = _Lease()
         self.calls: list[tuple[object, ...]] = []
 
@@ -203,6 +205,7 @@ class _Transactions:
         )
         if self.bind_error is not None:
             raise self.bind_error
+        self.current_links = claims
         return claims
 
     def capture_creation_history(self, child_node_id: str, claims):
@@ -228,11 +231,32 @@ class _Transactions:
             return ""
         return str(metadata.get("child_node_id", ""))
 
+    @staticmethod
+    def _metadata_claims(metadata) -> tuple[ResourceClaim, ...]:
+        raw_claims = metadata.get("resource_links", [])
+        assert isinstance(raw_claims, list)
+        return tuple(
+            sorted(
+                ResourceClaim(
+                    str(raw["resource_kind"]),
+                    str(raw["resource_id"]),
+                    str(raw.get("access_mode", "read")),
+                )
+                for raw in raw_claims
+                if isinstance(raw, dict)
+            )
+        )
+
+    def creation_history_matches_current_links(self, metadata) -> bool:
+        return tuple(sorted(self.current_links)) == self._metadata_claims(metadata)
+
     def begin_deletion(self, node_ids, *, subject_id: str):
         ids = tuple(node_ids)
         self.calls.append(("begin_deletion", ids, subject_id))
         if self.begin_error is not None:
             raise self.begin_error
+        if self.links_after_begin is not None:
+            self.current_links = self.links_after_begin
         return self.lease
 
     def forget_creation_history(self, metadata) -> str:
@@ -240,6 +264,7 @@ class _Transactions:
         self.calls.append(("forget_history", child_id))
         if self.forget_error is not None:
             raise self.forget_error
+        self.current_links = ()
         return child_id
 
     def restore_creation_history(self, metadata) -> str:
@@ -247,6 +272,7 @@ class _Transactions:
         self.calls.append(("restore_history", child_id))
         if self.restore_links_error is not None:
             raise self.restore_links_error
+        self.current_links = self._metadata_claims(metadata)
         return child_id
 
     def forget(self, node_ids) -> int:
@@ -254,6 +280,7 @@ class _Transactions:
         self.calls.append(("forget", ids))
         if self.forget_error is not None:
             raise self.forget_error
+        self.current_links = ()
         return len(ids)
 
 
@@ -332,6 +359,7 @@ def test_successful_creation_binds_links_and_persists_history_metadata() -> None
             },
         ],
     }
+    assert transactions.current_links == claims
     assert [call[0] for call in transactions.calls] == [
         "bind",
         "capture_history",
@@ -357,6 +385,7 @@ def test_link_binding_failure_restores_exact_precreation_state() -> None:
         )
 
     assert state.payload == before
+    assert transactions.current_links == ()
     assert [call[0] for call in state.calls] == [
         "capture",
         "continue",
@@ -379,6 +408,7 @@ def test_metadata_persistence_failure_restores_state_then_forgets_links() -> Non
         )
 
     assert state.payload == before
+    assert transactions.current_links == ()
     assert [call[0] for call in state.calls] == [
         "capture",
         "continue",
@@ -396,14 +426,13 @@ def test_metadata_persistence_failure_restores_state_then_forgets_links() -> Non
 def test_failed_state_compensation_keeps_bound_safety_links() -> None:
     state = _State(fail_restore=True, fail_attach=True)
     transactions = _Transactions()
+    claim = ResourceClaim("model_version", "mdl_1", "read")
 
     with pytest.raises(BranchCreationExecutionError) as captured:
         _controller(state, transactions).execute(
             "snapshot",
             parent_is_custom=False,
-            fallback_claims=(
-                ResourceClaim("model_version", "mdl_1", "read"),
-            ),
+            fallback_claims=(claim,),
         )
 
     error = captured.value
@@ -411,6 +440,7 @@ def test_failed_state_compensation_keeps_bound_safety_links() -> None:
     assert str(error.original_error) == "history metadata unavailable"
     assert len(error.compensation_errors) == 1
     assert str(error.compensation_errors[0]) == "lineage restore unavailable"
+    assert transactions.current_links == (claim,)
     assert [call[0] for call in transactions.calls] == [
         "bind",
         "capture_history",
@@ -460,6 +490,67 @@ def test_binding_failure_compensation_preserves_original_and_restore_errors() ->
     assert str(error.compensation_errors[0]) == "lineage restore unavailable"
 
 
+def test_protected_undo_refuses_link_drift_before_runtime_lease() -> None:
+    state = _State()
+    transactions = _Transactions()
+    controller = _controller(state, transactions)
+    controller.execute(
+        "snapshot",
+        parent_is_custom=False,
+        fallback_claims=(ResourceClaim("dataset", "ds_1", "read"),),
+    )
+    metadata = _creation_metadata(state)
+    before = deepcopy(state.payload)
+    transactions.current_links = (
+        ResourceClaim("dataset", "ds_other", "read"),
+    )
+    state.calls.clear()
+    transactions.calls.clear()
+
+    with pytest.raises(RuntimeError, match="safety links no longer match"):
+        controller.undo_history(metadata)
+
+    assert state.payload == before
+    assert state.calls == []
+    assert transactions.calls == []
+    assert transactions.lease.calls == []
+
+
+def test_protected_undo_rechecks_link_identity_after_lease_acquisition() -> None:
+    state = _State()
+    transactions = _Transactions()
+    controller = _controller(state, transactions)
+    controller.execute(
+        "snapshot",
+        parent_is_custom=False,
+        fallback_claims=(ResourceClaim("dataset", "ds_1", "read"),),
+    )
+    metadata = _creation_metadata(state)
+    before = deepcopy(state.payload)
+    transactions.links_after_begin = (
+        ResourceClaim("dataset", "ds_changed", "read"),
+    )
+    state.calls.clear()
+    transactions.calls.clear()
+    transactions.lease.calls.clear()
+
+    with pytest.raises(RuntimeError, match="changed during runtime guard"):
+        controller.undo_history(metadata)
+
+    assert state.payload == before
+    assert [call[0] for call in state.calls] == ["capture"]
+    assert transactions.calls == [
+        ("begin_deletion", ("branch_001",), "branch_001")
+    ]
+    assert transactions.lease.calls == [
+        (
+            "cancel",
+            "Lineage branch creation Undo safety links changed during "
+            "runtime guard acquisition",
+        )
+    ]
+
+
 def test_protected_undo_acquires_runtime_lease_before_mutating_history() -> None:
     state = _State()
     transactions = _Transactions()
@@ -483,6 +574,7 @@ def test_protected_undo_acquires_runtime_lease_before_mutating_history() -> None
     assert transition.action_code == "branch_create"
     assert transition.direction == "undo"
     assert state.payload["custom_nodes"] == []
+    assert transactions.current_links == ()
     assert [call[0] for call in state.calls] == ["capture", "undo"]
     assert transactions.calls == [
         ("begin_deletion", ("branch_001",), "branch_001"),
@@ -495,10 +587,11 @@ def test_protected_undo_runtime_conflict_preserves_branch_and_history() -> None:
     state = _State()
     transactions = _Transactions()
     controller = _controller(state, transactions)
+    claim = ResourceClaim("dataset", "ds_1", "read")
     controller.execute(
         "snapshot",
         parent_is_custom=False,
-        fallback_claims=(ResourceClaim("dataset", "ds_1", "read"),),
+        fallback_claims=(claim,),
     )
     metadata = _creation_metadata(state)
     before = deepcopy(state.payload)
@@ -512,6 +605,7 @@ def test_protected_undo_runtime_conflict_preserves_branch_and_history() -> None:
 
     assert captured.value.blockers == conflict.blockers
     assert state.payload == before
+    assert transactions.current_links == (claim,)
     assert [call[0] for call in state.calls] == ["capture"]
     assert transactions.calls == [
         ("begin_deletion", ("branch_001",), "branch_001")
@@ -591,6 +685,7 @@ def test_protected_undo_finalization_failure_reports_committed_transition() -> N
     assert captured.value.transition.direction == "undo"
     assert isinstance(captured.value.finalization_error, OSError)
     assert state.payload["custom_nodes"] == []
+    assert transactions.current_links == ()
     assert transactions.calls[-1] == ("forget_history", "branch_001")
     assert transactions.lease.calls == [("succeed",)]
 
@@ -599,10 +694,11 @@ def test_protected_redo_restores_state_and_exact_safety_links() -> None:
     state = _State()
     transactions = _Transactions()
     controller = _controller(state, transactions)
+    claim = ResourceClaim("dataset", "ds_1", "read")
     controller.execute(
         "snapshot",
         parent_is_custom=False,
-        fallback_claims=(ResourceClaim("dataset", "ds_1", "read"),),
+        fallback_claims=(claim,),
     )
     metadata = _creation_metadata(state)
     controller.undo_history(metadata)
@@ -620,6 +716,7 @@ def test_protected_redo_restores_state_and_exact_safety_links() -> None:
     assert state.payload["custom_nodes"] == [
         {"node_id": "branch_001", "parent_id": "snapshot"}
     ]
+    assert transactions.current_links == (claim,)
     assert [call[0] for call in state.calls] == ["capture", "redo"]
     assert transactions.calls == [("restore_history", "branch_001")]
 
