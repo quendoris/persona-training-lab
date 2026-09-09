@@ -165,3 +165,68 @@ def test_branch_transactions_choose_inherit_or_bind_explicitly() -> None:
         ("delete", ("branch_002", "branch_003"), "branch_002"),
         ("forget", ("branch_002", "branch_003")),
     ]
+
+
+def test_branch_creation_history_round_trips_exact_resource_links() -> None:
+    calls: list[tuple[object, ...]] = []
+    claims = (
+        ResourceClaim("dataset", "ds_1", "read"),
+        ResourceClaim("model_version", "mdl_1", "read"),
+    )
+
+    class _Safety:
+        def restore_node_links(self, links):
+            calls.append(("restore", links))
+            return tuple(links)
+
+        def forget_nodes(self, node_ids):
+            calls.append(("forget", tuple(node_ids)))
+            return len(tuple(node_ids))
+
+    transactions = LineageBranchTransactions(_Safety())  # type: ignore[arg-type]
+    metadata = transactions.capture_creation_history("branch_001", claims)
+
+    assert metadata == {
+        "kind": "branch_create_v1",
+        "child_node_id": "branch_001",
+        "resource_links": [
+            {
+                "resource_kind": "dataset",
+                "resource_id": "ds_1",
+                "access_mode": "read",
+            },
+            {
+                "resource_kind": "model_version",
+                "resource_id": "mdl_1",
+                "access_mode": "read",
+            },
+        ],
+    }
+    assert transactions.creation_history_child(metadata) == "branch_001"
+    assert transactions.forget_creation_history(metadata) == "branch_001"
+    assert transactions.restore_creation_history(metadata) == "branch_001"
+    assert calls == [
+        ("forget", ("branch_001",)),
+        ("restore", {"branch_001": claims}),
+    ]
+
+
+def test_invalid_branch_creation_history_is_never_applied() -> None:
+    calls: list[tuple[object, ...]] = []
+    safety = SimpleNamespace(
+        restore_node_links=lambda links: calls.append(("restore", links)),
+        forget_nodes=lambda node_ids: calls.append(("forget", tuple(node_ids))),
+    )
+    transactions = LineageBranchTransactions(safety)  # type: ignore[arg-type]
+    invalid = {
+        "kind": "branch_create_v1",
+        "child_node_id": "branch_001",
+        "resource_links": [
+            {"resource_kind": "dataset", "resource_id": ""}
+        ],
+    }
+
+    assert transactions.creation_history_child(invalid) == ""
+    assert transactions.forget_creation_history(invalid) == ""
+    assert transactions.restore_creation_history(invalid) == ""
+    assert calls == []
