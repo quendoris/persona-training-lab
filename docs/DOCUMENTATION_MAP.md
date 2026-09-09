@@ -43,7 +43,7 @@ The test-to-production ratio under the token-aware Python-code definition is app
 
 The baseline was measured from a clean detached worktree with `Dirty: no`, so those numbers are reproducibly tied to that exact commit.
 
-The current branch already contains documentation commits after that frozen baseline, including `architecture/system-scale.md` and `architecture/background-work-lifecycle.md`. Therefore the table above is intentionally **not relabelled as the live HEAD size**. Exact final-candidate counts must be regenerated after the documentation/code audit stabilizes.
+The current branch already contains documentation commits after that frozen baseline, including `architecture/system-scale.md`, `architecture/background-work-lifecycle.md`, and `architecture/preference-persistence.md`. Therefore the table above is intentionally **not relabelled as the live HEAD size**. Exact final-candidate counts must be regenerated after the documentation/code audit stabilizes.
 
 For methodology, interpretation limits and regeneration commands, use [System scale and measured codebase anatomy](architecture/system-scale.md).
 
@@ -73,8 +73,8 @@ The useful scale statement is now evidence-backed rather than approximate:
 | Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md` | continue auditing protected history and cross-store race/failure semantics |
 | Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | screenshots; future bridge to richer training-dynamics evidence |
 | Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | final consistency/visual pass; import collision behavior is fail-closed rather than overwrite |
-| Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md` | custom accent validation remains a known code seam; re-check if fixed |
-| Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md` | finish user-global preference concurrency/ownership audit |
+| Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | custom accent validation remains a known code seam; re-check if fixed |
+| Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is now explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
 | Telemetry | C | `interface-tour.md`, `ui-shell.md`, troubleshooting | **G:** dedicated telemetry semantics/limitations if used as research evidence |
@@ -91,6 +91,7 @@ The useful scale statement is now evidence-backed rather than approximate:
 | Security / trust / privacy | A | `operations/security-boundaries.md`, `reference/event-and-diagnostic-schema.md` | re-audit every new diagnostics/research artifact before release |
 | Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, troubleshooting | preserve distinction between SQLite claims and the outer desktop writer lease; document new resource kinds introduced by future instrumentation |
 | Background shutdown / ownership handoff | A | `architecture/background-work-lifecycle.md`, `architecture/workspace-concurrency.md` | keep every new long-running workspace integrated with shell final-drain ownership |
+| UI/input preference restore scope | A | `architecture/preference-persistence.md`, backup/storage docs | QSettings and user-home bindings remain intentionally outside whole-workspace backup semantics |
 | Export / portability | C | storage + backup docs | **G:** dedicated export/portability contract if PTL adds supported workspace migration/export rather than raw backup |
 
 ## 6. Architecture coverage
@@ -100,9 +101,10 @@ The useful scale statement is now evidence-backed rather than approximate:
 | System composition / layers | A | `architecture/overview.md` | final top-down consistency pass against composition root |
 | System scale / anatomy | A | `architecture/system-scale.md` | regenerate exact metrics for final clean release candidate; compare history only with compatible counting rules |
 | Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | continue transaction/race audit; schema mechanics have a dedicated reference |
-| Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md` | finish audit of preference stores outside the workspace lease |
+| Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md`, `architecture/preference-persistence.md` | workspace writer model and external preference-store boundary are now separated; keep synchronized if process model changes |
+| Preference persistence / scope | A | `architecture/preference-persistence.md` | SQLite Style, QSettings shell state and user-home bindings have explicit scope/write/backup limits; no rationale invented for current placement |
 | Background work / shutdown ownership | A | `architecture/background-work-lifecycle.md` | current QThread/runtime-operation/workspace-lease roles are separated; re-audit every new long-running feature |
-| UI shell / lifecycle | A | `architecture/ui-shell.md`, `architecture/background-work-lifecycle.md` | final screenshot-independent diagrams and cross-document consistency pass |
+| UI shell / lifecycle | A | `architecture/ui-shell.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md` | final screenshot-independent diagrams and cross-document consistency pass |
 | Agents lineage | A | `architecture/agents-lineage.md` | current highest-priority cross-store audit area |
 | Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md` | immediate SQLite claims remain atomic; standard desktop multi-writer workspace access is fail-closed at bootstrap |
 | Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | manifest contract is mechanical; continue trust/review-to-run audit |
@@ -196,12 +198,22 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 ### P0 — continue code-as-documentation architecture audit
 
 1. Continue the Agents runtime-link/history transaction audit under the explicit single-writer workspace contract.
-2. Finish the concurrency/ownership audit for state **outside** the workspace lease: Qt QSettings and user-home key bindings, including what would happen if different-workspace processes ever coexist.
-3. Synchronize `agents-lineage`, `runtime-resource-safety`, `persistence`, troubleshooting and backup docs after every safety correction.
-4. Re-run full current-only language search for stale `planned`, `future`, old statuses, old paths, and obsolete migration wording.
-5. Continue applying the same fail-closed review to mutable trusted execution/configuration surfaces such as Automation manifests.
+2. Synchronize `agents-lineage`, `runtime-resource-safety`, `persistence`, troubleshooting and backup docs after every safety correction.
+3. Re-run full current-only language search for stale `planned`, `future`, old statuses, old paths, and obsolete migration wording.
+4. Continue applying the same fail-closed review to mutable trusted execution/configuration surfaces such as Automation manifests.
+5. Re-check known smaller seams (for example custom accent validation) rather than allowing documentation to normalize implementation drift.
 
-The child/background lifetime part of the previous P0 concurrency gap is now closed by `architecture/background-work-lifecycle.md`: shell-owned QThreads, runtime-operation leases, final bootstrap drain and workspace-lease release are explicitly separated.
+Two previous P0 concurrency gaps are now explicitly closed at the documentation-contract level:
+
+```text
+child/background lifetime
+    -> architecture/background-work-lifecycle.md
+
+state outside workspace lease
+    -> architecture/preference-persistence.md
+```
+
+The preference audit found no reason to invent a v1.0 migration: ordinary default-workspace desktop launches are already serialized by `WorkspaceOwnership`. It does establish a hard constraint for any future simultaneous different-workspace process model because QSettings and the home-relative binding file are user-level stores without a PTL interprocess CAS/transaction contract.
 
 ### P1 — close distributed coverage only where it improves use
 
