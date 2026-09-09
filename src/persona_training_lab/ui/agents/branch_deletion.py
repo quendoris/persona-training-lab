@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Protocol
@@ -219,14 +220,23 @@ class BranchDeletionController:
         self,
         plan: BranchDeletionPlan,
         *,
+        history_metadata: Mapping[str, Any],
         current_layout: dict[str, Any] | None = None,
     ) -> BranchDeletionResult:
-        """Redo one recorded branch deletion behind a fresh runtime lease."""
+        """Redo one recorded branch deletion behind its recorded safety identity."""
 
         current_ids = self._state.custom_subtree_ids(plan.node_id)
         if not current_ids:
             return BranchDeletionResult(BranchDeletionStatus.NOOP)
         if current_ids != plan.removed_ids:
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=current_ids,
+                fallback_id=plan.fallback_id,
+            )
+        if not self._transactions.deletion_history_matches_current_links(
+            history_metadata
+        ):
             return BranchDeletionResult(
                 BranchDeletionStatus.STALE,
                 removed_ids=current_ids,
@@ -245,6 +255,20 @@ class BranchDeletionController:
             )
         if lease is None:
             return BranchDeletionResult(BranchDeletionStatus.UNAVAILABLE)
+
+        if not self._transactions.deletion_history_matches_current_links(
+            history_metadata
+        ):
+            error = RuntimeError(
+                "Lineage deletion Redo safety links changed during runtime "
+                "guard acquisition"
+            )
+            self._cancel_lease_or_raise(lease, error)
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=current_ids,
+                fallback_id=plan.fallback_id,
+            )
 
         transaction_snapshot = self._state.capture_transaction_state()
         try:
@@ -332,6 +356,18 @@ class BranchDeletionController:
         except Exception as error:
             errors.append(error)
         return tuple(errors)
+
+    @staticmethod
+    def _cancel_lease_or_raise(lease, original_error: BaseException) -> None:
+        try:
+            changed = lease.cancel(str(original_error))
+            if changed is not True:
+                raise RuntimeError("Deletion lease was not finalized")
+        except Exception as finalization_error:
+            raise BranchDeletionExecutionError(
+                original_error,
+                (finalization_error,),
+            ) from original_error
 
     @staticmethod
     def _fail_lease_or_raise(lease, original_error: BaseException) -> None:
