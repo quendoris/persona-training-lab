@@ -505,7 +505,7 @@ Semantic source records remain SQLite-backed. Local research organization/histor
 <workspace>/agents_lineage_state.json
 ```
 
-including custom branches/current/archive/overrides/undo/redo/layout.
+including custom branches/current/archive/overrides/undo/redo/layout and protected cross-store history metadata.
 
 The split avoids making the local presentation/history file a duplicate authoritative semantic database.
 
@@ -529,11 +529,28 @@ An Agents JSON replacement and SQLite resource-link transaction are different me
 
 The current lineage controllers therefore use explicit orchestration/compensation where one logical action needs both stores.
 
-For branch creation, `BranchCreationController` captures the exact pre-creation Agents transaction state, persists the child branch, then binds/inherits the child's SQLite safety links. The screen selects/renders the child only after link binding succeeds. If the SQLite link mutation raises, its repository transaction rolls back and the controller restores the pre-creation Agents state. If that restoration also fails, `BranchCreationExecutionError` preserves both failures.
+For modern branch creation, `BranchCreationController`:
 
-Protected branch deletion/Undo/Redo use their own stronger lease/history compensation protocol described in [Agents lineage architecture](agents-lineage.md).
+```text
+captures exact pre-creation Agents state
+  -> persists the child branch
+  -> binds/inherits child SQLite safety links
+  -> captures branch_create_v1 safety metadata
+  -> durably attaches that metadata to the branch_create history entry
+  -> only then lets the screen expose/select the child
+```
 
-This is compensation across two local persistence boundaries, not a claim that the two stores became one database transaction.
+If link binding fails, its SQLite transaction rolls back and the controller restores the pre-creation Agents state.
+
+If link binding succeeded but history-metadata persistence fails, the controller restores the pre-creation Agents state first and then forgets the child links. If restoring the Agents state itself fails, it deliberately does not remove already-bound links and thereby turn a still-present branch safety-empty. `BranchCreationExecutionError` preserves original and compensation failures.
+
+The same `branch_create_v1` metadata follows the history entry between undo/redo stacks. Protected creation Undo removes the branch state and then removes the exact child links; if link cleanup fails, the controller restores the pre-Undo Agents state. Protected creation Redo restores the branch state and then restores the exact saved links; if link restoration fails, the controller restores the pre-Redo Agents state. The composed screen applies the visible history transition only after those controller operations succeed.
+
+Historical `branch_create` entries without `branch_create_v1` metadata remain on the generic compatibility history path because exact old link provenance was never persisted. Generic Undo of such an old entry can leave conservative stale link rows rather than guessing which historical links are safe to delete.
+
+Protected branch deletion/Undo/Redo use their own lease/history compensation protocol described in [Agents lineage architecture](agents-lineage.md).
+
+These are compensation protocols across two local persistence boundaries, not a claim that the two stores became one database transaction.
 
 ## 41. Automation manifests are executable filesystem persistence inputs
 
@@ -648,8 +665,11 @@ Examples:
 - runtime lease acquisition rolls back on blockers/errors;
 - lineage snapshot rolls back on read failure;
 - Agents atomic store restores its remembered previous payload if save fails;
-- branch creation restores the exact pre-creation Agents state if child safety-link binding fails after the JSON mutation;
-- branch creation exposes a structured dual-failure error if that compensation itself fails;
+- branch creation restores exact pre-creation Agents state when child link binding fails after the JSON mutation;
+- branch creation restores state before removing already-bound links when later history-metadata persistence fails;
+- protected branch-creation Undo restores pre-Undo Agents state if child-link cleanup fails;
+- protected branch-creation Redo restores pre-Redo Agents state if exact link restoration fails;
+- cross-store creation failures expose `BranchCreationExecutionError` when compensation itself also fails instead of hiding the partial outcome;
 - invalid persisted key-binding conflicts fall back to known defaults rather than activating ambiguous mappings;
 - failed background lineage refresh retains last-good projection in the UI integration layer.
 
@@ -702,7 +722,9 @@ workspace-local models when required
 other workspace state
 ```
 
-It separately preserves external Dataset/model/Automation dependencies when required.
+For Agents specifically, `app.db` contains current `lineage_resource_links`, while `agents_lineage_state.json` contains local branch/history state and can contain `branch_create_v1` / `branch_delete_v1` metadata describing the safety identity expected by protected history. Those two files should therefore come from the same offline workspace backup snapshot rather than independently selected backup generations.
+
+The backup separately preserves external Dataset/model/Automation dependencies when required.
 
 For exact UI/input-personalization restoration it also separately preserves:
 
@@ -733,6 +755,7 @@ The v1.0 architecture does not claim:
 - automatic content-addressing of complete base-model directories;
 - automatic copying of Dataset source bytes into SQLite;
 - transactional artifact garbage collection from Agents branch deletion;
+- automatic reconstruction of exact safety metadata for historical branch-creation history entries that never stored it;
 - hot whole-workspace backup atomicity;
 - automatic inclusion of QSettings/key bindings in a workspace backup;
 - one universal settings database;
@@ -749,15 +772,16 @@ Persistence changes must preserve these current rules unless the architecture/pr
 5. runtime claim check+acquire remains atomic against supported competing lease acquisition;
 6. Agents local JSON remains distinguishable from authoritative semantic SQLite records;
 7. cross-store workflows are not documented as globally atomic when they rely on orchestration/compensation;
-8. a newly created custom Agents branch is not exposed as successfully created before its required persisted safety-link bind succeeds;
-9. Training artifacts remain distinct from disposable cache;
-10. external Dataset/model/Automation dependencies remain visibly external when external;
-11. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
-12. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
-13. key-binding file format compatibility is not conflated with SQLite schema compatibility;
-14. schema compatibility claims do not exceed implemented additions;
-15. canonical machine status/identity is not replaced by localized display text;
-16. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
+8. a newly created custom Agents branch is not exposed as successfully created before its required persisted safety-link bind and history-metadata attachment succeed;
+9. metadata-bearing branch-creation Undo/Redo keeps JSON branch state and SQLite safety links consistent or restores the previous state before UI exposure;
+10. Training artifacts remain distinct from disposable cache;
+11. external Dataset/model/Automation dependencies remain visibly external when external;
+12. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
+13. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
+14. key-binding file format compatibility is not conflated with SQLite schema compatibility;
+15. schema compatibility claims do not exceed implemented additions;
+16. canonical machine status/identity is not replaced by localized display text;
+17. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
 
 ## 57. Audit questions for future persistent features
 
