@@ -275,7 +275,28 @@ class LineageBranchTransactions:
         if safety is None or parsed is None:
             return ()
         _, removed_ids, links = parsed
+        occupied = tuple(
+            node_id
+            for node_id in removed_ids
+            if safety.links_for_node(node_id)
+        )
+        if occupied:
+            raise RuntimeError(
+                "Lineage branch deletion Undo safety identity is not empty "
+                "for recorded deleted nodes: "
+                + ", ".join(occupied)
+            )
         safety.restore_node_links(links)
+        for node_id in removed_ids:
+            current_claims = tuple(
+                sorted(set(safety.links_for_node(node_id)))
+            )
+            if current_claims != links[node_id]:
+                safety.forget_nodes(removed_ids)
+                raise RuntimeError(
+                    "Lineage branch deletion Undo did not restore recorded "
+                    "safety links"
+                )
         return removed_ids
 
     def deletion_history_subject(
