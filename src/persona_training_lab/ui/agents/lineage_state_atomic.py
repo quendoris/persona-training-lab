@@ -65,6 +65,22 @@ class AtomicLineageStateStore(LineageStateStore):
     def clear_staged_history_metadata(self) -> None:
         self._pending_history_metadata = None
 
+    def attach_latest_history_metadata(
+        self,
+        action_code: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        undo_stack = self._undo_stack()
+        if not undo_stack:
+            raise RuntimeError("No lineage history entry is available for metadata")
+        entry = undo_stack[-1]
+        if self._entry_action_code(entry) != action_code:
+            raise RuntimeError(
+                "Latest lineage history action does not match metadata owner"
+            )
+        entry["metadata"] = deepcopy(metadata)
+        self._save()
+
     def history_toggle_preview(self) -> AtomicHistoryPreview | None:
         direction = self._quick_direction()
         if direction == "redo" and self.can_redo():
