@@ -8,6 +8,11 @@ from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 from persona_training_lab import __version__
 from persona_training_lab.application.messages import UserMessage
 from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.bootstrap.workspace_ownership import (
+    WorkspaceAlreadyOpenError,
+    WorkspaceOwnership,
+)
+from persona_training_lab.config.app_settings import AppSettings
 from persona_training_lab.ui.density import (
     apply_density,
     apply_scaled_styles,
@@ -29,54 +34,65 @@ def main() -> int:
     app.setApplicationName("Persona Training Lab")
     app.setApplicationVersion(__version__)
 
-    container = build_container()
-    app.set_error_reporter(container.error_reporter)
-    _install_exception_boundaries(container.error_reporter)
-    _install_qt_message_boundary(container.error_reporter)
+    settings = AppSettings()
+    workspace_ownership = WorkspaceOwnership(settings.workspace_dir)
+    try:
+        workspace_ownership.acquire()
+    except WorkspaceAlreadyOpenError as error:
+        print(str(error), file=sys.stderr)
+        return 2
 
-    prefs = container.style_vm.load()
-    localization = LocalizationManager(
-        app,
-        initial_locale=prefs.get("language") or "ru-RU",
-        persist_locale=container.style_vm.save_language,
-    )
-    density = apply_density(app, prefs.get("ui_scale"))
-    apply_theme(
-        app,
-        prefs.get("theme"),
-        prefs.get("accent_palette"),
-    )
-    apply_scaled_styles(app, density.scale, immediate=True)
+    try:
+        container = build_container(settings)
+        app.set_error_reporter(container.error_reporter)
+        _install_exception_boundaries(container.error_reporter)
+        _install_qt_message_boundary(container.error_reporter)
 
-    def sync_locale_font(locale: str) -> None:
-        metadata = localization.catalog_set.catalog(locale).metadata
-        apply_locale_font_policy(app, direction=metadata.direction)
+        prefs = container.style_vm.load()
+        localization = LocalizationManager(
+            app,
+            initial_locale=prefs.get("language") or "ru-RU",
+            persist_locale=container.style_vm.save_language,
+        )
+        density = apply_density(app, prefs.get("ui_scale"))
+        apply_theme(
+            app,
+            prefs.get("theme"),
+            prefs.get("accent_palette"),
+        )
+        apply_scaled_styles(app, density.scale, immediate=True)
 
-    localization.language_changed.connect(sync_locale_font)
-    sync_locale_font(localization.locale)
+        def sync_locale_font(locale: str) -> None:
+            metadata = localization.catalog_set.catalog(locale).metadata
+            apply_locale_font_policy(app, direction=metadata.direction)
 
-    window = MainWindow(
-        shell_vm=container.shell_vm,
-        dashboard_vm=container.dashboard_vm,
-        docs_vm=container.docs_vm,
-        style_vm=container.style_vm,
-        agents_vm=container.agents_vm,
-        datasets_vm=container.datasets_vm,
-        profiles_vm=container.profiles_vm,
-        training_vm=container.training_vm,
-        snapshots_vm=container.snapshots_vm,
-        tests_vm=container.tests_vm,
-        analysis_vm=container.analysis_vm,
-        automation_vm=container.automation_vm,
-        telemetry_vm=container.telemetry_vm,
-        lineage_runtime_safety=container.lineage_runtime_safety,
-        operations_center=container.operations_center,
-        localization=localization,
-    )
-    app.aboutToQuit.connect(window.shutdown_background_work)
-    window.setProperty("ptl_density_name", density.name)
-    window.show()
-    return app.exec()
+        localization.language_changed.connect(sync_locale_font)
+        sync_locale_font(localization.locale)
+
+        window = MainWindow(
+            shell_vm=container.shell_vm,
+            dashboard_vm=container.dashboard_vm,
+            docs_vm=container.docs_vm,
+            style_vm=container.style_vm,
+            agents_vm=container.agents_vm,
+            datasets_vm=container.datasets_vm,
+            profiles_vm=container.profiles_vm,
+            training_vm=container.training_vm,
+            snapshots_vm=container.snapshots_vm,
+            tests_vm=container.tests_vm,
+            analysis_vm=container.analysis_vm,
+            automation_vm=container.automation_vm,
+            telemetry_vm=container.telemetry_vm,
+            lineage_runtime_safety=container.lineage_runtime_safety,
+            operations_center=container.operations_center,
+            localization=localization,
+        )
+        app.aboutToQuit.connect(window.shutdown_background_work)
+        window.setProperty("ptl_density_name", density.name)
+        window.show()
+        return app.exec()
+    finally:
+        workspace_ownership.release()
 
 
 def _install_exception_boundaries(error_reporter) -> None:
