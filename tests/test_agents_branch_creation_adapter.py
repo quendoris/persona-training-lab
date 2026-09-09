@@ -4,7 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.application.runtime.operations import (
+    OperationConflictError,
+    ResourceClaim,
+)
+from persona_training_lab.ui.agents.branch_creation import (
+    BranchCreationHistoryCommittedError,
+)
 from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 from persona_training_lab.ui.agents.screen_workspace_composition import AgentsScreen
 
@@ -171,6 +177,86 @@ def test_creation_history_undo_applies_ui_only_after_controller_success() -> Non
 
     AgentsScreen._undo_branch_creation_history(screen, preview)
 
+    assert calls == [
+        ("controller", metadata, {"schema": 2}),
+        ("apply", transition),
+        ("refresh", True),
+    ]
+
+
+def test_creation_history_undo_conflict_shows_blockers_without_transition() -> None:
+    calls: list[tuple[object, ...]] = []
+    metadata = {"kind": "branch_create_v1", "child_node_id": "branch_001"}
+    preview = SimpleNamespace(metadata=metadata)
+    blocker = SimpleNamespace(message="busy")
+    conflict = OperationConflictError((blocker,))  # type: ignore[arg-type]
+
+    def fail_undo(value, *, current_layout):
+        calls.append(("controller", value, current_layout))
+        raise conflict
+
+    screen = SimpleNamespace(
+        _branch_creation_controller=SimpleNamespace(undo_history=fail_undo),
+        _layout_snapshot=lambda: {"schema": 2},
+        _show_runtime_blockers=lambda blockers: calls.append(
+            ("blockers", blockers)
+        ),
+        _apply_history_transition=lambda value: calls.append(
+            ("apply", value)
+        ),
+        _refresh_runtime_safety=lambda *, force: calls.append(
+            ("refresh", force)
+        ),
+        _sync_history_action=lambda: calls.append(("sync",)),
+    )
+
+    AgentsScreen._undo_branch_creation_history(screen, preview)
+
+    assert calls == [
+        ("controller", metadata, {"schema": 2}),
+        ("blockers", conflict.blockers),
+    ]
+
+
+def test_creation_history_committed_error_applies_transition_before_reporting() -> None:
+    calls: list[tuple[object, ...]] = []
+    metadata = {"kind": "branch_create_v1", "child_node_id": "branch_001"}
+    preview = SimpleNamespace(metadata=metadata)
+    transition = HistoryTransition(
+        action_code="branch_create",
+        direction="undo",
+        layout_snapshot={"schema": 1},
+    )
+    committed = BranchCreationHistoryCommittedError(
+        transition,
+        OSError("finish unavailable"),
+    )
+
+    def fail_after_commit(value, *, current_layout):
+        calls.append(("controller", value, current_layout))
+        raise committed
+
+    screen = SimpleNamespace(
+        _branch_creation_controller=SimpleNamespace(
+            undo_history=fail_after_commit
+        ),
+        _layout_snapshot=lambda: {"schema": 2},
+        _show_runtime_blockers=lambda blockers: calls.append(
+            ("blockers", blockers)
+        ),
+        _apply_history_transition=lambda value: calls.append(
+            ("apply", value)
+        ),
+        _refresh_runtime_safety=lambda *, force: calls.append(
+            ("refresh", force)
+        ),
+        _sync_history_action=lambda: calls.append(("sync",)),
+    )
+
+    with pytest.raises(BranchCreationHistoryCommittedError) as captured:
+        AgentsScreen._undo_branch_creation_history(screen, preview)
+
+    assert captured.value is committed
     assert calls == [
         ("controller", metadata, {"schema": 2}),
         ("apply", transition),
