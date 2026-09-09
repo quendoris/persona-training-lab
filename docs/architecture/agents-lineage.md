@@ -252,13 +252,17 @@ If persistence fails before replacement completes, temporary debris is best-effo
 
 A failed local-state write must not leave the active in-memory payload claiming a state that was never durably saved.
 
-## 10. Transaction snapshots for destructive workflows
+## 10. Transaction snapshots for cross-store lineage workflows
 
 The atomic state store can capture and restore the complete local transaction state.
 
-Branch deletion uses this capability so state changes can be compensated if runtime-link cleanup or lease finalization fails before the operation reaches an irreversible committed point.
+Both branch creation and branch deletion use this capability when a logical user action crosses the Agents JSON / SQLite resource-link boundary. The stores are still not one ACID transaction; the controller makes the workflow compensating instead.
 
 The transaction snapshot is distinct from user history: one is failure compensation, the other is an intentional user-visible undo/redo record.
+
+### Invariant
+
+A workflow that requires both local lineage state and runtime-safety links must not report/expose a successful new lineage state after the paired safety-link mutation failed and was compensatable.
 
 ## 11. Runtime resource links
 
@@ -294,26 +298,37 @@ A failed/unproven background load must not be used as evidence that previously k
 
 This prevents a transient refresh failure from accidentally weakening runtime safety.
 
-## 13. Custom-branch inheritance
+## 13. Custom-branch creation and inheritance
 
-Creating a local branch binds runtime resource identity at branch creation time.
+Creating a local branch is a cross-store workflow: the custom-node/history mutation lives in `agents_lineage_state.json`, while inherited runtime-safety identity lives in SQLite `lineage_resource_links`.
 
 If the parent is custom, the child inherits the parent's persisted links. If the parent is a semantic projection node, fallback claims from the projection are bound to the child.
 
 Conceptually:
 
 ```text
-parent projection/custom node
+capture exact local transaction state
+       ↓
+persist branch_00N in atomic Agents JSON
+       ↓
+bind/inherit child resource links in SQLite
        │
-       └─ resource claims
-              │
-              ▼
-          branch_00N
+       ├─ success → select/expose branch and refresh UI
+       │
+       └─ failure → restore exact pre-creation Agents JSON state
 ```
 
-### Invariant
+`BranchCreationController` owns that ordering. The screen does not select or render the new child until `bind_child(...)` has returned successfully.
+
+The SQLite link replacement itself is one repository transaction. If link binding raises, that repository transaction rolls back; the branch-creation controller compensates the already-persisted Agents JSON side.
+
+If restoration of the Agents transaction snapshot also fails, `BranchCreationExecutionError` preserves both the original link-binding error and the compensation error rather than pretending the workflow cleanly rolled back.
+
+### Invariants
 
 A newly created custom branch must not become safety-empty merely because no new persisted Training/model entity has been materialized yet.
+
+A branch whose required safety-link bind failed must not remain durably exposed as a successful creation when the local-state compensation succeeds.
 
 ## 14. Runtime operations and deletion conflicts
 
@@ -597,6 +612,8 @@ Agents uses several independent containment mechanisms:
 |---|---|
 | SQLite semantic snapshot read fails | rollback read transaction; keep last-good UI projection where available |
 | local JSON save fails | restore last persisted in-memory payload; temporary file cleanup best effort |
+| branch creation safety-link bind fails | rollback SQLite link transaction; restore exact pre-creation Agents transaction snapshot; do not select/render child |
+| branch creation compensation also fails | raise `BranchCreationExecutionError` preserving original and restore errors |
 | deletion plan changes before execution | return `STALE`; do not delete unexpected subtree |
 | runtime conflict | lease acquisition fails; keep lineage unchanged |
 | local state deletion fails | fail lease; propagate original error |
@@ -612,6 +629,7 @@ The audited v1.0 architecture deliberately does not claim:
 
 - distributed/multi-host runtime locking;
 - unlimited lineage graph scale;
+- one ACID transaction spanning Agents JSON and SQLite resource links;
 - transactional deletion of real model artifacts from Agents;
 - that custom branches are independently persisted ML models;
 - that every historical/legacy row has modern stable-ID provenance;
@@ -632,6 +650,7 @@ Changes to Agents should preserve regression coverage for at least these contrac
 - last-good background refresh behavior;
 - local state atomic persistence;
 - custom branch inheritance;
+- branch-creation compensation across Agents JSON and SQLite safety links;
 - deletion conflict/lease semantics;
 - deletion compensation/finalization errors;
 - protected deletion history metadata;
@@ -649,8 +668,10 @@ Runtime changes during final v1.0 documentation/release work require a concrete 
 
 - [Agents lineage user guide](../user-guide/agents-lineage.md)
 - [Runtime resource safety](runtime-resource-safety.md)
+- [Persistence architecture](persistence.md)
 - [Architecture Overview](overview.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
+- [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Evaluation contract](../reference/evaluation-contract.md)
 - [v1.0 Product Contract](../reference/v1-product-contract.md)
