@@ -247,6 +247,25 @@ class LineageBranchTransactions:
             "resource_links": links,
         }
 
+    def deletion_history_matches_current_links(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> bool:
+        parsed = self._parse_deletion_history(metadata)
+        if parsed is None:
+            return False
+        _, removed_ids, expected_links = parsed
+        safety = self._safety
+        if safety is None:
+            return all(not expected_links[node_id] for node_id in removed_ids)
+        for node_id in removed_ids:
+            current_claims = tuple(
+                sorted(set(safety.links_for_node(node_id)))
+            )
+            if current_claims != expected_links[node_id]:
+                return False
+        return True
+
     def restore_deletion_history(
         self,
         metadata: Mapping[str, Any],
@@ -357,5 +376,5 @@ class LineageBranchTransactions:
                         str(raw_claim.get("access_mode", "read") or "read"),
                     )
                 )
-            links[node_id] = tuple(claims)
+            links[node_id] = tuple(sorted(set(claims)))
         return subject_id, removed_ids, links
