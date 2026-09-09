@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
@@ -37,8 +39,8 @@ def _connect(path) -> sqlite3.Connection:
     return connection
 
 
-def _restore_deleted_branch_for_redo(tmp_path):
-    connection = _connect(tmp_path / "runtime.sqlite3")
+def _build_deleted_branch(tmp_path, *, database_name: str = "runtime.sqlite3"):
+    connection = _connect(tmp_path / database_name)
     create_minimal_schema(connection)
     operations = RuntimeOperationCoordinator(
         SQLiteRuntimeOperationsRepository(connection)
@@ -48,7 +50,9 @@ def _restore_deleted_branch_for_redo(tmp_path):
         operations,
     )
     transactions = LineageBranchTransactions(safety)
-    state = AtomicLineageStateStore(tmp_path / "lineage-state.json")
+    state = AtomicLineageStateStore(
+        tmp_path / f"{database_name}.lineage-state.json"
+    )
     branch_id = state.continue_from("snapshot")
     expected_links = (
         ResourceClaim("model_version", "mdl_recorded", "read"),
@@ -65,6 +69,29 @@ def _restore_deleted_branch_for_redo(tmp_path):
     )
     assert plan is not None
     assert controller.execute(plan).status is BranchDeletionStatus.DELETED
+    assert state.is_custom_node(branch_id) is False
+    assert safety.links_for_node(branch_id) == ()
+    return (
+        connection,
+        safety,
+        transactions,
+        state,
+        controller,
+        branch_id,
+        tuple(sorted(expected_links)),
+    )
+
+
+def _restore_deleted_branch_for_redo(tmp_path):
+    (
+        connection,
+        safety,
+        transactions,
+        state,
+        controller,
+        branch_id,
+        expected_links,
+    ) = _build_deleted_branch(tmp_path)
 
     undo_preview = state.undo_preview()
     assert undo_preview is not None
@@ -96,8 +123,39 @@ def _restore_deleted_branch_for_redo(tmp_path):
         controller,
         redo_plan,
         branch_id,
-        tuple(sorted(expected_links)),
+        expected_links,
     )
+
+
+def test_delete_undo_refuses_foreign_links_for_recorded_deleted_nodes(
+    tmp_path,
+) -> None:
+    (
+        connection,
+        safety,
+        transactions,
+        state,
+        _controller,
+        branch_id,
+        _expected_links,
+    ) = _build_deleted_branch(tmp_path, database_name="runtime-undo.sqlite3")
+    preview = state.undo_preview()
+    assert preview is not None
+    drifted_links = (
+        ResourceClaim("dataset", "ds_foreign", "read"),
+    )
+    safety.bind_node(branch_id, drifted_links)
+
+    with pytest.raises(RuntimeError, match="safety identity is not empty"):
+        transactions.restore_deletion_history(preview.metadata)
+
+    assert state.is_custom_node(branch_id) is False
+    assert safety.links_for_node(branch_id) == drifted_links
+    pending = state.undo_preview()
+    assert pending is not None
+    assert pending.action_code == "branch_delete"
+    assert pending.direction == "undo"
+    connection.close()
 
 
 def test_delete_redo_refuses_links_that_drifted_from_recorded_history(
