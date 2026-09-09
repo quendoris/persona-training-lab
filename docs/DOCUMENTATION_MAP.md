@@ -2,7 +2,7 @@
 
 > **Branch audited:** `agent/history-keyguard-poller`
 >
-> **Baseline HEAD when this map was created:** `3037a4587172173e3c904f6c7d95bfc1ee32ef98`
+> **Measured content baseline for this refresh:** `b00310b976c643bcaac4bebff6e995c0cfc9cff2`
 >
 > This file is a maintenance map, not a second source of product truth. Feature behavior remains authoritative in the linked user/operations/architecture/reference documents and ultimately in audited code/tests.
 
@@ -21,7 +21,7 @@ This map records coverage, remaining gaps, and documentation scale so that new w
 
 ## 2. Current documentation scale
 
-At the baseline above, `docs/` contains **54 Markdown documents**.
+At the measured baseline above, `docs/` contains **56 Markdown documents**.
 
 By role:
 
@@ -30,12 +30,12 @@ By role:
 | `docs/user-guide/` | 12 | 188 KB | end-user workflows |
 | `docs/operations/` | 5 | 160 KB | storage, recovery, diagnostics, security, models |
 | `docs/architecture/` | 9 | 211 KB | current architecture + proposed training-dynamics research architecture |
-| `docs/reference/` | 5 | 98 KB | machine-level contracts |
+| `docs/reference/` | 6 | 114 KB | machine-level contracts including current SQLite schema |
 | `docs/development/` | 7 | 57 KB | setup, tests, tooling, packaging, release, docs runtime |
-| root methodology / runtime docs | 6 | 95 KB | quickstart, Training pipeline, experiment/methodology material, docs hub |
+| root canonical/map/methodology docs | 7 | 110 KB | docs hub/map, quickstart, Training pipeline, experiment/methodology material |
 | `docs/context/` | 7 | 23 KB | historical/internal project context |
 | `docs/releases/` | 3 | 21 KB | historical release/audit records |
-| **Total** | **54** | **~852 KB** | documentation source only |
+| **Total** | **56** | **~884 KB** | documentation source only |
 
 The repository itself is now on the order of **10^5 tracked physical text lines**. The last locally observed integration statistics were already near that scale before the newest documentation and lineage-safety work. Exact line counts must be regenerated on a clean checkout with `tools/codebase_stats.py`; this map intentionally does not turn an older dirty-worktree statistic into a false exact current number.
 
@@ -89,7 +89,7 @@ The useful scale statement is therefore:
 | Subsystem | Status | Authority | Remaining work |
 |---|---|---|---|
 | System composition / layers | A | `architecture/overview.md` | final top-down consistency pass against composition root |
-| Persistence | A | `architecture/persistence.md` | continue transaction/race audit; add schema-level reference if useful |
+| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | continue transaction/race audit; schema mechanics now have a dedicated reference |
 | UI shell / lifecycle | A | `architecture/ui-shell.md` | final worker/close-guard audit and screenshot-independent diagrams |
 | Agents lineage | A | `architecture/agents-lineage.md` | current highest-priority architecture audit area |
 | Runtime resource safety | A | `architecture/runtime-resource-safety.md` | verify cross-connection and multi-process assumptions explicitly |
@@ -111,14 +111,14 @@ Already strong:
 - `reference/evaluation-contract.md` — evaluation battery, scoring, serialized results, protocol comparability;
 - `reference/statuses-and-identifiers.md` — states, codes, identifiers, compatibility aliases;
 - `reference/workspace-layout.md` — persistence surfaces and path ownership;
-- `reference/keyboard-mouse-bindings.md` — binding IDs/defaults/semantics.
+- `reference/keyboard-mouse-bindings.md` — binding IDs/defaults/semantics;
+- `reference/persistence-schema.md` — exact current SQLite tables, columns, indexes, foreign-key boundaries and additive bootstrap rules.
 
-High-value additions:
+High-value additions still open:
 
-1. **`reference/persistence-schema.md`** — tables, primary keys, critical indexes, compatibility columns, ownership and migration/bootstrap rules. `architecture/persistence.md` should remain conceptual; the reference should be mechanical.
-2. **`reference/automation-recipe-schema.md`** — exact recipe fields, types, defaults, validation, execution mode, trust implications.
-3. **`reference/event-and-diagnostic-schema.md`** — event log fields, error IDs, correlation/causation IDs, redaction boundary, retention/ordering semantics.
-4. **Training Dynamics artifact/schema reference** once instrumentation leaves proposed status.
+1. **`reference/automation-recipe-schema.md`** — exact recipe fields, types, defaults, validation, execution mode, trust implications.
+2. **`reference/event-and-diagnostic-schema.md`** — event log fields, error IDs, correlation/causation IDs, redaction boundary, retention/ordering semantics.
+3. **Training Dynamics artifact/schema reference** once instrumentation leaves proposed status.
 
 ## 8. Development/release coverage
 
@@ -195,10 +195,9 @@ Before final documentation freeze, every cross-link from canonical docs into his
 
 ### P1 — close dedicated reference gaps
 
-1. persistence schema reference;
-2. event/error/diagnostic schema reference;
-3. Automation recipe schema reference;
-4. operator-facing Operations Center semantics if the current distributed coverage proves too hard to use.
+1. event/error/diagnostic schema reference;
+2. Automation recipe schema reference;
+3. operator-facing Operations Center semantics if the current distributed coverage proves too hard to use.
 
 ### P2 — usability and evidence
 
