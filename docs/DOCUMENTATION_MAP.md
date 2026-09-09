@@ -2,7 +2,7 @@
 
 > **Branch audited:** `agent/history-keyguard-poller`
 >
-> **Measured content baseline for this refresh:** `377d1b6731a2e443d0041f67799183f43b736f0c`
+> **Measured content baseline for this refresh:** `5c901ebd6fa83a7842525227971c3c50d42e70b1`
 >
 > This file is a maintenance map, not a second source of product truth. Feature behavior remains authoritative in the linked user/operations/architecture/reference documents and ultimately in audited code/tests.
 
@@ -21,7 +21,7 @@ This map records coverage, remaining gaps, and documentation scale so that new w
 
 ## 2. Current documentation scale
 
-At the measured baseline above, `docs/` contains **58 Markdown documents**.
+At the measured baseline above, `docs/` contains **59 Markdown documents**.
 
 By role:
 
@@ -29,15 +29,15 @@ By role:
 |---|---:|---:|---|
 | `docs/user-guide/` | 12 | 188 KB | end-user workflows |
 | `docs/operations/` | 5 | 160 KB | storage, recovery, diagnostics, security, models |
-| `docs/architecture/` | 9 | 211 KB | current architecture + proposed training-dynamics research architecture |
+| `docs/architecture/` | 10 | ~225 KB | current architecture + proposed training-dynamics research architecture |
 | `docs/reference/` | 8 | 143 KB | machine-level contracts, SQLite, diagnostics and Automation manifests |
 | `docs/development/` | 7 | 57 KB | setup, tests, tooling, packaging, release, docs runtime |
 | root canonical/map/methodology docs | 7 | 112 KB | docs hub/map, quickstart, Training pipeline, experiment/methodology material |
 | `docs/context/` | 7 | 23 KB | historical/internal project context |
 | `docs/releases/` | 3 | 21 KB | historical release/audit records |
-| **Total** | **58** | **~915 KB** | documentation source only |
+| **Total** | **59** | **~929 KB** | documentation source only |
 
-The repository itself is now on the order of **10^5 tracked physical text lines**. The last locally observed integration statistics were already near that scale before the newest documentation and lineage-safety work. Exact line counts must be regenerated on a clean checkout with `tools/codebase_stats.py`; this map intentionally does not turn an older dirty-worktree statistic into a false exact current number.
+The repository itself is now on the order of **10^5 tracked physical text lines**. Exact current counts must be regenerated on the intended branch/commit. `tools/codebase_stats.py` now reports repository root, branch, full and short commit identity, upstream, dirty state, tracked changes, untracked files, and the exact dirty paths so an accidental analysis of another checkout/branch cannot silently masquerade as release evidence.
 
 The useful scale statement is therefore:
 
@@ -76,12 +76,12 @@ The useful scale statement is therefore:
 
 | Topic | Status | Authority | Remaining work |
 |---|---|---|---|
-| Workspace and path ownership | A | `operations/workspace-and-storage.md`, `reference/workspace-layout.md` | final consistency pass after any new research artifact roots are introduced |
+| Workspace and path ownership | A | `operations/workspace-and-storage.md`, `reference/workspace-layout.md`, `architecture/workspace-concurrency.md` | keep single-writer ownership synchronized with bootstrap/recovery changes |
 | Local models | A | `operations/local-models.md` | record stronger base-model content provenance if implementation gains it |
 | Troubleshooting / evidence preservation | A | `operations/troubleshooting.md`, `reference/event-and-diagnostic-schema.md` | continue adding concrete recovery classes discovered during architecture audit |
-| Backup / reset / recovery | A | `operations/backup-reset-recovery.md` | keep Agents JSON ↔ SQLite same-snapshot rules synchronized with lineage changes |
+| Backup / reset / recovery | A | `operations/backup-reset-recovery.md` | keep Agents JSON ↔ SQLite same-snapshot and offline-owner rules synchronized with lineage changes |
 | Security / trust / privacy | A | `operations/security-boundaries.md`, `reference/event-and-diagnostic-schema.md` | re-audit every new diagnostics/research artifact before release |
-| Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, troubleshooting | document any new resource kinds introduced by Training Dynamics instrumentation |
+| Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, troubleshooting | preserve distinction between SQLite claims and the outer desktop writer lease; document new resource kinds introduced by future instrumentation |
 | Export / portability | C | storage + backup docs | **G:** dedicated export/portability contract if PTL adds supported workspace migration/export rather than raw backup |
 
 ## 6. Architecture coverage
@@ -90,13 +90,14 @@ The useful scale statement is therefore:
 |---|---|---|---|
 | System composition / layers | A | `architecture/overview.md` | final top-down consistency pass against composition root |
 | Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | continue transaction/race audit; schema mechanics have a dedicated reference |
+| Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md` | audit preference stores shared across different workspaces and child/background lifetime assumptions |
 | UI shell / lifecycle | A | `architecture/ui-shell.md` | final worker/close-guard audit and screenshot-independent diagrams |
-| Agents lineage | A | `architecture/agents-lineage.md` | current highest-priority architecture audit area |
-| Runtime resource safety | A | `architecture/runtime-resource-safety.md` | verify cross-connection and multi-process assumptions explicitly |
+| Agents lineage | A | `architecture/agents-lineage.md` | current highest-priority cross-store audit area |
+| Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md` | immediate SQLite claims remain atomic; standard desktop multi-writer workspace access is now fail-closed at bootstrap |
 | Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | manifest contract is now mechanical; continue trust/review-to-run audit |
 | Localization | A | `architecture/localization.md` | no major gap currently |
 | Evaluation / Analysis | B | `reference/evaluation-contract.md`, methodology docs | optional dedicated architecture page only if orchestration becomes more complex |
-| Training implementation | A | `training_pipeline.md` | current backend is simple full-parameter SGD; avoid projecting proposed math onto v1.0 behavior |
+| Training implementation | A | `training_pipeline.md` | current backend is simple full-parameter training; avoid projecting proposed dynamics math onto current v1.0 behavior |
 | Training Dynamics mathematics | R | `architecture/training-dynamics-mathematics.md` | sources/derivations and implementation design can continue to grow without claiming runtime support |
 | Training Dynamics instrumentation | R | `architecture/training-dynamics-instrumentation.md` | define artifact schema, sampling tiers, structural signatures, probe battery, storage cost budget |
 | Telemetry architecture | C | shell/troubleshooting + telemetry code | **G:** dedicated page if telemetry feeds future research analysis |
@@ -129,6 +130,8 @@ The developer layer is largely complete:
 - visual audit;
 - packaging;
 - release process.
+
+`tools/codebase_stats.py` now makes its measurement provenance explicit: human and JSON output identify repository root, branch, commit, upstream and dirty state, while preserving the short `commit` JSON field for compatibility and adding the full SHA separately. Its blocking quick-gate regression tests also verify that untracked files are reported as dirty context but remain excluded from `git ls-files` statistics.
 
 Remaining work is predominantly **evidence population**, not missing prose:
 
@@ -186,8 +189,8 @@ Before final documentation freeze, every cross-link from canonical docs into his
 
 ### P0 — continue code-as-documentation architecture audit
 
-1. Finish the current Agents runtime-link/history transaction audit.
-2. Re-check persistence/race semantics across separate SQLite connections and possible multiple PTL processes.
+1. Continue the Agents runtime-link/history transaction audit under the now-explicit single-writer workspace contract.
+2. Audit the concurrency boundary that remains **outside** the workspace lease: Qt QSettings, user-home key bindings, child/background process lifetime, and any future simultaneous different-workspace instances.
 3. Synchronize `agents-lineage`, `runtime-resource-safety`, `persistence`, troubleshooting and backup docs after every safety correction.
 4. Re-run full current-only language search for stale `planned`, `future`, old statuses, old paths, and obsolete migration wording.
 5. Continue applying the same fail-closed review to mutable trusted execution/configuration surfaces such as Automation manifests.
