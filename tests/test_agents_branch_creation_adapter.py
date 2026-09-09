@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 from persona_training_lab.ui.agents.screen_workspace_composition import AgentsScreen
 
 
@@ -89,3 +90,116 @@ def test_branch_creation_is_exposed_only_after_controller_success() -> None:
     assert execute_kwargs["fallback_claims"] == claims
     assert calls[3] == ("refresh_lineage", True)
     assert calls[4] == ("refresh_runtime", True)
+
+
+def test_protected_creation_toggle_routes_undo_before_ui_transition() -> None:
+    calls: list[tuple[object, ...]] = []
+    metadata = {"kind": "branch_create_v1", "child_node_id": "branch_001"}
+    preview = SimpleNamespace(
+        action_code="branch_create",
+        direction="undo",
+        metadata=metadata,
+    )
+    screen = SimpleNamespace(
+        _state=SimpleNamespace(history_toggle_preview=lambda: preview),
+        _branch_creation_controller=SimpleNamespace(
+            supports_history=lambda value: value == metadata
+        ),
+        _close_canvas_menu=lambda: calls.append(("close_menu",)),
+        _undo_branch_creation_history=lambda value: calls.append(
+            ("undo_route", value)
+        ),
+        _redo_branch_creation_history=lambda value: calls.append(
+            ("redo_route", value)
+        ),
+    )
+
+    AgentsScreen._toggle_last_history_action(screen)
+
+    assert calls == [("close_menu",), ("undo_route", preview)]
+
+
+def test_protected_creation_undo_only_uses_creation_controller() -> None:
+    calls: list[tuple[object, ...]] = []
+    metadata = {"kind": "branch_create_v1", "child_node_id": "branch_001"}
+    preview = SimpleNamespace(
+        action_code="branch_create",
+        direction="undo",
+        metadata=metadata,
+    )
+    screen = SimpleNamespace(
+        _state=SimpleNamespace(undo_preview=lambda: preview),
+        _branch_creation_controller=SimpleNamespace(
+            supports_history=lambda value: value == metadata
+        ),
+        _close_canvas_menu=lambda: calls.append(("close_menu",)),
+        _undo_branch_creation_history=lambda value: calls.append(
+            ("undo_route", value)
+        ),
+    )
+
+    AgentsScreen._undo_history_only(screen)
+
+    assert calls == [("close_menu",), ("undo_route", preview)]
+
+
+def test_creation_history_undo_applies_ui_only_after_controller_success() -> None:
+    calls: list[tuple[object, ...]] = []
+    metadata = {"kind": "branch_create_v1", "child_node_id": "branch_001"}
+    preview = SimpleNamespace(metadata=metadata)
+    transition = HistoryTransition(
+        action_code="branch_create",
+        direction="undo",
+        layout_snapshot={"schema": 1},
+    )
+
+    def undo_history(value, *, current_layout):
+        calls.append(("controller", value, current_layout))
+        return transition
+
+    screen = SimpleNamespace(
+        _branch_creation_controller=SimpleNamespace(undo_history=undo_history),
+        _layout_snapshot=lambda: {"schema": 2},
+        _apply_history_transition=lambda value: calls.append(
+            ("apply", value)
+        ),
+        _refresh_runtime_safety=lambda *, force: calls.append(
+            ("refresh", force)
+        ),
+        _sync_history_action=lambda: calls.append(("sync",)),
+    )
+
+    AgentsScreen._undo_branch_creation_history(screen, preview)
+
+    assert calls == [
+        ("controller", metadata, {"schema": 2}),
+        ("apply", transition),
+        ("refresh", True),
+    ]
+
+
+def test_creation_history_redo_failure_never_exposes_transition() -> None:
+    calls: list[tuple[object, ...]] = []
+    metadata = {"kind": "branch_create_v1", "child_node_id": "branch_001"}
+    preview = SimpleNamespace(metadata=metadata)
+
+    def fail_redo(value, *, current_layout):
+        calls.append(("controller", value, current_layout))
+        raise RuntimeError("sqlite unavailable")
+
+    screen = SimpleNamespace(
+        _branch_creation_controller=SimpleNamespace(redo_history=fail_redo),
+        _layout_snapshot=lambda: {"schema": 2},
+        _apply_history_transition=lambda value: calls.append(
+            ("apply", value)
+        ),
+        _refresh_runtime_safety=lambda *, force: calls.append(
+            ("refresh", force)
+        ),
+        _sync_history_action=lambda: calls.append(("sync",)),
+    )
+
+    with pytest.raises(RuntimeError, match="sqlite unavailable"):
+        AgentsScreen._redo_branch_creation_history(screen, preview)
+
+    assert calls == [("controller", metadata, {"schema": 2})]
