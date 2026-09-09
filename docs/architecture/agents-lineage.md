@@ -12,7 +12,7 @@ This document defines the v1.0 implementation contract behind that requirement.
 
 ## 1. Architectural boundaries
 
-Agents combines three state classes that must remain distinguishable:
+Agents combines three state classes that must remain distinguishishable:
 
 ```text
 A. persisted semantic sources
@@ -312,23 +312,101 @@ capture exact local transaction state
 persist branch_00N in atomic Agents JSON
        ↓
 bind/inherit child resource links in SQLite
+       ↓
+attach branch_create_v1 metadata to the history entry
        │
        ├─ success → select/expose branch and refresh UI
        │
        └─ failure → restore exact pre-creation Agents JSON state
+                     then forget child links when that state restore succeeded
 ```
 
-`BranchCreationController` owns that ordering. The screen does not select or render the new child until `bind_child(...)` has returned successfully.
+`BranchCreationController` owns that ordering. The screen does not select or render the new child until link binding and durable creation-history metadata attachment have both succeeded.
 
 The SQLite link replacement itself is one repository transaction. If link binding raises, that repository transaction rolls back; the branch-creation controller compensates the already-persisted Agents JSON side.
 
-If restoration of the Agents transaction snapshot also fails, `BranchCreationExecutionError` preserves both the original link-binding error and the compensation error rather than pretending the workflow cleanly rolled back.
+If link binding succeeded but history metadata persistence fails, the controller first restores the exact pre-creation Agents state. Only after that restore succeeds does it forget the already-bound child links. This ordering deliberately avoids turning a still-present branch into a safety-empty branch if local-state compensation itself fails.
+
+If compensation also fails, `BranchCreationExecutionError` preserves the original and compensation failures rather than pretending the workflow cleanly rolled back.
+
+### 13.1 Protected creation history metadata
+
+A successful modern branch creation attaches metadata to the corresponding `branch_create` history entry:
+
+```text
+kind = branch_create_v1
+child_node_id
+resource_links[]
+  resource_kind
+  resource_id
+  access_mode
+```
+
+`AtomicLineageStateStore.attach_latest_history_metadata(...)` verifies that the latest history action is actually `branch_create`, writes the metadata into that entry, and persists the updated JSON through the same atomic-save path.
+
+The atomic history store already copies entry metadata when moving an entry between undo and redo stacks, so the safety identity follows the history transition rather than depending on stale SQLite rows remaining behind by accident.
+
+### 13.2 Protected branch-creation Undo
+
+For a `branch_create` entry with valid `branch_create_v1` metadata, the composed Agents screen routes Undo through `BranchCreationController` rather than generic snapshot replay.
+
+Flow:
+
+```text
+capture exact pre-Undo Agents transaction state
+       ↓
+consume branch_create undo entry
+       ↓
+branch disappears from Agents JSON
+       ↓
+forget that child's lineage_resource_links in SQLite
+       │
+       ├─ success → apply saved UI/history transition
+       │
+       └─ failure → restore exact pre-Undo Agents state
+```
+
+The SQLite link deletion is a repository transaction. If it fails, the branch state is restored before the failed operation is surfaced.
+
+### 13.3 Protected branch-creation Redo
+
+Redo likewise cannot rely on stale links surviving the previous Undo.
+
+Flow:
+
+```text
+capture exact pre-Redo Agents transaction state
+       ↓
+consume branch_create redo entry
+       ↓
+branch returns in Agents JSON
+       ↓
+restore exact saved resource_links from branch_create_v1 metadata
+       │
+       ├─ success → apply saved UI/history transition
+       │
+       └─ failure → restore exact pre-Redo Agents state
+```
+
+The screen applies the visible history transition only after the controller has restored the persisted safety identity successfully.
+
+### 13.4 Legacy creation-history compatibility boundary
+
+Historical `branch_create` entries that predate `branch_create_v1` metadata are still readable by the generic lineage-history compatibility path. They cannot be retrospectively given exact resource-link provenance that was never stored in their history entry.
+
+Generic Undo of such an old entry can therefore leave conservative stale `lineage_resource_links` behind rather than deleting links whose exact historical ownership cannot be proven. A later modern branch creation for the same node ID uses link replacement and does not rely on those stale rows as provenance.
+
+This compatibility behavior is intentionally narrower than the protected contract for newly created metadata-bearing entries.
 
 ### Invariants
 
 A newly created custom branch must not become safety-empty merely because no new persisted Training/model entity has been materialized yet.
 
-A branch whose required safety-link bind failed must not remain durably exposed as a successful creation when the local-state compensation succeeds.
+A branch whose required safety-link bind or creation-history metadata persistence failed must not remain durably exposed as a successful creation when local-state compensation succeeds.
+
+Protected creation Undo must remove both the local branch and its exact saved safety links, or restore the prior state.
+
+Protected creation Redo must restore both the local branch and its exact saved safety links before UI exposure.
 
 ## 14. Runtime operations and deletion conflicts
 
@@ -491,6 +569,8 @@ History entries contain:
 
 The store maintains undo and redo stacks plus `quick_direction`.
 
+Metadata-bearing `branch_create` and `branch_delete` entries receive cross-store handling in the composed screen; ordinary local/layout actions remain generic snapshot history.
+
 ### 19.1 Quick toggle
 
 Default `Ctrl+Z` maps to `history_toggle`. It chooses undo or redo from the current quick-history direction and stack availability.
@@ -501,7 +581,7 @@ Default `Ctrl+Shift+Z` maps to `undo_only` and walks backward without intentiona
 
 ### 19.3 Retention
 
-History keeps a bounded recent set and reserves capacity for older critical entries. Critical deletion history therefore receives stronger retention than ordinary old layout actions, within the configured total history limits.
+History keeps a bounded recent set and reserves capacity for older critical entries. Critical deletion history therefore receives stronger retention than ordinary old layout/creation actions, within the configured total history limits.
 
 ## 20. History input routing
 
@@ -600,7 +680,9 @@ A complete Agents backup spans both:
 
 plus referenced workspace files/artifacts as required by the broader product workflow.
 
-`app.db` contains semantic records and `lineage_resource_links`; the JSON contains local custom branches/current/overrides/history/layout.
+`app.db` contains semantic records and `lineage_resource_links`; the JSON contains local custom branches/current/overrides/history/layout and protected history metadata.
+
+Because creation/deletion history metadata can describe the exact resource-link identity expected in SQLite, the database and JSON should come from the same offline workspace backup snapshot.
 
 Backing up only one side is not a complete Agents-state backup.
 
@@ -613,14 +695,17 @@ Agents uses several independent containment mechanisms:
 | SQLite semantic snapshot read fails | rollback read transaction; keep last-good UI projection where available |
 | local JSON save fails | restore last persisted in-memory payload; temporary file cleanup best effort |
 | branch creation safety-link bind fails | rollback SQLite link transaction; restore exact pre-creation Agents transaction snapshot; do not select/render child |
-| branch creation compensation also fails | raise `BranchCreationExecutionError` preserving original and restore errors |
+| branch creation history-metadata save fails after link bind | restore pre-creation Agents state first, then forget bound links when state restore succeeded |
+| branch creation compensation also fails | raise `BranchCreationExecutionError` preserving original and compensation errors; never hide partial outcome |
+| protected creation Undo link cleanup fails | restore exact pre-Undo Agents state; do not apply UI transition |
+| protected creation Redo link restore fails | restore exact pre-Redo Agents state; do not apply UI transition |
 | deletion plan changes before execution | return `STALE`; do not delete unexpected subtree |
 | runtime conflict | lease acquisition fails; keep lineage unchanged |
 | local state deletion fails | fail lease; propagate original error |
 | resource-link cleanup fails | restore local transaction state; fail lease |
 | compensation/finalization also fails | raise structured execution/committed error preserving both facts |
-| protected Undo state restore fails | compensate restored resource links |
-| protected Redo becomes blocked | keep branch, links, and redo entry intact |
+| protected deletion Undo state restore fails | compensate restored resource links |
+| protected deletion Redo becomes blocked | keep branch, links, and redo entry intact |
 | localization refresh | presentation-only; semantic projection signature invariant |
 
 ## 29. v1.0 operating boundaries
@@ -632,6 +717,7 @@ The audited v1.0 architecture deliberately does not claim:
 - one ACID transaction spanning Agents JSON and SQLite resource links;
 - transactional deletion of real model artifacts from Agents;
 - that custom branches are independently persisted ML models;
+- that every historical/legacy branch-creation history entry contains modern `branch_create_v1` safety metadata;
 - that every historical/legacy row has modern stable-ID provenance;
 - that a visible label is unique identity;
 - that protocol-incompatible portraits can produce a valid exact Delta;
@@ -651,11 +737,14 @@ Changes to Agents should preserve regression coverage for at least these contrac
 - local state atomic persistence;
 - custom branch inheritance;
 - branch-creation compensation across Agents JSON and SQLite safety links;
+- durable `branch_create_v1` history metadata;
+- protected creation Undo removes exact safety links or restores state;
+- protected creation Redo restores exact safety links before UI exposure;
 - deletion conflict/lease semantics;
 - deletion compensation/finalization errors;
 - protected deletion history metadata;
-- exact resource-link restoration on Undo;
-- fresh runtime guard on Redo;
+- exact resource-link restoration on deletion Undo;
+- fresh runtime guard on deletion Redo;
 - preservation of older redo entries and saved layout;
 - keyboard-layout/history routing;
 - protocol-compatible Delta;
