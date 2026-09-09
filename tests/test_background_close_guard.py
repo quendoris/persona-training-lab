@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from persona_training_lab.ui.automation.screen import AutomationScreen
 from persona_training_lab.ui.shell.main_window_background import MainWindow
+from persona_training_lab.ui.tests.screen import TestsScreen
 from persona_training_lab.ui.training.screen import TrainingScreen
 
 
@@ -112,6 +113,26 @@ def test_training_shutdown_waits_without_destroying_running_worker() -> None:
     thread.finish_on_wait = True
     assert TrainingScreen.shutdown_background_work(screen, 50) is True  # type: ignore[arg-type]
     assert thread.wait_calls and 0 < thread.wait_calls[-1] <= 50
+
+
+def test_evaluation_shutdown_participates_in_shell_close_guard() -> None:
+    thread = _FakeThread(running=True, finish_on_wait=False)
+    dialog = SimpleNamespace(close_calls=0)
+    dialog.close = lambda: setattr(dialog, "close_calls", dialog.close_calls + 1)
+    screen = SimpleNamespace(
+        _cases_dialog=dialog,
+        _tests_thread=thread,
+        _thread_is_running=TestsScreen._thread_is_running,
+    )
+
+    assert TestsScreen.shutdown_background_work(screen, 0) is False  # type: ignore[arg-type]
+    assert thread.quit_calls == 1
+    assert thread.wait_calls == []
+    assert dialog.close_calls == 1
+
+    thread.finish_on_wait = True
+    assert TestsScreen.shutdown_background_work(screen, 50) is True  # type: ignore[arg-type]
+    assert thread.wait_calls == [50]
 
 
 def test_automation_shutdown_requests_cooperative_cancel_before_wait() -> None:
