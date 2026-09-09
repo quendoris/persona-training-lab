@@ -4,10 +4,16 @@ from copy import deepcopy
 
 import pytest
 
-from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.application.runtime.operations import (
+    OperationBlocker,
+    OperationConflictError,
+    ResourceClaim,
+    RuntimeOperation,
+)
 from persona_training_lab.ui.agents.branch_creation import (
     BranchCreationController,
     BranchCreationExecutionError,
+    BranchCreationHistoryCommittedError,
 )
 from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 
@@ -71,6 +77,30 @@ class _State:
         assert entry["action_code"] == action_code
         entry["metadata"] = deepcopy(metadata)
 
+    def custom_subtree_ids(self, node_id: str) -> tuple[str, ...]:
+        nodes = self.payload["custom_nodes"]
+        assert isinstance(nodes, list)
+        by_parent: dict[str, list[str]] = {}
+        known: set[str] = set()
+        for raw in nodes:
+            assert isinstance(raw, dict)
+            current_id = str(raw.get("node_id", ""))
+            parent_id = str(raw.get("parent_id", ""))
+            if current_id:
+                known.add(current_id)
+                by_parent.setdefault(parent_id, []).append(current_id)
+        if node_id not in known:
+            return ()
+        ordered: list[str] = []
+        pending = [node_id]
+        while pending:
+            current = pending.pop(0)
+            if current in ordered:
+                continue
+            ordered.append(current)
+            pending.extend(by_parent.get(current, ()))
+        return tuple(ordered)
+
     def undo_only(self, current_layout=None) -> HistoryTransition | None:
         self.calls.append(("undo", current_layout))
         undo_stack = self.payload["undo_stack"]
@@ -111,6 +141,32 @@ class _State:
         )
 
 
+class _Lease:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, ...]] = []
+        self.succeed_error: Exception | None = None
+        self.fail_error: Exception | None = None
+        self.cancel_error: Exception | None = None
+
+    def succeed(self) -> bool:
+        self.calls.append(("succeed",))
+        if self.succeed_error is not None:
+            raise self.succeed_error
+        return True
+
+    def fail(self, message: str) -> bool:
+        self.calls.append(("fail", message))
+        if self.fail_error is not None:
+            raise self.fail_error
+        return True
+
+    def cancel(self, message: str = "") -> bool:
+        self.calls.append(("cancel", message))
+        if self.cancel_error is not None:
+            raise self.cancel_error
+        return True
+
+
 class _Transactions:
     def __init__(
         self,
@@ -118,10 +174,13 @@ class _Transactions:
         bind_error: Exception | None = None,
         forget_error: Exception | None = None,
         restore_links_error: Exception | None = None,
+        begin_error: Exception | None = None,
     ) -> None:
         self.bind_error = bind_error
         self.forget_error = forget_error
         self.restore_links_error = restore_links_error
+        self.begin_error = begin_error
+        self.lease = _Lease()
         self.calls: list[tuple[object, ...]] = []
 
     def bind_child(
@@ -169,6 +228,13 @@ class _Transactions:
             return ""
         return str(metadata.get("child_node_id", ""))
 
+    def begin_deletion(self, node_ids, *, subject_id: str):
+        ids = tuple(node_ids)
+        self.calls.append(("begin_deletion", ids, subject_id))
+        if self.begin_error is not None:
+            raise self.begin_error
+        return self.lease
+
     def forget_creation_history(self, metadata) -> str:
         child_id = self.creation_history_child(metadata)
         self.calls.append(("forget_history", child_id))
@@ -209,6 +275,24 @@ def _creation_metadata(state: _State) -> dict[str, object]:
     metadata = entry.get("metadata")
     assert isinstance(metadata, dict)
     return metadata
+
+
+def _runtime_blocker() -> OperationBlocker:
+    operation = RuntimeOperation(
+        operation_id="op_busy",
+        operation_kind="training",
+        subject_kind="training_run",
+        subject_id="trn_1",
+        state="running",
+        correlation_id="corr_busy",
+        owner_pid=1,
+        started_at="now",
+        heartbeat_at="now",
+    )
+    return OperationBlocker(
+        operation,
+        ResourceClaim("dataset", "ds_1", "read"),
+    )
 
 
 def test_successful_creation_binds_links_and_persists_history_metadata() -> None:
@@ -376,7 +460,7 @@ def test_binding_failure_compensation_preserves_original_and_restore_errors() ->
     assert str(error.compensation_errors[0]) == "lineage restore unavailable"
 
 
-def test_protected_undo_removes_state_and_safety_links() -> None:
+def test_protected_undo_acquires_runtime_lease_before_mutating_history() -> None:
     state = _State()
     transactions = _Transactions()
     controller = _controller(state, transactions)
@@ -388,6 +472,7 @@ def test_protected_undo_removes_state_and_safety_links() -> None:
     metadata = _creation_metadata(state)
     state.calls.clear()
     transactions.calls.clear()
+    transactions.lease.calls.clear()
 
     transition = controller.undo_history(
         metadata,
@@ -399,10 +484,69 @@ def test_protected_undo_removes_state_and_safety_links() -> None:
     assert transition.direction == "undo"
     assert state.payload["custom_nodes"] == []
     assert [call[0] for call in state.calls] == ["capture", "undo"]
-    assert transactions.calls == [("forget_history", "branch_001")]
+    assert transactions.calls == [
+        ("begin_deletion", ("branch_001",), "branch_001"),
+        ("forget_history", "branch_001"),
+    ]
+    assert transactions.lease.calls == [("succeed",)]
 
 
-def test_protected_undo_link_failure_restores_preundo_state() -> None:
+def test_protected_undo_runtime_conflict_preserves_branch_and_history() -> None:
+    state = _State()
+    transactions = _Transactions()
+    controller = _controller(state, transactions)
+    controller.execute(
+        "snapshot",
+        parent_is_custom=False,
+        fallback_claims=(ResourceClaim("dataset", "ds_1", "read"),),
+    )
+    metadata = _creation_metadata(state)
+    before = deepcopy(state.payload)
+    conflict = OperationConflictError((_runtime_blocker(),))
+    transactions.begin_error = conflict
+    state.calls.clear()
+    transactions.calls.clear()
+
+    with pytest.raises(OperationConflictError) as captured:
+        controller.undo_history(metadata)
+
+    assert captured.value.blockers == conflict.blockers
+    assert state.payload == before
+    assert [call[0] for call in state.calls] == ["capture"]
+    assert transactions.calls == [
+        ("begin_deletion", ("branch_001",), "branch_001")
+    ]
+    assert transactions.lease.calls == []
+
+
+def test_protected_undo_refuses_unexpected_descendant_subtree() -> None:
+    state = _State()
+    transactions = _Transactions()
+    controller = _controller(state, transactions)
+    controller.execute(
+        "snapshot",
+        parent_is_custom=False,
+        fallback_claims=(),
+    )
+    metadata = _creation_metadata(state)
+    nodes = state.payload["custom_nodes"]
+    assert isinstance(nodes, list)
+    nodes.append({"node_id": "branch_002", "parent_id": "branch_001"})
+    state.calls.clear()
+    transactions.calls.clear()
+
+    with pytest.raises(RuntimeError, match="current subtree"):
+        controller.undo_history(metadata)
+
+    assert state.custom_subtree_ids("branch_001") == (
+        "branch_001",
+        "branch_002",
+    )
+    assert state.calls == []
+    assert transactions.calls == []
+
+
+def test_protected_undo_link_failure_restores_state_and_fails_lease() -> None:
     state = _State()
     transactions = _Transactions(forget_error=RuntimeError("sqlite unavailable"))
     controller = _controller(state, transactions)
@@ -414,6 +558,7 @@ def test_protected_undo_link_failure_restores_preundo_state() -> None:
     metadata = _creation_metadata(state)
     before = deepcopy(state.payload)
     state.calls.clear()
+    transactions.lease.calls.clear()
 
     with pytest.raises(RuntimeError, match="sqlite unavailable"):
         controller.undo_history(metadata)
@@ -424,6 +569,30 @@ def test_protected_undo_link_failure_restores_preundo_state() -> None:
         "undo",
         "restore",
     ]
+    assert [call[0] for call in transactions.lease.calls] == ["fail"]
+
+
+def test_protected_undo_finalization_failure_reports_committed_transition() -> None:
+    state = _State()
+    transactions = _Transactions()
+    controller = _controller(state, transactions)
+    controller.execute(
+        "snapshot",
+        parent_is_custom=False,
+        fallback_claims=(ResourceClaim("dataset", "ds_1", "read"),),
+    )
+    metadata = _creation_metadata(state)
+    transactions.lease.succeed_error = OSError("finish unavailable")
+
+    with pytest.raises(BranchCreationHistoryCommittedError) as captured:
+        controller.undo_history(metadata)
+
+    assert captured.value.transition.action_code == "branch_create"
+    assert captured.value.transition.direction == "undo"
+    assert isinstance(captured.value.finalization_error, OSError)
+    assert state.payload["custom_nodes"] == []
+    assert transactions.calls[-1] == ("forget_history", "branch_001")
+    assert transactions.lease.calls == [("succeed",)]
 
 
 def test_protected_redo_restores_state_and_exact_safety_links() -> None:
@@ -479,3 +648,27 @@ def test_protected_redo_link_failure_restores_preredo_state() -> None:
         "redo",
         "restore",
     ]
+
+
+def test_protected_redo_refuses_existing_target_before_history_mutation() -> None:
+    state = _State()
+    transactions = _Transactions()
+    controller = _controller(state, transactions)
+    controller.execute(
+        "snapshot",
+        parent_is_custom=False,
+        fallback_claims=(),
+    )
+    metadata = _creation_metadata(state)
+    controller.undo_history(metadata)
+    nodes = state.payload["custom_nodes"]
+    assert isinstance(nodes, list)
+    nodes.append({"node_id": "branch_001", "parent_id": "snapshot"})
+    state.calls.clear()
+    transactions.calls.clear()
+
+    with pytest.raises(RuntimeError, match="target already exists"):
+        controller.redo_history(metadata)
+
+    assert state.calls == []
+    assert transactions.calls == []
