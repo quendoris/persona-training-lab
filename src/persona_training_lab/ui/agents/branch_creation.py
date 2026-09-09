@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 from persona_training_lab.ui.agents.runtime_policy import (
     LineageBranchTransactions,
 )
@@ -20,6 +21,22 @@ class BranchCreationStatePort(Protocol):
     def capture_transaction_state(self) -> dict[str, Any]: ...
 
     def restore_transaction_state(self, snapshot: dict[str, Any]) -> None: ...
+
+    def attach_latest_history_metadata(
+        self,
+        action_code: str,
+        metadata: dict[str, Any],
+    ) -> None: ...
+
+    def undo_only(
+        self,
+        current_layout: dict[str, Any] | None = None,
+    ) -> HistoryTransition | None: ...
+
+    def redo_last_action(
+        self,
+        current_layout: dict[str, Any] | None = None,
+    ) -> HistoryTransition | None: ...
 
 
 class BranchCreationExecutionError(RuntimeError):
@@ -42,7 +59,7 @@ class BranchCreationExecutionError(RuntimeError):
 
 @dataclass(slots=True)
 class BranchCreationController:
-    """Create one durable local branch and its safety links as one workflow."""
+    """Keep custom-branch state and its persisted safety links consistent."""
 
     state: BranchCreationStatePort
     transactions: LineageBranchTransactions
@@ -57,23 +74,131 @@ class BranchCreationController:
     ) -> str:
         transaction_snapshot = self.state.capture_transaction_state()
         child_id = self.state.continue_from(parent_id, layout_snapshot)
+        links_bound = False
         try:
-            self.transactions.bind_child(
+            bound_claims = self.transactions.bind_child(
                 child_id,
                 parent_id,
                 parent_is_custom=parent_is_custom,
                 fallback_claims=fallback_claims,
             )
+            links_bound = True
+            metadata = self.transactions.capture_creation_history(
+                child_id,
+                bound_claims,
+            )
+            if not metadata:
+                raise RuntimeError(
+                    "Branch creation history metadata could not be captured"
+                )
+            self.state.attach_latest_history_metadata(
+                "branch_create",
+                metadata,
+            )
         except Exception as error:
+            compensation_errors: list[BaseException] = []
+            state_restored = False
             try:
                 self.state.restore_transaction_state(transaction_snapshot)
+                state_restored = True
             except Exception as compensation_error:
+                compensation_errors.append(compensation_error)
+
+            if links_bound and state_restored:
+                try:
+                    self.transactions.forget((child_id,))
+                except Exception as compensation_error:
+                    compensation_errors.append(compensation_error)
+
+            if compensation_errors:
                 raise BranchCreationExecutionError(
                     error,
-                    (compensation_error,),
+                    tuple(compensation_errors),
                 ) from error
             raise
         return child_id
+
+    def supports_history(self, metadata: Mapping[str, Any]) -> bool:
+        return bool(self.transactions.creation_history_child(metadata))
+
+    def undo_history(
+        self,
+        metadata: Mapping[str, Any],
+        *,
+        current_layout: dict[str, Any] | None = None,
+    ) -> HistoryTransition | None:
+        child_id = self.transactions.creation_history_child(metadata)
+        if not child_id:
+            return None
+        transaction_snapshot = self.state.capture_transaction_state()
+        try:
+            transition = self.state.undo_only(current_layout)
+            if (
+                transition is None
+                or transition.action_code != "branch_create"
+                or transition.direction != "undo"
+            ):
+                raise RuntimeError(
+                    "Lineage branch creation Undo no longer matches history"
+                )
+            forgotten_id = self.transactions.forget_creation_history(metadata)
+            if forgotten_id != child_id:
+                raise RuntimeError(
+                    "Lineage branch creation Undo lost its safety identity"
+                )
+            return transition
+        except Exception as error:
+            self._restore_state_or_raise(
+                transaction_snapshot,
+                error,
+            )
+            raise
+
+    def redo_history(
+        self,
+        metadata: Mapping[str, Any],
+        *,
+        current_layout: dict[str, Any] | None = None,
+    ) -> HistoryTransition | None:
+        child_id = self.transactions.creation_history_child(metadata)
+        if not child_id:
+            return None
+        transaction_snapshot = self.state.capture_transaction_state()
+        try:
+            transition = self.state.redo_last_action(current_layout)
+            if (
+                transition is None
+                or transition.action_code != "branch_create"
+                or transition.direction != "redo"
+            ):
+                raise RuntimeError(
+                    "Lineage branch creation Redo no longer matches history"
+                )
+            restored_id = self.transactions.restore_creation_history(metadata)
+            if restored_id != child_id:
+                raise RuntimeError(
+                    "Lineage branch creation Redo lost its safety identity"
+                )
+            return transition
+        except Exception as error:
+            self._restore_state_or_raise(
+                transaction_snapshot,
+                error,
+            )
+            raise
+
+    def _restore_state_or_raise(
+        self,
+        snapshot: dict[str, Any],
+        original_error: BaseException,
+    ) -> None:
+        try:
+            self.state.restore_transaction_state(snapshot)
+        except Exception as compensation_error:
+            raise BranchCreationExecutionError(
+                original_error,
+                (compensation_error,),
+            ) from original_error
 
 
 __all__ = (
