@@ -525,7 +525,7 @@ That preserves failure evidence.
 
 ## 40. SQLite + Agents JSON is not one ACID transaction
 
-An Agents JSON replacement and SQLite resource-link transaction are different media/boundaries.
+An Agents JSON replacement and SQLite resource-link/runtime-operation transaction are different media/boundaries.
 
 The current lineage controllers therefore use explicit orchestration/compensation where one logical action needs both stores.
 
@@ -544,13 +544,19 @@ If link binding fails, its SQLite transaction rolls back and the controller rest
 
 If link binding succeeded but history-metadata persistence fails, the controller restores the pre-creation Agents state first and then forgets the child links. If restoring the Agents state itself fails, it deliberately does not remove already-bound links and thereby turn a still-present branch safety-empty. `BranchCreationExecutionError` preserves original and compensation failures.
 
-The same `branch_create_v1` metadata follows the history entry between undo/redo stacks. Protected creation Undo removes the branch state and then removes the exact child links; if link cleanup fails, the controller restores the pre-Undo Agents state. Protected creation Redo restores the branch state and then restores the exact saved links; if link restoration fails, the controller restores the pre-Redo Agents state. The composed screen applies the visible history transition only after those controller operations succeed.
+The same `branch_create_v1` metadata follows the history entry between undo/redo stacks.
+
+Protected creation Undo is a destructive cross-store history transition. Before consuming history it verifies that the current custom subtree is exactly the recorded child, captures pre-Undo Agents state, and acquires a fresh SQLite-backed `lineage_delete` runtime lease covering that node and its linked resources. A conflict therefore leaves JSON history/state and SQLite links unchanged. After acquisition, Undo removes the branch state and exact links; link-cleanup failure restores pre-Undo Agents state and fails the lease where compensation succeeds.
+
+If branch/link removal has committed but runtime-lease finalization fails, `BranchCreationHistoryCommittedError` carries the committed `HistoryTransition`; the composed screen applies that transition before the finalization error is reported. This is a committed-state/finalization boundary, not a rollback.
+
+Protected creation Redo first requires the recorded child to be absent, consumes the redo entry, verifies that exactly that child was restored, and then restores the exact saved links. If link restoration fails, the controller restores the pre-Redo Agents state. The composed screen applies the visible history transition only after the controller operation succeeds.
 
 Historical `branch_create` entries without `branch_create_v1` metadata remain on the generic compatibility history path because exact old link provenance was never persisted. Generic Undo of such an old entry can leave conservative stale link rows rather than guessing which historical links are safe to delete.
 
 Protected branch deletion/Undo/Redo use their own lease/history compensation protocol described in [Agents lineage architecture](agents-lineage.md).
 
-These are compensation protocols across two local persistence boundaries, not a claim that the two stores became one database transaction.
+These are compensation protocols across local persistence boundaries, not a claim that JSON, safety-link transactions, and runtime leases became one database transaction.
 
 ## 41. Automation manifests are executable filesystem persistence inputs
 
@@ -667,8 +673,11 @@ Examples:
 - Agents atomic store restores its remembered previous payload if save fails;
 - branch creation restores exact pre-creation Agents state when child link binding fails after the JSON mutation;
 - branch creation restores state before removing already-bound links when later history-metadata persistence fails;
-- protected branch-creation Undo restores pre-Undo Agents state if child-link cleanup fails;
-- protected branch-creation Redo restores pre-Redo Agents state if exact link restoration fails;
+- protected branch-creation Undo acquires a fresh destructive lease before history mutation and leaves state unchanged on conflict;
+- protected branch-creation Undo refuses an unexpected current descendant subtree before mutating history;
+- protected branch-creation Undo restores pre-Undo Agents state and fails the lease if child-link cleanup fails;
+- protected branch-creation Undo reports a committed transition separately if only lease finalization fails after state/link removal;
+- protected branch-creation Redo validates target identity and restores pre-Redo Agents state if exact link restoration fails;
 - cross-store creation failures expose `BranchCreationExecutionError` when compensation itself also fails instead of hiding the partial outcome;
 - invalid persisted key-binding conflicts fall back to known defaults rather than activating ambiguous mappings;
 - failed background lineage refresh retains last-good projection in the UI integration layer.
@@ -773,15 +782,17 @@ Persistence changes must preserve these current rules unless the architecture/pr
 6. Agents local JSON remains distinguishable from authoritative semantic SQLite records;
 7. cross-store workflows are not documented as globally atomic when they rely on orchestration/compensation;
 8. a newly created custom Agents branch is not exposed as successfully created before its required persisted safety-link bind and history-metadata attachment succeed;
-9. metadata-bearing branch-creation Undo/Redo keeps JSON branch state and SQLite safety links consistent or restores the previous state before UI exposure;
-10. Training artifacts remain distinct from disposable cache;
-11. external Dataset/model/Automation dependencies remain visibly external when external;
-12. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
-13. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
-14. key-binding file format compatibility is not conflated with SQLite schema compatibility;
-15. schema compatibility claims do not exceed implemented additions;
-16. canonical machine status/identity is not replaced by localized display text;
-17. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
+9. metadata-bearing branch-creation Undo acquires a fresh destructive runtime lease before removing current branch/link state;
+10. metadata-bearing branch-creation Undo/Redo keeps JSON branch state and SQLite safety links consistent or restores the previous state before UI exposure;
+11. committed state/link removal is not documented as rolled back when only runtime-lease finalization failed;
+12. Training artifacts remain distinct from disposable cache;
+13. external Dataset/model/Automation dependencies remain visibly external when external;
+14. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
+15. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
+16. key-binding file format compatibility is not conflated with SQLite schema compatibility;
+17. schema compatibility claims do not exceed implemented additions;
+18. canonical machine status/identity is not replaced by localized display text;
+19. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
 
 ## 57. Audit questions for future persistent features
 
