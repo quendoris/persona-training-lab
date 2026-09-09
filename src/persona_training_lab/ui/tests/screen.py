@@ -473,10 +473,30 @@ class TestsScreen(QWidget):
         self._tests_thread = None
         self._tests_worker = None
 
-    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+    def shutdown_background_work(self, timeout_ms: int = 0) -> bool:
         if self._cases_dialog is not None:
             self._cases_dialog.close()
-        if self._tests_thread is not None and self._tests_thread.isRunning():
-            self._tests_thread.quit()
-            self._tests_thread.wait(2000)
+        thread = self._tests_thread
+        if not self._thread_is_running(thread):
+            return True
+        assert thread is not None
+        thread.quit()
+        timeout_ms = max(0, int(timeout_ms))
+        if timeout_ms:
+            thread.wait(timeout_ms)
+        return not self._thread_is_running(thread)
+
+    @staticmethod
+    def _thread_is_running(thread: QThread | None) -> bool:
+        if thread is None:
+            return False
+        try:
+            return thread.isRunning()
+        except RuntimeError:
+            return False
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
+        if not self.shutdown_background_work(2_000):
+            event.ignore()
+            return
         super().closeEvent(event)
