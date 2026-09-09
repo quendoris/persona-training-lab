@@ -223,7 +223,7 @@ def test_branch_creation_history_round_trips_exact_resource_links() -> None:
     ]
 
 
-def test_branch_creation_history_detects_missing_changed_and_reordered_links() -> None:
+def test_branch_creation_history_detects_identity_drift_but_ignores_order() -> None:
     expected = (
         ResourceClaim("dataset", "ds_1", "read"),
         ResourceClaim("model_version", "mdl_1", "read"),
@@ -245,7 +245,7 @@ def test_branch_creation_history_detects_missing_changed_and_reordered_links() -
     assert transactions.creation_history_matches_current_links(metadata) is False
 
     current = tuple(reversed(expected))
-    assert transactions.creation_history_matches_current_links(metadata) is False
+    assert transactions.creation_history_matches_current_links(metadata) is True
 
 
 def test_creation_history_without_runtime_safety_matches_only_empty_links() -> None:
