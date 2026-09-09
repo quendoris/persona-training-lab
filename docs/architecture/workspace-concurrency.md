@@ -2,7 +2,7 @@
 
 Status: **current implementation contract** for the desktop bootstrap path on the v1.0 candidate branch.
 
-This document answers one narrow question: **which concurrency guarantees apply when PTL reads and mutates one workspace?** It deliberately separates in-process locks, SQLite transaction guarantees, process ownership, and atomic file replacement. Those mechanisms solve different problems and must not be treated as interchangeable.
+This document answers one narrow question: **which concurrency guarantees apply when PTL reads and mutates one workspace?** It deliberately separates in-process locks, SQLite transaction guarantees, process ownership, background-worker lifetime, and atomic file replacement. Those mechanisms solve different problems and must not be treated as interchangeable.
 
 ## 1. Executive contract
 
@@ -16,7 +16,7 @@ Before `build_container()` opens `app.db`, performs schema bootstrap, recovers a
 
 If that writer lease cannot be acquired, the second PTL desktop process exits with status `2` and does not continue into mutable workspace bootstrap.
 
-The lease remains held for the lifetime of the Qt event loop and is explicitly released after `app.exec()` returns, including exceptional exit from the guarded bootstrap block.
+The lease is held across the Qt event loop **and across final background-work drainage**. After `app.exec()` returns, bootstrap repeatedly asks the main window to shut down registered background owners and does not release the workspace lease until every registered owner reports stopped. This closes the otherwise dangerous interval in which the UI process could stop owning the workspace while an old Training, Tests, or Automation worker was still able to mutate it.
 
 This is a **cooperative application ownership rule**, not a filesystem access-control boundary. Another program, a manually started internal PTL component, or code that bypasses the standard desktop bootstrap can still access workspace files if the operating system permits it.
 
@@ -90,7 +90,23 @@ It does not provide:
 
 Cross-store branch creation and protected Undo/Redo therefore use explicit compensation and recorded safety metadata, while the outer workspace writer lease prevents a second desktop process from concurrently running another such protocol.
 
-### 3.5 Preferences outside the workspace
+### 3.5 Background worker lifetime
+
+The writer lease is meaningful only while every workspace-mutating worker created by the owning desktop process is also inside that lifetime.
+
+The shell discovers workspace screens exposing `shutdown_background_work(timeout_ms)` and asks each of them to stop before a normal window close can complete. The currently relevant owners are:
+
+- **Training** — asks its worker threads to quit; a running synchronous training/inference call is not forcibly terminated by `QThread.quit()`, so close remains blocked until the worker actually returns;
+- **Tests** — evaluation execution now participates in the same shell shutdown contract; it is not silently abandoned when the main window closes;
+- **Automation** — first requests cooperative cancellation, then waits for its QThread. The Automation process runner separately owns process-tree containment/termination semantics.
+
+The main-window close path is non-destructive to running workers: it probes with zero wait, rejects the close while any owner is still running, shows background-shutdown status, and retries. Bootstrap adds a second safety boundary after the Qt event loop: `_drain_background_work()` uses bounded wait slices repeatedly and keeps the workspace writer lease until all registered owners have stopped.
+
+This means a direct/event-loop quit path cannot release `<workspace>/.ptl-workspace.lock` merely because one finite shutdown attempt timed out.
+
+This contract is intentionally conservative. For Training and Tests, there is currently no claim that arbitrary synchronous model work can always be cancelled promptly. Safety is achieved by **retaining workspace ownership until completion**, not by pretending cancellation succeeded.
+
+### 3.6 Preferences outside the workspace
 
 `WindowStateStore` persists shell state through Qt `QSettings`. `KeyBindingManager` persists keyboard/mouse bindings to `~/.persona_training_lab/key_bindings.json` using temporary-file replacement.
 
@@ -109,7 +125,10 @@ The lease does **not** prove that:
 - a copied workspace is quiescent;
 - a network/distributed filesystem implements every local-filesystem locking semantic identically;
 - subprocesses launched by PTL are automatically contained by the lock file;
+- an internal/new background worker automatically participates in shutdown just because it runs under the main window;
 - QSettings or home-relative key bindings are exclusively owned.
+
+The last two points are important review rules: every new mutating background owner must join the shell shutdown contract, and every subprocess implementation must define its own containment/termination behavior.
 
 For backup and recovery, the operational requirement remains: stop PTL and any relevant child/background work before copying a workspace snapshot.
 
@@ -126,11 +145,13 @@ It does not:
 - create the main window;
 - silently downgrade to a second writable instance.
 
-### Failure after ownership is acquired
+### Failure or quit after ownership is acquired
 
-The bootstrap holds the writer lease around container construction and the entire event loop. The `finally` boundary releases it if container construction, UI setup, or the event loop exits by exception.
+The bootstrap holds the writer lease around container construction, the event loop, and final registered-worker shutdown.
 
-This ownership cleanup does not replace subsystem-specific rollback, shutdown, or recovery logic.
+If a registered worker does not stop during one wait slice, bootstrap repeats the shutdown/wait cycle rather than releasing ownership. This can make process exit wait for long-running synchronous Training/Tests work. That is current deliberate fail-closed behavior.
+
+Subsystem-specific rollback, cancellation, process-tree containment and recovery remain separate responsibilities. The writer lease only prevents a new cooperating PTL desktop owner from entering the same workspace too early.
 
 ## 6. Test contract
 
@@ -139,9 +160,18 @@ This ownership cleanup does not replace subsystem-specific rollback, shutdown, o
 1. a second `WorkspaceOwnership` object cannot acquire the same workspace while the first owns it, and the workspace becomes acquirable after release;
 2. the same exclusion is verified with a separate Python process, not only two objects in one interpreter.
 
-The test is part of the blocking quick release inventory.
+`tests/test_background_close_guard.py` additionally verifies:
 
-This proves the PTL wrapper's expected lock behavior in the release environment. It does not prove every external filesystem or deployment environment has identical locking behavior.
+- the shell close path does not repeatedly re-run the leave guard while polling worker shutdown;
+- all registered background owners are visited;
+- Training does not pretend a still-running thread stopped;
+- Tests participates in the same shutdown contract;
+- Automation requests cooperative cancellation before waiting;
+- the bootstrap drain repeats after a failed shutdown attempt instead of treating one timeout as permission to release the workspace lease.
+
+Both test modules are in the blocking quick release inventory.
+
+These tests prove the PTL wrappers' expected behavior in the release environment. They do not prove every external filesystem or deployment environment has identical locking behavior, nor that every third-party process obeys the PTL lock.
 
 ## 7. Architectural consequence
 
@@ -153,6 +183,8 @@ standard desktop bootstrap
         v
 workspace writer lease (cross-process, cooperative)
         |
+        +--> background-owner shutdown/drain before lease release
+        |
         +--> RepositoryLock (in-process thread serialization)
         |
         +--> SQLite transactions / BEGIN IMMEDIATE where required
@@ -162,7 +194,7 @@ workspace writer lease (cross-process, cooperative)
         +--> explicit compensation for JSON <-> SQLite protocols
 ```
 
-Removing the writer lease in the future would be an architectural change, not a bootstrap cleanup. Multi-writer support would require explicit generation/conflict semantics for non-SQLite stores and a new answer for cross-store protocols, startup recovery, preference ownership, and filesystem artifacts.
+Removing the writer lease in the future would be an architectural change, not a bootstrap cleanup. Multi-writer support would require explicit generation/conflict semantics for non-SQLite stores and a new answer for cross-store protocols, startup recovery, preference ownership, background-worker lifetime, and filesystem artifacts.
 
 ## 8. Related documents
 
