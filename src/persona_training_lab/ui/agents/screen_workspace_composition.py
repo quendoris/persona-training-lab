@@ -10,9 +10,13 @@ from persona_training_lab.application.lineage.runtime_safety import (
     LineageRuntimeSafety,
 )
 from persona_training_lab.application.messages import UserMessage
-from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.application.runtime.operations import (
+    OperationConflictError,
+    ResourceClaim,
+)
 from persona_training_lab.ui.agents.branch_creation import (
     BranchCreationController,
+    BranchCreationHistoryCommittedError,
 )
 from persona_training_lab.ui.agents.branch_deletion import (
     BranchDeletionCommittedError,
@@ -352,10 +356,18 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self._undo_branch_delete_history(preview)
 
     def _undo_branch_creation_history(self, preview) -> None:
-        transition = self._branch_creation_controller.undo_history(
-            preview.metadata,
-            current_layout=self._layout_snapshot(),
-        )
+        try:
+            transition = self._branch_creation_controller.undo_history(
+                preview.metadata,
+                current_layout=self._layout_snapshot(),
+            )
+        except OperationConflictError as conflict:
+            self._show_runtime_blockers(conflict.blockers)
+            return
+        except BranchCreationHistoryCommittedError as error:
+            self._apply_history_transition(error.transition)
+            self._refresh_runtime_safety(force=True)
+            raise
         if transition is None:
             self._sync_history_action()
             return
