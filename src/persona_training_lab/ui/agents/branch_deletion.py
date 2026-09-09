@@ -220,7 +220,7 @@ class BranchDeletionController:
         self,
         plan: BranchDeletionPlan,
         *,
-        history_metadata: Mapping[str, Any],
+        history_metadata: Mapping[str, Any] | None = None,
         current_layout: dict[str, Any] | None = None,
     ) -> BranchDeletionResult:
         """Redo one recorded branch deletion behind its recorded safety identity."""
@@ -234,8 +234,16 @@ class BranchDeletionController:
                 removed_ids=current_ids,
                 fallback_id=plan.fallback_id,
             )
+
+        metadata = self._resolve_redo_history_metadata(history_metadata)
+        if metadata is None:
+            return BranchDeletionResult(
+                BranchDeletionStatus.STALE,
+                removed_ids=current_ids,
+                fallback_id=plan.fallback_id,
+            )
         if not self._transactions.deletion_history_matches_current_links(
-            history_metadata
+            metadata
         ):
             return BranchDeletionResult(
                 BranchDeletionStatus.STALE,
@@ -257,7 +265,7 @@ class BranchDeletionController:
             return BranchDeletionResult(BranchDeletionStatus.UNAVAILABLE)
 
         if not self._transactions.deletion_history_matches_current_links(
-            history_metadata
+            metadata
         ):
             error = RuntimeError(
                 "Lineage deletion Redo safety links changed during runtime "
@@ -326,6 +334,25 @@ class BranchDeletionController:
         )
         self._finalize_committed_deletion(lease, result)
         return result
+
+    def _resolve_redo_history_metadata(
+        self,
+        supplied: Mapping[str, Any] | None,
+    ) -> Mapping[str, Any] | None:
+        if supplied is not None:
+            return supplied
+        previewer = getattr(self._state, "history_toggle_preview", None)
+        if not callable(previewer):
+            return None
+        preview = previewer()
+        if (
+            preview is None
+            or preview.action_code != "branch_delete"
+            or preview.direction != "redo"
+        ):
+            return None
+        metadata = getattr(preview, "metadata", None)
+        return metadata if isinstance(metadata, Mapping) else None
 
     @staticmethod
     def _finalize_committed_deletion(lease, result: BranchDeletionResult) -> None:
