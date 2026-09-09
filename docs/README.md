@@ -4,6 +4,8 @@ This directory is the canonical documentation home for Persona Training Lab.
 
 PTL documentation is organized by **reader intent**, not by source-code package. A new user should not need architecture knowledge to complete a workflow; an auditor should not need to reverse-engineer behavior from a tutorial.
 
+For a maintained coverage/gap/scale view of the documentation corpus, see the [Documentation Coverage Map](DOCUMENTATION_MAP.md).
+
 ## Start here
 
 ### I want to use PTL
@@ -52,12 +54,15 @@ Start with:
 
 - [Architecture Overview](architecture/overview.md) — composition root, layers, UI shell, persistence, runtime coordination, models, Automation, telemetry, error boundaries.
 - [Persistence architecture](architecture/persistence.md) — SQLite connection/transaction boundaries, repository locking, schema/bootstrap behavior, lineage snapshots, Agents JSON, filesystem artifacts, external state, and cross-store atomicity limits.
+- [SQLite persistence schema reference](reference/persistence-schema.md) — exact current tables, columns, indexes, foreign-key boundaries, additive compatibility bootstrap and schema-change audit rules.
 - [UI shell architecture](architecture/ui-shell.md) — workspace ownership/guards, background shutdown, docks/panels, Operations Center integration, application shortcuts, QSettings/key-binding persistence, style/localization boundaries.
 - [Agents lineage architecture](architecture/agents-lineage.md) — atomic semantic snapshot, projection/local-state split, stable IDs, runtime links, protected deletion history, guarded Redo, background last-good behavior.
 - [Automation architecture](architecture/automation.md) — recipe schema/discovery, trusted-host command contract, runtime leases, audit fail-closed behavior, bounded process execution, process-tree containment, and explicit trust limitations.
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
+- [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) — proposed mathematical language for parameter/function/representation/behavior trajectories, evidence levels and interpretation limits; not a claim of current v1.0 instrumentation.
+- [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) — proposed sampling/artifact/structural-identity contract for turning that mathematical framework into future PTL evidence.
 - [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) — machine-semantic taxonomy, canonical domain/runtime states, result/diagnostic/event contracts, generated-ID formats and compatibility rules.
 - [Workspace layout reference](reference/workspace-layout.md) — exact persistence/path ownership including workspace, QSettings, user-home bindings and external inputs.
 - [Keyboard & mouse bindings reference](reference/keyboard-mouse-bindings.md) — exact binding IDs/defaults and gesture semantics.
@@ -75,6 +80,7 @@ Start with:
 
 | Document | Audience | Purpose |
 |---|---|---|
+| [Documentation Coverage Map](DOCUMENTATION_MAP.md) | Developer / auditor / maintainer | Coverage status, known gaps, research/current separation and corpus scale |
 | [Getting Started](user-guide/getting-started.md) | User | Install, launch, workspace, first-run orientation |
 | [Interface Tour](user-guide/interface-tour.md) | User | Shell/workspace map and supporting panels |
 | [Profiles](user-guide/profiles.md) | User | Create/edit personality definitions |
@@ -89,6 +95,7 @@ Start with:
 | [Documentation Workspace](user-guide/documentation.md) | User / operator / developer | In-app topic registry, three-column workflow, plain-Markdown rendering boundary, locale/body behavior, packaged/source docs resolution |
 | [Training pipeline specification](training_pipeline.md) | Advanced user / developer / auditor | Exact Training persistence, hashing, parsing, execution, artifact/provenance contract |
 | [Evaluation contract](reference/evaluation-contract.md) | Developer / auditor / researcher | Battery identity, inference settings, score parser, serialized result grammar, factor/delta math, comparability and methodology boundaries |
+| [SQLite persistence schema reference](reference/persistence-schema.md) | Developer / operator / auditor | Exact current tables/columns/indexes/FKs, compatibility bootstrap and schema audit boundary |
 | [Workspace layout reference](reference/workspace-layout.md) | Operator / developer / auditor | Exact workspace/external persistence surfaces, path ownership and backup/reset meaning |
 | [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) | Developer / operator / auditor | Canonical statuses, compatibility aliases, action/diagnostic/event codes, schemas and generated identifiers |
 | [Keyboard & mouse bindings reference](reference/keyboard-mouse-bindings.md) | User / developer / auditor | Exact binding IDs/defaults, categories, targets, trigger/conflict semantics |
@@ -102,6 +109,8 @@ Start with:
 | [UI shell architecture](architecture/ui-shell.md) | Developer / auditor | Workspace/navigation lifecycle, background ownership, docks, Operations Center, shortcuts, shell persistence |
 | [Agents lineage architecture](architecture/agents-lineage.md) | Developer / auditor | Semantic snapshot/projection, local state, runtime links, history transactions, failure containment |
 | [Automation architecture](architecture/automation.md) | Developer / auditor | Recipe/provider/service/process/audit architecture, trusted-host boundary, runtime claims, containment, failure semantics |
+| [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) | Researcher / developer / auditor | Proposed multi-space mathematical framework; explicitly non-current instrumentation |
+| [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) | Researcher / developer / auditor | Proposed evidence/sampling/structural-identity contract; explicitly non-current instrumentation |
 | [v1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release guarantees/boundaries/non-goals |
 | [Localization architecture](architecture/localization.md) | Developer / auditor | i18n/RTL architecture |
 | [Runtime resource safety](architecture/runtime-resource-safety.md) | Developer / auditor | Runtime resource safety |
@@ -120,8 +129,10 @@ Existing documents retained as research inputs include:
 - [Experiment protocol](experiment_protocol.md)
 - [Methodology limits](methodology_limits.md)
 - [Personality portrait](personality_portrait.md)
+- [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) — proposed research architecture, not current v1.0 instrumentation.
+- [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) — proposed implementation/evidence contract, not current v1.0 instrumentation.
 
-For current implementation truth, read these together with [Tests and Analysis](user-guide/tests-and-analysis.md) and the [Evaluation contract](reference/evaluation-contract.md). The canonical v1.0 docs explicitly distinguish protocol measurements from clinical/human-psychology claims and document current provenance limits such as bounded `RAW_RESPONSE` storage and incomplete generation-environment persistence.
+For current implementation truth, read these together with [Tests and Analysis](user-guide/tests-and-analysis.md), the [Evaluation contract](reference/evaluation-contract.md), and the [Training pipeline specification](training_pipeline.md). The canonical v1.0 docs explicitly distinguish protocol measurements from clinical/human-psychology claims and document current provenance limits such as bounded `RAW_RESPONSE` storage and incomplete generation-environment persistence.
 
 ## Historical/internal project records
 
@@ -156,14 +167,16 @@ The v1.0 documentation set follows these rules:
 21. **Do not invent universal ID formats.** Current feature IDs use multiple prefix/hex widths; document the generator actually used by each feature.
 22. **Do not silently replace project-local release contracts with shared utilities.** A generalized snippet may descend from PTL tooling, but PTL keeps its committed/tested local behavior until dependency migration is an explicit reviewed change.
 23. **Distinguish canonical, bundled and runtime-exposed documentation.** A Markdown file can be part of the canonical/bundled docs tree without being registered as a selectable in-application Docs topic; runtime rendering/localization behavior must be documented from `DocsService`/`DocsViewModel`/`DocsScreen` rather than inferred from repository layout.
+24. **Separate implemented contracts from proposed research architecture.** Mathematical/instrumentation designs may be precise and implementation-ready while remaining explicitly non-current until code, persistence, tests and release evidence exist.
 
-## Planned v1.0 documentation structure
+## Current documentation structure
 
-The documentation structure is:
+The maintained structure is:
 
 ```text
 docs/
 ├── README.md
+├── DOCUMENTATION_MAP.md
 ├── user-guide/
 │   ├── getting-started.md
 │   ├── interface-tour.md
@@ -190,10 +203,13 @@ docs/
 │   ├── agents-lineage.md
 │   ├── automation.md
 │   ├── localization.md
-│   └── ui-shell.md
+│   ├── ui-shell.md
+│   ├── training-dynamics-mathematics.md
+│   └── training-dynamics-instrumentation.md
 ├── reference/
 │   ├── v1-product-contract.md
 │   ├── evaluation-contract.md
+│   ├── persistence-schema.md
 │   ├── workspace-layout.md
 │   ├── statuses-and-identifiers.md
 │   └── keyboard-mouse-bindings.md
