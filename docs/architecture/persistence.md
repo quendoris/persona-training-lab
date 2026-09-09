@@ -527,7 +527,13 @@ That preserves failure evidence.
 
 An Agents JSON replacement and SQLite resource-link transaction are different media/boundaries.
 
-Protected lineage workflows therefore require explicit orchestration/compensation described in [Agents lineage architecture](agents-lineage.md).
+The current lineage controllers therefore use explicit orchestration/compensation where one logical action needs both stores.
+
+For branch creation, `BranchCreationController` captures the exact pre-creation Agents transaction state, persists the child branch, then binds/inherits the child's SQLite safety links. The screen selects/renders the child only after link binding succeeds. If the SQLite link mutation raises, its repository transaction rolls back and the controller restores the pre-creation Agents state. If that restoration also fails, `BranchCreationExecutionError` preserves both failures.
+
+Protected branch deletion/Undo/Redo use their own stronger lease/history compensation protocol described in [Agents lineage architecture](agents-lineage.md).
+
+This is compensation across two local persistence boundaries, not a claim that the two stores became one database transaction.
 
 ## 41. Automation manifests are executable filesystem persistence inputs
 
@@ -642,6 +648,8 @@ Examples:
 - runtime lease acquisition rolls back on blockers/errors;
 - lineage snapshot rolls back on read failure;
 - Agents atomic store restores its remembered previous payload if save fails;
+- branch creation restores the exact pre-creation Agents state if child safety-link binding fails after the JSON mutation;
+- branch creation exposes a structured dual-failure error if that compensation itself fails;
 - invalid persisted key-binding conflicts fall back to known defaults rather than activating ambiguous mappings;
 - failed background lineage refresh retains last-good projection in the UI integration layer.
 
@@ -741,14 +749,15 @@ Persistence changes must preserve these current rules unless the architecture/pr
 5. runtime claim check+acquire remains atomic against supported competing lease acquisition;
 6. Agents local JSON remains distinguishable from authoritative semantic SQLite records;
 7. cross-store workflows are not documented as globally atomic when they rely on orchestration/compensation;
-8. Training artifacts remain distinct from disposable cache;
-9. external Dataset/model/Automation dependencies remain visibly external when external;
-10. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
-11. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
-12. key-binding file format compatibility is not conflated with SQLite schema compatibility;
-13. schema compatibility claims do not exceed implemented additions;
-14. canonical machine status/identity is not replaced by localized display text;
-15. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
+8. a newly created custom Agents branch is not exposed as successfully created before its required persisted safety-link bind succeeds;
+9. Training artifacts remain distinct from disposable cache;
+10. external Dataset/model/Automation dependencies remain visibly external when external;
+11. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
+12. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
+13. key-binding file format compatibility is not conflated with SQLite schema compatibility;
+14. schema compatibility claims do not exceed implemented additions;
+15. canonical machine status/identity is not replaced by localized display text;
+16. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
 
 ## 57. Audit questions for future persistent features
 
