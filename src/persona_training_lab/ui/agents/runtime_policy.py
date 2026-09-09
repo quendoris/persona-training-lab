@@ -167,6 +167,19 @@ class LineageBranchTransactions:
         parsed = self._parse_creation_history(metadata)
         return "" if parsed is None else parsed[0]
 
+    def creation_history_matches_current_links(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> bool:
+        parsed = self._parse_creation_history(metadata)
+        if parsed is None:
+            return False
+        child_id, expected_claims = parsed
+        safety = self._safety
+        if safety is None:
+            return not expected_claims
+        return safety.links_for_node(child_id) == expected_claims
+
     def restore_creation_history(
         self,
         metadata: Mapping[str, Any],
@@ -288,7 +301,7 @@ class LineageBranchTransactions:
                     str(raw_claim.get("access_mode", "read") or "read"),
                 )
             )
-        return child_id, tuple(claims)
+        return child_id, tuple(sorted(set(claims)))
 
     @staticmethod
     def _parse_deletion_history(
