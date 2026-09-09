@@ -178,7 +178,10 @@ class LineageBranchTransactions:
         safety = self._safety
         if safety is None:
             return not expected_claims
-        return safety.links_for_node(child_id) == expected_claims
+        current_claims = tuple(
+            sorted(set(safety.links_for_node(child_id)))
+        )
+        return current_claims == expected_claims
 
     def restore_creation_history(
         self,
