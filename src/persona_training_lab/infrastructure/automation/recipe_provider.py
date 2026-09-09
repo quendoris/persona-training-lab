@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
-import shutil
 from typing import Any
 
 from persona_training_lab.application.automation.service import (
@@ -70,7 +69,22 @@ class FilesystemAutomationRecipeProvider:
         recipe = self._load_manifest(source)
         target = self._registry_dir / f"{recipe.recipe_id}.ptl-recipe.json"
         if source != target.resolve():
-            shutil.copy2(source, target)
+            registered_ids = {item.recipe_id for item in self.list_recipes()}
+            if recipe.recipe_id in registered_ids:
+                raise FileExistsError(
+                    f"recipe id already exists: {recipe.recipe_id}"
+                )
+            source_text = source.read_text(encoding="utf-8")
+            try:
+                with target.open("x", encoding="utf-8", newline="") as handle:
+                    handle.write(source_text)
+                    handle.flush()
+            except Exception:
+                try:
+                    target.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise
         imported = self._load_manifest(target)
         self.list_recipes()
         return imported
