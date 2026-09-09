@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable, Protocol
+from typing import Any, Protocol
 
 from persona_training_lab.application.runtime.operations import ResourceClaim
 from persona_training_lab.ui.agents.runtime_policy import (
