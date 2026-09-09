@@ -44,16 +44,74 @@ class FileStats:
     bytes_count: int
 
 
-def _git(*args: str) -> str:
+@dataclass(slots=True, frozen=True)
+class GitIdentity:
+    repository_root: str
+    branch: str
+    commit: str
+    commit_short: str
+    upstream: str
+    dirty: bool
+    tracked_dirty: bool
+    untracked: bool
+    dirty_paths: tuple[str, ...]
+
+
+def _git(
+    *args: str,
+    cwd: Path | None = None,
+    required: bool = True,
+) -> str:
     completed = subprocess.run(
         ["git", *args],
-        check=True,
+        cwd=cwd,
+        check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
+    if completed.returncode != 0:
+        if required:
+            command = " ".join(("git", *args))
+            detail = completed.stderr.strip() or "Git command failed"
+            raise RuntimeError(f"{command}: {detail}")
+        return ""
     return completed.stdout.strip()
+
+
+def _repository_identity(root: Path) -> GitIdentity:
+    status = _git(
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        cwd=root,
+    )
+    status_lines = tuple(line for line in status.splitlines() if line)
+    tracked_dirty = any(not line.startswith("??") for line in status_lines)
+    untracked = any(line.startswith("??") for line in status_lines)
+    return GitIdentity(
+        repository_root=str(root),
+        branch=_git("branch", "--show-current", cwd=root) or "(detached)",
+        commit=_git("rev-parse", "HEAD", cwd=root),
+        commit_short=_git("rev-parse", "--short", "HEAD", cwd=root),
+        upstream=(
+            _git(
+                "rev-parse",
+                "--abbrev-ref",
+                "--symbolic-full-name",
+                "@{u}",
+                cwd=root,
+                required=False,
+            )
+            or "(no upstream)"
+        ),
+        dirty=bool(status_lines),
+        tracked_dirty=tracked_dirty,
+        untracked=untracked,
+        dirty_paths=status_lines,
+    )
 
 
 def _tracked_paths(root: Path) -> tuple[Path, ...]:
@@ -132,7 +190,9 @@ def _python_code_lines(source: str) -> int:
         tokenize.COMMENT,
     }
     try:
-        for token in tokenize.generate_tokens(iter(source.splitlines(keepends=True)).__next__):
+        for token in tokenize.generate_tokens(
+            iter(source.splitlines(keepends=True)).__next__
+        ):
             if token.type in ignored_types:
                 continue
             start, end = token.start[0], token.end[0]
@@ -164,7 +224,11 @@ def _file_stats(root: Path, path: Path) -> FileStats | None:
         category=_category(relative),
         physical_lines=len(lines),
         nonblank_lines=sum(1 for line in lines if line.strip()),
-        code_lines=_python_code_lines(source) if path.suffix.casefold() == ".py" else None,
+        code_lines=(
+            _python_code_lines(source)
+            if path.suffix.casefold() == ".py"
+            else None
+        ),
         bytes_count=len(raw),
     )
 
@@ -184,16 +248,42 @@ def _totals(files: Iterable[FileStats]) -> dict[str, int]:
     }
 
 
-def _print_table(stats: tuple[FileStats, ...], top: int) -> None:
+def _print_identity(identity: GitIdentity) -> None:
+    print("Repository identity")
+    print("-" * 78)
+    print(f"Root     : {identity.repository_root}")
+    print(f"Branch   : {identity.branch}")
+    print(f"Commit   : {identity.commit}")
+    print(f"Upstream : {identity.upstream}")
+    print(f"Dirty    : {'yes' if identity.dirty else 'no'}")
+    if identity.dirty:
+        print(f"  tracked changes : {'yes' if identity.tracked_dirty else 'no'}")
+        print(f"  untracked files : {'yes' if identity.untracked else 'no'}")
+        if identity.tracked_dirty:
+            print(
+                "WARNING  : tracked working-tree/index changes are included; "
+                "this result is not reproducibly tied to Commit."
+            )
+        elif identity.untracked:
+            print(
+                "NOTE     : untracked files are excluded because statistics "
+                "enumerate git ls-files."
+            )
+    print()
+
+
+def _print_table(
+    stats: tuple[FileStats, ...],
+    top: int,
+    identity: GitIdentity,
+) -> None:
     grouped: dict[str, list[FileStats]] = defaultdict(list)
     for item in stats:
         grouped[item.category].append(item)
 
     print("\nCodebase statistics")
     print("=" * 78)
-    print(f"Branch : {_git('branch', '--show-current') or '(detached)'}")
-    print(f"Commit : {_git('rev-parse', '--short', 'HEAD')}")
-    print()
+    _print_identity(identity)
     print(
         f"{'Category':<22} {'Files':>7} {'Physical':>11} "
         f"{'Nonblank':>11} {'Python code':>12}"
@@ -214,7 +304,11 @@ def _print_table(stats: tuple[FileStats, ...], top: int) -> None:
         if not items:
             continue
         total = _totals(items)
-        code = _fmt(total["code_lines"]) if any(item.code_lines is not None for item in items) else "—"
+        code = (
+            _fmt(total["code_lines"])
+            if any(item.code_lines is not None for item in items)
+            else "—"
+        )
         print(
             f"{category:<22} {_fmt(total['files']):>7} "
             f"{_fmt(total['physical_lines']):>11} "
@@ -240,13 +334,21 @@ def _print_table(stats: tuple[FileStats, ...], top: int) -> None:
         f"{_fmt(python_total['code_lines']):>12}"
     )
 
-    ratio = tests["code_lines"] / production["code_lines"] if production["code_lines"] else 0.0
+    ratio = (
+        tests["code_lines"] / production["code_lines"]
+        if production["code_lines"]
+        else 0.0
+    )
     print()
     print(f"Production Python code : {_fmt(production['code_lines'])} lines")
     print(f"Tests Python code      : {_fmt(tests['code_lines'])} lines")
     print(f"Test / production ratio: {ratio:.2f}")
 
-    largest = sorted(stats, key=lambda item: item.physical_lines, reverse=True)[:top]
+    largest = sorted(
+        stats,
+        key=lambda item: item.physical_lines,
+        reverse=True,
+    )[:top]
     if largest:
         print(f"\nLargest {len(largest)} tracked text files")
         print("-" * 78)
@@ -258,11 +360,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Count tracked project lines without external dependencies.",
     )
-    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print machine-readable JSON.",
+    )
     parser.add_argument("--top", type=int, default=15, help="Show N largest files.")
     args = parser.parse_args()
 
-    root = Path(_git("rev-parse", "--show-toplevel"))
+    root = Path(_git("rev-parse", "--show-toplevel")).resolve()
+    identity = _repository_identity(root)
     stats = tuple(
         item
         for path in _tracked_paths(root)
@@ -271,11 +378,20 @@ def main() -> int:
 
     if args.json:
         payload = {
-            "branch": _git("branch", "--show-current") or "(detached)",
-            "commit": _git("rev-parse", "--short", "HEAD"),
+            "repository_root": identity.repository_root,
+            "branch": identity.branch,
+            "commit": identity.commit_short,
+            "commit_full": identity.commit,
+            "upstream": identity.upstream,
+            "dirty": identity.dirty,
+            "tracked_dirty": identity.tracked_dirty,
+            "untracked": identity.untracked,
+            "dirty_paths": list(identity.dirty_paths),
             "totals": _totals(stats),
             "categories": {
-                category: _totals(item for item in stats if item.category == category)
+                category: _totals(
+                    item for item in stats if item.category == category
+                )
                 for category in sorted({item.category for item in stats})
             },
             "files": [
@@ -294,7 +410,7 @@ def main() -> int:
         print()
         return 0
 
-    _print_table(stats, max(0, args.top))
+    _print_table(stats, max(0, args.top), identity)
     return 0
 
 
