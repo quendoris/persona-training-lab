@@ -341,13 +341,18 @@ app.db
 
 agents_lineage_state.json
   -> custom branches/current/archive/overrides/history/layout
+     + protected branch_create_v1 / branch_delete_v1 history metadata
 ```
 
-Preserve both in the same workspace backup.
+Preserve both in the **same offline workspace backup snapshot**.
 
-A database-only restore can leave the semantic graph intact while losing local Agents organization/history.
+Modern protected Agents history can carry the exact resource-link identity that an Undo/Redo transition expects to exist in SQLite. The JSON and database therefore form a coordinated recovery pair even though they are not one ACID store while PTL is running.
 
-An Agents-JSON-only restore can restore local organization that no longer matches the intended SQLite snapshot.
+A database-only restore can leave the semantic graph intact while losing local Agents organization/history and the protected history metadata that explains cross-store transitions.
+
+An Agents-JSON-only restore can restore local organization/history whose recorded resource-link identity belongs to another SQLite snapshot.
+
+Do not intentionally mix `app.db` from backup A with `agents_lineage_state.json` from backup B and then treat the result as a normal restored Agents state.
 
 ## 20. Agents state writes are atomic at the file level
 
@@ -389,11 +394,13 @@ mv ~/.local/share/persona-training-lab/agents_lineage_state.json \
 
 On the next state-store creation, a missing active file produces default local Agents state.
 
-This does **not** delete semantic Dataset/Training/model/evaluation rows from SQLite, but it does remove the active local custom branches/current/history/layout until the saved file is restored.
+This does **not** delete semantic Dataset/Training/model/evaluation rows from SQLite. It also does not automatically delete old custom-node `lineage_resource_links` from SQLite, so a local-state-only reset can leave conservative stale safety-link rows until a later supported workflow replaces/reconciles the same node identity.
+
+Do not hand-delete those SQLite rows merely to make the reset look cleaner.
 
 ## 22. Do not “fix” Agents JSON by hand unless performing forensic recovery
 
-Agents state contains schema/history/layout/protected-deletion metadata whose consistency matters.
+Agents state contains schema/history/layout plus protected creation/deletion metadata whose consistency matters across JSON and SQLite safety links.
 
 Manual deletion of one field can produce a state that looks simpler but no longer represents a valid history transition or runtime-safety snapshot.
 
@@ -455,7 +462,7 @@ Conservative research/workflow procedure:
 
 1. stop PTL completely;
 2. preserve the current workspace by moving/renaming it rather than overwriting it;
-3. copy the chosen workspace backup into the expected root;
+3. copy one chosen **whole-workspace snapshot** into the expected root, keeping its `app.db` and `agents_lineage_state.json` together;
 4. restore required external Dataset/model/Automation dependencies;
 5. optionally restore the separately preserved key-binding file;
 6. optionally restore the platform Qt settings when exact shell state matters;
@@ -508,6 +515,7 @@ Training runs/logs present
 model-version records present
 artifact paths exist
 Agents custom branches/history expected
+Agents protected history behaves without unexpected blockers/errors
 Automation recipes expected
 Issues does not show restore/startup failures
 runtime operations are not unexpectedly active
@@ -670,7 +678,9 @@ agents_lineage_state.json
 
 out of the active workspace resets Agents local organization/history on next use while preserving semantic SQLite entities.
 
-This is narrower than a whole-workspace reset but still destructive to the active local Agents custom branch/history/layout state.
+This is narrower than a whole-workspace reset but still destructive to the active local Agents custom branch/history/layout state, and it intentionally breaks the normal JSON/SQLite protected-history pairing for those removed local branches.
+
+Because custom-node `lineage_resource_links` live in `app.db`, the local-state-only reset can leave conservative stale link rows behind. Do not manually delete them as part of the reset. A later supported creation/reconciliation path can replace matching node identity; whole-workspace restore remains the normal way to recover a coherent historical Agents pair.
 
 Always keep the moved file until the recovery outcome is confirmed.
 
@@ -697,6 +707,8 @@ old artifacts + old Agents JSON + old recipes
 new/empty SQLite metadata
 ```
 
+For Agents specifically, protected `branch_create_v1` / `branch_delete_v1` history metadata in the old JSON can now describe resource links that no longer exist in the replacement database.
+
 That state may be useful for a deliberate forensic experiment, but it is not a normal clean reset.
 
 For a normal fresh start, move the whole workspace root together.
@@ -705,7 +717,7 @@ For a normal fresh start, move the whole workspace root together.
 
 A database-only restore may be appropriate only when you deliberately understand and accept the split-state consequences.
 
-Potential mismatches include model-version paths referencing other artifact bytes, Agents JSON from another semantic snapshot, recipes from another date, logs/events not matching external effects, and external Dataset bytes differing from stored approval hashes.
+Potential mismatches include model-version paths referencing other artifact bytes, Agents JSON/protected history from another semantic and safety-link snapshot, recipes from another date, logs/events not matching external effects, and external Dataset bytes differing from stored approval hashes.
 
 Prefer whole-workspace restore.
 
@@ -748,15 +760,17 @@ After abnormal application/OS termination, verify host state explicitly: output 
 
 Do not assume workspace restore reverses an external command effect.
 
-## 51. Recovering after a failed Agents delete/redo
+## 51. Recovering after a failed Agents destructive history transition
 
-Agents destructive transitions use runtime leases and protected history/resource-link handling.
+Agents branch deletion, protected deletion Redo, and protected `branch_create_v1` Undo are destructive transitions with runtime-safety handling.
 
-If a delete/redo is blocked, resolve the active resource blocker and retry through the UI.
+If the action is blocked, an active operation currently owns a conflicting linked resource. Resolve that owning operation through its normal lifecycle and retry through the UI. Do not manually remove `runtime_operation_resources` or `lineage_resource_links` to force history forward.
 
-Do not manually delete lineage resource links to make the button work.
+Protected creation Undo additionally verifies that the current subtree is exactly the recorded child before it mutates history. A mismatch is a fail-closed signal to preserve the workspace and investigate lineage/history state rather than forcing the Undo.
 
-If a true persistence failure occurs mid-transition, preserve the workspace and use last-known-good backup/evidence rather than editing state piecemeal.
+If `BranchCreationHistoryCommittedError` is reported, the branch-creation Undo already removed the local branch and exact safety links, but finalizing the temporary `lineage_delete` lease failed. The screen applies the committed history transition before surfacing the error. Treat this as a committed-state/finalization incident: preserve the workspace, inspect Activity/Issues/runtime-operation state, and let startup orphan recovery handle a genuinely orphaned lease after a crash. Do not manually recreate the branch or edit the lease rows as an immediate “repair.”
+
+If a true persistence/compensation failure occurs mid-transition, preserve `app.db` and `agents_lineage_state.json` together and use last-known-good whole-workspace backup/evidence rather than editing state piecemeal.
 
 ## 52. Recovering from an apparently stale Agents graph
 
@@ -805,7 +819,7 @@ key-binding storage state when input configuration is involved
 Qt shell-state relevance when geometry/docks/session are involved
 ```
 
-When recovery concerns Agents, preserve `agents_lineage_state.json` and matching `app.db` together.
+When recovery concerns Agents, preserve the **matching pair** `agents_lineage_state.json` and `app.db` from the same state/evidence point.
 
 When recovery concerns Automation, preserve relevant audit metadata and inspect external effects separately.
 
@@ -868,7 +882,7 @@ Before declaring a restore/recovery successful:
 1. PTL launches normally;
 2. expected workspace root is active;
 3. SQLite-backed entities are present;
-4. Agents local state matches the intended snapshot;
+4. Agents local state matches the intended **same-snapshot** SQLite state;
 5. referenced artifact paths exist;
 6. required external Dataset/model/Automation dependencies exist;
 7. no unexpected active runtime operations remain;
@@ -904,7 +918,7 @@ Backup/recovery changes must preserve these rules unless the product contract is
 
 1. workspace ownership remains independent of process CWD;
 2. `app.db` is not documented as the complete backup by itself;
-3. Agents local JSON and SQLite semantic state remain distinguishable;
+3. Agents local JSON and SQLite semantic/safety-link state remain distinguishable but are restored from the same whole-workspace snapshot for normal recovery;
 4. external Dataset/model/Automation dependencies remain explicitly external when they are external;
 5. QSettings and the user-home key-binding JSON remain explicitly outside the workspace while code stores them there;
 6. manual workspace backup guidance remains offline until PTL implements/audits a coordinated hot-backup contract;
@@ -913,7 +927,8 @@ Backup/recovery changes must preserve these rules unless the product contract is
 9. recovery procedures prefer reversible rename/copy steps over immediate deletion;
 10. version/schema compatibility claims must not exceed implemented migrations;
 11. key-binding format compatibility must be documented separately from SQLite schema compatibility;
-12. recovery documentation must be updated whenever a persistence location or atomicity boundary moves.
+12. recovery documentation must be updated whenever a persistence location or atomicity boundary moves;
+13. local Agents-only reset must not be documented as also cleaning SQLite custom-node safety links when the code does not do that.
 
 ## Next steps
 
