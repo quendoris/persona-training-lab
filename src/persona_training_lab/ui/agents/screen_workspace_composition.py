@@ -310,6 +310,19 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
     def _toggle_last_history_action(self) -> None:
         previewer = getattr(self._state, "history_toggle_preview", None)
         preview = previewer() if callable(previewer) else None
+        if (
+            preview is not None
+            and preview.action_code == "branch_create"
+            and self._branch_creation_controller.supports_history(
+                preview.metadata
+            )
+        ):
+            self._close_canvas_menu()
+            if preview.direction == "undo":
+                self._undo_branch_creation_history(preview)
+                return
+            self._redo_branch_creation_history(preview)
+            return
         if preview is None or preview.action_code != "branch_delete":
             super()._toggle_last_history_action()
             return
@@ -322,11 +335,43 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
     def _undo_history_only(self) -> None:
         previewer = getattr(self._state, "undo_preview", None)
         preview = previewer() if callable(previewer) else None
+        if (
+            preview is not None
+            and preview.action_code == "branch_create"
+            and self._branch_creation_controller.supports_history(
+                preview.metadata
+            )
+        ):
+            self._close_canvas_menu()
+            self._undo_branch_creation_history(preview)
+            return
         if preview is None or preview.action_code != "branch_delete":
             super()._undo_history_only()
             return
         self._close_canvas_menu()
         self._undo_branch_delete_history(preview)
+
+    def _undo_branch_creation_history(self, preview) -> None:
+        transition = self._branch_creation_controller.undo_history(
+            preview.metadata,
+            current_layout=self._layout_snapshot(),
+        )
+        if transition is None:
+            self._sync_history_action()
+            return
+        self._apply_history_transition(transition)
+        self._refresh_runtime_safety(force=True)
+
+    def _redo_branch_creation_history(self, preview) -> None:
+        transition = self._branch_creation_controller.redo_history(
+            preview.metadata,
+            current_layout=self._layout_snapshot(),
+        )
+        if transition is None:
+            self._sync_history_action()
+            return
+        self._apply_history_transition(transition)
+        self._refresh_runtime_safety(force=True)
 
     def _undo_branch_delete_history(self, preview) -> None:
         restored_ids = self._branch_transactions.restore_deletion_history(
