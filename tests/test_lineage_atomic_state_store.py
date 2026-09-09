@@ -138,3 +138,61 @@ def test_transaction_snapshot_restores_lineage_without_history_pollution(
     }
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload == transaction_snapshot
+
+
+def test_history_metadata_is_durable_and_survives_undo_redo(tmp_path) -> None:
+    path = tmp_path / "lineage.json"
+    store = AtomicLineageStateStore(path)
+    branch_id = store.continue_from("snapshot")
+    metadata = {
+        "kind": "branch_create_v1",
+        "child_node_id": branch_id,
+        "resource_links": [
+            {
+                "resource_kind": "model_version",
+                "resource_id": "mdl_1",
+                "access_mode": "read",
+            }
+        ],
+    }
+
+    store.attach_latest_history_metadata("branch_create", metadata)
+
+    reloaded = AtomicLineageStateStore(path)
+    preview = reloaded.undo_preview()
+    assert preview is not None
+    assert preview.action_code == "branch_create"
+    assert preview.direction == "undo"
+    assert preview.metadata == metadata
+
+    undone = reloaded.undo_only({"schema": 1})
+    assert undone is not None
+    assert branch_id not in _node_ids(reloaded)
+    redo_preview = reloaded.history_toggle_preview()
+    assert redo_preview is not None
+    assert redo_preview.action_code == "branch_create"
+    assert redo_preview.direction == "redo"
+    assert redo_preview.metadata == metadata
+
+    redone = reloaded.redo_last_action({"schema": 1})
+    assert redone is not None
+    assert branch_id in _node_ids(reloaded)
+    persisted = AtomicLineageStateStore(path).undo_preview()
+    assert persisted is not None
+    assert persisted.metadata == metadata
+
+
+def test_history_metadata_attachment_rejects_wrong_latest_action(tmp_path) -> None:
+    path = tmp_path / "lineage.json"
+    store = AtomicLineageStateStore(path)
+    store.continue_from("snapshot")
+
+    with pytest.raises(RuntimeError, match="does not match metadata owner"):
+        store.attach_latest_history_metadata(
+            "branch_delete",
+            {"kind": "branch_create_v1"},
+        )
+
+    preview = store.undo_preview()
+    assert preview is not None
+    assert preview.metadata == {}
