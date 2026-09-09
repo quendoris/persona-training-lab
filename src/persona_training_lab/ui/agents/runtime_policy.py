@@ -14,6 +14,7 @@ from persona_training_lab.application.runtime.operations import (
 )
 
 
+_BRANCH_CREATE_HISTORY_KIND = "branch_create_v1"
 _BRANCH_DELETE_HISTORY_KIND = "branch_delete_v1"
 
 
@@ -138,6 +139,60 @@ class LineageBranchTransactions:
             )
         return safety.bind_node(child_node_id, fallback_claims)
 
+    def capture_creation_history(
+        self,
+        child_node_id: str,
+        claims: Iterable[ResourceClaim],
+    ) -> dict[str, Any]:
+        child_id = child_node_id.strip()
+        if not child_id:
+            return {}
+        return {
+            "kind": _BRANCH_CREATE_HISTORY_KIND,
+            "child_node_id": child_id,
+            "resource_links": [
+                {
+                    "resource_kind": claim.resource_kind,
+                    "resource_id": claim.resource_id,
+                    "access_mode": claim.access_mode,
+                }
+                for claim in claims
+            ],
+        }
+
+    def creation_history_child(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> str:
+        parsed = self._parse_creation_history(metadata)
+        return "" if parsed is None else parsed[0]
+
+    def restore_creation_history(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> str:
+        parsed = self._parse_creation_history(metadata)
+        if parsed is None:
+            return ""
+        child_id, claims = parsed
+        safety = self._safety
+        if safety is not None:
+            safety.restore_node_links({child_id: claims})
+        return child_id
+
+    def forget_creation_history(
+        self,
+        metadata: Mapping[str, Any],
+    ) -> str:
+        parsed = self._parse_creation_history(metadata)
+        if parsed is None:
+            return ""
+        child_id, _ = parsed
+        safety = self._safety
+        if safety is not None:
+            safety.forget_nodes((child_id,))
+        return child_id
+
     def begin_deletion(
         self,
         node_ids: Iterable[str],
@@ -205,6 +260,35 @@ class LineageBranchTransactions:
     def forget(self, node_ids: Iterable[str]) -> int:
         safety = self._safety
         return 0 if safety is None else safety.forget_nodes(node_ids)
+
+    @staticmethod
+    def _parse_creation_history(
+        metadata: Mapping[str, Any],
+    ) -> tuple[str, tuple[ResourceClaim, ...]] | None:
+        if metadata.get("kind") != _BRANCH_CREATE_HISTORY_KIND:
+            return None
+        child_id = str(metadata.get("child_node_id", "")).strip()
+        raw_claims = metadata.get("resource_links")
+        if not child_id or not isinstance(raw_claims, list):
+            return None
+        claims: list[ResourceClaim] = []
+        for raw_claim in raw_claims:
+            if not isinstance(raw_claim, dict):
+                return None
+            resource_kind = str(
+                raw_claim.get("resource_kind", "")
+            ).strip()
+            resource_id = str(raw_claim.get("resource_id", "")).strip()
+            if not resource_kind or not resource_id:
+                return None
+            claims.append(
+                ResourceClaim(
+                    resource_kind,
+                    resource_id,
+                    str(raw_claim.get("access_mode", "read") or "read"),
+                )
+            )
+        return child_id, tuple(claims)
 
     @staticmethod
     def _parse_deletion_history(
