@@ -30,11 +30,18 @@ For the Agents-specific projection/history implementation, see
 6. **Protected deletion Redo is also an operation.** Redo reacquires a fresh
    deletion lease; history cannot bypass a runtime blocker that appeared after
    Undo.
-7. **No invalid intermediate claim set becomes active.** An operation either
+7. **Protected creation Undo is destructive too.** Undoing a modern
+   `branch_create_v1` entry removes the current custom node and its persisted
+   safety links, so it must acquire a fresh `lineage_delete` lease before
+   consuming history.
+8. **No invalid intermediate claim set becomes active.** An operation either
    owns all requested claims or owns none of them.
-8. **A failed diagnostic path cannot fail the application.** Error reporting is
+9. **Committed-state failures stay truthful.** If local state/link removal has
+   committed but lease finalization fails, the UI must reflect the committed
+   transition before the finalization error is reported.
+10. **A failed diagnostic path cannot fail the application.** Error reporting is
    best-effort, throttled, and isolated from the original workflow.
-9. **Recoverable failures do not terminate the UI.** Service, worker-thread, Qt
+11. **Recoverable failures do not terminate the UI.** Service, worker-thread, Qt
    event, and Qt warning boundaries report the incident and keep unrelated
    workflows usable.
 
@@ -72,6 +79,11 @@ new persisted meaning.
 These links are separate from the visual graph layout and separate from the
 custom-branch JSON payload. They are persisted in SQLite because runtime safety
 must survive ordinary UI refresh/restart behavior.
+
+Modern protected branch history stores exact link snapshots in
+`agents_lineage_state.json` (`branch_create_v1` / `branch_delete_v1`) so the
+cross-store history controller can restore/remove the same safety identity rather
+than relying on incidental stale rows.
 
 ## Resource identity
 
@@ -169,6 +181,74 @@ intact.
 Older redo entries are preserved because protected Redo consumes history rather
 than recording a new deletion action that would clear the redo stack.
 
+## Protected creation history
+
+Modern branch creation stores `branch_create_v1` history metadata containing the
+created child id and the exact safety links bound at creation time.
+
+### Creation
+
+The creation controller:
+
+1. captures exact pre-creation Agents transaction state;
+2. persists the local branch/history entry;
+3. binds or inherits the child safety links in SQLite;
+4. persists exact `branch_create_v1` metadata into that history entry;
+5. exposes/selects the child in the UI only after both stores succeeded.
+
+If link binding or metadata persistence fails, the controller compensates the
+Agents JSON state. Already-bound links are removed only after the local state was
+successfully restored, avoiding a still-present safety-empty branch if
+compensation itself fails.
+
+### Undo
+
+Protected creation Undo is a destructive transition even though its user-facing
+meaning is “undo creation.” It removes a currently existing custom node and the
+resource association represented by that node.
+
+The controller therefore:
+
+1. verifies that the current subtree is exactly `(child_node_id,)`;
+2. captures exact pre-Undo Agents transaction state;
+3. acquires a fresh `lineage_delete` lease for the child plus its linked real
+   resources;
+4. consumes the existing `branch_create` undo entry;
+5. verifies the transition is creation/Undo;
+6. removes the exact saved child links;
+7. finalizes the lease;
+8. returns the history transition for UI application.
+
+If lease acquisition is blocked, no history/state/link mutation occurs and the UI
+shows the current blocker. If the subtree is no longer exactly the recorded
+child, the controller fails closed before acquiring/mutating history.
+
+If link cleanup fails after the JSON transition, the controller restores the
+captured pre-Undo Agents state and fails the lease where compensation succeeds.
+
+If state and link removal have already committed but `lease.succeed()` fails,
+`BranchCreationHistoryCommittedError` carries the committed transition. The
+screen applies that transition before re-raising the finalization failure through
+the normal diagnostic boundary.
+
+### Redo
+
+Protected creation Redo first requires the recorded child id to be absent. It
+then consumes the existing redo entry, verifies that exactly the recorded child
+was restored, and restores the exact safety-link snapshot from
+`branch_create_v1` before exposing the UI transition.
+
+If link restoration fails, the controller restores the exact pre-Redo Agents
+state. Redo is a restoration of local association, not a destructive removal, so
+it does not acquire a deletion lease merely to re-create that association.
+
+### Legacy boundary
+
+Older `branch_create` history without `branch_create_v1` metadata cannot be given
+exact historical safety provenance after the fact. Those entries remain on the
+generic compatibility history path and can leave conservative stale link rows
+rather than deleting an unproven association.
+
 ## Projection/resource reconciliation
 
 Persisted semantic lineage can change while Agents is open. Projection resource
@@ -207,6 +287,10 @@ backups. Failure to create the diagnostic file does not block application startu
   cancellation; the UI Pause/Stop controls are disabled in v1.0.
 - Persisted physical artifact deletion is not part of the current Agents
   custom-branch deletion contract.
+- Protected cross-store Agents history is compensating orchestration across
+  SQLite and JSON, not one ACID transaction spanning both stores.
+- Historical creation history without `branch_create_v1` metadata cannot recover
+  exact resource-link provenance that was never persisted.
 - Agents background projection refresh is documented for the current local
   desktop/SQLite operating model. Large-graph interaction/soak limits require
   separate adversarial/stress evidence and are not implied by this architecture
@@ -223,6 +307,9 @@ be revalidated rather than being described as already covered by this document.
 ## Related documentation
 
 - [Agents lineage architecture](agents-lineage.md)
+- [Persistence architecture](persistence.md)
 - [Agents lineage user guide](../user-guide/agents-lineage.md)
+- [Troubleshooting](../operations/troubleshooting.md)
+- [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
 - [v1.0 Product Contract](../reference/v1-product-contract.md)
