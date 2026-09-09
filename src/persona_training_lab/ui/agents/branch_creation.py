@@ -4,7 +4,10 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from persona_training_lab.application.runtime.operations import ResourceClaim
+from persona_training_lab.application.runtime.operations import (
+    ResourceClaim,
+    RuntimeOperationLease,
+)
 from persona_training_lab.ui.agents.lineage_state import HistoryTransition
 from persona_training_lab.ui.agents.runtime_policy import (
     LineageBranchTransactions,
@@ -27,6 +30,8 @@ class BranchCreationStatePort(Protocol):
         action_code: str,
         metadata: dict[str, Any],
     ) -> None: ...
+
+    def custom_subtree_ids(self, node_id: str) -> tuple[str, ...]: ...
 
     def undo_only(
         self,
@@ -54,6 +59,20 @@ class BranchCreationExecutionError(RuntimeError):
         super().__init__(
             f"Branch creation failed: {original_error}. "
             f"Compensation also failed: {details}"
+        )
+
+
+class BranchCreationHistoryCommittedError(RuntimeError):
+    def __init__(
+        self,
+        transition: HistoryTransition,
+        finalization_error: BaseException,
+    ) -> None:
+        self.transition = transition
+        self.finalization_error = finalization_error
+        super().__init__(
+            "Branch creation Undo committed, but runtime lease finalization "
+            f"failed: {finalization_error}"
         )
 
 
@@ -130,29 +149,81 @@ class BranchCreationController:
         child_id = self.transactions.creation_history_child(metadata)
         if not child_id:
             return None
+
+        current_ids = self.state.custom_subtree_ids(child_id)
+        if current_ids != (child_id,):
+            raise RuntimeError(
+                "Lineage branch creation Undo no longer matches current subtree"
+            )
+
         transaction_snapshot = self.state.capture_transaction_state()
+        lease = self.transactions.begin_deletion(
+            current_ids,
+            subject_id=child_id,
+        )
         try:
             transition = self.state.undo_only(current_layout)
-            if (
-                transition is None
-                or transition.action_code != "branch_create"
-                or transition.direction != "undo"
-            ):
-                raise RuntimeError(
-                    "Lineage branch creation Undo no longer matches history"
-                )
-            forgotten_id = self.transactions.forget_creation_history(metadata)
-            if forgotten_id != child_id:
-                raise RuntimeError(
-                    "Lineage branch creation Undo lost its safety identity"
-                )
-            return transition
         except Exception as error:
-            self._restore_state_or_raise(
-                transaction_snapshot,
-                error,
-            )
+            self._fail_lease_or_raise(lease, error)
             raise
+
+        if (
+            transition is None
+            or transition.action_code != "branch_create"
+            or transition.direction != "undo"
+        ):
+            error = RuntimeError(
+                "Lineage branch creation Undo no longer matches history"
+            )
+            compensation_errors = self._restore_and_close(
+                transaction_snapshot,
+                lease,
+                cancel=True,
+                message=str(error),
+            )
+            if compensation_errors:
+                raise BranchCreationExecutionError(
+                    error,
+                    compensation_errors,
+                ) from error
+            raise error
+
+        try:
+            forgotten_id = self.transactions.forget_creation_history(metadata)
+        except Exception as error:
+            compensation_errors = self._restore_and_close(
+                transaction_snapshot,
+                lease,
+                cancel=False,
+                message=str(error),
+            )
+            if compensation_errors:
+                raise BranchCreationExecutionError(
+                    error,
+                    compensation_errors,
+                ) from error
+            raise
+
+        if forgotten_id != child_id:
+            error = RuntimeError(
+                "Lineage branch creation Undo lost its safety identity"
+            )
+            compensation_errors = self._restore_and_close(
+                transaction_snapshot,
+                lease,
+                cancel=False,
+                message=str(error),
+                restore_links=metadata,
+            )
+            if compensation_errors:
+                raise BranchCreationExecutionError(
+                    error,
+                    compensation_errors,
+                ) from error
+            raise error
+
+        self._finalize_committed_undo(lease, transition)
+        return transition
 
     def redo_history(
         self,
@@ -163,6 +234,11 @@ class BranchCreationController:
         child_id = self.transactions.creation_history_child(metadata)
         if not child_id:
             return None
+        if self.state.custom_subtree_ids(child_id):
+            raise RuntimeError(
+                "Lineage branch creation Redo target already exists"
+            )
+
         transaction_snapshot = self.state.capture_transaction_state()
         try:
             transition = self.state.redo_last_action(current_layout)
@@ -173,6 +249,10 @@ class BranchCreationController:
             ):
                 raise RuntimeError(
                     "Lineage branch creation Redo no longer matches history"
+                )
+            if self.state.custom_subtree_ids(child_id) != (child_id,):
+                raise RuntimeError(
+                    "Lineage branch creation Redo restored unexpected subtree"
                 )
             restored_id = self.transactions.restore_creation_history(metadata)
             if restored_id != child_id:
@@ -200,9 +280,86 @@ class BranchCreationController:
                 (compensation_error,),
             ) from original_error
 
+    def _restore_and_close(
+        self,
+        snapshot: dict[str, Any],
+        lease: RuntimeOperationLease | None,
+        *,
+        cancel: bool,
+        message: str,
+        restore_links: Mapping[str, Any] | None = None,
+    ) -> tuple[BaseException, ...]:
+        errors: list[BaseException] = []
+        state_restored = False
+        try:
+            self.state.restore_transaction_state(snapshot)
+            state_restored = True
+        except Exception as error:
+            errors.append(error)
+
+        if state_restored and restore_links is not None:
+            try:
+                self.transactions.restore_creation_history(restore_links)
+            except Exception as error:
+                errors.append(error)
+
+        if lease is not None:
+            try:
+                changed = (
+                    lease.cancel(message)
+                    if cancel
+                    else lease.fail(message)
+                )
+                if changed is not True:
+                    raise RuntimeError(
+                        "Branch creation Undo lease was not finalized"
+                    )
+            except Exception as error:
+                errors.append(error)
+        return tuple(errors)
+
+    @staticmethod
+    def _fail_lease_or_raise(
+        lease: RuntimeOperationLease | None,
+        original_error: BaseException,
+    ) -> None:
+        if lease is None:
+            return
+        try:
+            changed = lease.fail(str(original_error))
+            if changed is not True:
+                raise RuntimeError(
+                    "Branch creation Undo lease was not finalized"
+                )
+        except Exception as finalization_error:
+            raise BranchCreationExecutionError(
+                original_error,
+                (finalization_error,),
+            ) from original_error
+
+    @staticmethod
+    def _finalize_committed_undo(
+        lease: RuntimeOperationLease | None,
+        transition: HistoryTransition,
+    ) -> None:
+        if lease is None:
+            return
+        try:
+            changed = lease.succeed()
+            if changed is not True:
+                raise RuntimeError(
+                    "Branch creation Undo lease was not finalized"
+                )
+        except Exception as error:
+            raise BranchCreationHistoryCommittedError(
+                transition,
+                error,
+            ) from error
+
 
 __all__ = (
     "BranchCreationController",
     "BranchCreationExecutionError",
+    "BranchCreationHistoryCommittedError",
     "BranchCreationStatePort",
 )
