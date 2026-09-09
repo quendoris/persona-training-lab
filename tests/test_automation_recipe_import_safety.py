@@ -42,11 +42,9 @@ def test_import_recipe_does_not_overwrite_existing_workspace_recipe(
         provider.import_recipe(incoming)
 
     assert existing.read_text(encoding="utf-8") == original
-    recipe = provider.get_recipe("same_id") if hasattr(provider, "get_recipe") else None
-    if recipe is None:
-        recipe = next(
-            item for item in provider.list_recipes() if item.recipe_id == "same_id"
-        )
+    recipe = next(
+        item for item in provider.list_recipes() if item.recipe_id == "same_id"
+    )
     assert recipe.title == "Existing"
 
 
