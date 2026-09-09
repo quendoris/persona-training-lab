@@ -12,7 +12,7 @@ This document defines the v1.0 implementation contract behind that requirement.
 
 ## 1. Architectural boundaries
 
-Agents combines three state classes that must remain distinguishishable:
+Agents combines three state classes that must remain distinguishable:
 
 ```text
 A. persisted semantic sources
@@ -350,36 +350,56 @@ The atomic history store already copies entry metadata when moving an entry betw
 
 For a `branch_create` entry with valid `branch_create_v1` metadata, the composed Agents screen routes Undo through `BranchCreationController` rather than generic snapshot replay.
 
+Undo is destructive: it removes a currently visible custom branch and forgets the resource identities attached to that node. It therefore acquires a **fresh runtime deletion lease** before mutating history.
+
 Flow:
 
 ```text
+verify current custom subtree == (child_node_id,)
+       ↓
 capture exact pre-Undo Agents transaction state
        ↓
+begin fresh lineage_delete lease for the child + linked resources
+       │
+       ├─ conflict → keep branch/history/links unchanged; show runtime blockers
+       │
+       └─ acquired
+             ↓
 consume branch_create undo entry
        ↓
 branch disappears from Agents JSON
        ↓
 forget that child's lineage_resource_links in SQLite
+       ↓
+finalize deletion lease succeeded
        │
        ├─ success → apply saved UI/history transition
        │
-       └─ failure → restore exact pre-Undo Agents state
+       └─ pre-commit failure → restore exact pre-Undo Agents state
 ```
 
-The SQLite link deletion is a repository transaction. If it fails, the branch state is restored before the failed operation is surfaced.
+The subtree equality check prevents one old creation-history entry from deleting an unexpected descendant subtree if lineage/history state has diverged.
+
+The SQLite link deletion is a repository transaction. If it fails, the branch state is restored and the deletion lease is failed before the error is surfaced.
+
+If state + link removal have already committed but lease finalization itself fails, `BranchCreationHistoryCommittedError` carries the committed `HistoryTransition`. The screen applies that committed transition before reporting the finalization failure, so visible state does not pretend the branch still exists.
 
 ### 13.3 Protected branch-creation Redo
 
 Redo likewise cannot rely on stale links surviving the previous Undo.
 
+Before consuming the redo entry, the controller verifies that the recorded child ID is currently absent. After the history transition it verifies that the restored custom subtree is exactly that child before restoring safety links.
+
 Flow:
 
 ```text
+verify child_node_id is absent
+       ↓
 capture exact pre-Redo Agents transaction state
        ↓
 consume branch_create redo entry
        ↓
-branch returns in Agents JSON
+verify restored subtree == (child_node_id,)
        ↓
 restore exact saved resource_links from branch_create_v1 metadata
        │
@@ -389,6 +409,8 @@ restore exact saved resource_links from branch_create_v1 metadata
 ```
 
 The screen applies the visible history transition only after the controller has restored the persisted safety identity successfully.
+
+Redo is not itself a destructive removal of a linked resource, so it does not acquire a deletion lease merely to re-create the local branch association.
 
 ### 13.4 Legacy creation-history compatibility boundary
 
@@ -404,6 +426,8 @@ A newly created custom branch must not become safety-empty merely because no new
 
 A branch whose required safety-link bind or creation-history metadata persistence failed must not remain durably exposed as a successful creation when local-state compensation succeeds.
 
+Protected creation Undo must not remove a branch/resource association while a current runtime operation owns a conflicting linked resource.
+
 Protected creation Undo must remove both the local branch and its exact saved safety links, or restore the prior state.
 
 Protected creation Redo must restore both the local branch and its exact saved safety links before UI exposure.
@@ -417,6 +441,8 @@ For lineage deletion, `LineageRuntimeSafety.begin_deletion(...)` derives destruc
 If an existing operation conflicts, acquisition fails atomically and no deletion mutation begins.
 
 Read/read remains compatible; any write conflict blocks.
+
+Protected branch-creation Undo uses this same destructive lease boundary because undoing creation removes the current custom node and its runtime-safety links.
 
 ## 15. Branch deletion protocol
 
@@ -697,7 +723,11 @@ Agents uses several independent containment mechanisms:
 | branch creation safety-link bind fails | rollback SQLite link transaction; restore exact pre-creation Agents transaction snapshot; do not select/render child |
 | branch creation history-metadata save fails after link bind | restore pre-creation Agents state first, then forget bound links when state restore succeeded |
 | branch creation compensation also fails | raise `BranchCreationExecutionError` preserving original and compensation errors; never hide partial outcome |
-| protected creation Undo link cleanup fails | restore exact pre-Undo Agents state; do not apply UI transition |
+| protected creation Undo runtime conflict | keep branch/history/links unchanged and expose current blockers |
+| protected creation Undo subtree differs from recorded single child | fail closed before acquiring/mutating history |
+| protected creation Undo link cleanup fails | restore exact pre-Undo Agents state; fail the deletion lease; do not apply UI transition |
+| protected creation Undo committed but lease finalization fails | raise `BranchCreationHistoryCommittedError`; apply committed history transition before surfacing failure |
+| protected creation Redo target already exists / restores unexpected subtree | fail closed and restore pre-Redo state where mutation occurred |
 | protected creation Redo link restore fails | restore exact pre-Redo Agents state; do not apply UI transition |
 | deletion plan changes before execution | return `STALE`; do not delete unexpected subtree |
 | runtime conflict | lease acquisition fails; keep lineage unchanged |
@@ -738,8 +768,10 @@ Changes to Agents should preserve regression coverage for at least these contrac
 - custom branch inheritance;
 - branch-creation compensation across Agents JSON and SQLite safety links;
 - durable `branch_create_v1` history metadata;
+- fresh runtime deletion guard on protected creation Undo;
 - protected creation Undo removes exact safety links or restores state;
-- protected creation Redo restores exact safety links before UI exposure;
+- protected creation Undo preserves committed transition on lease-finalization failure;
+- protected creation Redo validates target identity and restores exact safety links before UI exposure;
 - deletion conflict/lease semantics;
 - deletion compensation/finalization errors;
 - protected deletion history metadata;
