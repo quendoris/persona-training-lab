@@ -173,15 +173,24 @@ def test_branch_creation_history_round_trips_exact_resource_links() -> None:
         ResourceClaim("dataset", "ds_1", "read"),
         ResourceClaim("model_version", "mdl_1", "read"),
     )
+    current = {"branch_001": claims}
 
     class _Safety:
+        def links_for_node(self, node_id):
+            return current.get(node_id, ())
+
         def restore_node_links(self, links):
             calls.append(("restore", links))
+            for node_id, restored in links.items():
+                current[node_id] = tuple(restored)
             return tuple(links)
 
         def forget_nodes(self, node_ids):
-            calls.append(("forget", tuple(node_ids)))
-            return len(tuple(node_ids))
+            ids = tuple(node_ids)
+            calls.append(("forget", ids))
+            for node_id in ids:
+                current.pop(node_id, None)
+            return len(ids)
 
     transactions = LineageBranchTransactions(_Safety())  # type: ignore[arg-type]
     metadata = transactions.capture_creation_history("branch_001", claims)
@@ -203,17 +212,58 @@ def test_branch_creation_history_round_trips_exact_resource_links() -> None:
         ],
     }
     assert transactions.creation_history_child(metadata) == "branch_001"
+    assert transactions.creation_history_matches_current_links(metadata) is True
     assert transactions.forget_creation_history(metadata) == "branch_001"
+    assert transactions.creation_history_matches_current_links(metadata) is False
     assert transactions.restore_creation_history(metadata) == "branch_001"
+    assert transactions.creation_history_matches_current_links(metadata) is True
     assert calls == [
         ("forget", ("branch_001",)),
         ("restore", {"branch_001": claims}),
     ]
 
 
+def test_branch_creation_history_detects_missing_changed_and_reordered_links() -> None:
+    expected = (
+        ResourceClaim("dataset", "ds_1", "read"),
+        ResourceClaim("model_version", "mdl_1", "read"),
+    )
+    current: tuple[ResourceClaim, ...] = expected
+    safety = SimpleNamespace(links_for_node=lambda _node_id: current)
+    transactions = LineageBranchTransactions(safety)  # type: ignore[arg-type]
+    metadata = transactions.capture_creation_history(
+        "branch_001",
+        reversed(expected),
+    )
+
+    assert transactions.creation_history_matches_current_links(metadata) is True
+
+    current = ()
+    assert transactions.creation_history_matches_current_links(metadata) is False
+
+    current = (ResourceClaim("dataset", "ds_other", "read"),)
+    assert transactions.creation_history_matches_current_links(metadata) is False
+
+    current = tuple(reversed(expected))
+    assert transactions.creation_history_matches_current_links(metadata) is False
+
+
+def test_creation_history_without_runtime_safety_matches_only_empty_links() -> None:
+    transactions = LineageBranchTransactions(None)
+    empty = transactions.capture_creation_history("branch_001", ())
+    linked = transactions.capture_creation_history(
+        "branch_002",
+        (ResourceClaim("dataset", "ds_1", "read"),),
+    )
+
+    assert transactions.creation_history_matches_current_links(empty) is True
+    assert transactions.creation_history_matches_current_links(linked) is False
+
+
 def test_invalid_branch_creation_history_is_never_applied() -> None:
     calls: list[tuple[object, ...]] = []
     safety = SimpleNamespace(
+        links_for_node=lambda _node_id: (),
         restore_node_links=lambda links: calls.append(("restore", links)),
         forget_nodes=lambda node_ids: calls.append(("forget", tuple(node_ids))),
     )
@@ -227,6 +277,7 @@ def test_invalid_branch_creation_history_is_never_applied() -> None:
     }
 
     assert transactions.creation_history_child(invalid) == ""
+    assert transactions.creation_history_matches_current_links(invalid) is False
     assert transactions.forget_creation_history(invalid) == ""
     assert transactions.restore_creation_history(invalid) == ""
     assert calls == []
