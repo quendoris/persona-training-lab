@@ -124,8 +124,8 @@ class AppContainer:
     error_reporter: ApplicationErrorReporter
 
 
-def build_container() -> AppContainer:
-    settings = AppSettings()
+def build_container(settings: AppSettings | None = None) -> AppContainer:
+    settings = settings or AppSettings()
     paths = build_workspace_paths(settings)
     ensure_workspace_dirs(paths)
     configure_logging(paths.root / "logs")
