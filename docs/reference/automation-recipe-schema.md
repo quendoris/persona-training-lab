@@ -94,6 +94,8 @@ Unknown root fields are not currently rejected by the provider. They are ignored
 | `working_directory` | no | trimmed text; resolution described below |
 | `timeout_seconds` | no | integer-convertible, non-negative; default `0` |
 
+The manifest does not contain a review-token/hash/signature field. Review-to-run identity is computed at runtime from the normalized `AutomationRecipe`; it is not serialized into this schema.
+
 ## 4. Recipe ID
 
 `id` is required and normalized with `.casefold()` before regex validation.
@@ -123,7 +125,7 @@ UpperCase
 
 Because the ID is case-folded first, a manifest spelling such as `Echo.Recipe` becomes `echo.recipe` before validation/identity use.
 
-Recipe ID is the registry identity, import filename basis and Automation run subject for recipe execution.
+Recipe ID is the registry identity, import filename basis and Automation run subject for recipe execution. It is not sufficient by itself to identify the exact recipe semantics that were reviewed.
 
 ## 5. Version
 
@@ -139,7 +141,7 @@ v3
 
 are all parser-valid if non-empty.
 
-Therefore version ordering/compatibility must not be inferred from the manifest parser alone.
+Therefore version ordering/compatibility must not be inferred from the manifest parser alone. A recipe can also change while retaining the same version string; the UI review-to-run guard therefore compares the full normalized recipe safety identity rather than trusting version alone.
 
 ## 6. Command
 
@@ -384,32 +386,56 @@ The registry is still an ordinary trusted filesystem directory. External tools/a
 
 ## 16. Review-to-run identity boundary
 
-Discovery returns an `AutomationRecipe` snapshot for UI presentation.
+Discovery returns a normalized `AutomationRecipe` snapshot for UI presentation. Whenever `AutomationViewModel.recipes()` returns recipes to the screen, it also remembers an in-memory SHA-256 safety identity for each returned recipe.
 
-When the user later runs by `recipe_id`, `AutomationService.get_recipe()` calls the provider again and resolves the current recipe with that ID.
-
-Therefore v1.0 does not cryptographically pin:
+`automation_recipe_identity()` hashes canonical JSON derived from the normalized recipe fields:
 
 ```text
-manifest reviewed in UI
-        ==
-manifest resolved at Run click
+recipe_id
+version
+title
+description
+command
+tags
+inputs
+outputs
+resource_claims
+source
+source_path
+working_directory
+timeout_seconds
 ```
 
-A trusted actor modifying the registry between review and execution can change the recipe that will run.
+When the reviewed UI path later runs a recipe, the view-model passes that expected identity with the recipe ID. `AutomationService.run_recipe()` reloads the recipe once from the provider and compares the freshly loaded immutable recipe to the expected identity **before** input rendering, runtime-lease acquisition, audit-start recording, or process launch.
 
-This is why the recipe registry belongs to the trusted execution boundary.
+Mismatch returns:
+
+```text
+recipe_stale
+```
+
+No runtime lease or child process is created for that attempt. The operator must refresh, inspect the newly discovered recipe, and run again.
+
+The comparison catches semantic changes even when `id` and `version` are unchanged. Formatting-only JSON changes that parse to the same normalized `AutomationRecipe` do not change the identity.
+
+After a successful identity comparison, execution continues from the same already-loaded `AutomationRecipe`; the service does not perform another provider lookup before constructing the execution snapshot.
+
+### Boundary
+
+The review identity is not a manifest field, persisted revision, signature, author authentication mechanism or transitive dependency hash. It protects the current UI/view-model review-to-run path from recipe-object substitution. Direct internal callers of `AutomationService.run_recipe()` may omit `expected_recipe_identity`, so callers outside the reviewed UI path do not automatically receive this guard.
+
+The recipe registry and every external executable/script/data source used by a recipe remain inside the trusted execution boundary.
 
 ## 17. Audit boundary
 
 Recipe execution is normally wired to Automation audit in production, but recipe validity itself does not include:
 
 - a signature;
-- a manifest content hash pinned to the run request;
+- a persisted manifest revision attached to the run record;
 - hashes for companion executables/scripts/data;
 - a proof that declared resources match real side effects.
 
-Audit command hashing identifies the rendered command snapshot PTL launched, not full transitive executable provenance.
+The in-memory recipe review identity and the durable audit `command_sha256` are different mechanisms. The review identity compares normalized recipe semantics before execution; audit command hashing identifies the rendered command snapshot PTL launched. Neither establishes full transitive executable/data provenance.
 
 ## 18. Result codes related to recipe schema/use
 
@@ -417,6 +443,7 @@ Important service results include:
 
 ```text
 recipe_not_found
+recipe_stale
 input_unknown
 input_required
 recipe_invalid
@@ -428,6 +455,8 @@ timeout
 failed
 succeeded
 ```
+
+`recipe_stale` belongs to the reviewed execution path: the currently discovered normalized recipe did not match the safety identity remembered from the latest UI discovery snapshot.
 
 Discovery issues are a different contract:
 
@@ -447,6 +476,7 @@ The current v1 manifest intentionally does not provide:
 - shell execution mode;
 - per-recipe environment overrides;
 - cryptographic manifest signing;
+- a persisted review-token/hash field;
 - companion-file packaging;
 - content-addressed executable provenance;
 - filesystem/network permission policy;
@@ -471,17 +501,19 @@ Before placing/importing a workspace recipe:
 9. remember import does not copy companion files;
 10. treat inherited environment as sensitive trusted input;
 11. use timeout where a bounded run is operationally required;
-12. review the manifest again after Refresh and before Run.
+12. refresh and review the manifest before Run;
+13. if Run reports `recipe_stale`, refresh and review again rather than relying on an unchanged ID/version string.
 
 ## 21. Change checklist
 
-Any manifest/parser change should update:
+Any manifest/parser/review-identity change should update:
 
-1. `infrastructure/automation/recipe_provider.py`;
-2. Automation provider/service tests;
-3. this reference;
-4. `user-guide/automation.md` when author/operator behavior changes;
-5. `architecture/automation.md` when trust/execution semantics change;
-6. `reference/statuses-and-identifiers.md` for new discovery/result codes;
-7. localization if new visible validation/result states appear;
-8. quick release inventory for new safety-critical regression tests.
+1. `infrastructure/automation/recipe_provider.py` when parser/discovery behavior changes;
+2. `application/automation/service.py` when review/execution semantics change;
+3. Automation provider/service/review-identity tests;
+4. this reference;
+5. `user-guide/automation.md` when author/operator behavior changes;
+6. `architecture/automation.md` when trust/execution semantics change;
+7. `reference/statuses-and-identifiers.md` for new discovery/result codes;
+8. localization if new visible validation/result states appear;
+9. quick release inventory for new safety-critical regression tests.
