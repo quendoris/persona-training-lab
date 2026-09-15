@@ -129,7 +129,7 @@ UI exposure follows successful state/link restoration.
 
 Creation Redo is restorative rather than destructive, so it does not acquire a deletion lease merely to recreate the association.
 
-## 6. Deletion history metadata
+## 6. Primary deletion binds the lease to one recorded identity
 
 Before modern branch deletion removes local state, PTL captures:
 
@@ -142,9 +142,41 @@ resource_links{
 }
 ```
 
-The metadata describes the complete custom subtree being removed and the safety identity attached to each affected node immediately before deletion.
+The metadata describes the complete custom subtree being removed and the safety identity attached to each affected node.
 
-Normal deletion then proceeds behind a fresh destructive lease and removes both:
+The important ordering is that the metadata is captured **before** runtime-guard acquisition. The controller verifies that the captured metadata still matches the live SQLite links, acquires a fresh destructive `lineage_delete` lease, and then verifies the **same recorded identity again** before staging history metadata or mutating Agents JSON.
+
+Conceptually:
+
+```text
+verify current subtree == prepared removed_ids
+        ↓
+capture exact branch_delete_v1 safety identity
+        ↓
+verify recorded identity == current SQLite links
+        ↓
+acquire lineage_delete lease derived from current links
+        ↓
+verify the SAME recorded identity == current SQLite links again
+        │
+        ├─ changed → cancel lease; return STALE; mutate nothing locally
+        │
+        └─ unchanged
+              ↓
+capture local transaction state
+              ↓
+stage branch_delete_v1 metadata
+              ↓
+delete custom subtree
+              ↓
+forget lineage_resource_links
+              ↓
+finalize lease
+```
+
+This prevents the runtime lease from protecting one generation of resource links while the persisted `branch_delete_v1` history entry records a later generation.
+
+Normal deletion removes both:
 
 ```text
 custom subtree in Agents JSON
@@ -152,6 +184,19 @@ lineage_resource_links for removed IDs
 ```
 
 with local-state compensation if SQLite cleanup fails before commit.
+
+### 6.1 Primary-deletion fail-closed outcomes
+
+| Condition | Result |
+|---|---|
+| prepared subtree no longer equals current subtree | `STALE`; no lease/history mutation |
+| captured safety identity does not equal current links before lease | `STALE`; no lease/history mutation |
+| runtime operation conflicts with destructive claims | `BLOCKED`; no lineage mutation |
+| safety links change while lease is being acquired | lease is cancelled; `STALE`; no branch-delete history is staged |
+| runtime safety is unavailable | `UNAVAILABLE`; no lineage mutation |
+| local subtree result differs from prepared IDs | restore local transaction state, close lease, return `STALE` unless compensation fails |
+| link cleanup fails after local deletion | restore local transaction state and fail lease; surface error |
+| lease finalization fails after deletion committed | `BranchDeletionCommittedError` carries the committed deletion result |
 
 ## 7. Deletion Undo requires an empty deleted identity slot
 
@@ -244,7 +289,15 @@ The outer desktop workspace lease already excludes a second cooperating PTL proc
 
 That does not make a single pre-lease safety-link read sufficient as a local correctness proof.
 
-The destructive runtime lease itself is acquired from SQLite and depends on the claims derived from current links. Re-reading the exact safety identity after lease acquisition verifies that the semantic object protected by the newly acquired lease still corresponds to the history object about to be consumed.
+The destructive runtime lease itself is acquired from SQLite and depends on the claims derived from current links. Re-reading the exact safety identity after lease acquisition verifies that the semantic object protected by the newly acquired lease still corresponds to the object about to be deleted or the protected history entry about to be consumed.
+
+This rule now applies symmetrically to:
+
+```text
+primary branch deletion
+creation Undo
+protected deletion Redo
+```
 
 This is defensive TOCTOU closure and also protects tests/internal callers that can mutate stores outside the normal UI path.
 
@@ -326,6 +379,7 @@ The protected-history suite includes coverage for:
 - creation Undo runtime conflicts;
 - creation Undo link drift before and during lease acquisition;
 - deletion metadata persistence;
+- primary deletion re-checking the captured identity after runtime-guard acquisition;
 - deletion Undo restoration ordering;
 - deletion Redo preserving unrelated older redo entries/layout transition;
 - deletion Redo runtime blockers;
