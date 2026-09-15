@@ -92,6 +92,7 @@
     "automation.run.status.operation_blocked": "Заблокировано активной операцией",
     "automation.run.status.recipe_invalid": "Некорректный recipe",
     "automation.run.status.recipe_not_found": "Recipe не найден",
+    "automation.run.status.recipe_stale": "Recipe изменился после просмотра. Обновите реестр, проверьте его заново и повторите запуск.",
     "automation.run.status.running": "Выполняется…",
     "automation.run.status.succeeded": "Завершено",
     "automation.run.status.timeout": "Превышено время выполнения",
