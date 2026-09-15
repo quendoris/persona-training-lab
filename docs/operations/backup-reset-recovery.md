@@ -354,6 +354,37 @@ An Agents-JSON-only restore can restore local organization/history whose recorde
 
 Do not intentionally mix `app.db` from backup A with `agents_lineage_state.json` from backup B and then treat the result as a normal restored Agents state.
 
+### 19.1 Mixed-generation pairs fail closed; they are not auto-merged
+
+Modern protected history uses the recorded link snapshot as evidence for one historical transition, not as authority to overwrite arbitrary present state that happens to use the same node ID.
+
+The current checks include:
+
+```text
+branch_create_v1 Undo
+  recorded links == current SQLite links
+  before and after fresh destructive lease acquisition
+
+branch_delete_v1 Undo
+  every recorded deleted node must currently have an empty link slot
+  before old links are restored
+
+branch_delete_v1 Redo
+  recorded links == current SQLite links
+  before and after fresh destructive lease acquisition
+```
+
+Primary modern branch deletion also captures one exact `branch_delete_v1` identity before acquiring its deletion lease and verifies that same identity again before staging history/deleting.
+
+Consequences for recovery are intentional:
+
+- a supposedly deleted node with non-empty current links is **not** overwritten by deletion Undo;
+- a current branch whose links differ from recorded protected history is **not** destructively removed merely because its node ID still matches;
+- link drift during destructive guard acquisition cancels the fresh lease and leaves history/local state unconsumed;
+- the mismatch is preserved for diagnosis.
+
+This is fail-closed containment. PTL v1.0 does **not** contain a cross-store journal or merge algorithm that can prove how to combine different backup generations safely.
+
 ## 20. Agents state writes are atomic at the file level
 
 `AtomicLineageStateStore` saves `agents_lineage_state.json` by:
@@ -462,14 +493,15 @@ Conservative research/workflow procedure:
 
 1. stop PTL completely;
 2. preserve the current workspace by moving/renaming it rather than overwriting it;
-3. copy one chosen **whole-workspace snapshot** into the expected root, keeping its `app.db` and `agents_lineage_state.json` together;
+3. copy one chosen **whole-workspace snapshot** into the expected root, keeping its `app.db` and `agents_lineage_state.json` together from that same snapshot;
 4. restore required external Dataset/model/Automation dependencies;
 5. optionally restore the separately preserved key-binding file;
 6. optionally restore the platform Qt settings when exact shell state matters;
 7. start PTL;
 8. inspect Dashboard, Agents, Automation, Issues, and logs;
 9. verify model/artifact/Dataset paths before Training/Tests;
-10. verify runtime-operation recovery state before destructive Agents actions.
+10. verify runtime-operation recovery state before destructive Agents actions;
+11. if Agents protected history reports an identity mismatch, stop destructive experimentation and re-check that the database/JSON came from one backup generation rather than editing them into agreement.
 
 Keeping the pre-restore workspace aside makes rollback/investigation possible if the selected backup was wrong.
 
@@ -515,12 +547,14 @@ Training runs/logs present
 model-version records present
 artifact paths exist
 Agents custom branches/history expected
-Agents protected history behaves without unexpected blockers/errors
+Agents protected history does not report unexpected safety-identity mismatches
 Automation recipes expected
 Issues does not show restore/startup failures
 runtime operations are not unexpectedly active
 local model path resolves to expected bytes/source
 ```
+
+A safety-identity rejection during protected Agents history is meaningful evidence. Do not “validate” a restore by deleting the conflicting link rows until the action starts working. Re-check the source snapshot pair instead.
 
 If exact presentation restoration was requested, additionally verify:
 
@@ -680,7 +714,9 @@ out of the active workspace resets Agents local organization/history on next use
 
 This is narrower than a whole-workspace reset but still destructive to the active local Agents custom branch/history/layout state, and it intentionally breaks the normal JSON/SQLite protected-history pairing for those removed local branches.
 
-Because custom-node `lineage_resource_links` live in `app.db`, the local-state-only reset can leave conservative stale link rows behind. Do not manually delete them as part of the reset. A later supported creation/reconciliation path can replace matching node identity; whole-workspace restore remains the normal way to recover a coherent historical Agents pair.
+Because custom-node `lineage_resource_links` live in `app.db`, the local-state-only reset can leave conservative stale link rows behind. Those rows are not automatically proof of corruption, and protected history from another generation must not be used to overwrite them. Do not manually delete them as part of the reset.
+
+A later supported creation/reconciliation path can replace matching node identity where its own preconditions prove that action valid. Whole-workspace restore remains the normal way to recover a coherent historical Agents pair.
 
 Always keep the moved file until the recovery outcome is confirmed.
 
@@ -709,7 +745,9 @@ new/empty SQLite metadata
 
 For Agents specifically, protected `branch_create_v1` / `branch_delete_v1` history metadata in the old JSON can now describe resource links that no longer exist in the replacement database.
 
-That state may be useful for a deliberate forensic experiment, but it is not a normal clean reset.
+Modern protected-history checks may then refuse destructive transitions because recorded/current safety identity no longer agrees. That refusal preserves evidence; it is not a request to synthesize missing SQLite rows by hand.
+
+Such split state may be useful for a deliberate forensic experiment, but it is not a normal clean reset.
 
 For a normal fresh start, move the whole workspace root together.
 
@@ -718,6 +756,16 @@ For a normal fresh start, move the whole workspace root together.
 A database-only restore may be appropriate only when you deliberately understand and accept the split-state consequences.
 
 Potential mismatches include model-version paths referencing other artifact bytes, Agents JSON/protected history from another semantic and safety-link snapshot, recipes from another date, logs/events not matching external effects, and external Dataset bytes differing from stored approval hashes.
+
+For Agents, a mixed-generation database can cause:
+
+```text
+protected creation Undo -> recorded/current link mismatch
+protected deletion Undo -> supposedly deleted node has non-empty current links
+protected deletion Redo -> recorded/current link mismatch
+```
+
+PTL fails closed rather than automatically merging those states.
 
 Prefer whole-workspace restore.
 
@@ -762,15 +810,43 @@ Do not assume workspace restore reverses an external command effect.
 
 ## 51. Recovering after a failed Agents destructive history transition
 
-Agents branch deletion, protected deletion Redo, and protected `branch_create_v1` Undo are destructive transitions with runtime-safety handling.
+Agents branch deletion, protected deletion Redo, and protected `branch_create_v1` Undo are destructive transitions with runtime-safety and safety-identity handling.
 
-If the action is blocked, an active operation currently owns a conflicting linked resource. Resolve that owning operation through its normal lifecycle and retry through the UI. Do not manually remove `runtime_operation_resources` or `lineage_resource_links` to force history forward.
+### Runtime blocker
 
-Protected creation Undo additionally verifies that the current subtree is exactly the recorded child before it mutates history. A mismatch is a fail-closed signal to preserve the workspace and investigate lineage/history state rather than forcing the Undo.
+If the action is `BLOCKED`, an active operation currently owns a conflicting linked resource. Resolve that owning operation through its normal lifecycle and retry through the UI. Do not manually remove `runtime_operation_resources` or `lineage_resource_links` to force history forward.
+
+### Stale subtree or safety identity
+
+Modern destructive transitions also fail closed when the visible node/subtree still exists but no longer proves the same protected resource identity.
+
+Current rules include:
+
+```text
+primary branch deletion
+  capture branch_delete_v1 links before lease
+  verify same links before and after lease acquisition
+
+protected branch_create_v1 Undo
+  recorded links must equal current links before and after lease acquisition
+
+protected branch_delete_v1 Redo
+  recorded links must equal current links before and after lease acquisition
+```
+
+If link identity changes while the destructive guard is being acquired, PTL cancels the fresh lease and leaves the local/history transition unconsumed.
+
+Protected deletion Undo has a different restorative precondition: every recorded deleted node must have an **empty** current `lineage_resource_links` slot before the old identity is restored. Existing rows are preserved rather than overwritten.
+
+A mismatch is therefore a signal to preserve the workspace and investigate current/backup provenance. It is not a signal to make the rows match manually.
+
+### Committed finalization failure
 
 If `BranchCreationHistoryCommittedError` is reported, the branch-creation Undo already removed the local branch and exact safety links, but finalizing the temporary `lineage_delete` lease failed. The screen applies the committed history transition before surfacing the error. Treat this as a committed-state/finalization incident: preserve the workspace, inspect Activity/Issues/runtime-operation state, and let startup orphan recovery handle a genuinely orphaned lease after a crash. Do not manually recreate the branch or edit the lease rows as an immediate “repair.”
 
 If a true persistence/compensation failure occurs mid-transition, preserve `app.db` and `agents_lineage_state.json` together and use last-known-good whole-workspace backup/evidence rather than editing state piecemeal.
+
+For the exact protected state machine, see [Agents protected history and safety identity](../architecture/agents-protected-history.md).
 
 ## 52. Recovering from an apparently stale Agents graph
 
@@ -819,7 +895,7 @@ key-binding storage state when input configuration is involved
 Qt shell-state relevance when geometry/docks/session are involved
 ```
 
-When recovery concerns Agents, preserve the **matching pair** `agents_lineage_state.json` and `app.db` from the same state/evidence point.
+When recovery concerns Agents, preserve the **matching pair** `agents_lineage_state.json` and `app.db` from the same state/evidence point. Record separately if you already know that the pair was assembled from different backup generations.
 
 When recovery concerns Automation, preserve relevant audit metadata and inspect external effects separately.
 
@@ -883,14 +959,17 @@ Before declaring a restore/recovery successful:
 2. expected workspace root is active;
 3. SQLite-backed entities are present;
 4. Agents local state matches the intended **same-snapshot** SQLite state;
-5. referenced artifact paths exist;
-6. required external Dataset/model/Automation dependencies exist;
-7. no unexpected active runtime operations remain;
-8. Issues/logs show no unresolved recovery errors;
-9. local-model readiness is rechecked before inference/Training;
-10. a small non-destructive workflow succeeds before large/destructive work resumes;
-11. if exact input personalization was part of the restore, bindings match the intended snapshot;
-12. if exact shell presentation was part of the restore, geometry/docks/current workspace match the intended snapshot.
+5. protected Agents history does not report unexplained subtree/safety-identity mismatch under a small safe check;
+6. referenced artifact paths exist;
+7. required external Dataset/model/Automation dependencies exist;
+8. no unexpected active runtime operations remain;
+9. Issues/logs show no unresolved recovery errors;
+10. local-model readiness is rechecked before inference/Training;
+11. a small non-destructive workflow succeeds before large/destructive work resumes;
+12. if exact input personalization was part of the restore, bindings match the intended snapshot;
+13. if exact shell presentation was part of the restore, geometry/docks/current workspace match the intended snapshot.
+
+Do not use manual link-row edits as a restore-validation step. A fail-closed protected-history rejection means the pair still lacks proven coherence for that transition.
 
 For source/release work, validate the source checkout independently with the release gate after it is clean.
 
@@ -904,6 +983,7 @@ PTL v1.0 does not claim:
 - portable cross-platform backup path for native Qt settings;
 - automatic rollback of trusted-host command effects;
 - automatic repair of arbitrary SQLite corruption/manual edits;
+- automatic cross-generation reconciliation or merge of `app.db` and `agents_lineage_state.json`;
 - arbitrary database downgrade compatibility;
 - distributed/multi-host workspace locking;
 - resumable Training from an interrupted partial artifact;
@@ -919,16 +999,18 @@ Backup/recovery changes must preserve these rules unless the product contract is
 1. workspace ownership remains independent of process CWD;
 2. `app.db` is not documented as the complete backup by itself;
 3. Agents local JSON and SQLite semantic/safety-link state remain distinguishable but are restored from the same whole-workspace snapshot for normal recovery;
-4. external Dataset/model/Automation dependencies remain explicitly external when they are external;
-5. QSettings and the user-home key-binding JSON remain explicitly outside the workspace while code stores them there;
-6. manual workspace backup guidance remains offline until PTL implements/audits a coordinated hot-backup contract;
-7. runtime orphan recovery must not be described as external side-effect rollback;
-8. artifact/model deletion must not be presented as cache cleanup;
-9. recovery procedures prefer reversible rename/copy steps over immediate deletion;
-10. version/schema compatibility claims must not exceed implemented migrations;
-11. key-binding format compatibility must be documented separately from SQLite schema compatibility;
-12. recovery documentation must be updated whenever a persistence location or atomicity boundary moves;
-13. local Agents-only reset must not be documented as also cleaning SQLite custom-node safety links when the code does not do that.
+4. protected Agents history metadata is evidence for a specific transition, not authority to overwrite arbitrary present links with the same node ID;
+5. mixed-generation Agents state must fail closed where exact/empty-slot preconditions are not proven rather than being described as automatically mergeable;
+6. external Dataset/model/Automation dependencies remain explicitly external when they are external;
+7. QSettings and the user-home key-binding JSON remain explicitly outside the workspace while code stores them there;
+8. manual workspace backup guidance remains offline until PTL implements/audits a coordinated hot-backup contract;
+9. runtime orphan recovery must not be described as external side-effect rollback;
+10. artifact/model deletion must not be presented as cache cleanup;
+11. recovery procedures prefer reversible rename/copy steps over immediate deletion;
+12. version/schema compatibility claims must not exceed implemented migrations;
+13. key-binding format compatibility must be documented separately from SQLite schema compatibility;
+14. recovery documentation must be updated whenever a persistence location or atomicity boundary moves;
+15. local Agents-only reset must not be documented as also cleaning SQLite custom-node safety links when the code does not do that.
 
 ## Next steps
 
@@ -939,5 +1021,6 @@ Backup/recovery changes must preserve these rules unless the product contract is
 - Input personalization: [Key Bindings & Mouse Gestures](../user-guide/key-bindings.md)
 - Training provenance: [Training](../user-guide/training.md)
 - Agents state/history: [Agents lineage](../user-guide/agents-lineage.md)
+- Exact Agents cross-store history protocol: [Agents protected history and safety identity](../architecture/agents-protected-history.md)
 - Automation external-effects boundary: [Automation](../user-guide/automation.md)
 - Stable guarantees/non-goals: [v1.0 Product Contract](../reference/v1-product-contract.md)
