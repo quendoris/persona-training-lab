@@ -14,6 +14,9 @@ from persona_training_lab.application.automation import (
     AutomationRunResult,
     AutomationService,
 )
+from persona_training_lab.application.automation.service import (
+    automation_recipe_identity,
+)
 
 
 AUTOMATION_RECIPE_TITLE_KEYS = {
@@ -31,6 +34,7 @@ AUTOMATION_RUN_STATUS_KEYS = {
     "operation_blocked": "automation.run.status.operation_blocked",
     "recipe_not_found": "automation.run.status.recipe_not_found",
     "recipe_invalid": "automation.run.status.recipe_invalid",
+    "recipe_stale": "automation.run.status.recipe_stale",
     "input_required": "automation.run.status.input_required",
     "input_unknown": "automation.run.status.input_unknown",
     "command_invalid": "automation.run.status.command_invalid",
@@ -116,12 +120,19 @@ def automation_text(key: str, **values: object) -> AutomationText:
 @dataclass(slots=True)
 class AutomationViewModel:
     automation_service: AutomationService
+    _reviewed_recipe_identities: dict[str, str] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+    )
 
     def recipes(self, query: str = "") -> tuple[AutomationRecipeView, ...]:
-        return tuple(
-            self._recipe_view(recipe)
-            for recipe in self.automation_service.list_recipes(query)
-        )
+        recipes = self.automation_service.list_recipes(query)
+        self._reviewed_recipe_identities = {
+            recipe.recipe_id: automation_recipe_identity(recipe)
+            for recipe in recipes
+        }
+        return tuple(self._recipe_view(recipe) for recipe in recipes)
 
     def discovery_issues(self) -> tuple[AutomationIssueView, ...]:
         return tuple(
@@ -130,7 +141,11 @@ class AutomationViewModel:
         )
 
     def import_recipe(self, path: Path) -> AutomationRecipeView:
-        return self._recipe_view(self.automation_service.import_recipe(path))
+        recipe = self.automation_service.import_recipe(path)
+        self._reviewed_recipe_identities[recipe.recipe_id] = (
+            automation_recipe_identity(recipe)
+        )
+        return self._recipe_view(recipe)
 
     def run_recipe(
         self,
@@ -143,6 +158,10 @@ class AutomationViewModel:
             self.automation_service.run_recipe(
                 recipe_id,
                 inputs,
+                expected_recipe_identity=self._reviewed_recipe_identities.get(
+                    recipe_id,
+                    "",
+                ),
                 cancel_requested=cancel_requested,
             )
         )
