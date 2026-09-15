@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import re
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -18,6 +19,18 @@ from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.i18n.text import text as localized_text
 from persona_training_lab.ui.themes.tokens import ACCENTS, THEMES
 from persona_training_lab.ui.viewmodels.style import StyleViewModel
+
+
+_CUSTOM_ACCENT_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def _normalized_custom_accent(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    if _CUSTOM_ACCENT_PATTERN.fullmatch(candidate) is None:
+        return None
+    return candidate.lower()
 
 
 class StyleScreen(QWidget):
@@ -88,10 +101,7 @@ class StyleScreen(QWidget):
         accent_custom_layout.setContentsMargins(0, 0, 0, 0)
         accent_custom_layout.setSpacing(8)
         self._custom_accent_input = QLineEdit(
-            current_accent
-            if isinstance(current_accent, str)
-            and current_accent.startswith("#")
-            else ""
+            _normalized_custom_accent(current_accent) or ""
         )
         self._custom_accent_input.setPlaceholderText("#RRGGBB")
         self._choose_custom = QPushButton()
@@ -200,12 +210,10 @@ class StyleScreen(QWidget):
 
     def _apply(self) -> None:
         theme = self._theme_box.currentData()
-        custom_accent = self._custom_accent_input.text().strip()
-        accent = (
-            custom_accent
-            if custom_accent.startswith("#")
-            else self._accent_box.currentData()
+        custom_accent = _normalized_custom_accent(
+            self._custom_accent_input.text()
         )
+        accent = custom_accent or self._accent_box.currentData()
         self._vm.save(
             theme=theme,
             accent_palette=accent,
