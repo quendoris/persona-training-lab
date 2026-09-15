@@ -352,10 +352,19 @@ For a `branch_create` entry with valid `branch_create_v1` metadata, the composed
 
 Undo is destructive: it removes a currently visible custom branch and forgets the resource identities attached to that node. It therefore acquires a **fresh runtime deletion lease** before mutating history.
 
+Before that lease is acquired, the controller requires both:
+
+```text
+current custom subtree == (child_node_id,)
+recorded branch_create_v1 links == current SQLite links
+```
+
+After lease acquisition, it verifies the exact link equality a second time before consuming history. This closes the local TOCTOU window between proving safety identity and acquiring the destructive guard.
+
 Flow:
 
 ```text
-verify current custom subtree == (child_node_id,)
+verify subtree + recorded safety identity
        ↓
 capture exact pre-Undo Agents transaction state
        ↓
@@ -364,6 +373,12 @@ begin fresh lineage_delete lease for the child + linked resources
        ├─ conflict → keep branch/history/links unchanged; show runtime blockers
        │
        └─ acquired
+             ↓
+verify recorded safety identity again
+       │
+       ├─ changed → cancel lease; keep history untouched
+       │
+       └─ unchanged
              ↓
 consume branch_create undo entry
        ↓
@@ -378,7 +393,7 @@ finalize deletion lease succeeded
        └─ pre-commit failure → restore exact pre-Undo Agents state
 ```
 
-The subtree equality check prevents one old creation-history entry from deleting an unexpected descendant subtree if lineage/history state has diverged.
+The subtree equality check prevents one old creation-history entry from deleting an unexpected descendant subtree if lineage/history state has diverged. The identity checks prevent the same visible branch ID from authorizing deletion of a changed resource association.
 
 The SQLite link deletion is a repository transaction. If it fails, the branch state is restored and the deletion lease is failed before the error is surfaced.
 
@@ -448,20 +463,30 @@ Protected branch-creation Undo uses this same destructive lease boundary because
 
 `BranchDeletionController` coordinates local state, history metadata, runtime links, and runtime lease lifetime.
 
-Normal deletion flow:
+Modern normal deletion binds the destructive lease and the eventual `branch_delete_v1` history entry to the same recorded safety identity:
 
 ```text
 prepare complete custom subtree
     ↓
 confirm in UI
     ↓
+re-read subtree; require exact plan match
+    ↓
+capture exact branch_delete_v1 resource-link metadata
+    ↓
+verify captured identity == current SQLite links
+    ↓
 begin lineage_delete lease
     ↓
+verify the SAME captured identity again
+    │
+    ├─ changed → cancel lease; return STALE; stage no history
+    │
+    └─ unchanged
+          ↓
 capture local transaction snapshot
     ↓
-capture exact resource-link history metadata
-    ↓
-stage metadata for branch_delete history entry
+stage captured metadata for branch_delete history entry
     ↓
 delete local subtree
     ↓
@@ -472,11 +497,15 @@ forget resource links
 finalize lease succeeded
 ```
 
-### 15.1 Stale-plan protection
+The second identity check closes a time-of-check/time-of-use gap: the runtime lease must not protect one generation of links while the durable deletion history records another generation that appeared during guard acquisition.
+
+### 15.1 Stale-plan and identity protection
 
 The controller re-reads the current custom subtree before acquiring the lease. If it differs from the prepared plan, the action returns `STALE` rather than deleting a different subtree.
 
-It also verifies the actual removed IDs after mutation.
+It also compares the exact captured resource-link identity before and after runtime-guard acquisition. Drift before acquisition returns `STALE` without a lease; drift during acquisition cancels the newly acquired lease and returns `STALE` before local/history mutation.
+
+After mutation, the controller still verifies that the actual removed IDs match the prepared subtree.
 
 ### 15.2 Cleanup failure compensation
 
@@ -509,13 +538,13 @@ resource_id
 access_mode
 ```
 
-The metadata is attached to the corresponding critical history entry by `AtomicLineageStateStore`.
+The captured metadata is verified against current links, carried unchanged across destructive lease acquisition, verified again, and only then staged for the corresponding critical history entry by `AtomicLineageStateStore`.
 
 History entries without valid deletion metadata are not treated as protected deletion transactions.
 
 ## 17. Undo deletion ordering
 
-Protected deletion Undo deliberately restores safety identity before restoring the visible lineage state.
+Protected deletion Undo deliberately restores safety identity before restoring the visible lineage state, but it will not overwrite unexplained current links for the deleted node IDs.
 
 Flow:
 
@@ -524,7 +553,15 @@ preview branch_delete undo
     ↓
 parse/validate deletion metadata
     ↓
+require current links for every recorded deleted node == empty
+    │
+    ├─ non-empty → fail closed; preserve current rows and pending history
+    │
+    └─ empty
+          ↓
 restore exact resource-link snapshot
+    ↓
+verify restored identity == branch_delete_v1 metadata
     ↓
 consume undo entry via undo_only(...)
     ↓
@@ -535,11 +572,13 @@ apply history transition
 refresh runtime safety
 ```
 
-If lineage-state undo fails after resource links were restored, the UI path compensates by forgetting those restored links again.
+If lineage-state undo fails after resource links were restored, the UI path compensates by forgetting those restored links again. The empty-slot precondition makes that compensation safe with respect to pre-existing foreign rows: there were none to overwrite or erase.
+
+This strict precondition also makes split-snapshot recovery fail closed. If `app.db` and `agents_lineage_state.json` come from different backup generations and a supposedly deleted node ID already has links, old history does not silently replace them.
 
 ### Invariant
 
-A branch must not reappear as valid local lineage while silently losing the runtime resources it represented before deletion.
+A branch must not reappear as valid local lineage while silently losing the runtime resources it represented before deletion, and old history must not overwrite an unexplained present-day safety identity merely because the node ID matches.
 
 ## 18. Guarded redo deletion
 
@@ -550,8 +589,18 @@ Redo is not allowed to use generic blind snapshot replay for protected deletion.
 ```text
 verify current subtree == expected removed_ids
     ↓
+resolve branch_delete_v1 metadata for pending redo
+    ↓
+verify recorded links == current SQLite links
+    ↓
 begin fresh lineage_delete lease
     ↓
+verify recorded links == current SQLite links AGAIN
+    │
+    ├─ changed → cancel lease; return STALE; keep redo pending
+    │
+    └─ unchanged
+          ↓
 capture transaction state
     ↓
 consume exactly one existing redo entry via redo_last_action(...)
@@ -575,11 +624,13 @@ Calling normal `delete_subtree()` would record a **new** action and clear redo h
 
 Consuming the existing redo entry preserves the rest of the redo stack.
 
-### Fresh blocker semantics
+### Fresh blocker and identity semantics
 
 An operation can start after Undo and before Redo. Therefore Redo must acquire a new lease rather than trusting the lease conditions that existed during the original deletion.
 
-If blocked, the redo entry remains pending and the custom branch remains present with its resource links intact.
+Safety identity can also drift independently of the visible branch ID. Therefore Redo verifies the recorded `branch_delete_v1` links before and after guard acquisition rather than assuming that a matching subtree ID still denotes the same protected resources.
+
+If blocked, the redo entry remains pending and the custom branch remains present with its resource links intact. If identity mismatches, Redo returns `STALE` and likewise leaves history unconsumed.
 
 ## 19. History model
 
@@ -710,7 +761,7 @@ plus referenced workspace files/artifacts as required by the broader product wor
 
 Because creation/deletion history metadata can describe the exact resource-link identity expected in SQLite, the database and JSON should come from the same offline workspace backup snapshot.
 
-Backing up only one side is not a complete Agents-state backup.
+Backing up only one side is not a complete Agents-state backup. If the two files come from different generations, protected history is designed to fail closed on missing, foreign, or drifted link identity rather than silently reconciling the mismatch.
 
 ## 28. Failure containment summary
 
@@ -724,17 +775,22 @@ Agents uses several independent containment mechanisms:
 | branch creation history-metadata save fails after link bind | restore pre-creation Agents state first, then forget bound links when state restore succeeded |
 | branch creation compensation also fails | raise `BranchCreationExecutionError` preserving original and compensation errors; never hide partial outcome |
 | protected creation Undo runtime conflict | keep branch/history/links unchanged and expose current blockers |
-| protected creation Undo subtree differs from recorded single child | fail closed before acquiring/mutating history |
+| protected creation Undo subtree or safety identity differs from recorded entry | fail closed before history mutation |
+| protected creation Undo links drift during guard acquisition | cancel fresh lease; keep branch/history/current links unchanged |
 | protected creation Undo link cleanup fails | restore exact pre-Undo Agents state; fail the deletion lease; do not apply UI transition |
 | protected creation Undo committed but lease finalization fails | raise `BranchCreationHistoryCommittedError`; apply committed history transition before surfacing failure |
 | protected creation Redo target already exists / restores unexpected subtree | fail closed and restore pre-Redo state where mutation occurred |
 | protected creation Redo link restore fails | restore exact pre-Redo Agents state; do not apply UI transition |
 | deletion plan changes before execution | return `STALE`; do not delete unexpected subtree |
+| deletion safety identity differs before lease | return `STALE`; acquire no destructive lease |
+| deletion links drift during lease acquisition | cancel newly acquired lease; return `STALE`; stage no delete history |
 | runtime conflict | lease acquisition fails; keep lineage unchanged |
 | local state deletion fails | fail lease; propagate original error |
 | resource-link cleanup fails | restore local transaction state; fail lease |
 | compensation/finalization also fails | raise structured execution/committed error preserving both facts |
-| protected deletion Undo state restore fails | compensate restored resource links |
+| protected deletion Undo finds non-empty supposedly deleted link slots | fail closed; preserve current rows and pending history |
+| protected deletion Undo state restore fails after exact link restoration | compensate only the links restored by that Undo attempt |
+| protected deletion Redo safety identity differs before/during lease | return `STALE`; cancel acquired lease when needed; keep redo pending |
 | protected deletion Redo becomes blocked | keep branch, links, and redo entry intact |
 | localization refresh | presentation-only; semantic projection signature invariant |
 
@@ -752,6 +808,7 @@ The audited v1.0 architecture deliberately does not claim:
 - that a visible label is unique identity;
 - that protocol-incompatible portraits can produce a valid exact Delta;
 - that background refresh never fails;
+- that protected history can safely combine `app.db` and `agents_lineage_state.json` from different backup generations;
 - stress/soak qualification of extreme interaction rates beyond separately recorded evidence.
 
 SQLite runtime leases cover coordinated local processes using the same persistence model, not a distributed cluster. Separate adversarial/stress/falsification evidence must not be inferred from this architecture contract alone.
@@ -768,15 +825,16 @@ Changes to Agents should preserve regression coverage for at least these contrac
 - custom branch inheritance;
 - branch-creation compensation across Agents JSON and SQLite safety links;
 - durable `branch_create_v1` history metadata;
-- fresh runtime deletion guard on protected creation Undo;
+- exact pre/post-lease safety identity on protected creation Undo;
 - protected creation Undo removes exact safety links or restores state;
 - protected creation Undo preserves committed transition on lease-finalization failure;
 - protected creation Redo validates target identity and restores exact safety links before UI exposure;
 - deletion conflict/lease semantics;
+- primary deletion binds one captured safety identity across guard acquisition and history staging;
 - deletion compensation/finalization errors;
 - protected deletion history metadata;
-- exact resource-link restoration on deletion Undo;
-- fresh runtime guard on deletion Redo;
+- deletion Undo requires empty deleted link slots and restores exact recorded identity;
+- fresh runtime guard plus exact pre/post-lease safety identity on deletion Redo;
 - preservation of older redo entries and saved layout;
 - keyboard-layout/history routing;
 - protocol-compatible Delta;
@@ -785,9 +843,12 @@ Changes to Agents should preserve regression coverage for at least these contrac
 
 Runtime changes during final v1.0 documentation/release work require a concrete audit/test/docs/release finding, not an aesthetic refactor opportunity.
 
+For the exact cross-store history state machine and fail-closed matrices, use [Agents protected history and safety identity](agents-protected-history.md).
+
 ## Related documentation
 
 - [Agents lineage user guide](../user-guide/agents-lineage.md)
+- [Agents protected history and safety identity](agents-protected-history.md)
 - [Runtime resource safety](runtime-resource-safety.md)
 - [Persistence architecture](persistence.md)
 - [Architecture Overview](overview.md)
