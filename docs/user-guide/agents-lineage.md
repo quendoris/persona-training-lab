@@ -2,7 +2,7 @@
 
 Agents is the integration workspace of Persona Training Lab. It turns the persisted research workflow into one navigable lineage view and adds local experimental branches, history, layout, runtime-safety information, and contextual navigation to the rest of PTL.
 
-This chapter explains how to **use** that workspace safely. For implementation details, read [Agents lineage architecture](../architecture/agents-lineage.md).
+This chapter explains how to **use** that workspace safely. For implementation details, read [Agents lineage architecture](../architecture/agents-lineage.md). For the exact cross-store protected-history state machine, read [Agents protected history and safety identity](../architecture/agents-protected-history.md).
 
 ## 1. The most important mental model
 
@@ -216,12 +216,15 @@ It does **not** delete:
 
 Registered model-version nodes are not treated like disposable local branches.
 
-### 11.2 Why deletion can be blocked
+### 11.2 Why deletion can be blocked or become stale
 
-Before changing lineage state, PTL determines the complete custom subtree and acquires a runtime deletion lease covering:
+Before changing lineage state, modern PTL:
 
-- the lineage nodes;
-- linked real resources inherited or bound to those nodes.
+1. re-checks that the complete current custom subtree still matches the prepared deletion plan;
+2. captures the exact `branch_delete_v1` resource-link identity for that subtree;
+3. verifies that captured identity equals current SQLite links;
+4. acquires a runtime `lineage_delete` lease covering the lineage nodes and linked real resources;
+5. verifies the **same captured identity again** before staging history or deleting the branch.
 
 If an active operation has a conflicting claim, deletion remains blocked and the tree stays unchanged.
 
@@ -238,7 +241,11 @@ Delete branch_004
   └─ BLOCKED
 ```
 
-This is deliberate. A visual action is not allowed to invalidate the safety meaning of an active Training/Test/Analysis operation.
+If the subtree or safety identity changes before the mutation is committed, PTL returns/refuses through the stale/fail-closed path instead of assuming that a matching visible node ID still represents the same protected resources.
+
+If the links change while the deletion lease is being acquired, PTL cancels that fresh lease and leaves branch/history state untouched.
+
+This is deliberate. A visual action is not allowed to invalidate the safety meaning of an active Training/Test/Analysis operation, and an old plan is not authority to delete a different present-day safety identity.
 
 ## 12. Undo and redo
 
@@ -270,19 +277,23 @@ Modern branch creation records exact `branch_create_v1` metadata for the child a
 That makes **Undo create** a destructive action: it removes the currently existing branch and its safety-link association. Before consuming that history entry, PTL therefore:
 
 1. verifies that the current subtree is exactly the originally created child;
-2. acquires a fresh runtime deletion lease for that child and its linked resources;
-3. only then removes the local branch through Undo;
-4. removes the exact saved safety links;
-5. finalizes the lease;
-6. applies the saved history/layout transition.
+2. verifies that the recorded `branch_create_v1` links exactly equal the child's current SQLite links;
+3. acquires a fresh runtime deletion lease for that child and its linked resources;
+4. verifies the exact recorded/current link equality **again after lease acquisition**;
+5. only then consumes the creation Undo;
+6. removes the exact saved safety links;
+7. finalizes the lease;
+8. applies the saved history/layout transition.
 
 If another active operation owns a conflicting linked resource, Undo create is blocked and the branch/history/links remain unchanged. The blocker is shown through the normal Agents runtime-blocker presentation.
 
-If the branch unexpectedly has a descendant subtree at the moment this creation-history entry is being undone, the protected path fails closed rather than deleting more than the recorded creation.
+If the branch unexpectedly has a descendant subtree, or its current resource links no longer match the safety identity recorded by the creation entry, the protected path fails closed rather than deleting a different present-day branch association.
 
-On **Redo create**, PTL requires the recorded child ID to be absent, restores the branch from the existing redo entry, verifies that exactly that child returned, restores its exact saved resource links, and only then applies the visible history transition.
+If the resource links change while the fresh lease is being acquired, PTL closes/cancels that lease and leaves history unconsumed.
 
-History is therefore not allowed to make a modern branch disappear while an active operation still depends on the resource identity it represents.
+On **Redo create**, PTL requires the recorded child ID to be absent, restores the branch from the existing redo entry, verifies that exactly that child returned, restores its exact saved resource links, verifies the restored identity, and only then applies the visible history transition.
+
+History is therefore not allowed to make a modern branch disappear while an active operation still depends on the resource identity it represents, and it is not allowed to reinterpret a changed safety identity as equivalent merely because the node ID is unchanged.
 
 Historical creation entries that predate `branch_create_v1` metadata remain compatibility history. PTL cannot reconstruct exact old resource-link provenance that was never stored.
 
@@ -290,28 +301,33 @@ Historical creation entries that predate `branch_create_v1` metadata remain comp
 
 Branch deletion has additional guarantees.
 
-On delete, PTL stores the exact runtime resource-link snapshot for the removed subtree in the protected history metadata.
+On modern primary delete, PTL captures the exact runtime resource-link snapshot for the removed subtree **before** lease acquisition, verifies it, acquires the destructive lease, and verifies that same snapshot again before it stages `branch_delete_v1` history or mutates local state.
 
 On **Undo delete**:
 
-1. the saved resource links are restored;
-2. the lineage/history snapshot is restored;
-3. the saved current/layout state is applied;
-4. runtime-safety presentation is refreshed.
+1. PTL first requires every recorded deleted node to have an **empty** current `lineage_resource_links` slot;
+2. if unexplained current links already exist, Undo fails closed and does not overwrite them;
+3. only from an empty slot does PTL restore the exact saved resource-link snapshot;
+4. it verifies the restored identity;
+5. the lineage/history snapshot is restored;
+6. the saved current/layout state is applied;
+7. runtime-safety presentation is refreshed.
 
-This ordering prevents a visually restored branch from temporarily returning without its previous safety identity.
+The empty-slot requirement matters during recovery: old history is not allowed to overwrite current SQLite identity merely because the same node ID appears in both places.
 
 On **Redo delete**:
 
-1. PTL does not blindly replay JSON state;
-2. it acquires a fresh runtime deletion lease;
-3. it consumes exactly the existing deletion redo entry;
-4. it verifies the expected subtree actually disappeared;
-5. it removes the restored resource links;
-6. it applies the saved history/layout transition;
-7. older redo entries remain intact.
+1. PTL verifies that the current custom subtree still matches the recorded deleted subtree;
+2. it verifies that current links exactly match `branch_delete_v1`;
+3. it acquires a fresh runtime deletion lease;
+4. it verifies the same recorded/current identity **again after lease acquisition**;
+5. only then does it consume exactly the existing deletion redo entry;
+6. it verifies the expected subtree actually disappeared;
+7. it removes the restored resource links;
+8. it applies the saved history/layout transition;
+9. older redo entries remain intact.
 
-Therefore a Training or other conflicting operation started after Undo can block Redo. History is not a bypass around runtime safety.
+Therefore a Training or other conflicting operation started after Undo can block Redo. A changed safety identity can make Redo stale even without an active blocker. In both cases history remains a guard-respecting transition rather than a bypass around current runtime/resource truth.
 
 ## 13. Layout history
 
@@ -339,11 +355,13 @@ compute_device
 lineage_node
 ```
 
-Custom branches inherit relevant links from their parent until future persisted workflow state gives them a different material identity.
+Custom branches inherit relevant links from their parent until later persisted workflow state gives them a different material identity.
 
 These links are what allow Agents to answer a question that a picture alone cannot answer:
 
 > "If I remove this local branch right now, is some active operation still depending on what it represents?"
+
+They also form part of modern protected-history identity. A branch ID without the expected resource-link set is not, by itself, enough evidence to authorize a destructive historical transition.
 
 ## 15. Stable IDs vs visible titles
 
@@ -460,19 +478,40 @@ Check:
 
 If a refresh failed, the screen may intentionally retain the last-good projection.
 
-### Delete or Undo-create is disabled/blocked
+### Delete or protected Undo/Redo is blocked
 
 Inspect the runtime dependency/blocker text. An active operation can hold a conflicting resource claim.
 
-For protected `branch_create_v1` Undo, a blocker means the branch/history/links remain unchanged. Wait for or normally cancel the owning operation, then retry through Agents.
+A runtime blocker means the protected destructive transition remains unconsumed. Wait for or normally cancel the owning operation, then retry through Agents.
 
 Do not edit SQLite rows manually to force deletion/history through.
 
-### Undo-create refuses to run even though no blocker is shown
+### A destructive action is stale/refused even though no blocker is shown
 
-A modern protected creation Undo expects the current subtree to be exactly the recorded created child. If the current state does not match that identity, the path fails closed instead of deleting an unexpected descendant subtree.
+Modern protected operations also require the current subtree and safety identity to match the prepared/recorded transition.
 
-Preserve the workspace and inspect history/state rather than forcing the operation by editing JSON or SQLite.
+Examples:
+
+```text
+primary delete
+  captured links must remain equal before/after lease acquisition
+
+branch_create_v1 Undo
+  recorded links must equal current links before/after lease acquisition
+
+branch_delete_v1 Redo
+  recorded links must equal current links before/after lease acquisition
+```
+
+A mismatch is not the same thing as an active-operation blocker. PTL fails closed rather than treating the same node ID as proof that the same protected resources are still present.
+
+Preserve `app.db` and `agents_lineage_state.json` together and inspect current/backup provenance rather than forcing the operation by editing JSON or SQLite.
+
+### Undo delete refuses to restore a branch
+
+Protected `branch_delete_v1` Undo expects every recorded deleted node to have an empty current link slot. If one of those node IDs already has current `lineage_resource_links`, PTL preserves them and refuses to overwrite them with old history.
+
+This can expose a mixed-generation restore or other unexplained cross-store state. It is a fail-closed recovery signal, not permission to delete the rows manually.
 
 ### A creation Undo reports a committed/finalization error
 
@@ -490,11 +529,11 @@ Check `battery_version` and `scoring_version` in the evaluation/Analysis workflo
 
 ### A branch came back after Undo
 
-That is expected when undoing a protected deletion. Its runtime resource links are restored before the local lineage snapshot is restored.
+That is expected when undoing a protected deletion. Its exact runtime resource links are restored and verified before the local lineage snapshot is restored.
 
-### Redo deletion is blocked after Undo
+### Redo deletion is blocked or stale after Undo
 
-That is also expected. Redo acquires a new runtime lease and can be blocked by an operation that started after the original deletion.
+Both are possible controlled outcomes. Redo acquires a new runtime lease, so an operation started after the original deletion can block it. It also rechecks exact recorded/current safety identity before and after lease acquisition, so link drift can make the Redo stale without a runtime blocker.
 
 ## 23. Backup and reset implications
 
@@ -510,9 +549,13 @@ Agents cross-store state spans:
 
 For normal recovery, those files should come from the **same offline whole-workspace backup snapshot**. Protected `branch_create_v1` / `branch_delete_v1` metadata can describe the exact safety-link identity expected in SQLite, so mixing backup generations can create history/link mismatch.
 
+Modern protected history is deliberately fail-closed for that mismatch. For example, deletion Undo will not overwrite a non-empty supposedly deleted link slot, while creation Undo/deletion Redo require exact recorded/current safety identity around destructive lease acquisition.
+
+PTL v1.0 does not automatically merge or reconcile different backup generations. If a protected history action exposes such a mismatch, preserve the pair and restore a coherent same-snapshot workspace when available rather than editing links/history into agreement.
+
 A backup of `app.db` alone does **not** include local Agents JSON layout/history/custom branches. An Agents-JSON-only restore likewise does not restore the matching SQLite safety-link state.
 
-See [Backup, Reset & Recovery](../operations/backup-reset-recovery.md) and [Workspace & Storage](../operations/workspace-and-storage.md).
+See [Backup, Reset & Recovery](../operations/backup-reset-recovery.md), [Workspace & Storage](../operations/workspace-and-storage.md), and [Agents protected history and safety identity](../architecture/agents-protected-history.md).
 
 ## 24. v1.0 boundaries
 
@@ -524,7 +567,8 @@ The v1.0 Agents contract does not claim:
 - destructive deletion of registered model artifacts from the local branch command;
 - that local custom branches are persisted ML artifacts;
 - that historical creation entries without `branch_create_v1` metadata have reconstructable exact safety provenance;
-- that a visible title is a globally unique identifier;
+- automatic reconciliation of mixed-generation `app.db` and `agents_lineage_state.json`;
+- that a visible title or node ID alone proves the current safety identity of protected history;
 - that every protocol-incompatible evaluation pair can be compared;
 - that background refresh can never fail.
 
@@ -545,11 +589,12 @@ The final documentation capture pass should include at least:
 9. modern branch-creation Undo blocked by a linked active operation;
 10. branch restored by deletion Undo;
 11. guarded deletion Redo blocked by a newly active operation;
-12. two protocol-compatible portraits with Delta ready;
-13. protocol-mismatched portraits with Delta pending;
-14. contextual jump from Agents to Tests;
-15. contextual jump from Agents to Analysis;
-16. last-good projection retained after an injected refresh failure.
+12. controlled safety-identity mismatch/stale state in a demo recovery workspace;
+13. two protocol-compatible portraits with Delta ready;
+14. protocol-mismatched portraits with Delta pending;
+15. contextual jump from Agents to Tests;
+16. contextual jump from Agents to Analysis;
+17. last-good projection retained after an injected refresh failure.
 
 Generate these from a clean demo workspace with the existing [`tools/visual_audit.py`](../development/visual-audit.md) automatic/interactive capture workflow rather than manually accumulating screenshots. Review captures and manifests for sensitive data before publication.
 
@@ -564,5 +609,6 @@ Generate these from a clean demo workspace with the existing [`tools/visual_audi
 - [Workspace & Storage](../operations/workspace-and-storage.md)
 - [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Agents lineage architecture](../architecture/agents-lineage.md)
+- [Agents protected history and safety identity](../architecture/agents-protected-history.md)
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)
 - [v1.0 Product Contract](../reference/v1-product-contract.md)
