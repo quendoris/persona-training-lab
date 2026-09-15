@@ -292,18 +292,19 @@ Positive values become an execution timeout.
 
 Workspace recipe files are mutable trusted-host execution inputs.
 
-The Automation detail pane shows a discovered recipe snapshot, but v1.0 does **not** cryptographically pin that displayed manifest to the later Run click.
+Whenever the registry is refreshed, the Automation UI receives a normalized recipe snapshot and its view-model remembers a SHA-256 safety identity for that snapshot. The identity covers the recipe's ID/version, descriptive metadata, command, inputs/outputs, runtime claims, source/source path, working directory, and timeout.
 
-`Run` resolves the recipe again by `recipe_id` before execution.
+When you press **Run**, PTL reloads the recipe once from the registry and compares that fresh semantic snapshot with the one you reviewed. If it changed, the run fails before runtime-lease acquisition or process launch with:
 
-Therefore:
+```text
+recipe_stale
+```
 
-1. edit/import the recipe;
-2. use **Refresh**;
-3. review the displayed command/inputs/resources;
-4. avoid modifying the manifest between review and Run.
+The UI tells you to refresh, review the changed recipe, and run again. Keeping the same recipe ID or version does not bypass this check.
 
-If another program can modify the recipe directory concurrently, treat that directory as part of your trusted execution boundary.
+This protection is intentionally narrow. The review identity is held in memory; it is not a signature, a durable manifest revision, or a hash of every executable/script/data file the recipe may use. The recipe directory and every external tool it invokes therefore remain part of the trusted-host boundary.
+
+Formatting-only changes to the JSON that normalize to the same recipe object do not create a different semantic review identity.
 
 ## 15. Running a recipe
 
@@ -315,9 +316,10 @@ A normal recipe run is:
 4. review declared resources;
 5. enter required inputs;
 6. press **Run**;
-7. watch run status;
-8. inspect operation ID, return code, stdout/stderr;
-9. confirm expected filesystem/output effects separately when they matter.
+7. if PTL reports `recipe_stale`, refresh and repeat the review before running again;
+8. watch run status;
+9. inspect operation ID, return code, stdout/stderr;
+10. confirm expected filesystem/output effects separately when they matter.
 
 The process runs on an owned background worker rather than the Qt GUI thread.
 
@@ -575,6 +577,8 @@ The audit stores execution metadata such as:
 - resource claims;
 - terminal state/return code/truncation flags.
 
+The audit command hash and the in-memory recipe review identity serve different purposes. The former fingerprints the built execution command for audit; the latter blocks a changed recipe before execution. Neither proves the contents of transitive external executables or data.
+
 ## 30. What the audit intentionally does not store
 
 The structured Automation audit does not persist the plaintext command merely as an unrestricted command log.
@@ -623,6 +627,7 @@ launch_failed
 operation_blocked
 recipe_not_found
 recipe_invalid
+recipe_stale
 input_required
 input_unknown
 command_invalid
@@ -634,6 +639,8 @@ audit_failed
 A non-zero child return code becomes `failed`.
 
 A launch error before a child process can be established becomes `launch_failed`.
+
+`recipe_stale` means the recipe changed after the most recent UI review snapshot; PTL did not acquire its runtime lease or launch the child process for that attempt.
 
 ## 33. Workspace-leave behavior
 
@@ -691,7 +698,9 @@ Look for the truncated-output marker. Increase the capture limit only when justi
 
 ### Recipe changed after I reviewed it
 
-Refresh and review again. v1 does not content-pin the displayed workspace manifest to the later recipe Run click.
+A `recipe_stale` result is expected fail-closed behavior. PTL found that the freshly discovered normalized recipe no longer matches the latest recipe snapshot supplied to the Automation UI. Refresh the registry, review the command/inputs/resources again, and rerun.
+
+Do not work around this by manually preserving the old version string: ID/version alone are not the safety identity.
 
 ## 36. Backup implications
 
@@ -705,6 +714,8 @@ when custom recipes are valuable.
 
 A workspace backup preserves imported manifests but not arbitrary external tools/data referenced by absolute paths or by companion files that were never copied into the workspace.
 
+The in-memory review identity is not a backup or durable provenance record. After restarting PTL or refreshing the registry, review the currently discovered recipe before running it.
+
 Audit metadata lives in `app.db` through the shared event log.
 
 ## 37. Screenshot plan
@@ -716,17 +727,18 @@ The final documentation capture pass should include at least:
 3. recipe inputs/outputs/resources contract area;
 4. recipe discovery issue from an intentionally invalid demo manifest;
 5. Import workflow immediately after successful import;
-6. successful recipe result with operation ID and stdout;
-7. ad-hoc `exec` editor with JSON argv;
-8. ad-hoc `shell` editor and shell warning/help text;
-9. host-effects authorization unchecked/error state;
-10. explicit environment JSON + inherit toggle;
-11. explicit resource-claims JSON;
-12. blocked run caused by a demo runtime claim conflict;
-13. cancelling state;
-14. timeout result;
-15. truncated stdout/stderr result;
-16. audit/event example with command hash/environment keys but no plaintext values.
+6. `recipe_stale` result from a harmless demo manifest changed after review;
+7. successful recipe result with operation ID and stdout;
+8. ad-hoc `exec` editor with JSON argv;
+9. ad-hoc `shell` editor and shell warning/help text;
+10. host-effects authorization unchecked/error state;
+11. explicit environment JSON + inherit toggle;
+12. explicit resource-claims JSON;
+13. blocked run caused by a demo runtime claim conflict;
+14. cancelling state;
+15. timeout result;
+16. truncated stdout/stderr result;
+17. audit/event example with command hash/environment keys but no plaintext values.
 
 Capture from a clean demo workspace. Do not put real secrets, tokens, personal paths, or destructive commands into release screenshots.
 
@@ -736,14 +748,15 @@ v1.0 Automation does not claim:
 
 - arbitrary commands are safe merely because PTL launches them;
 - resource claims enforce OS permissions;
-- workspace recipes are cryptographically signed/content-pinned;
+- workspace recipes are cryptographically signed or durably content-addressed;
+- the in-memory review identity proves external executable/data contents;
 - imported manifests package all external dependencies;
 - stdout/stderr are a durable run-history store;
 - detached background services survive Automation finalization;
 - distributed/multi-host runtime coordination;
 - exhaustive stress qualification for maximum process-tree/concurrency complexity.
 
-It does provide a coherent local trusted-host execution contract with explicit ad-hoc authorization, bounded output, timeout/cancellation, process-tree containment, runtime claims, and structured audit metadata.
+It does provide a coherent local trusted-host execution contract with fail-closed review-to-run recipe identity, explicit ad-hoc authorization, bounded output, timeout/cancellation, process-tree containment, runtime claims, and structured audit metadata.
 
 ## Related documentation
 
