@@ -652,7 +652,17 @@ Recipe IDs are manifest-defined and validated by:
 
 They are case-folded during manifest load.
 
-Recipe versions are non-empty manifest-provided strings. PTL does **not** generate a UUID-shaped recipe ID/version.
+Recipe versions are non-empty manifest-provided strings. PTL does **not** generate a UUID-shaped recipe ID/version and does not interpret the version string as a sufficient content identity.
+
+The reviewed UI recipe path additionally computes an in-memory semantic safety identity:
+
+```text
+sha256:<64 hex>
+```
+
+over canonical JSON derived from the normalized `AutomationRecipe`. The digest covers ID/version, descriptive metadata, command, tags, inputs/outputs, resource claims, source/source path, working directory and timeout.
+
+This safety identity is transient runtime state. It is not the recipe ID, not a manifest field, not a persisted entity identifier, and not a signature/provenance credential.
 
 The current built-in recipe identity is:
 
@@ -702,14 +712,17 @@ values
 
 Current service result codes include:
 
-### Recipe/input preparation
+### Recipe/review/input preparation
 
 ```text
 recipe_not_found
+recipe_stale
 input_unknown
 input_required
 recipe_invalid
 ```
+
+`recipe_stale` is a transient pre-execution result code, not a persisted recipe lifecycle status. In the reviewed UI path it means the freshly resolved normalized recipe no longer matches the safety identity captured when that recipe snapshot was most recently returned to the screen. The service returns it before runtime-lease acquisition/process launch.
 
 ### Ad-hoc authorization/configuration
 
@@ -753,7 +766,7 @@ Current effect scope is:
 trusted_host
 ```
 
-The effect-scope value is a trust/execution classification, not a runtime-operation state and not a sandbox guarantee.
+Recipe manifests currently execute through `exec`; `shell` is available to the explicit ad-hoc command path. The effect-scope value is a trust/execution classification, not a runtime-operation state and not a sandbox guarantee.
 
 ## 28. Automation audit event types
 
@@ -789,6 +802,8 @@ resource_claim_semantics = runtime_coordination
 
 The event ID is an `evt_...` identifier; operation/correlation identity is attached when available.
 
+The Automation audit `command_sha256` is an execution-audit fingerprint and must not be conflated with the in-memory recipe review identity. Neither is an authorization credential or proof of transitive executable/data provenance.
+
 ## 29. Application error/notice event types
 
 `ApplicationErrorReporter` writes structured event families:
@@ -823,13 +838,13 @@ Event persistence is best-effort and duplicate-window throttled; event absence m
 Current reporter identifiers use:
 
 ```text
-error      err_<12 hex>
+error       err_<12 hex>
 correlation corr_<12 hex>
 ```
 
 They exist for diagnosis/correlation. Possessing one does not authenticate or authorize a caller.
 
-The reporter's structured-context redaction currently checks top-level context key names for substrings:
+The reporter's structured-context privacy helper recursively walks bounded mappings/common collection containers and redacts values whose mapping key names contain current sensitive tokens:
 
 ```text
 password
@@ -837,9 +852,16 @@ secret
 token
 api_key
 key_material
+authorization
+cookie
+credential
+private_key
+access_key
 ```
 
-That is a privacy helper, not an identifier/security scheme and not a general recursive secret scanner.
+Cyclic/revisited containers and over-deep structures are bounded rather than recursively expanded without limit.
+
+This remains a key-name-based structured-context filter. It is not an identifier/security scheme, not a general secret scanner, and does not comprehensively scrub `exception_message`, traceback text, or arbitrary values stored under innocuous key names.
 
 ## 31. Generated identifier formats
 
@@ -859,6 +881,7 @@ Current feature-generated identifier formats are not globally uniform.
 | Shared helper | `<prefix>_<12 hex>` |
 | Automation recipe | manifest-defined validated ID |
 | Automation recipe version | manifest-defined non-empty version string |
+| Automation review identity | transient `sha256:<64 hex>` safety token, not entity ID |
 
 Do **not** write validators that assume all PTL IDs have the same prefix length or hex width.
 
@@ -949,6 +972,9 @@ Training persisted error: profile_changed_after_run_creation
 Automation discovery code: manifest_invalid
 Automation issue detail: specific ValueError/JSON/read reason
 
+Automation run result: recipe_stale
+Automation review identity: transient SHA-256 semantic snapshot comparison
+
 Application error event: application.error
 Application payload: exception type/message/traceback/context/fingerprint
 ```
@@ -965,10 +991,11 @@ When adding or changing a machine-semantic surface:
 4. preserve compatibility aliases only at explicit normalization boundaries;
 5. keep structured values separate from rendered error text;
 6. document newly generated ID formats instead of assuming the shared helper is universal;
-7. never infer authorization from an operation/correlation/error/event ID;
+7. never infer authorization from an operation/correlation/error/event ID or a safety hash;
 8. update this reference whenever a stable code/status/event/schema/ID contract changes;
 9. update tests that prove status normalization and code-to-message presentation separately;
-10. keep `unknown` visible rather than silently mapping novel values to a misleading known state.
+10. keep `unknown` visible rather than silently mapping novel values to a misleading known state;
+11. distinguish persisted entity identity, transient safety identity and durable audit fingerprints when all three exist in one subsystem.
 
 ## 39. Audit checklist
 
@@ -988,6 +1015,7 @@ Does the value appear in logs/event payloads?
 Does a migration/normalizer need to read an older spelling?
 Is the ID generated or supplied by a manifest/user/external source?
 Is its exact prefix/width actually guaranteed by code?
+If it is a hash, is it an entity ID, a transient safety token, an audit fingerprint, or provenance evidence?
 ```
 
 ## Related documentation
@@ -1000,6 +1028,7 @@ Is its exact prefix/width actually guaranteed by code?
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)
 - [Agents lineage architecture](../architecture/agents-lineage.md)
 - [Automation architecture](../architecture/automation.md)
+- [Automation recipe manifest reference](automation-recipe-schema.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Datasets](../user-guide/datasets.md)
 - [Training](../user-guide/training.md)
