@@ -101,24 +101,39 @@ and a color-picker button.
 
 When the picker returns a valid color, PTL writes its Qt color name into the custom field.
 
-On Apply, any non-empty custom text beginning with `#` takes precedence over the selected built-in accent.
+On Apply, custom text is used only when it matches exactly:
+
+```text
+#[0-9A-Fa-f]{6}
+```
+
+The accepted value is normalized to lowercase before the normal Style UI persists/applies it. If the field is empty, incomplete, or invalid, PTL uses the currently selected built-in accent instead.
 
 ## 6. Current custom-accent validation boundary
 
-The Style screen currently checks only whether custom text starts with `#` before choosing it as the persisted accent value.
+The normal Style Apply path now enforces exactly six hexadecimal digits after `#` before custom accent persistence.
 
-The theme renderer later parses it with `QColor`. If Qt considers that value invalid, the rendered accent palette falls back to the built-in cyan color.
+Examples:
 
-Therefore current behavior is narrower than a strict “Style validates `#RRGGBB` before saving” claim.
+```text
+#A1B2C3 -> accepted and persisted as #a1b2c3
+#a1b2c3 -> accepted
+#abc     -> not accepted as a custom accent
+#banana  -> not accepted as a custom accent
+```
 
-The safest user path for a custom accent is the color picker, which supplies a valid Qt color.
+An invalid custom-field value is not persisted by that UI path; the selected built-in accent wins instead.
+
+This validator belongs to the Style-screen write path. The lower-level preference service/repository remain generic string persistence boundaries, so externally written or legacy malformed values are still possible in stored state.
+
+The theme renderer therefore retains defensive `QColor` validation. If it receives an invalid persisted custom `#...` value from legacy/external state, rendering falls back to the built-in cyan color rather than failing the UI.
 
 ## 7. Applying appearance from the Style workspace
 
 Pressing **Apply appearance**:
 
 1. reads the selected theme ID;
-2. prefers a custom `#...` accent when present, otherwise the selected built-in accent ID;
+2. accepts the custom accent only when it is exact `#RRGGBB` hexadecimal text, normalizing it to lowercase; otherwise uses the selected built-in accent ID;
 3. saves theme/accent with `button_style_preset="soft_glow"` while preserving current scale/language;
 4. applies theme/accent to the running `QApplication`.
 
@@ -155,9 +170,9 @@ When the theme renderer receives an unknown/empty theme ID, it renders with the 
 
 When a named accent is unknown, it renders with the default `cyan` accent.
 
-For an invalid custom `#...` value, color construction likewise falls back to cyan-compatible rendering.
+For an invalid custom `#...` value reaching the renderer from legacy/external persisted state, color construction likewise falls back to cyan-compatible rendering.
 
-This is defensive rendering behavior; it does not imply that every invalid persisted string is rewritten back to the canonical default immediately.
+This is defensive read/render behavior. The normal Style Apply path now prevents such malformed custom values from being newly persisted, but the renderer does not rewrite old/external invalid storage back to a canonical default merely because it rendered a fallback.
 
 ## 11. Theme tokens affect more than background color
 
@@ -731,15 +746,19 @@ After a normal mouse/keyboard slider release the sidebar updates the hint to the
 
 For a reproducible report record the persisted `ui_preferences.ui_scale`, not only a transient screenshot while dragging.
 
-## 54. Troubleshooting: custom accent text renders cyan
+## 54. Troubleshooting: custom accent text is rejected or renders cyan
 
-If a custom value begins with `#` but Qt does not recognize it as a valid color, the current renderer falls back to the default cyan color.
+The normal Style Apply path accepts only exact six-digit hexadecimal custom accents:
 
-The invalid custom text may still have been chosen/saved by the current Style screen because its pre-save test is only `startswith("#")`.
+```text
+#RRGGBB
+```
 
-Use the color picker or a valid Qt hex color value.
+Uppercase hex is accepted and normalized to lowercase before persistence. If the field contains an invalid/incomplete value, Apply uses the currently selected built-in accent instead of saving that text as a custom accent.
 
-This is a current validation boundary worth preserving in a bug report rather than describing the rendered cyan as random theme corruption.
+If an already persisted legacy/external value begins with `#` but is not a valid Qt color, the renderer still fails safely to cyan-compatible rendering. The Style screen will not prefill that malformed value as a valid custom accent.
+
+When diagnosing an unexpected cyan render, first determine whether the stored value came from current Style Apply or from older/external state. Do not describe renderer fallback as proof that the malformed value was accepted by the current validator.
 
 ## 55. Screenshot plan
 
@@ -766,13 +785,16 @@ The current presentation system does not claim:
 
 - per-workspace independent themes;
 - a user-selectable multi-preset button-style UI beyond current `soft_glow` persistence;
-- strict `#RRGGBB` validation before custom accent persistence;
+- application-service/repository rejection of every malformed accent string written outside the normal Style UI path;
+- automatic migration/rewrite of legacy/external malformed accent values merely because rendering falls back safely;
 - whole-shell RTL mirroring for Arabic;
 - silent fallback for incomplete locale keys;
 - bundled Qt `.qm` translations independent of the installed Qt translation resources;
 - UI scale outside the 68–112% manual clamp;
 - workspace ownership of shell QSettings/key-binding JSON;
 - exact cross-machine window geometry as part of Style preference restore.
+
+The normal Style Apply path **does** validate exact `#RRGGBB` custom accents and canonicalize accepted values to lowercase before persistence/application.
 
 ## 57. Developer invariants
 
@@ -790,8 +812,9 @@ Appearance/localization changes should preserve these rules unless deliberately 
 10. live scale and persisted scale timing must be documented if slider behavior changes;
 11. theme application must remain composed with scale overrides;
 12. persistence locations must stay accurate in Workspace/Persistence docs;
-13. custom-accent validation claims must not exceed the actual validator;
-14. user-facing documentation must be updated whenever locales/themes/accents/scale bounds change.
+13. the normal Style Apply path must not persist malformed custom-accent text as though it were valid `#RRGGBB`;
+14. renderer fallback must remain distinguished from write-path validation so legacy/external malformed state can fail visually safe without becoming the documented normal write contract;
+15. user-facing documentation must be updated whenever locales/themes/accents/scale bounds change.
 
 ## Related documentation
 
