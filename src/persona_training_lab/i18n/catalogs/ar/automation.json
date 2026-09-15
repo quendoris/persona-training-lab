@@ -92,6 +92,7 @@
     "automation.run.status.operation_blocked": "محظور بواسطة عملية نشطة",
     "automation.run.status.recipe_invalid": "الوصفة غير صالحة",
     "automation.run.status.recipe_not_found": "لم يتم العثور على الوصفة",
+    "automation.run.status.recipe_stale": "تغيّرت الوصفة بعد مراجعتها. حدّث السجل وراجعها مرة أخرى ثم أعد التشغيل.",
     "automation.run.status.running": "قيد التشغيل…",
     "automation.run.status.succeeded": "مكتمل",
     "automation.run.status.timeout": "انتهت المهلة",
