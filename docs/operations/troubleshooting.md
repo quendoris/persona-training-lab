@@ -648,37 +648,49 @@ Check:
 
 A failed background refresh intentionally keeps the last successful projection when one exists. Seeing old-but-consistent lineage can therefore be safer behavior than replacing it with a partial/broken projection.
 
-## 32. Agents destructive history action is blocked or refuses to run
+## 32. Agents destructive history action is blocked, stale, or refuses to run
 
 Three current Agents paths use destructive runtime-safety semantics:
 
 ```text
 normal custom-branch deletion
-protected branch_delete Redo
+protected branch_delete_v1 Redo
 protected branch_create_v1 Undo
 ```
 
-They must not remove a branch/resource association while an active operation owns a conflicting linked resource.
+They must not remove a branch/resource association while an active operation owns a conflicting linked resource, and modern protected paths must not treat a matching visible node ID as proof that the underlying safety identity is still the same.
 
-For a modern `branch_create_v1` Undo, the controller first requires that the current custom subtree is exactly the originally created child. It then acquires a fresh `lineage_delete` lease before consuming the history entry or deleting safety links.
+For modern primary deletion, PTL captures the exact `branch_delete_v1` resource-link identity before acquiring the destructive lease, verifies it, acquires `lineage_delete`, and verifies the **same captured identity again** before staging history or deleting local state.
 
-Therefore two controlled outcomes are important:
+For modern `branch_create_v1` Undo and protected `branch_delete_v1` Redo, PTL likewise compares recorded history links to current SQLite links both before and after fresh destructive guard acquisition.
 
-- **runtime blocker:** the branch, history entry, and links remain unchanged; the UI shows the active blockers;
-- **subtree mismatch:** Undo fails closed before lease/history mutation because the recorded creation no longer corresponds to exactly one current child node.
+Therefore three controlled outcomes must be distinguished:
 
-For protected deletion Redo, a new operation may have started after the earlier deletion was undone, so Redo also rechecks current runtime ownership rather than trusting old conditions.
+- **runtime blocker / `BLOCKED`:** a conflicting active operation owns a protected resource; the destructive transition is not consumed and current state remains;
+- **subtree/plan mismatch / `STALE`:** the current custom subtree no longer matches the prepared or recorded transition, so PTL refuses to reinterpret the old action;
+- **safety-identity mismatch / `STALE` or fail-closed error:** recorded/captured resource links no longer equal the current SQLite identity, or a supposedly deleted node already has unexplained links. PTL preserves that evidence rather than overwriting or deleting it.
 
-When one of these actions is blocked:
+The second exact-link check after lease acquisition closes the local check-to-use window. If links change while the guard is being acquired, PTL cancels the newly acquired lease and does not consume/stage the destructive history transition.
+
+When a destructive action reports a runtime blocker:
 
 1. inspect the blocker shown in Agents and Activity;
 2. record operation kind/subject/ID and linked resource identity;
 3. let the owning operation reach a terminal state or use its supported cancellation path;
-4. retry the history/destructive action through the UI.
+4. retry the action through the UI.
 
-Do not remove `runtime_operation_resources`, `runtime_operations`, or `lineage_resource_links` manually to bypass the guard.
+When it is stale or fails because safety identity does not match, **do not “repair” the mismatch by hand**. Preserve at least:
 
-A blocker is not evidence that Agents history is corrupt. It is the expected concurrency-safety result.
+```text
+<workspace>/app.db
+<workspace>/agents_lineage_state.json
+```
+
+from the current incident state, record whether a restore/crash/manual edit preceded the problem, and verify backup provenance. A mismatch can be the intended fail-closed response to cross-generation state rather than a defect in the guard itself.
+
+Do not remove or edit `runtime_operation_resources`, `runtime_operations`, or `lineage_resource_links` to force the action through.
+
+For the exact state machine, see [Agents protected history and safety identity](../architecture/agents-protected-history.md).
 
 ## 33. Agents reports `BranchCreationHistoryCommittedError`
 
@@ -724,7 +736,24 @@ Restoring only `app.db` can preserve the semantic graph while losing local branc
 
 Restoring only `agents_lineage_state.json`, or mixing JSON from backup A with `app.db` from backup B, can produce local history whose recorded link identity belongs to another SQLite state.
 
-Before calling this corruption, verify backup provenance and whether the JSON/database were restored together. Do not hand-edit history metadata or `lineage_resource_links` to “make them match.”
+Modern protected history deliberately surfaces several such mismatches instead of normalizing them silently:
+
+```text
+branch_delete_v1 Undo
+  expects every recorded deleted node to have an empty current link slot
+
+branch_create_v1 Undo
+  expects recorded links == current links before and after destructive lease acquisition
+
+branch_delete_v1 Redo
+  expects recorded links == current links before and after destructive lease acquisition
+```
+
+A non-empty supposedly deleted link slot is therefore preserved and blocks deletion Undo rather than being overwritten by old history. Likewise, changed link identity leaves destructive history unconsumed instead of using the same node ID as proof of equivalence.
+
+This is diagnostic containment, not an automatic cross-generation merge algorithm.
+
+Before calling the state corrupt, verify backup provenance and whether the JSON/database were restored together. Preserve the current pair before experimentation. Do not hand-edit history metadata or `lineage_resource_links` to “make them match.” If a coherent backup exists, restoring both members of the same offline snapshot is the supported recovery direction.
 
 ## 35. Automation recipe is missing or invalid
 
@@ -1115,6 +1144,7 @@ In particular, it does not provide:
 - universal CUDA/driver/model compatibility diagnosis;
 - distributed/multi-host lock recovery;
 - automatic repair of arbitrary manual SQLite edits;
+- automatic reconciliation of `app.db` and `agents_lineage_state.json` restored from different backup generations;
 - a guarantee that every failure is represented in Issues when diagnostic persistence itself is unavailable;
 - a guarantee that every forcibly terminated external child/process effect can be reconstructed afterward.
 
@@ -1127,16 +1157,18 @@ Changes to diagnostics/recovery should preserve these rules unless the product c
 1. error reporting must not crash the original workflow when its own persistence/log path fails;
 2. user-visible/localized text must not replace semantic status/result/diagnostic identity;
 3. runtime blockers must be resolved through operation lifecycle rather than silently bypassed;
-4. destructive Agents history paths that remove current linked state must not bypass their audited runtime guard;
-5. committed/finalization errors must be documented and presented as committed outcomes, not falsely described as rollbacks;
-6. source release evidence must be tied to a clean recorded commit;
-7. hidden ignored runtime inputs under source/test/tool trees must not become release dependencies;
-8. background workers must remain owned through workspace/application shutdown;
-9. whole-workspace persistence must remain distinguishable from external Dataset/model/Automation dependencies;
-10. Agents protected-history recovery must preserve/restore the matching SQLite + Agents JSON pair rather than inventing cross-snapshot provenance;
-11. destructive reset/cleanup must not be presented as the default fix for an unclassified incident;
-12. troubleshooting documentation must distinguish a controlled integrity rejection from corruption;
-13. documentation must be updated when status/result/error/recovery behavior changes.
+4. destructive Agents transitions must preserve their audited runtime guard **and** exact safety-identity preconditions;
+5. primary branch deletion, protected creation Undo, and protected deletion Redo must not consume/stage destructive history when resource links drift during guard acquisition;
+6. deletion Undo must not overwrite non-empty unexplained `lineage_resource_links` for supposedly deleted node IDs;
+7. committed/finalization errors must be documented and presented as committed outcomes, not falsely described as rollbacks;
+8. source release evidence must be tied to a clean recorded commit;
+9. hidden ignored runtime inputs under source/test/tool trees must not become release dependencies;
+10. background workers must remain owned through workspace/application shutdown;
+11. whole-workspace persistence must remain distinguishable from external Dataset/model/Automation dependencies;
+12. Agents protected-history recovery must preserve/restore the matching SQLite + Agents JSON pair rather than inventing cross-snapshot provenance;
+13. destructive reset/cleanup must not be presented as the default fix for an unclassified incident;
+14. troubleshooting documentation must distinguish a controlled integrity rejection from corruption;
+15. documentation must be updated when status/result/error/recovery behavior changes.
 
 ## Next steps
 
@@ -1145,6 +1177,7 @@ Changes to diagnostics/recovery should preserve these rules unless the product c
 - Local model readiness/generation: [Local Models](local-models.md)
 - Training workflow/integrity: [Training](../user-guide/training.md)
 - Agents lineage/runtime/history safety: [Agents lineage](../user-guide/agents-lineage.md)
+- Exact Agents protected-history state machine: [Agents protected history and safety identity](../architecture/agents-protected-history.md)
 - Tests/evaluation/Delta: [Tests and Analysis](../user-guide/tests-and-analysis.md)
 - Automation execution/audit/process containment: [Automation](../user-guide/automation.md)
 - Stable guarantees/non-goals: [v1.0 Product Contract](../reference/v1-product-contract.md)
