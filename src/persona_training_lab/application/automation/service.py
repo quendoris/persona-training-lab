@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+import hashlib
+import json
 import os
 import sys
 from types import MappingProxyType
@@ -64,6 +66,52 @@ class AutomationRecipe:
     source_path: str = ""
     working_directory: str = ""
     timeout_seconds: int = 0
+
+
+def automation_recipe_identity(recipe: AutomationRecipe) -> str:
+    payload = {
+        "recipe_id": recipe.recipe_id,
+        "version": recipe.version,
+        "title": recipe.title,
+        "description": recipe.description,
+        "command": list(recipe.command),
+        "tags": list(recipe.tags),
+        "inputs": [
+            {
+                "name": item.name,
+                "required": item.required,
+                "default": item.default,
+                "description": item.description,
+            }
+            for item in recipe.inputs
+        ],
+        "outputs": [
+            {
+                "name": item.name,
+                "description": item.description,
+            }
+            for item in recipe.outputs
+        ],
+        "resource_claims": [
+            {
+                "resource_kind": claim.resource_kind,
+                "resource_id": claim.resource_id,
+                "access_mode": claim.access_mode,
+            }
+            for claim in recipe.resource_claims
+        ],
+        "source": recipe.source,
+        "source_path": recipe.source_path,
+        "working_directory": recipe.working_directory,
+        "timeout_seconds": recipe.timeout_seconds,
+    }
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(canonical).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,11 +216,16 @@ class AutomationService:
         recipe_id: str,
         inputs: Mapping[str, str] | None = None,
         *,
+        expected_recipe_identity: str | None = None,
         cancel_requested: Callable[[], bool] | None = None,
     ) -> AutomationRunResult:
         recipe = self.get_recipe(recipe_id)
         if recipe is None:
             return AutomationRunResult(False, "recipe_not_found", recipe_id.strip())
+        if expected_recipe_identity is not None:
+            expected = expected_recipe_identity.strip()
+            if not expected or automation_recipe_identity(recipe) != expected:
+                return AutomationRunResult(False, "recipe_stale", recipe.recipe_id)
 
         supplied = {
             str(key).strip(): str(value)
