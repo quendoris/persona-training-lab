@@ -92,6 +92,7 @@
     "automation.run.status.operation_blocked": "Bloqueada por una operación activa",
     "automation.run.status.recipe_invalid": "La receta no es válida",
     "automation.run.status.recipe_not_found": "Receta no encontrada",
+    "automation.run.status.recipe_stale": "La receta cambió después de revisarla. Actualiza el registro, revísala de nuevo y vuelve a ejecutarla.",
     "automation.run.status.running": "Ejecutando…",
     "automation.run.status.succeeded": "Completada",
     "automation.run.status.timeout": "Tiempo agotado",
