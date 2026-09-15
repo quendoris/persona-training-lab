@@ -92,6 +92,7 @@
     "automation.run.status.operation_blocked": "Blocked by an active operation",
     "automation.run.status.recipe_invalid": "Recipe is invalid",
     "automation.run.status.recipe_not_found": "Recipe not found",
+    "automation.run.status.recipe_stale": "Recipe changed after review. Refresh the registry, review it again, and rerun.",
     "automation.run.status.running": "Running…",
     "automation.run.status.succeeded": "Completed",
     "automation.run.status.timeout": "Timed out",
