@@ -284,3 +284,36 @@ def test_arabic_runtime_leaf_direction_uses_displayed_text(
     mixed_label.deleteLater()
     machine_label.deleteLater()
     app.processEvents()
+
+
+def test_style_custom_accent_requires_exact_rrggbb_before_persistence() -> None:
+    app = _app()
+    vm = _StyleVM()
+    applied: list[tuple[str, str]] = []
+    screen = StyleScreen(vm, lambda theme, accent: applied.append((theme, accent)))
+    screen._accent_box.setCurrentIndex(screen._accent_box.findData("rose"))
+    screen._custom_accent_input.setText("#banana")
+
+    screen._apply()
+
+    assert vm.saved[-1]["accent_palette"] == "rose"
+    assert applied == [("velvet", "rose")]
+
+    screen.deleteLater()
+    app.processEvents()
+
+
+def test_style_custom_accent_is_canonicalized_to_lowercase() -> None:
+    app = _app()
+    vm = _StyleVM()
+    applied: list[tuple[str, str]] = []
+    screen = StyleScreen(vm, lambda theme, accent: applied.append((theme, accent)))
+    screen._custom_accent_input.setText("#A1B2C3")
+
+    screen._apply()
+
+    assert vm.saved[-1]["accent_palette"] == "#a1b2c3"
+    assert applied == [("velvet", "#a1b2c3")]
+
+    screen.deleteLater()
+    app.processEvents()
