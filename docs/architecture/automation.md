@@ -165,17 +165,51 @@ This matters because relative `working_directory` resolution uses the manifest s
 
 ## 7. Recipe lookup and review boundary
 
-The UI keeps a presentation snapshot of discovered recipe metadata.
+The UI keeps a presentation snapshot of discovered recipe metadata. `AutomationViewModel.recipes()` also records an in-memory SHA-256 safety identity for each recipe returned to the screen.
 
-When the operator clicks Run, the worker passes only `recipe_id` plus input values. `AutomationService.run_recipe()` then calls `get_recipe(recipe_id)`, which asks the provider to list/load recipes again.
+`automation_recipe_identity()` hashes a canonical JSON representation of the normalized `AutomationRecipe`, including:
 
-Therefore the execution-side recipe object can be newer than the recipe view last rendered by the UI.
+```text
+recipe_id
+version
+title
+description
+command
+tags
+inputs
+outputs
+resource_claims
+source
+source_path
+working_directory
+timeout_seconds
+```
 
-### v1 invariant / limitation
+When the operator clicks Run, the screen worker still passes only `recipe_id` plus input values to the view-model. The view-model adds the identity captured during the latest registry refresh. `AutomationService.run_recipe()` then reloads the recipe once from the provider and compares that freshly loaded immutable object with the expected identity before input rendering, lease acquisition, audit-start recording, or process launch.
 
-There is no persisted recipe-content SHA-256 or signed manifest revision that binds the displayed recipe snapshot to the later Run request.
+If the identity differs — including when the manifest kept the same `recipe_id` and `version` while changing command/resource metadata — the result is:
 
-This is acceptable only inside the declared `trusted_host` local trust model. Workspace recipe files must be treated as executable trusted inputs, and external mutation between review and execution is outside the v1 consent-pinning contract.
+```text
+recipe_stale
+```
+
+and no runtime lease or child process is created. The operator must refresh the registry, review the new recipe snapshot, and run again.
+
+After the identity comparison succeeds, the service continues from that same already-loaded immutable `AutomationRecipe`; it does not perform a second recipe lookup before building the execution snapshot.
+
+### Boundary of the review identity
+
+This is an in-memory review-to-run safety token, not a persisted or signed manifest revision.
+
+It protects the UI path against a recipe object changing between the latest displayed discovery snapshot and execution. It does **not**:
+
+- authenticate who edited the manifest;
+- preserve historical manifest bytes;
+- prove that an external executable/script has unchanged contents;
+- hash arbitrary data read by the child process;
+- turn trusted-host execution into a sandbox.
+
+Direct internal callers of `AutomationService.run_recipe()` can omit `expected_recipe_identity`; the fail-closed review contract belongs specifically to the UI/view-model execution path.
 
 ## 8. Recipe input resolution
 
@@ -690,6 +724,7 @@ launch_failed
 operation_blocked
 recipe_not_found
 recipe_invalid
+recipe_stale
 input_required
 input_unknown
 command_invalid
@@ -697,6 +732,8 @@ host_effects_not_authorized
 audit_unavailable
 audit_failed
 ```
+
+`recipe_stale` is a pre-execution fail-closed result for the reviewed UI recipe path. It means the currently discovered semantic recipe snapshot no longer matches the snapshot most recently supplied to the screen.
 
 ## 37. UI thread ownership
 
@@ -756,10 +793,10 @@ The following statements are v1 architectural truths:
 
 1. `trusted_host` commands are trusted code.
 2. Host-effect authorization is explicit for ad-hoc commands.
-3. Recipe Run itself is the operator authorization gesture for trusted recipes.
+3. Recipe Run itself is the operator authorization gesture for the recipe snapshot currently shown by the UI; a changed recipe fails closed and requires refresh/review.
 4. Runtime claims coordinate PTL operations but do not constrain OS side effects.
 5. Audit minimizes plaintext command/environment persistence but does not hide all operational metadata.
-6. Recipe manifests are not signed/content-addressed execution capsules.
+6. Recipe manifests are not signed/content-addressed execution capsules; the review identity is an in-memory safety comparison, not provenance authentication.
 7. Absolute working directories can leave the PTL workspace.
 8. Inherited environment can expose secrets to trusted child processes.
 9. Shell mode intentionally delegates parsing/expansion to the host shell.
@@ -767,13 +804,13 @@ The following statements are v1 architectural truths:
 
 ## 42. Recipe mutability and reproducibility boundary
 
-Recipe `id`/`version` are metadata, not a persisted cryptographic manifest identity.
+Recipe `id`/`version` remain metadata. A workspace file can be edited without changing its version string, so they are not sufficient review identity by themselves.
 
-A workspace file can be edited without changing its version string.
+For the UI path, PTL now computes an in-memory SHA-256 identity over the normalized recipe fields shown above. If fresh discovery under the same `recipe_id` produces a different identity, `run_recipe()` returns `recipe_stale` before any lease or child launch. A refresh replaces the view-model's remembered identity only when the new recipe snapshot is actually returned to the screen.
 
-Because `run_recipe()` reloads by ID, exact reproduction requires the operator to separately preserve the manifest bytes and referenced tool/data versions when that level of provenance matters.
+This closes the review-to-run manifest TOCTOU for the current single-process UI flow, but it is not a durable reproducibility record. Exact later reproduction still requires preserving the manifest and referenced tool/data versions when that level of provenance matters.
 
-Future hardening could add a manifest content fingerprint/review token, but v1 documentation must not claim this already exists.
+The identity hashes the normalized `AutomationRecipe`, not the original JSON byte sequence. Formatting-only manifest changes that normalize to the same recipe therefore do not create a different semantic identity.
 
 ## 43. External dependency boundary
 
@@ -786,7 +823,7 @@ PTL does not currently persist content hashes for:
 - command interpreters other than the current `{python}` path;
 - arbitrary files consumed by those commands.
 
-Therefore an audit `command_sha256` identifies the command snapshot, not the transitive executable/data contents used by that command.
+Therefore an audit `command_sha256` identifies the command snapshot, not the transitive executable/data contents used by that command. The recipe review identity likewise does not prove transitive executable/data provenance.
 
 ## 44. Shell boundary
 
@@ -802,6 +839,7 @@ Expected operational failures return structured results rather than crashing the
 
 Examples:
 
+- recipe changed after review (`recipe_stale`);
 - bad recipe input;
 - invalid command draft;
 - runtime claim conflict;
@@ -815,8 +853,12 @@ Unexpected worker exceptions are caught by `_AutomationRunWorker` and surfaced t
 
 ## 46. Test evidence
 
-The current test suite directly exercises contracts including:
+The current test suite contains direct regression coverage for contracts including:
 
+- a reviewed recipe whose command changes under the same ID/version fails closed as `recipe_stale`;
+- a stale reviewed recipe acquires no runtime lease and launches no process;
+- an unchanged reviewed recipe executes the same command snapshot;
+- a view-model recipe run without a prior review snapshot fails closed;
 - valid recipes remain discoverable beside invalid manifests;
 - malformed outputs/resource fields are rejected;
 - declared command/cwd/workspace/timeout/claims reach the execution snapshot;
@@ -834,6 +876,8 @@ The current test suite directly exercises contracts including:
 - successful POSIX execution does not leave a background descendant;
 - built-in workspace health runs headlessly.
 
+These new review-identity regressions exist in the branch but remain pending fresh local execution/release-gate evidence until the branch is tested from a clean worktree.
+
 ## 47. What the tests do not prove
 
 The pre-v1 suite does not claim exhaustive proof of:
@@ -846,7 +890,8 @@ The pre-v1 suite does not claim exhaustive proof of:
 - malicious code containment;
 - network isolation;
 - every external executable behavior;
-- distributed runtime locking.
+- distributed runtime locking;
+- durable/signature-based recipe provenance.
 
 Those remain explicit operating/stress boundaries.
 
@@ -855,15 +900,16 @@ Those remain explicit operating/stress boundaries.
 A v1.0 Automation implementation must preserve these invariants unless the public contract is deliberately revised:
 
 1. ad-hoc host effects require explicit authorization;
-2. `exec` and `shell` shapes remain unambiguous;
-3. no-audit ad-hoc execution fails closed;
-4. structured audit does not persist inherited environment values or plaintext command text as the normal command record;
-5. output capture remains bounded while pipes continue to drain;
-6. timeout/cancel terminate the owned process tree rather than only the immediate child;
-7. runtime claims are acquired before launch;
-8. conflicts prevent launch;
-9. `PTL_WORKSPACE` reflects the actual resolved workspace;
-10. Automation remains documented as trusted-host execution rather than a sandbox.
+2. the reviewed UI recipe path fails closed before lease/process launch when fresh recipe identity differs from the latest displayed snapshot;
+3. `exec` and `shell` shapes remain unambiguous;
+4. no-audit ad-hoc execution fails closed;
+5. structured audit does not persist inherited environment values or plaintext command text as the normal command record;
+6. output capture remains bounded while pipes continue to drain;
+7. timeout/cancel terminate the owned process tree rather than only the immediate child;
+8. runtime claims are acquired before launch;
+9. conflicts prevent launch;
+10. `PTL_WORKSPACE` reflects the actual resolved workspace;
+11. Automation remains documented as trusted-host execution rather than a sandbox.
 
 ## Related documentation
 
