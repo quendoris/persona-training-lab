@@ -9,7 +9,8 @@ lineage subtree that is still used by an active operation.
 
 This document defines the runtime ownership and failure-containment invariants.
 For the Agents-specific projection/history implementation, see
-[Agents lineage architecture](agents-lineage.md).
+[Agents lineage architecture](agents-lineage.md) and
+[Agents protected history and safety identity](agents-protected-history.md).
 
 ## Core invariants
 
@@ -24,24 +25,31 @@ For the Agents-specific projection/history implementation, see
 4. **Every write claim is exclusive against conflicting access.** A write claim
    conflicts with readers and writers of the same resource under the runtime
    coordination contract.
-5. **Deletion is itself an operation.** A subtree deletion atomically acquires
-   write claims for the subtree and all linked real resources after user
-   confirmation and before changing state. This closes the check-to-delete race.
+5. **Deletion is itself an operation bound to one safety identity.** Before
+   changing local state, modern custom-branch deletion captures the exact
+   `branch_delete_v1` resource-link snapshot, verifies it against current links,
+   atomically acquires write claims for the subtree and linked real resources,
+   and verifies the same identity again before staging history or deleting.
 6. **Protected deletion Redo is also an operation.** Redo reacquires a fresh
-   deletion lease; history cannot bypass a runtime blocker that appeared after
-   Undo.
+   deletion lease and verifies the recorded safety identity both before and after
+   guard acquisition; history cannot bypass either a runtime blocker or link
+   drift that appeared after Undo.
 7. **Protected creation Undo is destructive too.** Undoing a modern
    `branch_create_v1` entry removes the current custom node and its persisted
-   safety links, so it must acquire a fresh `lineage_delete` lease before
-   consuming history.
-8. **No invalid intermediate claim set becomes active.** An operation either
+   safety links. It verifies recorded links before and after acquiring a fresh
+   `lineage_delete` lease before consuming history.
+8. **Protected deletion Undo cannot overwrite unexplained link rows.** The
+   deleted node IDs must have empty current link sets before the recorded
+   snapshot is restored. Non-empty rows fail closed even if their visible node
+   IDs match history.
+9. **No invalid intermediate claim set becomes active.** An operation either
    owns all requested claims or owns none of them.
-9. **Committed-state failures stay truthful.** If local state/link removal has
+10. **Committed-state failures stay truthful.** If local state/link removal has
    committed but lease finalization fails, the UI must reflect the committed
    transition before the finalization error is reported.
-10. **A failed diagnostic path cannot fail the application.** Error reporting is
+11. **A failed diagnostic path cannot fail the application.** Error reporting is
    best-effort, throttled, and isolated from the original workflow.
-11. **Recoverable failures do not terminate the UI.** Service, worker-thread, Qt
+12. **Recoverable failures do not terminate the UI.** Service, worker-thread, Qt
    event, and Qt warning boundaries report the incident and keep unrelated
    workflows usable.
 
@@ -125,22 +133,34 @@ marks operations owned by dead PIDs as `abandoned` and releases their resources.
 
 ## Lineage deletion protocol
 
-Normal custom-branch deletion follows this safety order:
+Normal modern custom-branch deletion follows this safety order:
 
 1. determine the complete custom subtree;
 2. ask for confirmation without holding a runtime lease;
 3. re-check the subtree against the prepared deletion plan;
-4. atomically acquire a `lineage_delete` write lease for all nodes and linked
+4. capture exact `branch_delete_v1` resource-link metadata for that subtree;
+5. verify the captured identity still equals current SQLite links;
+6. atomically acquire a `lineage_delete` write lease for all nodes and linked
    resources;
-5. capture local transaction state and exact resource-link history metadata;
-6. if acquisition failed, keep the tree unchanged and show the active blocker;
-7. remove local lineage state while the lease is held;
-8. verify that the actual removed ids match the prepared subtree;
-9. remove persisted lineage resource links;
-10. finish the lease and refresh the UI.
+7. verify the **same captured identity again** after lease acquisition;
+8. if the identity changed during acquisition, cancel the lease and return
+   `STALE` before staging history or changing local state;
+9. capture local transaction state and stage the already-captured metadata for
+   the `branch_delete` history entry;
+10. remove local lineage state while the lease is held;
+11. verify that the actual removed IDs match the prepared subtree;
+12. remove persisted lineage resource links;
+13. finish the lease and refresh the UI.
 
-If link cleanup fails after local state mutation, PTL restores the captured local
-transaction state before reporting the failure where compensation succeeds.
+If lease acquisition conflicts with active work, the tree remains unchanged and
+the UI shows the active blocker. If link cleanup fails after local state mutation,
+PTL restores the captured local transaction state before reporting the failure
+where compensation succeeds.
+
+The pre/post-acquisition identity comparison matters because the lease claims and
+the history metadata must describe the same resource-link generation. A lease
+protecting one link set must not authorize deletion while `branch_delete_v1`
+records another set that appeared during guard acquisition.
 
 Registered model-version rows and physical artifact directories are not deleted
 by the local-tree command. PTL v1.0 does not provide transactional/quarantine
@@ -154,29 +174,42 @@ nodes' exact `lineage_resource_links`.
 
 ### Undo
 
-Undo restores the saved links **before** restoring the visible lineage snapshot.
-If the lineage-state restore then fails, PTL compensates by removing the links it
-just restored.
+A committed deletion normally leaves the recorded custom node IDs absent from
+Agents state and their SQLite link sets empty. Protected Undo first verifies this
+empty-slot precondition for every recorded node ID.
+
+If any current link row already exists, Undo fails closed rather than replacing
+that unexplained identity with old history. This protects split-snapshot/manual
+recovery states such as an `agents_lineage_state.json` restored from one snapshot
+and `app.db` from another.
+
+Only after the slots are proven empty does Undo restore the saved links and
+verify the exact restored identity **before** restoring the visible lineage
+snapshot. If the lineage-state restore then fails, PTL compensates by removing
+the links it just restored.
 
 This prevents a branch from visually reappearing with weaker safety identity than
-it had before deletion.
+it had before deletion and prevents old history from silently overwriting foreign
+safety evidence.
 
 ### Redo
 
-Redo does not call ordinary branch creation/deletion history as a new action.
-Instead it:
+Redo does not call ordinary branch deletion as a new action. Instead it:
 
 1. verifies that the current custom subtree still matches the recorded delete;
-2. acquires a fresh `lineage_delete` lease;
-3. consumes exactly the existing deletion redo entry;
-4. verifies that the recorded subtree disappeared;
-5. removes its restored resource links;
-6. finalizes the lease;
-7. applies the saved history/layout transition.
+2. verifies that current resource links exactly match `branch_delete_v1`;
+3. acquires a fresh `lineage_delete` lease;
+4. verifies that the same recorded identity still matches after acquisition;
+5. consumes exactly the existing deletion redo entry;
+6. verifies that the recorded subtree disappeared;
+7. removes its restored resource links;
+8. finalizes the lease;
+9. applies the saved history/layout transition.
 
 If a conflicting Training/Test/Analysis operation started after Undo, the fresh
 lease acquisition blocks Redo and leaves the branch, links, and redo entry
-intact.
+intact. If safety links drifted before or during guard acquisition, Redo returns
+`STALE`; the pending history entry is not consumed.
 
 Older redo entries are preserved because protected Redo consumes history rather
 than recording a new deletion action that would clear the redo stack.
@@ -210,18 +243,22 @@ resource association represented by that node.
 The controller therefore:
 
 1. verifies that the current subtree is exactly `(child_node_id,)`;
-2. captures exact pre-Undo Agents transaction state;
-3. acquires a fresh `lineage_delete` lease for the child plus its linked real
+2. verifies that current links exactly match `branch_create_v1`;
+3. captures exact pre-Undo Agents transaction state;
+4. acquires a fresh `lineage_delete` lease for the child plus its linked real
    resources;
-4. consumes the existing `branch_create` undo entry;
-5. verifies the transition is creation/Undo;
-6. removes the exact saved child links;
-7. finalizes the lease;
-8. returns the history transition for UI application.
+5. verifies the same recorded link identity again after lease acquisition;
+6. consumes the existing `branch_create` undo entry;
+7. verifies the transition is creation/Undo;
+8. removes the exact saved child links;
+9. finalizes the lease;
+10. returns the history transition for UI application.
 
 If lease acquisition is blocked, no history/state/link mutation occurs and the UI
-shows the current blocker. If the subtree is no longer exactly the recorded
-child, the controller fails closed before acquiring/mutating history.
+shows the current blocker. If either the subtree or recorded safety identity no
+longer matches, the controller fails closed before history mutation. Link drift
+that occurs during guard acquisition closes the new lease without consuming
+history.
 
 If link cleanup fails after the JSON transition, the controller restores the
 captured pre-Undo Agents state and fails the lease where compensation succeeds.
@@ -307,6 +344,7 @@ be revalidated rather than being described as already covered by this document.
 ## Related documentation
 
 - [Agents lineage architecture](agents-lineage.md)
+- [Agents protected history and safety identity](agents-protected-history.md)
 - [Persistence architecture](persistence.md)
 - [Agents lineage user guide](../user-guide/agents-lineage.md)
 - [Troubleshooting](../operations/troubleshooting.md)
