@@ -207,6 +207,51 @@ class _DriftingDeletionTransactions(LineageBranchTransactions):
         return lease
 
 
+def test_delete_rechecks_links_after_runtime_guard_acquisition(tmp_path) -> None:
+    connection = _connect(tmp_path / "runtime-delete-drift.sqlite3")
+    create_minimal_schema(connection)
+    operations = RuntimeOperationCoordinator(
+        SQLiteRuntimeOperationsRepository(connection)
+    )
+    safety = LineageRuntimeSafety(
+        SQLiteLineageResourceLinksRepository(connection),
+        operations,
+    )
+    state = AtomicLineageStateStore(tmp_path / "delete-drift-lineage-state.json")
+    branch_id = state.continue_from("snapshot")
+    expected_links = (
+        ResourceClaim("model_version", "mdl_initial", "read"),
+    )
+    drifted_links = (
+        ResourceClaim("dataset", "ds_changed", "read"),
+    )
+    safety.bind_node(branch_id, expected_links)
+    transactions = _DriftingDeletionTransactions(
+        safety,
+        branch_id=branch_id,
+        drifted_links=drifted_links,
+    )
+    controller = BranchDeletionController(state, transactions)
+    plan = controller.prepare(
+        branch_id,
+        node_title="Branch",
+        parent_id="snapshot",
+        graph_current_id="snapshot",
+    )
+    assert plan is not None
+
+    result = controller.execute(plan)
+
+    assert result.status is BranchDeletionStatus.STALE
+    assert state.is_custom_node(branch_id) is True
+    assert safety.links_for_node(branch_id) == drifted_links
+    assert safety.deletion_blockers((branch_id,)) == ()
+    pending = state.undo_preview()
+    assert pending is not None
+    assert pending.action_code == "branch_create"
+    connection.close()
+
+
 def test_delete_redo_rechecks_links_after_runtime_guard_acquisition(
     tmp_path,
 ) -> None:
