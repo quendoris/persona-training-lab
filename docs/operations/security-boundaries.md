@@ -22,6 +22,7 @@ For operational failures and evidence handling, read [Troubleshooting & Diagnost
 | Dataset approval | SHA-256 fingerprints approved JSONL bytes | Hashing is not confidentiality/authorship/signing |
 | Training pinning | Pins Profile representation + Dataset SHA-256 | Complete base-model bytes are not content-addressed |
 | Automation authorization | Ad-hoc host commands require explicit host-effect authorization | Authorization does not reduce child privileges |
+| Automation recipe review | UI recipe runs compare the fresh normalized recipe with the in-memory SHA-256 identity of the latest reviewed snapshot and fail closed on mismatch | The review identity is not a signature, durable provenance record, or hash of transitive executables/data |
 | Automation audit | Records structured execution metadata | Audit is not prevention/rollback and not a secret vault |
 | Process containment | Owns/terminates ordinary descendant process trees | Containment is not filesystem/network isolation |
 | Error context redaction | Recursively redacts selected sensitive structured-context key names through bounded mappings/collections | Exception text/traceback and arbitrary values are not comprehensively secret-scrubbed |
@@ -355,13 +356,13 @@ This is explicit user-intent acknowledgement through the intended service/UI con
 
 `run_recipe(...)` does not use the ad-hoc `host_effects_authorized` flag.
 
-A recipe is trusted executable configuration because it is built-in or present/imported into the workspace recipe registry and then selected for execution.
+A recipe is trusted executable configuration because it is built-in or present/imported into the workspace recipe registry and then selected/reviewed for execution.
 
-Operators must review workspace/imported recipes as code-like trusted inputs.
+In the intended UI path, the Run gesture authorizes the recipe snapshot currently supplied to the Automation screen. The view-model remembers a semantic safety identity for that snapshot and supplies it to the service at Run time.
 
-Do not imply that an ad-hoc authorization checkbox also gates recipes.
+Operators must still review workspace/imported recipes as code-like trusted inputs. Do not imply that the ad-hoc authorization checkbox also gates recipes.
 
-## 30. Recipe manifests are structurally validated, not signed
+## 30. Recipe manifests are structurally validated, review-bound in memory, but not signed
 
 Workspace manifests use:
 
@@ -371,7 +372,11 @@ ptl:automation-recipe:v1
 
 with validated recipe/input/resource/command fields.
 
-Structural validation rejects malformed contract state. It does not authenticate the author or cryptographically sign/content-address the recipe/dependencies.
+Structural validation rejects malformed contract state. The reviewed UI path additionally computes an in-memory SHA-256 identity over normalized `AutomationRecipe` fields and compares a freshly resolved recipe with that identity before runtime-lease acquisition/process launch.
+
+That comparison prevents a semantic recipe change from silently replacing what the operator reviewed, including a command/resource change made while keeping the same recipe ID/version.
+
+It does **not** authenticate the author, cryptographically sign the manifest, persist a durable reviewed revision, or content-address transitive executables/data.
 
 ## 31. Current recipe execution is `exec`, not shell
 
@@ -402,13 +407,29 @@ It does not automatically copy or hash every external executable, script, model,
 
 A valid manifest can therefore depend on mutable external files.
 
-## 33. Recipe review and execution are not cryptographically bound
+## 33. Recipe review-to-run identity is fail-closed but not durable provenance
 
-The UI can show one discovered recipe snapshot while `run_recipe(recipe_id)` resolves the recipe again before execution.
+`AutomationViewModel.recipes()` records an in-memory SHA-256 safety identity for each normalized recipe snapshot returned to the screen. The identity covers ID/version, title/description, command, tags, inputs/outputs, resource claims, source/source path, working directory, and timeout.
 
-v1.0 does not persist a signed hash binding the reviewed detail pane to the later Run request.
+When the reviewed UI path later runs that recipe, `AutomationService.run_recipe(...)` resolves the recipe once and compares the fresh normalized object with the expected identity. A mismatch returns:
 
-Avoid concurrent external mutation; refresh/re-review after recipe edits.
+```text
+recipe_stale
+```
+
+before input rendering, runtime-lease acquisition, audit-start recording, or process launch. The operator must refresh and review the changed recipe before another Run attempt.
+
+After a successful comparison, execution continues from that same already-loaded immutable recipe object; the service does not perform another recipe-provider lookup before building the execution snapshot.
+
+This closes the current single-process UI manifest review-to-run substitution seam. It does **not** provide:
+
+- a persisted/signed manifest revision;
+- author authentication;
+- a hash of external executables/scripts/data;
+- protection for direct service callers that deliberately omit `expected_recipe_identity`;
+- sandboxing or rollback.
+
+Formatting-only JSON changes that normalize to the same `AutomationRecipe` do not create a different semantic identity.
 
 ## 34. Automation working directories are not workspace confinement
 
@@ -444,9 +465,9 @@ The structured audit records sorted environment variable **names** and does not 
 
 That reduces one obvious persistence exposure, but key names can still reveal operational context and child processes still receive the actual inherited/overridden values.
 
-## 38. Automation audit hashes the command snapshot
+## 38. Automation audit hash and recipe review identity are different hashes
 
-The audit serializes the command snapshot and stores:
+The audit serializes the rendered execution command snapshot and stores:
 
 ```text
 command_sha256
@@ -455,7 +476,9 @@ command_parts
 
 rather than plaintext command content in the normal structured command metadata.
 
-This is not transitive executable provenance. Command content can still be exposed through UI/process/errors/external tooling/operator captures.
+The review identity is computed earlier over the normalized recipe object to detect semantic mutation between review and Run. The audit command hash identifies the command snapshot that reached execution/audit construction.
+
+Neither is transitive executable provenance, author authentication, or a sandbox primitive. Command content can still be exposed through UI/process/errors/external tooling/operator captures.
 
 ## 39. stdout/stderr are not secret-redacted
 
@@ -664,9 +687,10 @@ The current contract assumes:
 1. the host/OS account is trusted and appropriately protected;
 2. model and Dataset inputs come from sources the operator is willing to process locally;
 3. recipes/ad-hoc commands are reviewed as trusted host execution;
-4. dependencies/external tools are part of the trusted software supply chain;
-5. users with filesystem access are allowed to see/modify ordinary local PTL state according to OS policy;
-6. runtime claims coordinate cooperating PTL workflows rather than defend against malicious local processes.
+4. the Automation recipe registry is trusted mutable configuration, while the UI review-to-run identity guards only semantic substitution after the latest displayed snapshot;
+5. dependencies/external tools are part of the trusted software supply chain;
+6. users with filesystem access are allowed to see/modify ordinary local PTL state according to OS policy;
+7. runtime claims coordinate cooperating PTL workflows rather than defend against malicious local processes.
 
 If these assumptions do not hold, additional external isolation is required.
 
@@ -680,7 +704,8 @@ PTL v1.0 does not claim:
 - encrypted workspace/database/QSettings/key-binding storage;
 - built-in secret-vault semantics;
 - network isolation;
-- signed Automation manifests;
+- signed or durably content-addressed Automation manifests;
+- transitive executable/data provenance from the recipe review identity;
 - secure deletion;
 - distributed authorization/locking;
 - cryptographic whole-backup signing;
@@ -697,10 +722,12 @@ These are explicit boundaries.
 4. trust/verify model and Dataset sources;
 5. avoid placing secrets into loggable exception/command/config text unless required;
 6. review recipes/ad-hoc commands before execution;
-7. disable ad-hoc environment inheritance when unnecessary;
-8. treat shell mode as shell execution;
-9. review diagnostics/output before sharing;
-10. protect/encrypt backups according to contained data sensitivity.
+7. after a recipe edit/import, Refresh and review the newly displayed snapshot before Run;
+8. treat `recipe_stale` as a fail-closed request to refresh/re-review, not as a reason to bypass the identity check;
+9. disable ad-hoc environment inheritance when unnecessary;
+10. treat shell mode as shell execution;
+11. review diagnostics/output before sharing;
+12. protect/encrypt backups according to contained data sensitivity.
 
 ## 67. Security-relevant bug-report evidence
 
@@ -719,6 +746,8 @@ whether environment inheritance was enabled
 expected vs actual trust-boundary behavior
 ```
 
+For recipe review-to-run incidents, also record whether the recipe was refreshed/reviewed immediately before Run and whether `recipe_stale` appeared. Do not include secret manifest/environment contents merely to report the condition.
+
 Do not attach live credentials, complete environment dumps, private workspaces, raw weights, or sensitive responses unless a specifically secure disclosure channel requires them.
 
 ## 68. Security findings must change code or contract
@@ -736,19 +765,21 @@ Security-sensitive changes must preserve these rules unless the product contract
 1. Automation `trusted_host` is never described as sandboxed execution;
 2. runtime claims remain coordination semantics, not OS permissions;
 3. ad-hoc commands require explicit host-effects authorization;
-4. production ad-hoc execution fails closed when its audit path is unavailable/fails at start;
-5. current recipe execution is documented as exec-array execution unless the recipe schema/service deliberately adds shell mode;
-6. production model loaders must not silently opt into `trust_remote_code=True`;
-7. release validation remains tied to a clean recorded Git commit;
-8. hidden ignored runtime-affecting inputs do not become release dependencies;
-9. Dataset/Profile hashes are described only for their implemented integrity identities;
-10. base-model path identity is not documented as complete content-addressed provenance;
-11. redaction claims do not exceed the recursive bounded key-name filtering applied by `_safe_context`; exception messages, tracebacks and arbitrary non-key content remain outside that guarantee;
-12. process containment is not described as filesystem/network isolation;
-13. workspace, QSettings, key-binding and backup confidentiality are not implied without encryption;
-14. recipe validation/version fields are not described as cryptographic signatures;
-15. external presentation stores remain in the security map while code stores them outside the workspace;
-16. security documentation is updated whenever trust/authorization/audit/isolation/persistence behavior changes.
+4. the reviewed Automation UI path fails closed before runtime-lease/process launch when the fresh normalized recipe identity differs from the latest displayed snapshot;
+5. recipe review identity is documented as transient semantic safety state, not a signature/durable provenance/transitive dependency hash;
+6. production ad-hoc execution fails closed when its audit path is unavailable/fails at start;
+7. current recipe execution is documented as exec-array execution unless the recipe schema/service deliberately adds shell mode;
+8. production model loaders must not silently opt into `trust_remote_code=True`;
+9. release validation remains tied to a clean recorded Git commit;
+10. hidden ignored runtime-affecting inputs do not become release dependencies;
+11. Dataset/Profile hashes are described only for their implemented integrity identities;
+12. base-model path identity is not documented as complete content-addressed provenance;
+13. redaction claims do not exceed the recursive bounded key-name filtering applied by `_safe_context`; exception messages, tracebacks and arbitrary non-key content remain outside that guarantee;
+14. process containment is not described as filesystem/network isolation;
+15. workspace, QSettings, key-binding and backup confidentiality are not implied without encryption;
+16. recipe validation/version fields are not described as cryptographic signatures;
+17. external presentation stores remain in the security map while code stores them outside the workspace;
+18. security documentation is updated whenever trust/authorization/audit/isolation/persistence behavior changes.
 
 ## Next steps
 
