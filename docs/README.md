@@ -32,14 +32,15 @@ Start with:
 
 - [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, external UI/settings stores, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
 - [Local Models](operations/local-models.md) — model path resolution, readiness checks, inference-stack health, smoke generation, Training integration, trust and reproducibility boundaries.
-- [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
-- [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency/presentation-state preservation, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
+- [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, Agents safety-identity mismatch, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
+- [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency/presentation-state preservation, Agents same-snapshot recovery, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
 - [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — user-home binding storage, conflict recovery, direct capture, reset semantics, and live shell shortcut synchronization.
 - [Documentation Workspace](user-guide/documentation.md) — distinguish a missing registered runtime topic from the normal absence of unregistered canonical documents in the in-app subset.
 - [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) — canonical states, action/diagnostic codes, event families, schema markers, ID shapes, and compatibility aliases.
 - [Event and diagnostic schema](reference/event-and-diagnostic-schema.md) — event/error identity, payload and redaction boundaries, duplicate windows, rotating logs and Operations Center projection.
 - [Agents lineage](user-guide/agents-lineage.md) — deletion blockers, protected undo/redo, stable identity, last-good projection behavior.
+- [Agents protected history and safety identity](architecture/agents-protected-history.md) — exact cross-store safety identity, fail-closed protected history, split-snapshot behavior, and compensation boundaries for advanced recovery/audit.
 - [Automation](user-guide/automation.md) — recipe discovery/import, host-effect authorization, runtime blockers, output truncation, cancellation/timeout, audit failures, and safe operating rules.
 - [Training pipeline specification](training_pipeline.md) — exact Training input transformation, hashes, backend, artifacts, failure/reproducibility boundaries.
 - [Snapshots and model versions](user-guide/snapshots.md) — distinguish persisted model-version metadata from the referenced artifact and trace provenance back to a Training run.
@@ -61,6 +62,7 @@ Start with:
 - [SQLite persistence schema reference](reference/persistence-schema.md) — exact current tables, columns, indexes, foreign-key boundaries, additive compatibility bootstrap and schema-change audit rules.
 - [UI shell architecture](architecture/ui-shell.md) — workspace ownership/guards, background shutdown, docks/panels, Operations Center integration, application shortcuts, QSettings/key-binding persistence, style/localization boundaries.
 - [Agents lineage architecture](architecture/agents-lineage.md) — atomic semantic snapshot, projection/local-state split, stable IDs, runtime links, protected deletion history, guarded Redo, background last-good behavior.
+- [Agents protected history and safety identity](architecture/agents-protected-history.md) — exact `branch_create_v1`/`branch_delete_v1` safety identity, pre/post-lease checks, fail-closed Undo/Redo, compensation, and split-snapshot boundaries.
 - [Automation architecture](architecture/automation.md) — recipe schema/discovery, trusted-host command contract, runtime leases, audit fail-closed behavior, bounded process execution, process-tree containment, and explicit trust limitations.
 - [Automation recipe schema](reference/automation-recipe-schema.md) — exact manifest fields, validation, placeholders, discovery/import collision behavior and resource-claim semantics.
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
@@ -109,8 +111,8 @@ Start with:
 | [Keyboard & mouse bindings reference](reference/keyboard-mouse-bindings.md) | User / developer / auditor | Exact binding IDs/defaults, categories, targets, trigger/conflict semantics |
 | [Workspace & Storage](operations/workspace-and-storage.md) | User / operator / developer | Research/workflow data roots, SQLite/filesystem ownership, external UI settings stores, local models, artifacts, backup/reset |
 | [Local Models](operations/local-models.md) | User / operator / developer | Model paths, readiness probe, inference health, Training integration, trust/reproducibility limits |
-| [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) | User / operator / developer | Evidence-first triage, error/operation identities, runtime blockers, subsystem diagnosis, source/release-audit troubleshooting |
-| [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, external presentation/dependency preservation, crash recovery, partial reset risks |
+| [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) | User / operator / developer | Evidence-first triage, runtime blockers vs safety-identity mismatch, subsystem diagnosis, source/release-audit troubleshooting |
+| [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, same-snapshot Agents pairing, crash recovery, partial reset risks |
 | [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) | User / operator / developer / auditor | OS authority, unencrypted local state, model/data trust, Automation execution/audit, diagnostic privacy, source integrity |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
 | [System scale and measured codebase anatomy](architecture/system-scale.md) | Developer / auditor / maintainer | Clean source-size baseline, counting methodology, scale ratios and interpretation limits |
@@ -119,6 +121,7 @@ Start with:
 | [Background work lifecycle](architecture/background-work-lifecycle.md) | Developer / auditor | QThread owners, shutdown aggregation, runtime-operation distinction and lease-release ordering |
 | [UI shell architecture](architecture/ui-shell.md) | Developer / auditor | Workspace/navigation lifecycle, background ownership, docks, Operations Center, shortcuts, shell persistence |
 | [Agents lineage architecture](architecture/agents-lineage.md) | Developer / auditor | Semantic snapshot/projection, local state, runtime links, history transactions, failure containment |
+| [Agents protected history and safety identity](architecture/agents-protected-history.md) | Developer / operator / auditor | Exact cross-store branch history identity, destructive guards, fail-closed recovery and compensation |
 | [Automation architecture](architecture/automation.md) | Developer / auditor | Recipe/provider/service/process/audit architecture, trusted-host boundary, runtime claims, containment, failure semantics |
 | [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) | Researcher / developer / auditor | Proposed multi-space mathematical framework; explicitly non-current instrumentation |
 | [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) | Researcher / developer / auditor | Proposed evidence/sampling/structural-identity contract; explicitly non-current instrumentation |
@@ -181,6 +184,7 @@ The v1.0 documentation set follows these rules:
 24. **Separate implemented contracts from proposed research architecture.** Mathematical/instrumentation designs may be precise and implementation-ready while remaining explicitly non-current until code, persistence, tests and release evidence exist.
 25. **Separate execution-carrier lifetime from semantic/runtime ownership.** A screen `QThread`, a persisted runtime-operation lease and the outer workspace writer lease solve different problems; documentation must not collapse them into one fictional “workflow supervisor”.
 26. **Freeze quantitative claims to an exact measured commit.** Source-size/test-ratio statements must record the counter definition, clean/dirty state and commit instead of silently following a moving branch.
+27. **Treat protected-history metadata as transition evidence, not overwrite authority.** A recorded Agents node ID/link snapshot may be replayed only when current-state preconditions prove that the historical transition still applies; conflicting present identity must fail closed rather than be normalized away.
 
 ## Current documentation structure
 
@@ -217,6 +221,7 @@ docs/
 │   ├── background-work-lifecycle.md
 │   ├── runtime-resource-safety.md
 │   ├── agents-lineage.md
+│   ├── agents-protected-history.md
 │   ├── automation.md
 │   ├── localization.md
 │   ├── ui-shell.md
