@@ -43,7 +43,7 @@ The test-to-production ratio under the token-aware Python-code definition is app
 
 The baseline was measured from a clean detached worktree with `Dirty: no`, so those numbers are reproducibly tied to that exact commit.
 
-The current branch already contains documentation commits after that frozen baseline, including `architecture/system-scale.md`, `architecture/background-work-lifecycle.md`, and `architecture/preference-persistence.md`. Therefore the table above is intentionally **not relabelled as the live HEAD size**. Exact final-candidate counts must be regenerated after the documentation/code audit stabilizes.
+The current branch already contains documentation and targeted architecture-safety commits after that frozen baseline, including `architecture/system-scale.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md`, and `architecture/agents-protected-history.md`. Therefore the table above is intentionally **not relabelled as the live HEAD size**. Exact final-candidate counts must be regenerated after the documentation/code audit stabilizes.
 
 For methodology, interpretation limits and regeneration commands, use [System scale and measured codebase anatomy](architecture/system-scale.md).
 
@@ -70,11 +70,11 @@ The useful scale statement is now evidence-backed rather than approximate:
 | Datasets | A | `user-guide/datasets.md`, `training_pipeline.md` | final import/validation examples and screenshots |
 | Training | A | `user-guide/training.md`, `training_pipeline.md` | reconcile future dynamics instrumentation with current v1.0 boundaries |
 | Model versions / Snapshots | B | `user-guide/snapshots.md` | stronger artifact/provenance examples; final lifecycle consistency review |
-| Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md` | continue auditing protected history and cross-store race/failure semantics |
+| Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | protected create/delete/Undo/Redo exact-identity tranche is documented; continue remaining projection/runtime-link reconciliation audit |
 | Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | screenshots; future bridge to richer training-dynamics evidence |
-| Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | final consistency/visual pass; import collision behavior is fail-closed rather than overwrite |
+| Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | next P0 trust/fail-closed audit target; final consistency/visual pass |
 | Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | custom accent validation remains a known code seam; re-check if fixed |
-| Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is now explicit; revisit only if multi-workspace processes become supported |
+| Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
 | Telemetry | C | `interface-tour.md`, `ui-shell.md`, troubleshooting | **G:** dedicated telemetry semantics/limitations if used as research evidence |
@@ -86,10 +86,10 @@ The useful scale statement is now evidence-backed rather than approximate:
 |---|---|---|---|
 | Workspace and path ownership | A | `operations/workspace-and-storage.md`, `reference/workspace-layout.md`, `architecture/workspace-concurrency.md` | keep single-writer ownership synchronized with bootstrap/recovery changes |
 | Local models | A | `operations/local-models.md` | record stronger base-model content provenance if implementation gains it |
-| Troubleshooting / evidence preservation | A | `operations/troubleshooting.md`, `reference/event-and-diagnostic-schema.md` | continue adding concrete recovery classes discovered during architecture audit |
-| Backup / reset / recovery | A | `operations/backup-reset-recovery.md` | keep Agents JSON ↔ SQLite same-snapshot and offline-owner rules synchronized with lineage changes |
+| Troubleshooting / evidence preservation | A | `operations/troubleshooting.md`, `reference/event-and-diagnostic-schema.md`, `architecture/agents-protected-history.md` | protected-history blocker/subtree/identity outcomes synchronized; continue adding concrete recovery classes discovered during audit |
+| Backup / reset / recovery | A | `operations/backup-reset-recovery.md`, `architecture/agents-protected-history.md` | same-snapshot Agents pair and fail-closed mixed-generation behavior synchronized; keep aligned with future lineage changes |
 | Security / trust / privacy | A | `operations/security-boundaries.md`, `reference/event-and-diagnostic-schema.md` | re-audit every new diagnostics/research artifact before release |
-| Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, troubleshooting | preserve distinction between SQLite claims and the outer desktop writer lease; document new resource kinds introduced by future instrumentation |
+| Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, troubleshooting | protected-history exact identity now distinguishes lease ownership from historical identity; document new resource kinds introduced by future instrumentation |
 | Background shutdown / ownership handoff | A | `architecture/background-work-lifecycle.md`, `architecture/workspace-concurrency.md` | keep every new long-running workspace integrated with shell final-drain ownership |
 | UI/input preference restore scope | A | `architecture/preference-persistence.md`, backup/storage docs | QSettings and user-home bindings remain intentionally outside whole-workspace backup semantics |
 | Export / portability | C | storage + backup docs | **G:** dedicated export/portability contract if PTL adds supported workspace migration/export rather than raw backup |
@@ -100,14 +100,14 @@ The useful scale statement is now evidence-backed rather than approximate:
 |---|---|---|---|
 | System composition / layers | A | `architecture/overview.md` | final top-down consistency pass against composition root |
 | System scale / anatomy | A | `architecture/system-scale.md` | regenerate exact metrics for final clean release candidate; compare history only with compatible counting rules |
-| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | continue transaction/race audit; schema mechanics have a dedicated reference |
-| Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md`, `architecture/preference-persistence.md` | workspace writer model and external preference-store boundary are now separated; keep synchronized if process model changes |
+| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | protected-history cross-store identity synchronized; continue remaining transaction/race audit |
+| Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md`, `architecture/preference-persistence.md` | workspace writer model and external preference-store boundary are separated; keep synchronized if process model changes |
 | Preference persistence / scope | A | `architecture/preference-persistence.md` | SQLite Style, QSettings shell state and user-home bindings have explicit scope/write/backup limits; no rationale invented for current placement |
 | Background work / shutdown ownership | A | `architecture/background-work-lifecycle.md` | current QThread/runtime-operation/workspace-lease roles are separated; re-audit every new long-running feature |
 | UI shell / lifecycle | A | `architecture/ui-shell.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md` | final screenshot-independent diagrams and cross-document consistency pass |
-| Agents lineage | A | `architecture/agents-lineage.md` | current highest-priority cross-store audit area |
-| Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md` | immediate SQLite claims remain atomic; standard desktop multi-writer workspace access is fail-closed at bootstrap |
-| Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | manifest contract is mechanical; continue trust/review-to-run audit |
+| Agents lineage | A | `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | exact protected-history identity/TOCTOU tranche complete; continue projection-resource reconciliation and other remaining cross-store race review |
+| Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, `architecture/agents-protected-history.md` | primary delete/create-Undo/delete-Redo pre/post-lease identity rules synchronized; continue audit of any other destructive resource paths |
+| Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | manifest contract is mechanical; next P0 target is mutable trusted-config review-to-run/fail-closed audit |
 | Localization | A | `architecture/localization.md` | no major gap currently |
 | Evaluation / Analysis | B | `reference/evaluation-contract.md`, methodology docs | optional dedicated architecture page only if orchestration becomes more complex |
 | Training implementation | A | `training_pipeline.md` | current backend is full-parameter training; avoid projecting proposed dynamics math onto current v1.0 behavior |
@@ -144,7 +144,9 @@ The developer layer is largely complete:
 - packaging;
 - release process.
 
-`tools/codebase_stats.py` makes measurement provenance explicit: human and JSON output identify repository root, branch, full/short commit, upstream and dirty state; untracked files remain outside `git ls-files` statistics but are reported in provenance. The clean `69ef4d28...` run now provides a real frozen scale baseline instead of an estimate.
+`tools/codebase_stats.py` makes measurement provenance explicit: human and JSON output identify repository root, branch, full/short commit, upstream and dirty state; untracked files remain outside `git ls-files` statistics but are reported in provenance. The clean `69ef4d28...` run provides the frozen scale baseline instead of an estimate.
+
+The current branch is **not** relabelled release-green after the protected-history audit. Python behavior and regression inventory changed after the frozen baseline, so fresh clean candidate evidence is still required.
 
 Remaining work is predominantly **final-candidate evidence population**, not missing prose:
 
@@ -197,13 +199,41 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 
 ### P0 — continue code-as-documentation architecture audit
 
-1. Continue the Agents runtime-link/history transaction audit under the explicit single-writer workspace contract.
-2. Synchronize `agents-lineage`, `runtime-resource-safety`, `persistence`, troubleshooting and backup docs after every safety correction.
-3. Re-run full current-only language search for stale `planned`, `future`, old statuses, old paths, and obsolete migration wording.
-4. Continue applying the same fail-closed review to mutable trusted execution/configuration surfaces such as Automation manifests.
-5. Re-check known smaller seams (for example custom accent validation) rather than allowing documentation to normalize implementation drift.
+1. Continue the remaining Agents projection/resource-link reconciliation and cross-store race audit; the modern protected branch create/delete/Undo/Redo exact-identity tranche is now closed at the code/test/docs level, pending a fresh clean release gate.
+2. Run the full current-only language search for stale `planned`, `future`, old statuses, old paths, and obsolete migration wording across canonical docs.
+3. Apply the same fail-closed review to mutable trusted execution/configuration surfaces, beginning with Automation recipe discovery/import/review-to-run identity.
+4. Re-check known smaller seams, especially custom accent validation, rather than allowing documentation to normalize implementation drift.
+5. After each new safety correction, synchronize its architecture, operator/recovery, reference and hub/map surfaces before moving on.
 
-Two previous P0 concurrency gaps are now explicitly closed at the documentation-contract level:
+The most recent P0 protected-history tranche established and synchronized this rule:
+
+```text
+historical node ID alone
+        ≠
+proof of current safety identity
+
+recorded/captured links
+        ↓ exact check
+fresh destructive lease
+        ↓ exact check again
+state/history mutation
+```
+
+It now applies to modern primary branch deletion, protected `branch_create_v1` Undo, and protected `branch_delete_v1` Redo. Protected deletion Undo separately requires empty current link slots before restoring the recorded identity. Mixed-generation `app.db` + `agents_lineage_state.json` recovery therefore fails closed rather than being silently merged.
+
+The synchronized canonical set for that tranche is:
+
+```text
+architecture/agents-lineage.md
+architecture/agents-protected-history.md
+architecture/runtime-resource-safety.md
+architecture/persistence.md
+operations/troubleshooting.md
+operations/backup-reset-recovery.md
+docs/README.md
+```
+
+Two earlier P0 concurrency gaps are also closed at the documentation-contract level:
 
 ```text
 child/background lifetime
