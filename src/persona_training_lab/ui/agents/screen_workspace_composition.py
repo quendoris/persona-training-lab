@@ -737,8 +737,13 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         projection: LineagePresentationProjection,
     ) -> None:
         coordinator = self._lineage_refresh_coordinator
+        last_good = None if coordinator is None else coordinator.last_good
         snapshot_proven = (
-            coordinator is None or coordinator.last_good is not None
+            coordinator is None
+            or (
+                last_good is not None
+                and last_good.projection is projection
+            )
         )
         self._projection_safety_binding.reconcile(
             projection.resources,
