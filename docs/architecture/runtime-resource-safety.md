@@ -291,10 +291,41 @@ rather than deleting an unproven association.
 Persisted semantic lineage can change while Agents is open. Projection resource
 links are reconciled against a successfully built semantic projection.
 
+The screen distinguishes a worker **last-good build** from a projection that has
+actually crossed the runtime-safety publication boundary. A coordinator result is
+allowed to become the screen's active semantic projection only after its exact
+`projection.resources` set has been reconciled into
+`lineage_resource_links`.
+
+Current publication ordering is:
+
+```text
+proven immutable projection
+    ↓
+transactional projection-link reconciliation
+    │
+    ├─ failure -> rollback links; keep previous published projection
+    │
+    └─ success
+          ↓
+publish full/content UI generation
+          ↓
+commit accepted revision
+```
+
+Local branch/history redraws use the screen's already accepted
+`_real_projection`; they do not pull `coordinator.last_good` directly and
+therefore cannot bypass a failed safety reconciliation.
+
 A failed/unproven refresh is not treated as evidence that previously known
 projection nodes/resources disappeared. When a background refresh fails, Agents
-keeps its last-good projection where one exists and reports the incident instead
-of replacing the graph with partial state.
+keeps its last-good accepted projection where one exists and reports the incident
+instead of replacing the graph with partial state.
+
+If presentation publication fails after successful safety-link reconciliation,
+the registry can temporarily be conservatively newer than the visible graph.
+That direction can over-block but does not expose a new graph with stale safety
+identity.
 
 ## Error and diagnostic policy
 
