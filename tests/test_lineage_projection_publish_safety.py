@@ -18,6 +18,12 @@ class _StateSpy:
         return ()
 
 
+class _StateCapture(_StateSpy):
+    def apply(self, nodes):
+        self.calls += 1
+        return tuple(nodes)
+
+
 class _GraphSpy:
     def __init__(self) -> None:
         self.set_nodes_calls = 0
@@ -95,8 +101,7 @@ def test_local_rebuild_uses_only_screen_accepted_projection(
         signature=("worker-signature",),
         nodes=("worker-node",),
     )
-    state = _StateSpy()
-    state.apply = lambda nodes: tuple(nodes)  # type: ignore[method-assign]
+    state = _StateCapture()
     screen = SimpleNamespace(
         _lineage_refresh_coordinator=SimpleNamespace(
             last_good=SimpleNamespace(projection=unaccepted)
