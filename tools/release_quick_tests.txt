@@ -83,6 +83,7 @@ tests/test_agents_background_projection.py
 tests/test_agents_content_repaint.py
 tests/test_background_close_guard.py
 tests/test_lineage_projection_link_reconciliation.py
+tests/test_lineage_projection_publish_safety.py
 tests/test_lineage_runtime_policy.py
 tests/test_lineage_runtime_safety.py
 tests/test_lineage_projection_runtime_components.py
