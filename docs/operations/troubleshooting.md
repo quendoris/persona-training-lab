@@ -178,7 +178,7 @@ Do not interpret "only one Issues row" as proof that an error happened only once
 
 ## 7. Sensitive diagnostic context
 
-Application error context automatically redacts values when the context key contains terms such as:
+Application error context applies bounded recursive redaction through nested mappings and common collection containers. A value is replaced with `<redacted>` when its **mapping key name** contains one of the current sensitive tokens:
 
 ```text
 password
@@ -186,11 +186,18 @@ secret
 token
 api_key
 key_material
+authorization
+cookie
+credential
+private_key
+access_key
 ```
 
-That is a defensive filter, not a complete data-loss-prevention system.
+The traversal also has cycle/depth protection so diagnostic serialization does not recurse indefinitely.
 
-Other paths, IDs, model names, Dataset names, exception messages, command metadata, and arbitrary values can still be sensitive.
+This is still a defensive **key-name** filter, not a complete data-loss-prevention system. It does not inspect arbitrary string values for credential-like content, and exception messages/tracebacks are captured separately from this structured-context filter.
+
+Other paths, IDs, model names, Dataset names, exception messages, command metadata, stdout/stderr, and arbitrary values can still be sensitive.
 
 Review logs, databases, Automation output, model responses, Dataset samples, and complete environment dumps before sharing them.
 
@@ -783,6 +790,7 @@ Important pre-launch result codes include:
 ```text
 operation_blocked
 recipe_not_found
+recipe_stale
 recipe_invalid
 input_required
 input_unknown
@@ -793,6 +801,8 @@ audit_failed
 ```
 
 For `operation_blocked`, inspect runtime resource claims.
+
+For `recipe_stale`, the recipe selected/reviewed by the Automation UI no longer has the same semantic identity as the recipe resolved at Run time. PTL intentionally refuses the run **before acquiring its runtime lease and before launching a process**. Refresh the recipe registry, re-select the recipe, review the new command/inputs/resources/working directory/timeout, and run only if the new snapshot is intended. Do not bypass the mismatch by editing the stored review hash.
 
 For ad-hoc `host_effects_not_authorized`, explicitly review and authorize host effects if the command is truly intended.
 
