@@ -497,6 +497,38 @@ Failure rolls the transaction back.
 
 This ensures one graph refresh is built from one coherent persisted SQLite snapshot rather than four independently timed reads.
 
+### 36.1 Projection safety links are an acceptance boundary after the read snapshot
+
+A coherent semantic read is necessary but not sufficient for the screen to publish a new lineage generation.
+
+The background worker can successfully build generation N+1 and the coordinator can retain it as its worker `last_good`, while the main writable connection still needs to reconcile the derived `projection.resources` into `lineage_resource_links`.
+
+Current screen acceptance therefore orders:
+
+```text
+coherent read-only snapshot
+    -> immutable projection
+    -> transactional lineage_resource_links reconciliation
+    -> publish _real_projection / graph
+    -> commit accepted UI revision
+```
+
+`SQLiteLineageResourceLinksRepository.reconcile_projection_links(...)` replaces all current persisted-projection links and deletes stale persisted-projection node links inside one writable SQLite transaction. An insertion/constraint failure rolls back both replacements and stale deletes.
+
+The screen does not publish the new full/content projection if this reconciliation raises. Local branch/history redraws also use the screen's already accepted `_real_projection`, not a newer coordinator `last_good` that has not crossed the safety-link acceptance boundary.
+
+This separates two meanings that must not be conflated:
+
+```text
+worker last_good
+    = coherent semantic snapshot/projection built successfully
+
+screen accepted projection
+    = that projection's persisted safety links also reconciled successfully
+```
+
+If UI rendering fails after successful link reconciliation, the safety registry may be conservatively newer than the visible graph until retry. PTL prefers that fail-closed direction over showing newer lineage while keeping older destructive-safety links.
+
 ## 37. Agents local organization is a separate JSON layer
 
 Semantic source records remain SQLite-backed. Local research organization/history lives in:
@@ -691,7 +723,8 @@ Examples:
 - protected deletion Redo requires exact recorded/current identity before and after fresh destructive lease acquisition;
 - cross-store creation/deletion failures expose structured execution/committed errors when compensation/finalization itself also fails instead of hiding the partial outcome;
 - invalid persisted key-binding conflicts fall back to known defaults rather than activating ambiguous mappings;
-- failed background lineage refresh retains last-good projection in the UI integration layer.
+- failed background lineage refresh retains the previous accepted projection in the UI integration layer;
+- failed projection-link reconciliation rolls back the SQLite link transaction and prevents publication of the newer full/content projection generation.
 
 These are boundary-specific protections, not universal rollback.
 
@@ -802,14 +835,16 @@ Persistence changes must preserve these current rules unless the architecture/pr
 12. protected deletion Undo never overwrites non-empty unexplained current link slots for recorded deleted node IDs;
 13. protected deletion Redo verifies exact recorded/current safety identity before and after its fresh destructive lease;
 14. committed state/link removal is not documented as rolled back when only runtime-lease finalization failed;
-15. Training artifacts remain distinct from disposable cache;
-16. external Dataset/model/Automation dependencies remain visibly external when external;
-17. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
-18. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
-19. key-binding file format compatibility is not conflated with SQLite schema compatibility;
-20. schema compatibility claims do not exceed implemented additions;
-21. canonical machine status/identity is not replaced by localized display text;
-22. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
+15. a proven semantic projection is not published to the Agents graph before its persisted projection-resource links reconcile successfully;
+16. local Agents branch/history redraws do not bypass that acceptance boundary by reading an unaccepted coordinator `last_good` directly;
+17. Training artifacts remain distinct from disposable cache;
+18. external Dataset/model/Automation dependencies remain visibly external when external;
+19. Qt shell state remains documented outside workspace/SQLite while `WindowStateStore` uses QSettings;
+20. key bindings remain documented outside workspace/SQLite/QSettings while `KeyBindingManager.default_storage_path()` points to the user-home JSON;
+21. key-binding file format compatibility is not conflated with SQLite schema compatibility;
+22. schema compatibility claims do not exceed implemented additions;
+23. canonical machine status/identity is not replaced by localized display text;
+24. backup/recovery docs are updated whenever a persistence location/atomicity boundary moves.
 
 ## 57. Audit questions for future persistent features
 
