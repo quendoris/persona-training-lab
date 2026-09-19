@@ -638,6 +638,11 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self,
         projection: LineagePresentationProjection,
     ) -> None:
+        # Publish a proven semantic projection only after its persisted
+        # destructive-safety identity is reconciled. A reconciliation failure
+        # must leave the previously published UI generation in place.
+        self._reconcile_projection_resources(projection)
+
         selected = getattr(self, "_selected_node_id", "")
         self._real_projection = projection
         self._real_projection_signature = projection.signature
@@ -651,7 +656,6 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
             if selected not in node_ids and self._lineage_nodes:
                 selected = self._lineage_nodes[0].node_id
             self._selected_node_id = selected
-        self._bind_projection_resources()
         if selected:
             self._select_node(selected)
 
@@ -726,6 +730,12 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         projection = self._real_projection
         if projection is None:
             return
+        self._reconcile_projection_resources(projection)
+
+    def _reconcile_projection_resources(
+        self,
+        projection: LineagePresentationProjection,
+    ) -> None:
         coordinator = self._lineage_refresh_coordinator
         snapshot_proven = (
             coordinator is None or coordinator.last_good is not None
@@ -990,6 +1000,11 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         result: LineageRefreshResult,
     ) -> bool:
         projection = result.projection
+        # Keep the same safety-first publication rule for content-only
+        # refreshes. The graph must not expose a new semantic generation while
+        # SQLite still describes the previous destructive-safety identity.
+        self._reconcile_projection_resources(projection)
+
         next_nodes = self._state.apply(
             build_version_lineage(projection.nodes)
         )
@@ -1001,7 +1016,6 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         self._real_projection = projection
         self._real_projection_signature = projection.signature
         self._lineage_nodes = next_nodes
-        self._bind_projection_resources()
         if selected and self._node_by_id(selected) is not None:
             self._select_node(selected)
         return True
