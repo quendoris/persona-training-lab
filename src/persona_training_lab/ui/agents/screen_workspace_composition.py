@@ -175,13 +175,13 @@ class AgentsScreen(_WorkspacePresentationAgentsScreen):
         coordinator = self._lineage_refresh_coordinator
         if coordinator is None:
             projection = build_lineage_projection(self._vm)
+            self._reconcile_projection_resources(projection)
         else:
-            result = coordinator.last_good
-            projection = (
-                result.projection
-                if result is not None
-                else build_empty_lineage()
-            )
+            # Worker last_good means "successfully built", not
+            # "accepted by the screen safety boundary". Local branch/history
+            # rebuilds must use only the projection already published after
+            # successful safety-link reconciliation.
+            projection = self._real_projection or build_empty_lineage()
         self._real_projection = projection
         self._real_projection_signature = projection.signature
         return self._state.apply(
