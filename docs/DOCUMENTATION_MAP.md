@@ -60,6 +60,28 @@ The useful scale statement is now evidence-backed rather than approximate:
 - **H — historical:** retained as project history; must not override current docs.
 - **G — gap:** dedicated documentation is still needed or current coverage is too indirect for a project of this size.
 
+### Current coverage snapshot
+
+Across the explicit coverage-table rows in this map, the current state is:
+
+| Status | Rows | Share of implemented/current rows |
+|---|---:|---:|
+| **A — audited/current** | **30** | **75.0%** |
+| **B — covered/current** | **7** | **17.5%** |
+| **C — distributed coverage** | **3** | **7.5%** |
+| **R — research/proposed** | **2** | separate from the implemented/current denominator |
+
+There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
+
+```text
+strictly audited/closed now:      30 / 40 = 75.0%
+current coverage at least B:      37 / 40 = 92.5%
+still distributed current scope:   3 / 40 =  7.5%
+research/proposed:                  2 rows, not counted as v1.0 closure debt
+```
+
+The 92.5% figure must not be reported as “92.5% release complete”: status B still contains real polish/evidence/edge-case work, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
+
 ## 4. User-facing workflow coverage
 
 | Surface | Status | Current authority | Remaining work |
@@ -72,8 +94,8 @@ The useful scale statement is now evidence-backed rather than approximate:
 | Model versions / Snapshots | B | `user-guide/snapshots.md` | stronger artifact/provenance examples; final lifecycle consistency review |
 | Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | protected create/delete/Undo/Redo exact-identity tranche is documented; continue remaining projection/runtime-link reconciliation audit |
 | Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | screenshots; future bridge to richer training-dynamics evidence |
-| Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | next P0 trust/fail-closed audit target; final consistency/visual pass |
-| Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | custom accent validation remains a known code seam; re-check if fixed |
+| Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | review-to-run semantic identity now fails closed with `recipe_stale`; targeted pytest/Ruff/i18n evidence exists; final clean-gate/visual pass remains |
+| Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | strict `#RRGGBB` custom-accent write validation is implemented and targeted-tested; final visual/release pass remains |
 | Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
@@ -107,13 +129,13 @@ The useful scale statement is now evidence-backed rather than approximate:
 | UI shell / lifecycle | A | `architecture/ui-shell.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md` | final screenshot-independent diagrams and cross-document consistency pass |
 | Agents lineage | A | `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | exact protected-history identity/TOCTOU tranche complete; continue projection-resource reconciliation and other remaining cross-store race review |
 | Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, `architecture/agents-protected-history.md` | primary delete/create-Undo/delete-Redo pre/post-lease identity rules synchronized; continue audit of any other destructive resource paths |
-| Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | manifest contract is mechanical; next P0 target is mutable trusted-config review-to-run/fail-closed audit |
+| Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | mutable manifest review-to-run identity is now bound by a semantic SHA-256 expectation and fails closed before lease/process launch; transitive executable provenance remains explicitly outside this guarantee |
 | Localization | A | `architecture/localization.md` | no major gap currently |
 | Evaluation / Analysis | B | `reference/evaluation-contract.md`, methodology docs | optional dedicated architecture page only if orchestration becomes more complex |
 | Training implementation | A | `training_pipeline.md` | current backend is full-parameter training; avoid projecting proposed dynamics math onto current v1.0 behavior |
 | Training Dynamics mathematics | R | `architecture/training-dynamics-mathematics.md` | sources/derivations and implementation design can continue to grow without claiming runtime support |
 | Training Dynamics instrumentation | R | `architecture/training-dynamics-instrumentation.md` | define artifact schema, sampling tiers, structural signatures, probe battery, storage cost budget |
-| Telemetry architecture | C | shell/troubleshooting + telemetry code | **G:** dedicated page before telemetry becomes research evidence |
+| Telemetry architecture | B | `architecture/telemetry.md`, troubleshooting, telemetry code/tests | dedicated current semantics now exist; new service-semantic tests are in the quick inventory but still need fresh execution, and synchronous GUI-thread provider latency remains an explicit v1 boundary |
 | `WorkflowSupervisor` abstraction | A | `architecture/background-work-lifecycle.md`, audited `application/workflows/*` | current role is only a small in-memory state registry; do not describe it as worker/runtime authority; decide later whether naming/scaffolding should remain |
 | Error reporting/event log | A | `reference/event-and-diagnostic-schema.md`, troubleshooting/security/persistence | payload, dedup, rotation, Operations Center projection and privacy limits have one authority |
 
@@ -147,6 +169,19 @@ The developer layer is largely complete:
 `tools/codebase_stats.py` makes measurement provenance explicit: human and JSON output identify repository root, branch, full/short commit, upstream and dirty state; untracked files remain outside `git ls-files` statistics but are reported in provenance. The clean `69ef4d28...` run provides the frozen scale baseline instead of an estimate.
 
 The current branch is **not** relabelled release-green after the protected-history audit. Python behavior and regression inventory changed after the frozen baseline, so fresh clean candidate evidence is still required.
+
+Targeted local evidence supplied for commit `015952d669802fe8234432b78edd7149f8c5b2bb` established a narrower checkpoint for the Automation review-identity + strict custom-accent tranche:
+
+```text
+targeted pytest: 74 passed
+targeted Ruff:    All checks passed
+i18n audit:       PASS
+catalog keys:     1518
+referenced keys:  1449
+hard-coded UI literals: 0
+```
+
+The supplied typing-audit output showed the known informational suppression inventory, but the captured image did not expose its final summary line; this map therefore does not promote that screenshot into a fresh full typing/release claim. Later Telemetry documentation/test commits also move HEAD beyond `015952d...`, so the targeted checkpoint is evidence for those two tranches, **not** current-HEAD release evidence.
 
 Remaining work is predominantly **final-candidate evidence population**, not missing prose:
 
@@ -199,11 +234,33 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 
 ### P0 — continue code-as-documentation architecture audit
 
-1. Continue the remaining Agents projection/resource-link reconciliation and cross-store race audit; the modern protected branch create/delete/Undo/Redo exact-identity tranche is now closed at the code/test/docs level, pending a fresh clean release gate.
-2. Run the full current-only language search for stale `planned`, `future`, old statuses, old paths, and obsolete migration wording across canonical docs.
-3. Apply the same fail-closed review to mutable trusted execution/configuration surfaces, beginning with Automation recipe discovery/import/review-to-run identity.
-4. Re-check known smaller seams, especially custom accent validation, rather than allowing documentation to normalize implementation drift.
-5. After each new safety correction, synchronize its architecture, operator/recovery, reference and hub/map surfaces before moving on.
+1. Continue the remaining Agents projection/resource-link reconciliation and cross-store race audit; the modern protected branch create/delete/Undo/Redo exact-identity tranche is closed at the code/test/docs level, pending a fresh clean release gate.
+2. Finish the current-only language search for stale `planned`, `future`, old statuses, old paths, obsolete migration wording, and current docs that still describe already-fixed seams.
+3. Complete the new Telemetry tranche: execute its service-semantic regression file, then decide from evidence whether synchronous GUI-thread provider collection remains an accepted v1 responsiveness boundary or warrants a worker-lifecycle correction before freeze.
+4. Continue checking mutable external/provenance boundaries (model directories, Dataset bytes, Automation dependencies, exports/artifacts) for accidental stronger claims than the code actually proves.
+5. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
+
+Two P0 items that were still open in the previous revision are now **closed at targeted code/test/documentation level**:
+
+```text
+Automation recipe review-to-run identity
+    reviewed semantic snapshot
+        -> expected SHA-256 identity
+        -> re-resolve current recipe
+        -> mismatch => recipe_stale
+        -> no runtime lease
+        -> no process launch
+
+Custom accent write validation
+    exact #RRGGBB only
+        -> canonical lowercase persisted custom value
+    otherwise
+        -> selected named accent
+    legacy/external invalid persisted value
+        -> renderer keeps defensive cyan fallback
+```
+
+The targeted `015952d...` local run reported 74 pytest passes, targeted Ruff success, and a passing i18n audit for the Automation/Style tranche. This is intentionally narrower than a current clean quick/full release gate.
 
 The most recent P0 protected-history tranche established and synchronized this rule:
 
@@ -248,7 +305,7 @@ The preference audit found no reason to invent a v1.0 migration: ordinary defaul
 ### P1 — close distributed coverage only where it improves use
 
 1. operator-facing Operations Center page only if user testing shows the current interface-tour/troubleshooting/reference split is hard to navigate;
-2. dedicated Telemetry architecture/semantics before telemetry is used as research evidence;
+2. Telemetry now has dedicated architecture/semantics; keep it operator-only until a separate versioned/persisted Training Dynamics measurement contract exists;
 3. dedicated Dashboard/Projects workflow only if those surfaces become more than orientation/projection.
 
 ### P2 — usability and evidence
