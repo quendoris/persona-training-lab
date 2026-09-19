@@ -92,7 +92,7 @@ The 92.5% figure must not be reported as “92.5% release complete”: status B 
 | Datasets | A | `user-guide/datasets.md`, `training_pipeline.md` | final import/validation examples and screenshots |
 | Training | A | `user-guide/training.md`, `training_pipeline.md` | reconcile future dynamics instrumentation with current v1.0 boundaries |
 | Model versions / Snapshots | B | `user-guide/snapshots.md` | stronger artifact/provenance examples; final lifecycle consistency review |
-| Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | protected create/delete/Undo/Redo exact-identity tranche is documented; continue remaining projection/runtime-link reconciliation audit |
+| Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | protected history is documented; safety-first projection/resource-link publication is implemented/documented with a dedicated regression file, pending local execution and the remaining race/provenance pass |
 | Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | screenshots; future bridge to richer training-dynamics evidence |
 | Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | review-to-run semantic identity now fails closed with `recipe_stale`; targeted pytest/Ruff/i18n evidence exists; final clean-gate/visual pass remains |
 | Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | strict `#RRGGBB` custom-accent write validation is implemented and targeted-tested; final visual/release pass remains |
@@ -122,12 +122,12 @@ The 92.5% figure must not be reported as “92.5% release complete”: status B 
 |---|---|---|---|
 | System composition / layers | A | `architecture/overview.md` | final top-down consistency pass against composition root |
 | System scale / anatomy | A | `architecture/system-scale.md` | regenerate exact metrics for final clean release candidate; compare history only with compatible counting rules |
-| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | protected-history cross-store identity synchronized; continue remaining transaction/race audit |
+| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | protected-history and projection-link acceptance boundaries are synchronized; continue remaining external-artifact/provenance and transaction/race audit |
 | Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md`, `architecture/preference-persistence.md` | workspace writer model and external preference-store boundary are separated; keep synchronized if process model changes |
 | Preference persistence / scope | A | `architecture/preference-persistence.md` | SQLite Style, QSettings shell state and user-home bindings have explicit scope/write/backup limits; no rationale invented for current placement |
 | Background work / shutdown ownership | A | `architecture/background-work-lifecycle.md` | current QThread/runtime-operation/workspace-lease roles are separated; re-audit every new long-running feature |
 | UI shell / lifecycle | A | `architecture/ui-shell.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md` | final screenshot-independent diagrams and cross-document consistency pass |
-| Agents lineage | A | `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | exact protected-history identity/TOCTOU tranche complete; continue projection-resource reconciliation and other remaining cross-store race review |
+| Agents lineage | A | `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | exact protected-history identity/TOCTOU is complete; new semantic projections now reconcile safety links before publication and local redraws use only the accepted projection; execute the new regression tranche and continue remaining cross-store race review |
 | Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, `architecture/agents-protected-history.md` | primary delete/create-Undo/delete-Redo pre/post-lease identity rules synchronized; continue audit of any other destructive resource paths |
 | Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | mutable manifest review-to-run identity is now bound by a semantic SHA-256 expectation and fails closed before lease/process launch; transitive executable provenance remains explicitly outside this guarantee |
 | Localization | A | `architecture/localization.md` | no major gap currently |
@@ -234,7 +234,7 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 
 ### P0 — continue code-as-documentation architecture audit
 
-1. Continue the remaining Agents projection/resource-link reconciliation and cross-store race audit; the modern protected branch create/delete/Undo/Redo exact-identity tranche is closed at the code/test/docs level, pending a fresh clean release gate.
+1. Execute the new Agents projection-publication regression tranche, then continue the remaining cross-store race audit. The code now distinguishes worker `last_good` from screen-accepted projection and reconciles persisted safety links before publishing full/content generations.
 2. Finish the current-only language search for stale `planned`, `future`, old statuses, old paths, obsolete migration wording, and current docs that still describe already-fixed seams.
 3. Complete the new Telemetry tranche: execute its service-semantic regression file, then decide from evidence whether synchronous GUI-thread provider collection remains an accepted v1 responsiveness boundary or warrants a worker-lifecycle correction before freeze.
 4. Continue checking mutable external/provenance boundaries (model directories, Dataset bytes, Automation dependencies, exports/artifacts) for accidental stronger claims than the code actually proves.
@@ -261,6 +261,25 @@ Custom accent write validation
 ```
 
 The targeted `015952d...` local run reported 74 pytest passes, targeted Ruff success, and a passing i18n audit for the Automation/Style tranche. This is intentionally narrower than a current clean quick/full release gate.
+
+A newer Agents projection-publication tranche is now implemented/documented but **not yet promoted to executed evidence**:
+
+```text
+worker builds coherent projection
+        ↓
+transactionally reconcile projection resource links
+        │
+        ├─ failure -> keep previous accepted UI generation
+        │
+        └─ success -> publish full/content projection
+                       -> commit accepted revision
+
+local branch/history redraw
+        -> use screen accepted _real_projection
+        -> never consume a newer unaccepted worker last_good directly
+```
+
+The dedicated regression file is `tests/test_lineage_projection_publish_safety.py` and is included in the quick-test inventory. Until it is run locally, this tranche remains code+docs+test-definition evidence rather than executed evidence.
 
 The most recent P0 protected-history tranche established and synchronized this rule:
 
