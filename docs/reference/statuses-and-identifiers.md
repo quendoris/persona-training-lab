@@ -981,7 +981,56 @@ Application payload: exception type/message/traceback/context/fingerprint
 
 This separation lets UI/automation branch on stable outcomes without pretending every internal exception string is a versioned public API.
 
-## 38. Developer rules
+## 38. Telemetry status contract
+
+Telemetry exposes a small operator-diagnostic vocabulary through `TelemetrySnapshot`.
+
+Current machine codes are:
+
+```text
+normal
+high_load
+gpu_unavailable
+processes_unavailable
+active
+refresh_failed
+```
+
+They appear in distinct snapshot fields:
+
+```text
+cpu_status_code
+gpu_status_code
+processes_status_code
+status_code
+error_code
+```
+
+Current threshold semantics are:
+
+```text
+CPU >= 85% -> high_load
+GPU >= 90% -> high_load
+```
+
+A base-system collection failure returns a safe snapshot with:
+
+```text
+status_code           = active
+error_code            = refresh_failed
+gpu_status_code       = gpu_unavailable
+processes_status_code = processes_unavailable
+```
+
+A GPU-only provider failure preserves available CPU/RAM/process metrics and reports `gpu_unavailable`.
+
+An empty/unavailable process sample preserves other metrics and reports `processes_unavailable`.
+
+These values are **operator Telemetry codes**. They are not Training statuses, runtime-operation states, local-model health states, or persisted historical measurement identities.
+
+See [Telemetry architecture](../architecture/telemetry.md) for collection and evidence boundaries.
+
+## 39. Developer rules
 
 When adding or changing a machine-semantic surface:
 
@@ -997,7 +1046,7 @@ When adding or changing a machine-semantic surface:
 10. keep `unknown` visible rather than silently mapping novel values to a misleading known state;
 11. distinguish persisted entity identity, transient safety identity and durable audit fingerprints when all three exist in one subsystem.
 
-## 39. Audit checklist
+## 40. Audit checklist
 
 For a new state/result/identifier, verify:
 
