@@ -432,7 +432,7 @@ If shutdown never completes, collect the owning workspace, operation ID/status, 
 
 ## 18. Telemetry is unavailable or incomplete
 
-Telemetry is diagnostic support, not a prerequisite for the rest of PTL.
+Telemetry is diagnostic support, not a prerequisite for the rest of PTL. For the exact provider/sampling/failure contract, see [Telemetry architecture](../architecture/telemetry.md).
 
 Current semantic states include:
 
@@ -452,6 +452,10 @@ If only GPU collection fails, GPU metrics become `gpu_unavailable` while base CP
 If process rows are unavailable, that state is represented separately.
 
 Do not interpret missing NVIDIA telemetry as proof that local inference cannot run. Model execution and telemetry collection have different provider paths.
+
+Current panel refresh is also **not** a background sampling pipeline: provider collection runs synchronously on the Qt GUI thread. The normal psutil CPU sample uses a 0.1-second interval, and a problematic NVIDIA-SMI call can wait up to its one-second timeout. A short UI delay around a Telemetry refresh can therefore be provider latency rather than a deadlock. Preserve the exact provider/status evidence before treating that delay as a general shell failure.
+
+Current Telemetry samples are in-memory live diagnostics. They are not persisted time-series/run/checkpoint evidence and should not be used as Training Dynamics measurements.
 
 ## 19. CPU/GPU load during Training or inference
 
