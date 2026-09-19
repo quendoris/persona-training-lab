@@ -222,15 +222,25 @@ Ad-hoc execution fails closed when audit is unavailable or the start-audit recor
 
 Audit rows can still reveal sensitive operational metadata such as paths, resource IDs, environment key names, errors, subjects, and timing information.
 
-### 10.7 Recipe mutability/provenance boundary
+### 10.7 Recipe review identity / provenance boundary
 
-Recipe IDs/versions are metadata, not signed/content-addressed execution identities.
+Recipe IDs/versions are metadata, not signed or durable content-addressed execution identities.
 
-The Automation UI can display one discovered workspace recipe snapshot while `run_recipe()` reloads the recipe by ID before execution. v1.0 does not cryptographically pin the displayed manifest to the later Run click.
+The reviewed Automation UI path now remembers a SHA-256 identity of the normalized `AutomationRecipe` snapshot that was supplied for review. On Run, `run_recipe()` resolves the current recipe once and compares the fresh normalized semantics with that expected identity **before input rendering, runtime-lease acquisition, audit-start recording, or process launch**.
+
+A semantic mismatch returns:
+
+```text
+recipe_stale
+```
+
+and the process is not launched. Keeping the same recipe ID/version does not bypass the check.
+
+This is a narrow fail-closed review-to-run guard, not durable provenance. The identity is in-memory UI/view-model state; it is not a signed manifest revision, author authentication mechanism, persisted content address, or hash of every executable/script/data dependency.
 
 Operators must Refresh/review after recipe edits and preserve exact manifest/tool/data revisions separately when exact reproducibility matters.
 
-The Automation command SHA-256 identifies the command snapshot PTL launched; it is not a transitive hash of every executable/script/data file that command can consume.
+The Automation command SHA-256 identifies the rendered command snapshot that reached execution/audit construction. It is distinct from the recipe review identity and is not a transitive hash of every executable/script/data file that command can consume.
 
 ## 11. Runtime safety contract
 
@@ -267,20 +277,30 @@ The v1.0 lineage contract includes:
 
 A custom `branch_00N` is local research structure. Creating, renaming, archiving, or removing that branch does not by itself create/delete a persisted trained model or artifact.
 
-### Protected branch deletion
+### Protected branch creation/deletion history
+
+Modern destructive lineage history is bound to exact safety identity rather than node ID alone.
 
 Normal custom-branch deletion:
 
 1. plans the complete current subtree;
-2. acquires a fresh `lineage_delete` runtime lease;
-3. records exact linked-resource metadata for history;
-4. mutates local state;
-5. removes persisted lineage-resource links;
-6. finalizes the lease.
+2. captures the exact current `lineage_resource_links` identity for the deletion plan;
+3. verifies that identity before lease acquisition;
+4. acquires a fresh `lineage_delete` runtime lease;
+5. verifies the **same captured identity again** after lease acquisition;
+6. stages `branch_delete_v1` history metadata;
+7. mutates local state and removes persisted lineage-resource links;
+8. finalizes the lease.
 
-Undo restores resource links before restoring the visible lineage/history snapshot.
+If resource-link identity drifts during guard acquisition, the deletion fails closed instead of recording/mutating against a different safety generation.
 
-Redo is **not** blind JSON replay: it obtains a fresh runtime deletion lease and consumes the existing redo entry. Therefore an operation started after Undo can legitimately block Redo, and history is not a bypass around runtime safety.
+Protected `branch_delete_v1` Undo restores recorded resource links only when the supposedly deleted node IDs have empty current link slots; unexplained non-empty links are preserved as a mismatch rather than overwritten.
+
+Protected `branch_delete_v1` Redo is **not** blind JSON replay: recorded links must equal current links before and after a fresh destructive lease is acquired. A runtime blocker or identity/subtree mismatch leaves the destructive history transition unconsumed.
+
+Protected `branch_create_v1` Undo applies the same pre/post-lease exact-link comparison before removing the created branch and its links.
+
+Therefore a matching historical node ID is not by itself proof that old destructive history still describes the current resource identity. Mixed-generation `app.db` + `agents_lineage_state.json` state is expected to fail closed rather than be silently reconciled.
 
 Registered model-version rows and physical artifacts are not destructively removed by the local custom-branch delete command.
 
@@ -328,7 +348,7 @@ v1.0 does not claim exhaustive proof of:
 - maximum Automation concurrency/process-tree complexity;
 - malicious/untrusted-code containment for Automation;
 - filesystem/network isolation of Automation commands;
-- cryptographic signing/content-pinning of Automation recipe manifests;
+- cryptographic signing or durable content-addressing of Automation recipe manifests/dependencies;
 - transitive hashing of Automation executables/scripts/data dependencies;
 - extreme SQLite contention beyond audited contracts;
 - arbitrary model sizes/architectures;
