@@ -657,7 +657,13 @@ Check:
 3. Issues/log evidence for a refresh failure;
 4. whether the visible object is a canonical alias/placeholder rather than the real entity.
 
-A failed background refresh intentionally keeps the last successful projection when one exists. Seeing old-but-consistent lineage can therefore be safer behavior than replacing it with a partial/broken projection.
+A failed background refresh intentionally keeps the last successfully **accepted** projection when one exists. Seeing old-but-consistent lineage can therefore be safer behavior than replacing it with a partial/broken projection.
+
+There is a second acceptance boundary after the worker successfully builds a coherent snapshot: the new projection's persisted `lineage_resource_links` must reconcile successfully before the full/content graph generation is published. If that reconciliation fails, the SQLite link transaction rolls back and the previous visible projection is retained rather than exposing a new graph with old destructive-safety links.
+
+The coordinator can already hold the newer worker result as `last_good`; that does not mean the screen has accepted it. Local branch/history redraws use the screen's already accepted projection and must not bypass this boundary through the newer worker result.
+
+If the graph looks intentionally unchanged after a refresh-related database error, preserve the incident/log evidence and inspect SQLite availability/constraints rather than deleting `lineage_resource_links` manually. A later successful refresh can retry the acceptance path.
 
 ## 32. Agents destructive history action is blocked, stale, or refuses to run
 
@@ -1180,9 +1186,11 @@ Changes to diagnostics/recovery should preserve these rules unless the product c
 10. background workers must remain owned through workspace/application shutdown;
 11. whole-workspace persistence must remain distinguishable from external Dataset/model/Automation dependencies;
 12. Agents protected-history recovery must preserve/restore the matching SQLite + Agents JSON pair rather than inventing cross-snapshot provenance;
-13. destructive reset/cleanup must not be presented as the default fix for an unclassified incident;
-14. troubleshooting documentation must distinguish a controlled integrity rejection from corruption;
-15. documentation must be updated when status/result/error/recovery behavior changes.
+13. a newly built Agents projection must not be treated as screen-accepted before its persisted projection-resource links reconcile successfully;
+14. local branch/history redraws must not bypass a failed projection-link reconciliation by consuming a newer worker `last_good`;
+15. destructive reset/cleanup must not be presented as the default fix for an unclassified incident;
+16. troubleshooting documentation must distinguish a controlled integrity rejection from corruption;
+17. documentation must be updated when status/result/error/recovery behavior changes.
 
 ## Next steps
 
