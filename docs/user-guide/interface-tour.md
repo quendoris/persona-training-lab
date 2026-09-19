@@ -74,7 +74,11 @@ Activity is the operational surface for work occurring in the application. It is
 
 ### Telemetry
 
-Telemetry presents system observations from the available telemetry providers, including general process/system data and NVIDIA GPU information when NVIDIA-SMI data is available.
+Telemetry presents **live operator diagnostics** from the available telemetry providers: CPU/RAM, a small top-process sample, and NVIDIA GPU/VRAM/temperature information when the NVIDIA-SMI provider succeeds.
+
+The current panel keeps only the latest in-memory snapshot; it is not a persisted historical time series and is not Training Dynamics evidence. On multi-GPU NVIDIA systems the current provider parses the first NVIDIA-SMI output row rather than presenting a complete device inventory.
+
+For exact thresholds, refresh/failure behavior, provider timing, privacy, and research-evidence limits, see [Telemetry architecture](../architecture/telemetry.md).
 
 ### Issues
 
