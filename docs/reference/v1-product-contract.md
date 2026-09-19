@@ -272,6 +272,8 @@ The v1.0 lineage contract includes:
 - explicit runtime links between lineage nodes and real resources;
 - inherited runtime identity for newly created custom branches;
 - last-good background projection retention when a refresh fails;
+- safety-first projection publication: a proven new projection does not replace the screen's accepted generation until its persisted `lineage_resource_links` reconciliation succeeds;
+- local branch/history redraws use the already accepted screen projection rather than bypassing that boundary through a newer worker `last_good`;
 - presentation/localization refreshes that do not silently replace semantic projection identity;
 - protocol-compatible Delta semantics shared with Analysis.
 
