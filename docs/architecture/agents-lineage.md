@@ -296,7 +296,32 @@ The projection safety binding reconciles projection resource links against the l
 
 A failed/unproven background load must not be used as evidence that previously known persisted projection links disappeared.
 
-This prevents a transient refresh failure from accidentally weakening runtime safety.
+For a **proven new projection**, publication is now deliberately safety-first:
+
+```text
+worker produces coherent SQLite snapshot + immutable projection
+        ↓
+reconcile projection.resources into lineage_resource_links
+        │
+        ├─ failure -> SQLite reconciliation rolls back;
+        │             keep previously published UI projection
+        │
+        └─ success
+              ↓
+publish new _real_projection / graph content
+              ↓
+commit projection revision in ProjectionUpdatePlanner
+```
+
+The same ordering applies to both full graph replacement and content-only updates. The screen must not expose semantic generation N+1 while persisted destructive-safety links still describe generation N.
+
+`SQLiteLineageResourceLinksRepository.reconcile_projection_links(...)` performs current-link replacements and stale persisted-projection deletion in one SQLite transaction. A failure therefore preserves the previous link generation rather than partially applying the next one.
+
+If UI publication itself fails **after** successful safety reconciliation, the safety registry can temporarily be more conservative/newer than the visible graph. That direction is intentionally fail-closed: stale/newer safety metadata may over-block an action, but the previous dangerous direction—new UI with old safety identity—is not accepted.
+
+A later accepted refresh can retry normal projection publication. The coordinator's `last_good` remains a successfully built semantic snapshot; publication safety is a separate UI/persistence acceptance boundary.
+
+This prevents both a transient refresh failure and a safety-link persistence failure from accidentally weakening destructive runtime protection.
 
 ## 13. Custom-branch creation and inheritance
 
@@ -709,9 +734,11 @@ A failed background refresh must not replace coherent lineage with a partial/emp
 
 Where projection identity/geometry is unchanged, Agents can update node content without rebuilding the entire graph.
 
-If the graph cannot safely apply the content-only update, the screen falls back to a full projection update.
+The content-only path still performs projection-resource reconciliation **before** calling the graph content updater. A reconciliation exception therefore leaves the previously published projection/content in place.
 
-After a successful update, projection resources are rebound/reconciled and the selected node detail is refreshed.
+If reconciliation succeeds but the graph cannot safely apply the content-only update, the screen falls back to a full projection update. The same semantic resource set may be reconciled again on that fallback; the repository operation is replacement/reconciliation, not an append-only duplication.
+
+After successful publication, the selected node detail is refreshed and the accepted revision is committed to the update planner.
 
 ## 24. Localization boundary
 
@@ -792,6 +819,8 @@ Agents uses several independent containment mechanisms:
 | protected deletion Undo state restore fails after exact link restoration | compensate only the links restored by that Undo attempt |
 | protected deletion Redo safety identity differs before/during lease | return `STALE`; cancel acquired lease when needed; keep redo pending |
 | protected deletion Redo becomes blocked | keep branch, links, and redo entry intact |
+| proven projection resource reconciliation fails | roll back SQLite reconciliation; do not publish new full/content projection generation |
+| UI publication fails after successful projection-link reconciliation | safety registry may remain conservatively newer than visible graph until retry; do not roll safety identity backward merely to match a failed presentation update |
 | localization refresh | presentation-only; semantic projection signature invariant |
 
 ## 29. v1.0 operating boundaries
@@ -820,6 +849,7 @@ Changes to Agents should preserve regression coverage for at least these contrac
 - atomic semantic snapshot;
 - persisted stable Training input IDs in lineage;
 - projection identity/resource reconciliation;
+- safety-first full/content projection publication when link reconciliation fails;
 - last-good background refresh behavior;
 - local state atomic persistence;
 - custom branch inheritance;
