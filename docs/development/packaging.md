@@ -32,7 +32,7 @@ Then build:
 uv build
 ```
 
-The current full release gate uses the same `uv build` command as its final blocking step.
+The current full release gate runs the same `uv build` command and then executes a blocking repository-local package-content audit.
 
 Build output is normally written under:
 
@@ -121,7 +121,7 @@ At minimum, packaging work should verify:
 6. core installation does not accidentally require optional local-model stacks;
 7. installed-package startup/documentation lookup is exercised before calling packaging complete.
 
-The current release gate directly proves item 1 only as a blocking build step. The remaining distribution-inspection checks should be performed explicitly until automated package-content tests cover them.
+The current full release gate directly proves items 1–5 for the built artifacts through `uv build` plus `tools/package_audit.py`, and also verifies that repository-only `tests/` or `tools/` roots did not enter the runtime wheel. Installed-environment startup and clean/existing-profile smoke remain separate acceptance work.
 
 ## Native desktop packaging
 
@@ -131,7 +131,7 @@ Those would be separate packaging layers with their own trust, filesystem, Qt pl
 
 ## Relationship to release validation
 
-In the full release gate, `uv build` is blocking and occurs after compile, lint, typing, pytest, i18n, documentation-audit and codebase-statistics steps.
+In the full release gate, `uv build` is blocking and occurs after compile, lint, typing, pytest, i18n, documentation-audit and codebase-statistics steps. A blocking package-audit step then inspects the generated wheel/sdist contents and metadata.
 
 The quick release profile intentionally skips build. Therefore a quick-gate PASS is not packaging evidence.
 

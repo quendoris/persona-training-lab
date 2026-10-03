@@ -13,6 +13,7 @@ tools/
 ├── codebase_stats.py
 ├── docs_audit.py
 ├── i18n_audit.py
+├── package_audit.py
 ├── release_gate.py
 ├── release_quick_tests.txt
 ├── typing_audit.py
@@ -125,6 +126,14 @@ The JSON form records total, blocking, informational and per-finding details.
 ### Reuse boundary
 
 The scanner/classifier mechanics are separable from policy in principle, but PTL's exact blocking policy is product/release policy. No independently versioned typing-suppression snippet is part of PTL's current dependency or release contract.
+
+## `package_audit.py`
+
+The package audit validates the distributions produced by the full release build rather than treating a successful `uv build` exit code as sufficient packaging proof.
+
+For the current package version it requires exactly one matching wheel and source distribution, verifies wheel metadata Name/Version, compares bundled files against the current repository `docs/`, localization catalogs and UI assets, checks `LICENSE`/`NOTICE`/`AUTHORS` presence in both wheel and sdist, and rejects repository-only `tests/` or `tools/` roots in the runtime wheel.
+
+It is a blocking full-gate step executed after `uv build`. Its unit tests are part of the quick pytest inventory, but quick mode does not build or inspect an actual distribution.
 
 ## `release_quick_tests.txt`
 
@@ -271,6 +280,7 @@ These relationships record engineering provenance, not dependency edges. PTL doe
 | release audit orchestration | none in the PTL dependency graph | local `release_gate.py` is authoritative |
 | `typing_audit.py` scanner/policy | none in the PTL dependency graph | local tool/policy is authoritative |
 | `docs_audit.py` documentation/runtime-topic/package-path audit | none in the PTL dependency graph | local release audit is authoritative |
+| `package_audit.py` built wheel/sdist content audit | none in the PTL dependency graph | local full-release audit is authoritative |
 | font vendoring integrity flow | none in the PTL dependency graph | local font-vendoring tool is authoritative |
 | `i18n_audit.py` | none in the PTL dependency graph | local localization audit is authoritative |
 

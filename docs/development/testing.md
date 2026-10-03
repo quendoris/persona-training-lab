@@ -180,7 +180,7 @@ Its current validation sequence is:
 6. documentation audit;
 7. codebase statistics.
 
-The quick profile deliberately omits full mypy and package build. Documentation audit is blocking in both quick and full profiles. The quick profile is useful for repeated high-confidence development checks, but it is not the final release proof.
+The quick profile deliberately omits full mypy, package build and inspection. Documentation audit is blocking in both quick and full profiles. Package-audit unit tests remain in the quick pytest inventory, while inspection of the actual built artifacts is full-gate only. The quick profile is useful for repeated high-confidence development checks, but it is not the final release proof.
 
 ## Full release profile
 

@@ -85,7 +85,8 @@ The full profile currently blocks on this sequence. Its final `uv build` writes 
 6. i18n audit;
 7. documentation audit;
 8. codebase statistics;
-9. `uv build`.
+9. `uv build`;
+10. built-package audit over the resulting wheel/sdist.
 
 No current step is informational-only in the full profile.
 
@@ -138,15 +139,16 @@ See [Visual audit](visual-audit.md) for the capture contract and limitations.
 
 ## 7. Inspect package output
 
-The full gate proves that `uv build` returned success. Before distribution, inspect the generated artifacts under `dist/` and verify at least:
+The full gate now follows `uv build` with `tools/package_audit.py --json`. The blocking package audit verifies:
 
-- expected wheel and source-distribution files exist;
-- package/version metadata is intended;
-- license/notice material is correct;
-- bundled documentation is present where PTL expects it;
-- no repository-only files unexpectedly became runtime requirements.
+- exactly one current-version wheel and source distribution are present;
+- wheel Name/Version metadata matches `pyproject.toml`;
+- the current repository documentation tree is bundled under `persona_training_lab/docs`;
+- current localization catalogs and UI assets/fonts are present in the wheel;
+- `LICENSE`, `NOTICE` and `AUTHORS` are present in wheel and sdist;
+- repository-only `tests/` and `tools/` roots did not become runtime wheel roots.
 
-Until package-content inspection is fully automated, this remains an explicit release-review step rather than something inferred from build success.
+This closes package-content inspection as automated release evidence. Installing the wheel into a brand-new environment and exercising installed-package startup/documentation remain separate acceptance steps.
 
 ## 8. Verify exposed version surfaces
 
