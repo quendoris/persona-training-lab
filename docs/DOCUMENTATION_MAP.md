@@ -80,7 +80,47 @@ still distributed current scope:   2 / 40 =  5.0%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
 ```
 
-The 92.5% figure must not be reported as “92.5% release complete”: status B still contains real polish/evidence/edge-case work, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
+The 95.0% figure must not be reported as “95.0% release complete”: status B still contains real polish/evidence/edge-case work, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
+
+## 3.1 Current closure mind map
+
+The coverage tables reduce to this current implementation/documentation state:
+
+```text
+PTL v1.0 documentation/code audit
+├── strictly audited/current (A): 31 / 40 implemented rows = 77.5%
+├── covered/current but not strictly closed (B): 7 / 40 = 17.5%
+│   ├── Getting Started / first launch
+│   ├── Interface shell / navigation
+│   ├── Profiles
+│   ├── Telemetry user workflow
+│   ├── Operations Center / Issues / Activity
+│   ├── Evaluation / Analysis architecture
+│   └── Telemetry architecture
+├── distributed current coverage (C): 2 / 40 = 5.0%
+│   ├── Dashboard / Projects overview
+│   └── Export / portability
+└── proposed research architecture (R): 2 rows, outside v1.0 closure denominator
+    ├── Training Dynamics mathematics
+    └── Training Dynamics instrumentation
+```
+
+So there are **9 implemented/current rows that are not yet A**. Five of those nine are primarily final usability/visual/cross-document work; two are deliberately still distributed because the current product surface does not justify a dedicated document; and two Telemetry rows remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
+
+The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
+
+```text
+P0
+├── Agents projection publication
+│   └── execute tests/test_lineage_projection_publish_safety.py
+├── Telemetry
+│   ├── execute service/provider regression tranche
+│   └── accept or correct synchronous GUI-thread collection before freeze
+└── provenance/external-state
+    └── continue checking mutable path-only dependencies for overclaims
+```
+
+After those are resolved, the dominant remaining work is P2 freeze evidence: screenshots/diagrams where useful, link/bundled-doc validation, final terminology consistency, and fresh clean quick/full release evidence.
 
 ## 4. User-facing workflow coverage
 
