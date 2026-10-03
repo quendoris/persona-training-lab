@@ -13,7 +13,7 @@ For the exact machine-level contract, see [Evaluation contract](../reference/eva
 
 Persona Training Lab uses a short scored Big Five/IPIP-style questionnaire to create a compact behavioral KPI for a local language model.
 
-The current v1.0 workflow is designed to answer questions such as:
+The current v0.1.0 workflow is designed to answer questions such as:
 
 - Did a model version return valid numeric responses for the evaluation battery?
 - What mean score did it produce for each of the five tracked factors?
@@ -101,7 +101,7 @@ The button becomes a running state while the portrait worker executes in a backg
 
 During a run, the Analysis and case-review actions are disabled from this screen.
 
-## 6. The current v1.0 battery
+## 6. The current v0.1.0 battery
 
 The built-in battery is:
 
@@ -218,11 +218,11 @@ A run item counts as successful only when both are true:
 
 A parseable number does not convert a failed inference status into a successful item.
 
-## 11. What `RAW_RESPONSE` means in v1.0
+## 11. What `RAW_RESPONSE` means in v0.1.0
 
 The saved case includes a field called `RAW_RESPONSE`, but the name needs a precise interpretation.
 
-In v1.0 it is a **cleaned diagnostic response preview**, not an unlimited byte-for-byte generation transcript.
+In v0.1.0 it is a **cleaned diagnostic response preview**, not an unlimited byte-for-byte generation transcript.
 
 Before persistence PTL:
 
@@ -234,7 +234,7 @@ Before persistence PTL:
 
 The local generator itself is currently limited to 24 new tokens, so the preview is often sufficient for questionnaire debugging. It must nevertheless not be described as archival storage of the complete raw generation.
 
-PTL v1.0 does not provide lossless full-generation provenance through this field. If a publication protocol requires complete generations, preserve them through an explicitly designed additional capture/export mechanism rather than treating `RAW_RESPONSE` as lossless evidence.
+PTL v0.1.0 does not provide lossless full-generation provenance through this field. If a publication protocol requires complete generations, preserve them through an explicitly designed additional capture/export mechanism rather than treating `RAW_RESPONSE` as lossless evidence.
 
 ## 12. What is persisted for each case
 
@@ -291,7 +291,7 @@ A generated portrait experiment ID has the form:
 evr_<8 hexadecimal characters>
 ```
 
-This text-payload design is part of the current v1.0 compatibility surface. It is not the same as a fully normalized evaluation schema with one SQL row per case.
+This text-payload design is part of the current v0.1.0 compatibility surface. It is not the same as a fully normalized evaluation schema with one SQL row per case.
 
 ## 14. Completed versus partial runs
 
@@ -449,7 +449,7 @@ Therefore:
 - do not treat a one-item partial factor as methodologically equivalent to the normal two-item factor;
 - for strong before/after claims, prefer complete runs under the same protocol.
 
-The current UI does not display a separate per-factor `n` beside every KPI. This is a documented v1.0 limitation.
+The current UI does not display a separate per-factor `n` beside every KPI. This is a documented v0.1.0 limitation.
 
 ## 21. What “profile type” means in Analysis
 
@@ -577,7 +577,7 @@ Analysis does not currently:
 - persist a complete generation dependency/driver/hardware manifest;
 - export a research-ready CSV/JSONL package from this screen.
 
-These boundaries matter when deciding what a v1.0 result can support.
+These boundaries matter when deciding what a v0.1.0 result can support.
 
 ## 27. Common result states
 
@@ -673,7 +673,7 @@ For a meaningful before/after experiment, preserve at least:
 - complete-versus-partial status;
 - case-level score validity.
 
-The persisted v1.0 portrait does not contain every item in this checklist by itself.
+The persisted v0.1.0 portrait does not contain every item in this checklist by itself.
 
 ## 31. Recommended comparison discipline
 
@@ -711,7 +711,7 @@ The important claim is:
 
 That is stronger and more precise than saying “the model has this personality”.
 
-## 33. Screenshot plan for the v1.0 documentation capture
+## 33. Screenshot plan for the v0.1.0 documentation capture
 
 The final screenshot pass should capture the real application from a clean demo workspace and a known commit.
 

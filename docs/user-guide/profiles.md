@@ -6,7 +6,7 @@ Use the **Profiles** workspace to create a profile, select an existing profile, 
 
 ## 1. What a profile contains
 
-A v1.0 profile stores the following editable fields:
+A v0.1.0 profile stores the following editable fields:
 
 - **Title** — the human-readable name of the profile.
 - **Description** — the high-level description of the personality.
@@ -110,7 +110,7 @@ PTL does not infer that one field can substitute for another during validation. 
 
 On save PTL trims leading/trailing whitespace and stores bounded text lengths.
 
-Current v1.0 storage limits are:
+Current v0.1.0 storage limits are:
 
 | Field | Maximum stored length |
 |---|---:|
@@ -170,7 +170,7 @@ A complete workspace reset removes these records. See [Workspace & Storage](../o
 
 ## 9. Profile status
 
-Profiles created or updated through the current v1.0 editor are persisted with status:
+Profiles created or updated through the current v0.1.0 editor are persisted with status:
 
 ```text
 ready
@@ -223,7 +223,7 @@ The Profiles workspace does not by itself:
 
 It defines persistent profile state used by other PTL systems.
 
-## 13. Screenshot plan for v1.0
+## 13. Screenshot plan for v0.1.0
 
 The final documentation capture pass should include:
 
@@ -239,4 +239,4 @@ Use a clean demo profile rather than private research content.
 - Understand persistence: [Workspace & Storage](../operations/workspace-and-storage.md)
 - Prepare data: [Datasets](datasets.md)
 - Run a fine-tune: [Training](training.md)
-- Understand the stable release boundary: [v1.0 Product Contract](../reference/v1-product-contract.md)
+- Understand the stable release boundary: [v0.1.0 Product Contract](../reference/v1-product-contract.md)

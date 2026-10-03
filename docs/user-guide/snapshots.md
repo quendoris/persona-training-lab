@@ -2,7 +2,7 @@
 
 The **Snapshots** workspace is the read-only user view of PTL's persisted **model version registry**.
 
-This distinction matters: in v1.0 a Snapshot is **not** a second copy of model weights, a separate immutable database object, or a content-addressed checkpoint. The screen projects records from `model_versions` and follows their stored lineage back to the Training run and artifact path.
+This distinction matters: in v0.1.0 a Snapshot is **not** a second copy of model weights, a separate immutable database object, or a content-addressed checkpoint. The screen projects records from `model_versions` and follows their stored lineage back to the Training run and artifact path.
 
 For the Training-side provenance contract, see [Training](training.md), the [Training pipeline specification](../training_pipeline.md), and the cross-cutting [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md).
 
@@ -28,7 +28,7 @@ The model-version service does not create a second model artifact. It stores met
 
 ## 2. What a model-version record stores
 
-The current v1.0 `model_versions` record contains:
+The current v0.1.0 `model_versions` record contains:
 
 ```text
 id
@@ -137,7 +137,7 @@ This is useful traceability, but each item has a different strength of identity.
 
 `training_run_id` is the strongest direct link back into PTL's Training provenance.
 
-The Training run stores the pinned Profile and Dataset fingerprints introduced by the v1.0 Training-integrity contract.
+The Training run stores the pinned Profile and Dataset fingerprints introduced by the v0.1.0 Training-integrity contract.
 
 ### Artifact
 
@@ -155,9 +155,9 @@ For cryptographic input provenance, follow `training_run_id` back to the Trainin
 
 The model-version row stores the same base-model reference/path supplied from the Training result.
 
-As documented in the Training guide, v1.0 does not cryptographically content-address the complete base-model directory.
+As documented in the Training guide, v0.1.0 does not cryptographically content-address the complete base-model directory.
 
-## 9. Why “Snapshot” does not mean “independent frozen copy” in v1.0
+## 9. Why “Snapshot” does not mean “independent frozen copy” in v0.1.0
 
 The product name **Snapshots** describes the user-facing inspection surface, but the persisted object underneath is a model-version registry row.
 
@@ -171,7 +171,7 @@ The current implementation does **not** create:
 
 Therefore the safe mental model is:
 
-> **A v1.0 Snapshot is a traceable registry view of a trained model version, not a self-contained immutable package.**
+> **A v0.1.0 Snapshot is a traceable registry view of a trained model version, not a self-contained immutable package.**
 
 ## 10. Artifact-path integrity
 
@@ -317,7 +317,7 @@ A model version being `ready` means the Training publication path registered it 
 
 ## 18. Reproducibility boundary
 
-For the strongest v1.0 reconstruction of how a model version was produced, preserve:
+For the strongest v0.1.0 reconstruction of how a model version was produced, preserve:
 
 - the model-version row;
 - the linked Training run;
@@ -339,7 +339,7 @@ Doing so can bypass application-level assumptions such as one version per Traini
 
 Use the Training → publication flow as the supported creation path.
 
-## 20. Screenshot plan for v1.0
+## 20. Screenshot plan for v0.1.0
 
 The final documentation capture pass should include:
 

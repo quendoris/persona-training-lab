@@ -1,6 +1,6 @@
 # Interface Tour
 
-This guide explains the stable v1.0 desktop shell before you begin a specific workflow.
+This guide explains the stable v0.1.0 desktop shell before you begin a specific workflow.
 
 You do not need to understand PTL's internal architecture to use the interface. The goal of this page is spatial: know where navigation lives, where feature work happens, where PTL reports context and problems, and which workspace to open for a task.
 
@@ -88,7 +88,7 @@ Activity, Telemetry, and Issues share the bottom dock area as tabs by default. T
 
 ## 6. Panels menu
 
-The normal menu bar is hidden in the v1.0 shell. Dock visibility is controlled from the **Panels** menu exposed through the sidebar.
+The normal menu bar is hidden in the v0.1.0 shell. Dock visibility is controlled from the **Panels** menu exposed through the sidebar.
 
 Use it when you close Inspector, Activity, Telemetry, or Issues and want the panel back.
 
@@ -104,7 +104,7 @@ When you navigate, the status text updates to identify the current workspace.
 
 ## 8. Workspace map
 
-PTL v1.0 registers twelve main workspaces.
+PTL v0.1.0 registers twelve main workspaces.
 
 ### Dashboard
 
@@ -132,7 +132,7 @@ See [Agents & Lineage](agents-lineage.md) for gestures, history semantics, selec
 
 **Use Datasets when:** you need to import, preview, validate, approve, or inspect Dataset records used by PTL workflows.
 
-Dataset persistence includes source path/format, validation counts, readiness information, linked profile information, validation diagnostics, and the approval content fingerprint. The current v1.0 **Compare versions** action is unavailable; the workspace does not silently pretend to compare Dataset versions.
+Dataset persistence includes source path/format, validation counts, readiness information, linked profile information, validation diagnostics, and the approval content fingerprint. The current v0.1.0 **Compare versions** action is unavailable; the workspace does not silently pretend to compare Dataset versions.
 
 See [Datasets](datasets.md) for supported import, validation, approval, and Training-eligibility behavior.
 
@@ -148,7 +148,7 @@ Inference/training Python dependencies are optional installation extras; the cor
 
 **Use Snapshots when:** you need to inspect the persisted `model_versions` registry, its Training lineage, and artifact references.
 
-A v1.0 Snapshot is a read-only registry view of a model version. It is not a second immutable copy of model weights or a whole-workspace backup.
+A v0.1.0 Snapshot is a read-only registry view of a model version. It is not a second immutable copy of model weights or a whole-workspace backup.
 
 See [Snapshots and model versions](snapshots.md) for the current registry, provenance, lifecycle projection, and reproducibility boundary.
 
@@ -166,7 +166,7 @@ See [Tests and Analysis](tests-and-analysis.md) for the current evaluation workf
 
 **Use Analysis when:** you need to inspect calculations and comparisons derived from persisted evaluation results.
 
-The primary v1.0 Analysis path reads saved `experiments` portrait payloads and derives factor KPI values and protocol-guarded comparisons without running new inference. A separate `analysis_results` repository remains as compatibility/fallback infrastructure; its existence does not mean every current Analysis render persists a new analysis row.
+The primary v0.1.0 Analysis path reads saved `experiments` portrait payloads and derives factor KPI values and protocol-guarded comparisons without running new inference. A separate `analysis_results` repository remains as compatibility/fallback infrastructure; its existence does not mean every current Analysis render persists a new analysis row.
 
 The Tests and Analysis workspaces share one documented evaluation contract; use [Tests and Analysis](tests-and-analysis.md) for the user workflow and [Evaluation contract](../reference/evaluation-contract.md) for machine-level semantics.
 
@@ -174,11 +174,11 @@ The Tests and Analysis workspaces share one documented evaluation contract; use 
 
 **Use Style when:** you want to change visual presentation or interface language.
 
-The v1.0 style surface includes theme/accent choices and application UI language. UI density/scale also participates in the shell's presentation model.
+The v0.1.0 style surface includes theme/accent choices and application UI language. UI density/scale also participates in the shell's presentation model.
 
 Changing language does not require restarting PTL.
 
-Complete v1.0 catalogs ship for:
+Complete v0.1.0 catalogs ship for:
 
 - Arabic (`ar`);
 - English (`en-US`);
@@ -240,7 +240,7 @@ PTL's localization behavior is intentionally split into two concepts:
 1. **Application geometry** — sidebar, workspace, docks, icon reservations and major layout remain stable.
 2. **Text direction** — Arabic text leaves and mixed-direction content receive appropriate RTL/LTR handling.
 
-Do not expect Arabic mode to move the sidebar to the right. That would violate the v1.0 shell contract.
+Do not expect Arabic mode to move the sidebar to the right. That would violate the v0.1.0 shell contract.
 
 Machine-oriented strings such as IDs, paths, model names, key combinations, and log fragments can remain LTR inside an Arabic interface.
 
@@ -264,7 +264,7 @@ For a first session, explore in this order:
 
 This gives you a mental map of PTL without starting a long-running or destructive workflow.
 
-## 13. Screenshot reference plan for v1.0
+## 13. Screenshot reference plan for v0.1.0
 
 The final documentation capture pass should include a reproducible visual set from a clean demo workspace:
 
@@ -280,6 +280,6 @@ Use `tools/visual_audit.py` for reproducible automatic/interactive capture and r
 - New installation: [Getting Started](getting-started.md)
 - Embedded Documentation workspace: [Documentation Workspace](documentation.md)
 - Data location and reset/backup behavior: [Workspace & Storage](../operations/workspace-and-storage.md)
-- Stable-release promises and boundaries: [v1.0 Product Contract](../reference/v1-product-contract.md)
+- Stable-release promises and boundaries: [v0.1.0 Product Contract](../reference/v1-product-contract.md)
 - Internal system map: [Architecture Overview](../architecture/overview.md)
 - Reproducible screenshot capture: [Visual audit](../development/visual-audit.md)

@@ -2,7 +2,7 @@
 
 Persona Training Lab has an editable input-binding system for application navigation and Agents graph interactions.
 
-This guide documents the current v1.0 behavior exactly: which bindings exist, where they are stored, how direct capture/dialog editing works, how conflicts are handled, when changes become active, and which top-level workspace currently has no default navigation shortcut.
+This guide documents the current v0.1.0 behavior exactly: which bindings exist, where they are stored, how direct capture/dialog editing works, how conflicts are handled, when changes become active, and which top-level workspace currently has no default navigation shortcut.
 
 ## 1. Open Key bindings
 
@@ -39,7 +39,7 @@ Qt QSettings
 
 Therefore copying/resetting the PTL research workspace does not automatically copy/reset custom key bindings.
 
-The implementation/commit history reviewed for v1.0 does not establish why this path remains outside the modern workspace. The documentation records the current behavior without inventing a rationale.
+The implementation/commit history reviewed for v0.1.0 does not establish why this path remains outside the modern workspace. The documentation records the current behavior without inventing a rationale.
 
 ## 3. Binding file format
 
@@ -535,7 +535,7 @@ The final documentation asset pass should capture:
 
 Use a temporary/injected configuration for destructive/conflict demo captures rather than corrupting a real operator's only binding file.
 
-## 44. Current v1.0 boundaries
+## 44. Current v0.1.0 boundaries
 
 The binding system currently does not claim:
 
