@@ -308,29 +308,35 @@ Do not interpret the v1.0 `checkpoints_count` field as a complete checkpoint-man
 
 ## 16. Artifact location
 
-A successful local full fine-tune saves the final model under:
+A successful local full fine-tune **publishes** the final model under:
 
 ```text
 <workspace>/artifacts/full_finetune/<run_id>/model/
 ```
 
-The tokenizer is saved alongside the model.
-
-The backend also writes:
+with the tokenizer alongside it and:
 
 ```text
 <workspace>/artifacts/full_finetune/<run_id>/training_metadata.json
 ```
 
+as sibling metadata.
+
+Before that final `<run_id>/` path becomes authoritative, the backend writes model, tokenizer, and metadata into a hidden same-parent staging directory. Only after all three writes succeed is the staging run directory renamed into the final namespace. An ordinary save failure therefore does not leave a newly published `<run_id>/` artifact path, and an existing final run directory is not overwritten.
+
+A hard process/host crash can still leave hidden `.<run_id>-staging-*/` debris. Such a directory is recovery evidence, not a completed artifact.
+
 The metadata records backend/run information, hyperparameters, sample/step counts, losses, device, trainable parameter count, and Training provenance.
 
-Treat the entire run directory as persistent generated output.
+Treat the published run directory as persistent generated output.
 
 ## 17. Training provenance
 
 The backend provenance includes the selected Profile/Dataset identifiers and titles, Dataset path and SHA-256, approved/pinned Dataset SHA-256, Profile instruction/fingerprint, sample count, and schema counts.
 
-This provenance binds the artifact to the Profile/Dataset snapshot actually accepted by the Training boundary.
+This provenance records the Profile/Dataset snapshot actually accepted by the Training boundary alongside the published artifact.
+
+That statement is not a hash of the trained artifact itself. After publication, v1.0 does not re-hash the complete model directory, so later in-place artifact mutation can change bytes without changing `artifact_path`.
 
 Remember the base-model limitation from section 9: the model path is recorded, but v1.0 does not cryptographically content-address the full base-model directory.
 
