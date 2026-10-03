@@ -473,6 +473,11 @@ class TelemetryPanel(QFrame):
         self._run_refresh(show_pending=False)
 
     def _run_refresh(self, *, show_pending: bool) -> None:
+        thread = self._refresh_thread
+        if thread is not None:
+            if thread.is_alive():
+                return
+            self._refresh_thread = None
         if self._refresh_pending:
             return
         self._refresh_pending = True
@@ -518,17 +523,22 @@ class TelemetryPanel(QFrame):
         )
         self._refresh_btn.setEnabled(True)
         self._refresh_pending = False
-        self._refresh_thread = None
 
     def shutdown_background_work(self, timeout_ms: int = 0) -> bool:
         self._auto_refresh_timer.stop()
         thread = self._refresh_thread
-        if thread is None or not thread.is_alive():
+        if thread is None:
+            return True
+        if not thread.is_alive():
+            self._refresh_thread = None
             return True
         timeout_ms = max(0, int(timeout_ms))
         if timeout_ms:
             thread.join(timeout_ms / 1000)
-        return not thread.is_alive()
+        stopped = not thread.is_alive()
+        if stopped:
+            self._refresh_thread = None
+        return stopped
 
     def _update_metric_widgets(self) -> None:
         if len(self._metrics_widgets) != len(self._items):

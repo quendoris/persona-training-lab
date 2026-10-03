@@ -302,7 +302,7 @@ TelemetryViewModel.apply_snapshot(...)
 
 and updates widgets.
 
-A `_refresh_pending` flag prevents overlapping panel refresh requests.
+A `_refresh_pending` flag prevents overlapping panel refresh requests while collection/UI application is pending. The panel also retains the last Python thread object after the queued result signal is handled until `is_alive()` becomes false. A new refresh first reaps a finished thread or refuses to overlap a still-live one. This closes the small signal-delivery race where the GUI can process the result just before the worker function has physically returned.
 
 ## 11. GUI-thread and shutdown boundary
 

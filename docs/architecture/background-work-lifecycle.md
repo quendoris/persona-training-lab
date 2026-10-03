@@ -169,7 +169,7 @@ This is stronger than the current Training/Tests shutdown contract. It still doe
 
 The worker performs only the blocking host-provider call and emits the immutable `TelemetrySnapshot` back to the GUI object. Qt widget mutation remains on the GUI thread.
 
-`TelemetryPanel.shutdown_background_work(timeout_ms)` stops the auto-refresh timer, waits within the supplied timeout for an in-flight collection, and returns `False` while that thread is still alive. The current provider call is not force-cancelled mid-sample.
+`TelemetryPanel.shutdown_background_work(timeout_ms)` stops the auto-refresh timer, retains the concrete last refresh-thread reference through queued result delivery, waits within the supplied timeout for an in-flight collection, and returns `False` while that thread is still alive. A new refresh cannot overlap a worker that emitted its result but has not physically returned yet. The current provider call is not force-cancelled mid-sample.
 
 Telemetry does not create a persisted runtime-operation lease for each diagnostic refresh; its safety requirement here is worker lifetime ownership rather than semantic write-resource coordination.
 

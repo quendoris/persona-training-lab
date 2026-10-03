@@ -275,3 +275,65 @@ def test_telemetry_refresh_starts_worker_without_collecting_inline(
     assert collected == []
     assert panel._refresh_pending is True
     assert panel._refresh_thread is not None
+
+
+
+def test_telemetry_refresh_keeps_live_thread_owned_after_ui_completion() -> None:
+    thread = _FakePythonThread(alive=True)
+    title = SimpleNamespace(setText=lambda _value: None)
+    subtitle = SimpleNamespace(setText=lambda _value: None)
+    error = SimpleNamespace(_text="")
+    error.setText = lambda value: setattr(error, "_text", value)
+    error.text = lambda: error._text
+    error.setVisible = lambda _visible: None
+    button = SimpleNamespace(
+        setText=lambda _value: None,
+        setEnabled=lambda _enabled: None,
+    )
+    panel = SimpleNamespace(
+        _refresh_pending=True,
+        _refresh_thread=thread,
+        _title=title,
+        _subtitle=subtitle,
+        _error=error,
+        _items=(),
+        _refresh_btn=button,
+        _status_title=lambda: "title",
+        _status_subtitle=lambda: "subtitle",
+        _status_error=lambda: "",
+        _to_items=lambda: (),
+        _refresh_processes=lambda: None,
+        _update_metric_widgets=lambda: None,
+        _text=lambda key: key,
+    )
+
+    TelemetryPanel._finish_refresh_ui(panel)  # type: ignore[arg-type]
+
+    assert panel._refresh_pending is False
+    assert panel._refresh_thread is thread
+    assert thread.is_alive() is True
+
+
+def test_telemetry_refresh_does_not_overlap_live_thread_after_signal() -> None:
+    thread = _FakePythonThread(alive=True)
+    started: list[str] = []
+    button = SimpleNamespace(
+        setEnabled=lambda _enabled: None,
+        setText=lambda _text: None,
+    )
+    panel = SimpleNamespace(
+        _refresh_pending=False,
+        _refresh_thread=thread,
+        _refresh_btn=button,
+        _text=lambda key: key,
+        _collect_refresh_snapshot=lambda: started.append("collect"),
+    )
+
+    TelemetryPanel._run_refresh(  # type: ignore[arg-type]
+        panel,
+        show_pending=False,
+    )
+
+    assert started == []
+    assert panel._refresh_thread is thread
+    assert panel._refresh_pending is False
