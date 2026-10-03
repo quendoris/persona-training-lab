@@ -79,3 +79,5 @@ This evidence is not automatically inherited by later commits.
 - Primary SQLite lifetime is now explicit: `AppContainer` owns the writable connection, normal desktop/visual-audit shutdown closes it after worker drain and before workspace release/temp cleanup, and the connection-lock registry entry is removed. This avoids relying on interpreter GC and closes a Windows temporary-workspace cleanup seam.
 
 - Built-package inspection is now automated and blocking in the full release gate. `tools/package_audit.py` verifies current-version wheel/sdist identity, wheel metadata, the full bundled docs tree, localization catalogs, UI assets/fonts, legal files and absence of repository-only runtime roots; its unit tests are included in the quick pytest inventory.
+
+- Evaluation crack audit closed a protocol-integrity seam: a JSONL battery could previously mix `battery_version`, `instrument` or `scoring_version` between cases while the persisted run summary advertised only the first case's identity. Battery loading now rejects mixed protocol identity before inference, with parameterized regression coverage.

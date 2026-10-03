@@ -86,6 +86,7 @@ def load_portrait_test_cases(
 ) -> tuple[PortraitTestCase, ...]:
     resource = files(BATTERY_PACKAGE).joinpath(resource_name)
     cases: list[PortraitTestCase] = []
+    protocol_identity: tuple[str, str, str] | None = None
     for line_number, raw_line in enumerate(
         resource.read_text(encoding="utf-8").splitlines(),
         start=1,
@@ -95,30 +96,49 @@ def load_portrait_test_cases(
             continue
         payload = json.loads(line)
         try:
-            cases.append(
-                PortraitTestCase(
-                    battery_version=str(payload["battery_version"]),
-                    instrument=str(payload["instrument"]),
-                    scoring_version=str(payload["scoring_version"]),
-                    trait=str(payload["trait"]),
-                    key=str(payload["key"]),
-                    statement=str(payload["item"]),
-                    reverse=bool(payload.get("reverse", False)),
-                    scale_min=int(payload.get("scale_min", 1)),
-                    scale_max=int(payload.get("scale_max", 5)),
-                    response_format=str(
-                        payload.get(
-                            "response_format",
-                            "SCORE: <1-5>",
-                        )
-                    ),
-                )
+            case = PortraitTestCase(
+                battery_version=str(payload["battery_version"]),
+                instrument=str(payload["instrument"]),
+                scoring_version=str(payload["scoring_version"]),
+                trait=str(payload["trait"]),
+                key=str(payload["key"]),
+                statement=str(payload["item"]),
+                reverse=bool(payload.get("reverse", False)),
+                scale_min=int(payload.get("scale_min", 1)),
+                scale_max=int(payload.get("scale_max", 5)),
+                response_format=str(
+                    payload.get(
+                        "response_format",
+                        "SCORE: <1-5>",
+                    )
+                ),
             )
         except KeyError as exc:
             raise ValueError(
                 "Invalid battery item at line "
                 f"{line_number}: missing {exc.args[0]}"
             ) from exc
+
+        identity = (
+            case.battery_version,
+            case.instrument,
+            case.scoring_version,
+        )
+        if protocol_identity is None:
+            protocol_identity = identity
+        elif identity != protocol_identity:
+            expected_battery, expected_instrument, expected_scoring = (
+                protocol_identity
+            )
+            raise ValueError(
+                "Invalid battery item at line "
+                f"{line_number}: mixed protocol identity; expected "
+                f"battery_version={expected_battery!r}, "
+                f"instrument={expected_instrument!r}, "
+                f"scoring_version={expected_scoring!r}"
+            )
+        cases.append(case)
+
     if not cases:
         raise ValueError("Portrait test battery is empty")
     return tuple(cases)

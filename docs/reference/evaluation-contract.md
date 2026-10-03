@@ -131,6 +131,16 @@ response_format -> SCORE: <1-5>
 
 If a required key is missing, loading fails with a line-specific `ValueError`.
 
+One battery resource must also be internally protocol-homogeneous. Every loaded case must carry the same tuple:
+
+```text
+battery_version
+instrument
+scoring_version
+```
+
+If a later line differs from the first loaded case on any of those fields, loading fails before inference with a line-specific mixed-protocol `ValueError`. This prevents the run-level summary from advertising the first case's protocol identity for a resource that actually mixed incompatible identities.
+
 An empty battery is rejected.
 
 A battery-loading exception is converted into the stable experiment result code:
