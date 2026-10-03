@@ -135,42 +135,38 @@ processes_unavailable
 
 ## 8. Refresh lifecycle
 
-`TelemetryViewModel` performs one collection during its construction.
+`TelemetryViewModel` starts without performing host collection during application composition.
 
-The visible Telemetry panel then owns:
+The visible Telemetry panel owns:
 
 ```text
 manual Refresh button
 30-second auto-refresh timer
 refresh on show
 timer stop on hide
+one in-flight refresh at a time
 ```
+
+Each collection runs in one owned non-daemon background thread. The worker collects an immutable snapshot and sends it back to the GUI thread, where the view-model and widgets are updated.
 
 The panel prevents overlapping refresh requests with an in-memory `refresh_pending` guard.
 
-## 9. Current responsiveness boundary
+## 9. Responsiveness and shutdown boundary
 
-Telemetry collection is currently synchronous with the GUI-thread refresh path.
+Normal Telemetry provider collection no longer runs on the Qt GUI thread.
 
-The UI schedules the refresh with a zero-delay Qt timer, but the actual:
-
-```text
-TelemetryViewModel.refresh()
-        -> SystemTelemetryService.collect_snapshot()
-```
-
-still runs on the GUI thread.
-
-Two provider calls are therefore relevant to responsiveness:
+The provider calls still have real latency:
 
 ```text
 psutil CPU interval = 0.1 s
 nvidia-smi timeout  = 1.0 s
 ```
 
-This is a current v1 responsiveness boundary, not an asynchronous/background-sampling guarantee.
+but that waiting occurs in the Telemetry refresh worker instead of blocking normal Qt event processing.
 
-If a refresh is slow, the panel can temporarily delay event processing until the synchronous provider call returns.
+The worker is part of the shell background-shutdown contract. If PTL is closing while a Telemetry sample is still being collected, the shell keeps treating background work as active until that thread actually stops.
+
+The current worker is not force-cancelled in the middle of a provider call; shutdown can briefly wait for the in-flight bounded collection to return.
 
 ## 10. Manual refresh
 
@@ -381,7 +377,6 @@ Capture metadata should record commit, OS, locale/theme/scale and whether the GP
 Current Telemetry does not claim:
 
 - persisted historical measurements;
-- asynchronous/background collection;
 - complete process enumeration;
 - complete multi-GPU enumeration;
 - stable GPU device identity;
@@ -403,7 +398,7 @@ Telemetry changes should preserve these rules unless deliberately redesigned:
 5. current operator snapshots must not be documented as persisted research history;
 6. multi-GPU completeness must not be claimed while only the first NVIDIA-SMI row is parsed;
 7. Telemetry status must not replace Local Model or Training status;
-8. any asynchronous worker introduced later must be integrated with explicit lifecycle/shutdown ownership;
+8. current background collection must remain integrated with explicit shell lifecycle/shutdown ownership;
 9. any persisted Telemetry artifact introduced later must define schema, sampling identity, privacy, backup and release contracts;
 10. Training Dynamics must not consume this panel as research evidence without a separate implemented instrumentation contract.
 
