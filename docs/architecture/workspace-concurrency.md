@@ -94,13 +94,14 @@ Cross-store branch creation and protected Undo/Redo therefore use explicit compe
 
 The writer lease is meaningful only while every workspace-mutating worker created by the owning desktop process is also inside that lifetime.
 
-The shell discovers workspace screens exposing `shutdown_background_work(timeout_ms)` and asks each of them to stop before a normal window close can complete. The currently relevant owners are:
+The shell discovers both registered workspace widgets and dock-panel widgets exposing `shutdown_background_work(timeout_ms)` and asks each owner to stop before a normal window close can complete. The currently relevant owners are:
 
 - **Training** — asks its worker threads to quit; a running synchronous training/inference call is not forcibly terminated by `QThread.quit()`, so close remains blocked until the worker actually returns;
-- **Tests** — evaluation execution now participates in the same shell shutdown contract; it is not silently abandoned when the main window closes;
-- **Automation** — first requests cooperative cancellation, then waits for its QThread. The Automation process runner separately owns process-tree containment/termination semantics.
+- **Tests** — evaluation execution participates in the same shell shutdown contract; it is not silently abandoned when the main window closes;
+- **Automation** — first requests cooperative cancellation, then waits for its QThread. The Automation process runner separately owns process-tree containment/termination semantics;
+- **Telemetry dock** — host metric collection runs in one owned non-daemon Python thread; shutdown stops future timer refreshes and waits for any in-flight sample to return.
 
-The main-window close path is non-destructive to running workers: it probes with zero wait, rejects the close while any owner is still running, shows background-shutdown status, and retries. Bootstrap adds a second safety boundary after the Qt event loop: `_drain_background_work()` uses bounded wait slices repeatedly and keeps the workspace writer lease until all registered owners have stopped.
+The main-window close path is non-destructive to running workers: it probes with zero wait, rejects the close while any owner is still running, shows background-shutdown status, and retries. Bootstrap adds a second safety boundary after the Qt event loop: `_drain_background_work()` uses bounded wait slices repeatedly and keeps the workspace writer lease until all registered workspace/dock owners have stopped.
 
 This means a direct/event-loop quit path cannot release `<workspace>/.ptl-workspace.lock` merely because one finite shutdown attempt timed out.
 
