@@ -188,7 +188,7 @@ The developer layer is largely complete:
 
 `tools/codebase_stats.py` makes measurement provenance explicit: human and JSON output identify repository root, branch, full/short commit, upstream and dirty state; untracked files remain outside `git ls-files` statistics but are reported in provenance. The clean `69ef4d28...` run provides the frozen scale baseline instead of an estimate.
 
-The current branch has fresh **quick-gate** evidence at `39d25de13568571a019992fe84ec8a616b6e7048`: compileall PASS, Ruff PASS, typing audit PASS with zero blocking findings, **603 pytest passes ×3**, i18n audit PASS with zero UI literals/missing references, docs audit PASS, and clean codebase statistics. This is still not the final release proof because full mypy/build, native visual review, installed-package acceptance and final-SHA evidence remain outstanding.
+The current branch has fresh **quick-gate** evidence at `39d25de13568571a019992fe84ec8a616b6e7048`: compileall PASS, Ruff PASS, typing audit PASS with zero blocking findings, **603 pytest passes ×3**, i18n audit PASS with zero UI literals/missing references, docs audit PASS, and clean codebase statistics. This is still not the final release proof because full mypy/build/package-audit, native visual review, installed-package acceptance and final-SHA evidence remain outstanding.
 
 Targeted local evidence supplied for commit `015952d669802fe8234432b78edd7149f8c5b2bb` established a narrower checkpoint for the Automation review-identity + strict custom-accent tranche:
 
@@ -209,7 +209,7 @@ Remaining work is predominantly **final-candidate audit/evidence population**, n
 - run the **full** release gate on the clean final candidate after documentation stabilizes;
 - regenerate final codebase statistics and compare them with the frozen `69ef4d28...` baseline and the intermediate `39d25de...` candidate;
 - run automatic and native/manual visual audit on controlled/demo state;
-- inspect wheel/sdist contents and install the built wheel into a clean environment;
+- execute the full-gate built-package audit and install the resulting wheel into a clean environment;
 - verify links and bundled in-application docs after final documentation changes;
 - replace screenshot plans with reproducible captures where spatial understanding matters.
 
