@@ -71,3 +71,5 @@ This evidence is not automatically inherited by later commits.
 - Crack audit found a second workspace-path seam: `WorkspaceOwnership` canonicalized explicit roots, while `build_workspace_paths()` previously fanned out the raw `workspace_dir`. Relative or `~` overrides could therefore make the writer lock and actual mutable paths disagree. Workspace path fan-out now canonicalizes with `expanduser().resolve()`, with regression coverage for a relative override.
 
 - The same explicit-workspace audit found Agents local state bypassing composition: the composed screen constructed `AtomicLineageStateStore()` with the default OS workspace even when the application used an explicit workspace override. Wiring now injects `<workspace>/agents_lineage_state.json` through `AgentsViewModel`, and the screen consumes that path.
+
+- Release audit also found that full-gate `uv build` writes `dist/` while the repository did not ignore that directory. `/dist/` is now explicitly ignored and policy-tested so producing release artifacts does not make the source candidate appear newly dirty.

@@ -75,7 +75,7 @@ For repeated pytest execution:
 uv run --locked python tools/release_gate.py --runs 3
 ```
 
-The full profile currently blocks on this sequence:
+The full profile currently blocks on this sequence. Its final `uv build` writes repository-ignored `dist/` artifacts, so the build output does not become a new untracked source change:
 
 1. compile all Python under `src`, `tests`, `tools`;
 2. Ruff over the same roots;

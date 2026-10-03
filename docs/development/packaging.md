@@ -40,6 +40,8 @@ Build output is normally written under:
 dist/
 ```
 
+`/dist/` is repository-ignored generated output. The full release gate is allowed to create distribution artifacts without turning the validated source worktree into a new untracked-source candidate; package files are inspected/checksummed as release artifacts rather than committed source.
+
 A successful build proves that the configured Python distributions can be produced. It does not by itself prove runtime startup, dependency compatibility on every supported host, model-stack availability, or native desktop packaging quality.
 
 ## Wheel documentation inclusion

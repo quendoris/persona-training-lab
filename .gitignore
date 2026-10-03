@@ -9,6 +9,7 @@ __pycache__/
 *.sqlite3
 
 /artifacts/
+/dist/
 /exports/
 /temp/
 /cache/

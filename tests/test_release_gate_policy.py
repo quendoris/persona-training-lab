@@ -130,6 +130,13 @@ def test_release_gate_metadata_requires_resolvable_git_head(
         gate._collect_metadata()
 
 
+def test_release_build_output_is_repository_ignored() -> None:
+    root = Path(__file__).resolve().parents[1]
+    ignore_rules = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+
+    assert "/dist/" in {line.strip() for line in ignore_rules}
+
+
 def test_release_gate_source_tree_has_no_ignored_runtime_inputs() -> None:
     root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
