@@ -8,7 +8,7 @@ from persona_training_lab.bootstrap.app import _drain_background_work
 from persona_training_lab.ui.automation.screen import AutomationScreen
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
 from persona_training_lab.ui.shell.main_window_background import MainWindow
-from persona_training_lab.ui.tests.screen import TestsScreen
+from persona_training_lab.ui.tests.screen import TestsScreen as _TestsScreen
 from persona_training_lab.ui.training.screen import TrainingScreen
 
 
@@ -168,16 +168,16 @@ def test_evaluation_shutdown_participates_in_shell_close_guard() -> None:
     screen = SimpleNamespace(
         _cases_dialog=dialog,
         _tests_thread=thread,
-        _thread_is_running=TestsScreen._thread_is_running,
+        _thread_is_running=_TestsScreen._thread_is_running,
     )
 
-    assert TestsScreen.shutdown_background_work(screen, 0) is False  # type: ignore[arg-type]
+    assert _TestsScreen.shutdown_background_work(screen, 0) is False  # type: ignore[arg-type]
     assert thread.quit_calls == 1
     assert thread.wait_calls == []
     assert dialog.close_calls == 1
 
     thread.finish_on_wait = True
-    assert TestsScreen.shutdown_background_work(screen, 50) is True  # type: ignore[arg-type]
+    assert _TestsScreen.shutdown_background_work(screen, 50) is True  # type: ignore[arg-type]
     assert thread.wait_calls == [50]
 
 
