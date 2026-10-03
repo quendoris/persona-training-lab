@@ -8,12 +8,14 @@ from pathlib import Path
 import pytest
 
 import tools.release_gate as release_gate_module
+from tools.candidate_identity_audit import audit_candidate_identity
 from tools.release_gate import ReleaseGate, _parse_args, _read_release_versions
 
 
 def _gate_for_policy(*, quick: bool) -> ReleaseGate:
     gate = object.__new__(ReleaseGate)
     gate._quick = quick
+    gate._metadata = {"commit": "0123456789abcdef"}
     return gate
 
 
@@ -30,6 +32,7 @@ def test_full_release_profile_always_blocks_on_mypy_and_build() -> None:
         "codebase-stats",
         "build",
         "package-audit",
+        "candidate-identity",
     )
     assert all(step.blocking for step in gate._setup_steps())
     assert all(step.blocking for step in gate._final_steps())
@@ -47,6 +50,7 @@ def test_quick_release_profile_is_explicitly_smaller_than_full() -> None:
         "i18n-audit",
         "docs-audit",
         "codebase-stats",
+        "candidate-identity",
     )
 
 
@@ -207,3 +211,90 @@ def test_production_model_loaders_do_not_enable_remote_code() -> None:
         "Production model loading must not execute repository-supplied Python via "
         f"trust_remote_code=True: {offenders}"
     )
+
+
+
+def test_candidate_identity_audit_detects_worktree_change(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(("git", "init", "-q"), cwd=tmp_path, check=True)
+    subprocess.run(
+        ("git", "config", "user.email", "ptl-test@example.invalid"),
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ("git", "config", "user.name", "PTL Test"),
+        cwd=tmp_path,
+        check=True,
+    )
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("stable\n", encoding="utf-8")
+    subprocess.run(("git", "add", "tracked.txt"), cwd=tmp_path, check=True)
+    subprocess.run(
+        ("git", "commit", "-qm", "seed"),
+        cwd=tmp_path,
+        check=True,
+    )
+    head = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    assert audit_candidate_identity(tmp_path, head)["passed"] is True
+
+    tracked.write_text("changed during gate\n", encoding="utf-8")
+    payload = audit_candidate_identity(tmp_path, head)
+
+    assert payload["passed"] is False
+    assert payload["current_commit"] == head
+    assert payload["dirty"] is True
+    assert payload["dirty_paths"]
+
+
+def test_candidate_identity_audit_detects_head_change(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(("git", "init", "-q"), cwd=tmp_path, check=True)
+    subprocess.run(
+        ("git", "config", "user.email", "ptl-test@example.invalid"),
+        cwd=tmp_path,
+        check=True,
+    )
+    subprocess.run(
+        ("git", "config", "user.name", "PTL Test"),
+        cwd=tmp_path,
+        check=True,
+    )
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("first\n", encoding="utf-8")
+    subprocess.run(("git", "add", "tracked.txt"), cwd=tmp_path, check=True)
+    subprocess.run(
+        ("git", "commit", "-qm", "first"),
+        cwd=tmp_path,
+        check=True,
+    )
+    expected = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    tracked.write_text("second\n", encoding="utf-8")
+    subprocess.run(("git", "add", "tracked.txt"), cwd=tmp_path, check=True)
+    subprocess.run(
+        ("git", "commit", "-qm", "second"),
+        cwd=tmp_path,
+        check=True,
+    )
+
+    payload = audit_candidate_identity(tmp_path, expected)
+
+    assert payload["passed"] is False
+    assert payload["current_commit"] != expected
+    assert payload["dirty"] is False

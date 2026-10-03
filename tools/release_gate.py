@@ -266,6 +266,18 @@ class ReleaseGate:
                     ),
                 )
             )
+        steps.append(
+            GateStep(
+                "candidate-identity",
+                (
+                    sys.executable,
+                    "tools/candidate_identity_audit.py",
+                    "--expected-commit",
+                    str(self._metadata.get("commit") or ""),
+                    "--json",
+                ),
+            )
+        )
         return tuple(steps)
 
     def _require_clean_worktree(self) -> None:
