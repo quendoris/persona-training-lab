@@ -72,12 +72,14 @@ The release process treats a recorded Git commit as the source-of-truth input to
 
 Release validation rejects:
 
-- dirty worktrees;
+- dirty worktrees at gate start;
+- a final candidate whose HEAD differs from the commit recorded at gate start;
+- a final candidate whose worktree is no longer clean after the gated steps;
 - missing quick-test manifest entries;
 - hidden ignored runtime inputs under `src/`, `tests/`, or `tools/` except explicitly harmless interpreter/platform debris;
 - production model-loading calls that enable `trust_remote_code=True`.
 
-This prevents an editable checkout from validating against local hidden inputs that are absent from a clean clone or built distribution.
+This prevents an editable checkout from validating against local hidden inputs that are absent from a clean clone or built distribution, and prevents a long-running gate from silently reporting PASS after its candidate commit/worktree changed underneath it.
 
 ## 5. Local-model trust boundary
 

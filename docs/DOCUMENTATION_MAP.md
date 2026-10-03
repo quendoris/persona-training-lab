@@ -100,7 +100,7 @@ PTL v0.1.0 documentation/code audit
 
 All **40 implemented/current rows are now A** at the code/test/document-consistency level. The previously pending Agents projection-publication, Telemetry background-lifecycle, and staged Training-artifact publication regressions were executed locally and are also present in the quick manifest. The clean `39d25de...` quick gate then exercised the curated inventory three times with **603 passed in each run**.
 
-There is therefore no remaining P0 item whose only missing step is “execute the already-written regression”. The remaining work is a final **crack audit + freeze-evidence pass**: continue looking for code/document contract mismatches, repair only concrete findings, then produce visual, full-gate, packaging/install and final release evidence.
+There is therefore no remaining P0 item whose only missing step is “execute the already-written regression”. The remaining work is a final **crack audit + freeze-evidence pass**: continue looking for code/document contract mismatches, repair only concrete findings, then produce fresh quick/full-gate, visual, packaging/install and final release evidence. The release gate now checks candidate identity at both start and completion so evidence cannot silently follow a moving HEAD/worktree.
 
 ## 4. User-facing workflow coverage
 
