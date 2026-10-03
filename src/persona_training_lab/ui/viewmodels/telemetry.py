@@ -64,11 +64,6 @@ class TelemetryViewModel:
     processes_rows: tuple[str, ...] = ()
     _snapshot: TelemetrySnapshot | None = None
 
-    def __post_init__(self) -> None:
-        # Collection can block on host providers. UI owners decide when and
-        # where to collect instead of doing host I/O during composition.
-        pass
-
     @property
     def snapshot(self) -> TelemetrySnapshot | None:
         return self._snapshot
