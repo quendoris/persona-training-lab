@@ -23,8 +23,19 @@ class MainWindow(_ContextMainWindow):
         timeout_ms = max(0, int(timeout_ms))
         deadline = monotonic() + timeout_ms / 1000 if timeout_ms else 0.0
         all_stopped = True
-        for workspace in self._workspace.workspaces():
-            shutdown = getattr(workspace, "shutdown_background_work", None)
+        owners: list[object] = list(self._workspace.workspaces())
+        for dock in getattr(self, "_docks", {}).values():
+            panel = dock.widget()
+            if panel is not None:
+                owners.append(panel)
+
+        seen: set[int] = set()
+        for owner in owners:
+            identity = id(owner)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            shutdown = getattr(owner, "shutdown_background_work", None)
             if not callable(shutdown):
                 continue
             remaining_ms = 0
