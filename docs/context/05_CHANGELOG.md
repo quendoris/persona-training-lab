@@ -91,3 +91,5 @@ This evidence is not automatically inherited by later commits.
 - Model-version publication no longer reselects the newest Training row after a run finishes. The exact started `run_id` is carried through completion and published only if that same run is completed with an artifact; a regression injects a newer distractor row during backend execution and proves it is not published.
 
 - Telemetry lifetime audit closed a queued-signal race: the GUI previously cleared `_refresh_thread` as soon as a snapshot signal was applied, even though the Python worker could still be alive for a short unwind window. The panel now retains/reaps the concrete thread by `is_alive()`, blocks overlap in that window, and shutdown cannot mistake signal delivery for worker termination.
+
+- Bootstrap failure ownership is now explicit: if `build_container()` raises after opening the primary SQLite connection but before publishing an `AppContainer`, it closes the connection and drops the connection-lock registry entry before re-raising. A regression forces a mid-composition repository-construction failure and proves the connection is closed.

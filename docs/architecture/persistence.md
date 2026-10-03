@@ -45,7 +45,7 @@ There is no single ACID transaction that atomically commits all of these media t
 
 Repositories for UI preferences, events, Projects, Profiles, Agents, Analysis, Datasets, Experiments, model versions, Training, runtime operations, and lineage resource links therefore share the same primary connection in production composition.
 
-The connection is also an explicit `AppContainer` lifetime resource. After shell-owned background work has drained, desktop shutdown calls `AppContainer.close()` before releasing workspace ownership. Closing also removes the connection's process-local lock-registry entry. The primary writable connection therefore does not rely on interpreter garbage collection for normal shutdown.
+The connection is also an explicit `AppContainer` lifetime resource. After shell-owned background work has drained, desktop shutdown calls `AppContainer.close()` before releasing workspace ownership. Closing also removes the connection's process-local lock-registry entry. If composition itself fails after opening SQLite but before returning an `AppContainer`, `build_container()` performs the same connection/lock cleanup before re-raising. The primary writable connection therefore does not rely on interpreter garbage collection on either normal shutdown or failed construction.
 
 ## 3. Primary writable connection configuration
 

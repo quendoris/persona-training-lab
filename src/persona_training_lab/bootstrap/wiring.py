@@ -147,147 +147,155 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
 
     db = SQLiteDatabase(paths.sqlite_db)
     connection = db.connect()
-    create_minimal_schema(connection)
-    lineage_loader_factory: LineageLoaderFactory = partial(
-        SQLiteLineageProjectionLoader,
-        paths.sqlite_db,
-    )
-
-    ui_preferences_repo = SQLiteUIPreferencesRepository(connection)
-    event_log_repo = SQLiteEventLogRepository(connection)
-    projects_repo = SQLiteProjectsRepository(connection)
-    profiles_repo = SQLiteProfilesRepository(connection)
-    agents_repo = SQLiteAgentsRepository(connection)
-    analysis_repo = SQLiteAnalysisRepository(connection)
-    datasets_repo = SQLiteDatasetsRepository(connection)
-    experiments_repo = SQLiteExperimentsRepository(connection)
-    model_versions_repo = SQLiteModelVersionsRepository(connection)
-    training_repo = SQLiteTrainingRepository(connection)
-    runtime_operations_repo = SQLiteRuntimeOperationsRepository(connection)
-    lineage_resource_links_repo = SQLiteLineageResourceLinksRepository(connection)
-
-    error_reporter = ApplicationErrorReporter(event_log_repo)
-    runtime_operations = RuntimeOperationCoordinator(runtime_operations_repo)
-    operations_center = OperationsCenterService(
-        event_log=event_log_repo,
-        runtime_operations=runtime_operations_repo,
-    )
-    lineage_runtime_safety = LineageRuntimeSafety(
-        lineage_resource_links_repo,
-        runtime_operations,
-    )
-    abandoned = runtime_operations.recover_orphaned_operations()
-    if abandoned:
-        error_reporter.report_message(
-            "runtime_operations_recovered",
-            component="bootstrap.runtime_recovery",
-            level="WARNING",
-            entity_kind="runtime",
-            entity_id="startup",
-            context={"abandoned_operations": abandoned},
-            user_message=UserMessage(
-                "operations.notice.recovered_abandoned",
-                {"count": abandoned},
+    try:
+        create_minimal_schema(connection)
+        lineage_loader_factory: LineageLoaderFactory = partial(
+            SQLiteLineageProjectionLoader,
+            paths.sqlite_db,
+        )
+    
+        ui_preferences_repo = SQLiteUIPreferencesRepository(connection)
+        event_log_repo = SQLiteEventLogRepository(connection)
+        projects_repo = SQLiteProjectsRepository(connection)
+        profiles_repo = SQLiteProfilesRepository(connection)
+        agents_repo = SQLiteAgentsRepository(connection)
+        analysis_repo = SQLiteAnalysisRepository(connection)
+        datasets_repo = SQLiteDatasetsRepository(connection)
+        experiments_repo = SQLiteExperimentsRepository(connection)
+        model_versions_repo = SQLiteModelVersionsRepository(connection)
+        training_repo = SQLiteTrainingRepository(connection)
+        runtime_operations_repo = SQLiteRuntimeOperationsRepository(connection)
+        lineage_resource_links_repo = SQLiteLineageResourceLinksRepository(connection)
+    
+        error_reporter = ApplicationErrorReporter(event_log_repo)
+        runtime_operations = RuntimeOperationCoordinator(runtime_operations_repo)
+        operations_center = OperationsCenterService(
+            event_log=event_log_repo,
+            runtime_operations=runtime_operations_repo,
+        )
+        lineage_runtime_safety = LineageRuntimeSafety(
+            lineage_resource_links_repo,
+            runtime_operations,
+        )
+        abandoned = runtime_operations.recover_orphaned_operations()
+        if abandoned:
+            error_reporter.report_message(
+                "runtime_operations_recovered",
+                component="bootstrap.runtime_recovery",
+                level="WARNING",
+                entity_kind="runtime",
+                entity_id="startup",
+                context={"abandoned_operations": abandoned},
+                user_message=UserMessage(
+                    "operations.notice.recovered_abandoned",
+                    {"count": abandoned},
+                ),
+            )
+    
+        workflow_supervisor = WorkflowSupervisor()
+        style_service = StylePreferencesService(ui_preferences_repo)
+        docs_service = DocsService()
+        projects_service = ProjectsService(projects_repo=projects_repo)
+        profiles_service = ProfilesService(profiles_repo=profiles_repo)
+        agents_service = AgentsService(agents_repo=agents_repo)
+        analysis_service = AnalysisService(analysis_repo=analysis_repo)
+        datasets_service = DatasetsService(datasets_repo=datasets_repo)
+        model_versions_service = ModelVersionsService(
+            model_versions_repo=model_versions_repo
+        )
+        local_model_service = LocalModelService(
+            probe_provider=FilesystemLocalModelProbeProvider(),
+            workspace_root=paths.root,
+        )
+        experiments_service = ExperimentsService(
+            experiments_repo=experiments_repo,
+            local_model_service=local_model_service,
+            model_versions_service=model_versions_service,
+            operation_coordinator=runtime_operations,
+            error_reporter=error_reporter,
+        )
+        training_service = TrainingService(
+            training_repo=training_repo,
+            profiles_service=profiles_service,
+            datasets_service=datasets_service,
+            local_model_service=local_model_service,
+            full_backend=LocalFullFineTuneBackend(paths.artifacts),
+            operation_coordinator=runtime_operations,
+            error_reporter=error_reporter,
+        )
+        automation_service = AutomationService(
+            recipe_provider=FilesystemAutomationRecipeProvider(
+                paths.root / "automation" / "recipes"
             ),
+            operation_coordinator=runtime_operations,
+            workspace_root=paths.root,
+            audit_trail=AutomationAuditTrail(event_log_repo),
+        )
+        telemetry_service = SystemTelemetryService(
+            system_provider=PsutilTelemetryProvider(),
+            gpu_provider=NvidiaSmiTelemetryProvider(),
+        )
+    
+        shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
+        dashboard_vm = DashboardViewModel(
+            projects_service=projects_service,
+            training_service=training_service,
+            model_versions_service=model_versions_service,
+            datasets_service=datasets_service,
+            experiments_service=experiments_service,
+        )
+        docs_vm = DocsViewModel(docs_service=docs_service)
+        style_vm = StyleViewModel(style_service=style_service)
+        datasets_vm = DatasetsViewModel(datasets_service=datasets_service)
+        profiles_vm = ProfilesViewModel(profiles_service=profiles_service)
+        agents_vm = AgentsViewModel(
+            agents_service=agents_service,
+            lineage_loader_factory=lineage_loader_factory,
+            lineage_error_reporter=error_reporter,
+            lineage_state_path=paths.root / "agents_lineage_state.json",
+        )
+        training_vm = TrainingViewModel(
+            training_service=training_service,
+            model_versions_service=model_versions_service,
+            local_model_service=local_model_service,
+        )
+        snapshots_vm = SnapshotsViewModel(
+            model_versions_service=model_versions_service
+        )
+        tests_vm = TestsViewModel(experiments_service=experiments_service)
+        analysis_vm = AnalysisViewModel(
+            analysis_service=analysis_service,
+            experiments_service=experiments_service,
+        )
+        automation_vm = AutomationViewModel(automation_service=automation_service)
+        telemetry_vm = TelemetryViewModel(telemetry_service=telemetry_service)
+    
+        return AppContainer(
+            settings=settings,
+            shell_vm=shell_vm,
+            dashboard_vm=dashboard_vm,
+            docs_vm=docs_vm,
+            style_vm=style_vm,
+            datasets_vm=datasets_vm,
+            profiles_vm=profiles_vm,
+            agents_vm=agents_vm,
+            training_vm=training_vm,
+            snapshots_vm=snapshots_vm,
+            tests_vm=tests_vm,
+            analysis_vm=analysis_vm,
+            automation_vm=automation_vm,
+            telemetry_vm=telemetry_vm,
+            runtime_operations=runtime_operations,
+            lineage_loader_factory=lineage_loader_factory,
+            lineage_runtime_safety=lineage_runtime_safety,
+            operations_center=operations_center,
+            error_reporter=error_reporter,
+            primary_connection=connection,
         )
 
-    workflow_supervisor = WorkflowSupervisor()
-    style_service = StylePreferencesService(ui_preferences_repo)
-    docs_service = DocsService()
-    projects_service = ProjectsService(projects_repo=projects_repo)
-    profiles_service = ProfilesService(profiles_repo=profiles_repo)
-    agents_service = AgentsService(agents_repo=agents_repo)
-    analysis_service = AnalysisService(analysis_repo=analysis_repo)
-    datasets_service = DatasetsService(datasets_repo=datasets_repo)
-    model_versions_service = ModelVersionsService(
-        model_versions_repo=model_versions_repo
-    )
-    local_model_service = LocalModelService(
-        probe_provider=FilesystemLocalModelProbeProvider(),
-        workspace_root=paths.root,
-    )
-    experiments_service = ExperimentsService(
-        experiments_repo=experiments_repo,
-        local_model_service=local_model_service,
-        model_versions_service=model_versions_service,
-        operation_coordinator=runtime_operations,
-        error_reporter=error_reporter,
-    )
-    training_service = TrainingService(
-        training_repo=training_repo,
-        profiles_service=profiles_service,
-        datasets_service=datasets_service,
-        local_model_service=local_model_service,
-        full_backend=LocalFullFineTuneBackend(paths.artifacts),
-        operation_coordinator=runtime_operations,
-        error_reporter=error_reporter,
-    )
-    automation_service = AutomationService(
-        recipe_provider=FilesystemAutomationRecipeProvider(
-            paths.root / "automation" / "recipes"
-        ),
-        operation_coordinator=runtime_operations,
-        workspace_root=paths.root,
-        audit_trail=AutomationAuditTrail(event_log_repo),
-    )
-    telemetry_service = SystemTelemetryService(
-        system_provider=PsutilTelemetryProvider(),
-        gpu_provider=NvidiaSmiTelemetryProvider(),
-    )
-
-    shell_vm = ShellViewModel(workflow_supervisor=workflow_supervisor)
-    dashboard_vm = DashboardViewModel(
-        projects_service=projects_service,
-        training_service=training_service,
-        model_versions_service=model_versions_service,
-        datasets_service=datasets_service,
-        experiments_service=experiments_service,
-    )
-    docs_vm = DocsViewModel(docs_service=docs_service)
-    style_vm = StyleViewModel(style_service=style_service)
-    datasets_vm = DatasetsViewModel(datasets_service=datasets_service)
-    profiles_vm = ProfilesViewModel(profiles_service=profiles_service)
-    agents_vm = AgentsViewModel(
-        agents_service=agents_service,
-        lineage_loader_factory=lineage_loader_factory,
-        lineage_error_reporter=error_reporter,
-        lineage_state_path=paths.root / "agents_lineage_state.json",
-    )
-    training_vm = TrainingViewModel(
-        training_service=training_service,
-        model_versions_service=model_versions_service,
-        local_model_service=local_model_service,
-    )
-    snapshots_vm = SnapshotsViewModel(
-        model_versions_service=model_versions_service
-    )
-    tests_vm = TestsViewModel(experiments_service=experiments_service)
-    analysis_vm = AnalysisViewModel(
-        analysis_service=analysis_service,
-        experiments_service=experiments_service,
-    )
-    automation_vm = AutomationViewModel(automation_service=automation_service)
-    telemetry_vm = TelemetryViewModel(telemetry_service=telemetry_service)
-
-    return AppContainer(
-        settings=settings,
-        shell_vm=shell_vm,
-        dashboard_vm=dashboard_vm,
-        docs_vm=docs_vm,
-        style_vm=style_vm,
-        datasets_vm=datasets_vm,
-        profiles_vm=profiles_vm,
-        agents_vm=agents_vm,
-        training_vm=training_vm,
-        snapshots_vm=snapshots_vm,
-        tests_vm=tests_vm,
-        analysis_vm=analysis_vm,
-        automation_vm=automation_vm,
-        telemetry_vm=telemetry_vm,
-        runtime_operations=runtime_operations,
-        lineage_loader_factory=lineage_loader_factory,
-        lineage_runtime_safety=lineage_runtime_safety,
-        operations_center=operations_center,
-        error_reporter=error_reporter,
-        primary_connection=connection,
-    )
+    except Exception:
+        try:
+            connection.close()
+        finally:
+            forget_connection_lock(connection)
+        raise

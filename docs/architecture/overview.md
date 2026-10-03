@@ -40,7 +40,7 @@ The dominant dependency direction is from UI toward application behavior and fro
 
 When called without explicit settings, `build_container()` creates `AppSettings`; the production desktop bootstrap instead creates `AppSettings` first so it can acquire workspace ownership **before** mutable workspace bootstrap, then passes those settings into the composition root.
 
-Given the resolved settings, the composition root:
+Given the resolved settings, the composition root performs the following work inside an unpublished-construction boundary:
 
 1. resolves the platform-stable workspace paths;
 2. ensures workspace directories exist;
@@ -52,6 +52,8 @@ Given the resolved settings, the composition root:
 8. creates application services;
 9. creates view models;
 10. returns an `AppContainer` consumed by the desktop bootstrap.
+
+If composition raises after the primary SQLite connection has opened but before the `AppContainer` is returned, `build_container()` closes that connection and removes its process-local lock-registry entry before re-raising. A partially constructed container therefore cannot transfer an unowned writable connection past the workspace-ownership failure path.
 
 The composition root is intentionally explicit. It is the place where concrete adapters are selected and wired into application-facing services.
 

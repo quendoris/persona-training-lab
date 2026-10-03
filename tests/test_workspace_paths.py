@@ -7,6 +7,7 @@ from typing import Any, cast
 import pytest
 
 from persona_training_lab.application.local_model.service import LocalModelService
+import persona_training_lab.bootstrap.wiring as wiring_module
 import persona_training_lab.config.app_settings as app_settings_module
 from persona_training_lab.config.app_settings import AppSettings, default_workspace_dir
 from persona_training_lab.bootstrap.wiring import build_container
@@ -152,6 +153,37 @@ def test_app_container_closes_primary_connection_explicitly_and_idempotently(
 
     container.close()
     container.close()
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute("SELECT 1")
+
+
+
+def test_build_container_closes_connection_when_composition_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = sqlite3.connect(tmp_path / "failed-composition.db")
+    connection.row_factory = sqlite3.Row
+    monkeypatch.setattr(
+        wiring_module.SQLiteDatabase,
+        "connect",
+        lambda _database: connection,
+    )
+
+    def fail_repository(_connection: sqlite3.Connection) -> object:
+        raise RuntimeError("composition failed after SQLite open")
+
+    monkeypatch.setattr(
+        wiring_module,
+        "SQLiteUIPreferencesRepository",
+        fail_repository,
+    )
+
+    with pytest.raises(RuntimeError, match="composition failed"):
+        build_container(
+            AppSettings(workspace_dir=tmp_path / "workspace")
+        )
 
     with pytest.raises(sqlite3.ProgrammingError):
         connection.execute("SELECT 1")
