@@ -1184,3 +1184,8 @@ The v1.0 portrait system can be summarized precisely as:
 > PTL executes a versioned 10-item Big Five/IPIP-style scored questionnaire against a selected local model, records bounded diagnostic case data and stable protocol/model references in SQLite, computes reverse-adjusted factor means from valid responses, and permits numeric before/after deltas only when battery and scoring identities are both known and equal.
 
 Everything stronger than that statement requires additional evidence from Training provenance, external artifact/environment records, or a broader statistical study design.
+
+
+## Related architecture
+
+- [Evaluation & Analysis architecture](../architecture/evaluation-analysis.md) — ownership/lifecycle map for Tests execution, persisted portrait evidence, protocol-guarded Analysis, and compatibility storage.
