@@ -65,14 +65,18 @@ class TelemetryViewModel:
     _snapshot: TelemetrySnapshot | None = None
 
     def __post_init__(self) -> None:
-        self.refresh()
+        # Collection can block on host providers. UI owners decide when and
+        # where to collect instead of doing host I/O during composition.
+        pass
 
     @property
     def snapshot(self) -> TelemetrySnapshot | None:
         return self._snapshot
 
     def refresh(self) -> None:
-        snapshot = self.telemetry_service.collect_snapshot()
+        self.apply_snapshot(self.telemetry_service.collect_snapshot())
+
+    def apply_snapshot(self, snapshot: TelemetrySnapshot) -> None:
         self._snapshot = snapshot
         self.status_title = _base_telemetry_status_text(
             snapshot.status_code,
