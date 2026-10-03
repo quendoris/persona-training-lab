@@ -594,6 +594,7 @@ def run_interactive_visual_audit(
     previous_cwd = Path.cwd()
     app: SafeApplication | None = None
     window: MainWindow | None = None
+    container: AppContainer | None = None
     try:
         with tempfile.TemporaryDirectory(prefix="ptl-visual-audit-") as workspace:
             os.chdir(workspace)
