@@ -2,7 +2,9 @@
 
 PTL includes a repository-local Qt capture harness in `tools/visual_audit.py`. It is designed to produce reproducible visual evidence from the actual application composition rather than from isolated mock widgets.
 
-That distinction matters: the harness builds the real container, creates `SafeApplication`, applies persisted style preferences through the normal view-model path, creates `MainWindow`, and navigates the registered application routes.
+That distinction matters: the harness builds the real container, creates `SafeApplication`, applies style preferences through the normal view-model path, creates `MainWindow`, and navigates the registered application routes.
+
+Each audit run now injects its `TemporaryDirectory` as an explicit `AppSettings.workspace_dir`. The same temporary root owns the audit's SQLite database, Agents local state, relative/default model namespace and Automation workspace state. The harness also injects an audit-local `KeyBindingManager` and file-backed `WindowStateStore`, so release screenshots do not inherit or mutate the operator's normal `~/.persona_training_lab/key_bindings.json` or platform Qt shell state.
 
 The independent `quendoris/snippets` repository now contains reusable descendants of some low-level ideas (`app-screenshotter` for in-process Qt capture/manifests and `archive-bundler` for deterministic evidence packaging). PTL does **not** use those repositories as release dependencies at this point. `tools/visual_audit.py` remains the PTL visual-audit source of truth.
 
@@ -17,13 +19,15 @@ Both modes write a manifest plus PNG captures and package the session into `visu
 
 ## Important data-safety boundary
 
-The harness launches the real PTL composition. A visual capture can therefore contain real workspace-derived information, including visible names, IDs, paths, model/dataset metadata, logs, issue text, window state or other operator-visible content.
+The standard automatic/interactive harness launches the real PTL composition against a fresh temporary audit workspace and audit-local input/window settings. It therefore does **not** intentionally open the operator's normal PTL workspace merely because the process current directory changes.
+
+A capture can still contain information introduced during the interactive audit session, environment/platform metadata, externally opened dialogs, or other operator-visible content. Future audit scenarios that deliberately import external data can also make that data visible.
 
 **Do not assume a visual-audit bundle is safe to publish merely because the capture tool itself is an engineering utility.**
 
 For screenshots intended for documentation, issues, releases or public discussion:
 
-1. use a clean/demo workspace or otherwise controlled non-sensitive state;
+1. keep any data deliberately introduced into the temporary audit session non-sensitive;
 2. inspect every captured top-level window, not only the main route image;
 3. inspect `manifest.json` and interactive `state.json` metadata for paths/window titles;
 4. do not publish the ZIP wholesale without reviewing its contents.

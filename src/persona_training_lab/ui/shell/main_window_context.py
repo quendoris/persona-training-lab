@@ -45,13 +45,14 @@ class MainWindow(_MainWindow):
         self,
         *args,
         operations_center: OperationsCenterService | None = None,
+        window_state_store: WindowStateStore | None = None,
         **kwargs,
     ) -> None:
         self._operations_center = operations_center
         self._tab_shortcuts: list[QShortcut] = []
         self._guidance_generation = 0
         self._guidance_target: QWidget | None = None
-        self._window_state_store = WindowStateStore()
+        self._window_state_store = window_state_store or WindowStateStore()
         self._suspend_dock_rebalance = True
         self._restored_dock_state = False
         super().__init__(*args, **kwargs)

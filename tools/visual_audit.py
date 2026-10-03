@@ -13,18 +13,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable
 
-from PySide6.QtCore import QEventLoop, Qt, QTimer
+from PySide6.QtCore import QEventLoop, QSettings, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from persona_training_lab import __version__
 from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.config.app_settings import AppSettings
 from persona_training_lab.i18n.catalog import CatalogSet
 from persona_training_lab.ui.density import apply_density, apply_scaled_styles
 from persona_training_lab.ui.i18n.manager import LocalizationManager
+from persona_training_lab.ui.keybindings.manager import KeyBindingManager
 from persona_training_lab.ui.safe_application import SafeApplication
 from persona_training_lab.ui.shell.app_sidebar import NAVIGATION_KEYS
 from persona_training_lab.ui.shell.main_window_background import MainWindow
+from persona_training_lab.ui.shell.window_state import WindowStateStore
 from persona_training_lab.ui.themes.manager import apply_theme
 
 
@@ -81,6 +84,7 @@ def _settle(milliseconds: int) -> None:
 
 def _build_window(
     *,
+    workspace_root: Path,
     scale: str,
     theme: str,
     accent: str,
@@ -92,7 +96,8 @@ def _build_window(
     app.setApplicationName("Persona Training Lab Visual Audit")
     app.setApplicationVersion(__version__)
 
-    container = build_container()
+    workspace_root = workspace_root.expanduser().resolve()
+    container = build_container(AppSettings(workspace_dir=workspace_root))
     app.set_error_reporter(container.error_reporter)
     container.style_vm.save(theme, accent, "soft_glow")
     container.style_vm.save_ui_scale(scale)
@@ -112,6 +117,16 @@ def _build_window(
     )
     apply_scaled_styles(app, density.scale, immediate=True)
 
+    key_binding_manager = KeyBindingManager(
+        storage_path=workspace_root / "visual_audit_key_bindings.json"
+    )
+    window_state_store = WindowStateStore(
+        QSettings(
+            str(workspace_root / "visual_audit_qsettings.ini"),
+            QSettings.Format.IniFormat,
+        )
+    )
+
     window = MainWindow(
         shell_vm=container.shell_vm,
         dashboard_vm=container.dashboard_vm,
@@ -129,6 +144,8 @@ def _build_window(
         lineage_runtime_safety=container.lineage_runtime_safety,
         operations_center=container.operations_center,
         localization=localization,
+        key_binding_manager=key_binding_manager,
+        window_state_store=window_state_store,
     )
     app.aboutToQuit.connect(window.shutdown_background_work)
     window.setProperty("ptl_density_name", density.name)
@@ -329,6 +346,7 @@ def run_visual_audit(
             os.chdir(workspace)
             try:
                 app, window, localization = _build_window(
+                    workspace_root=Path(workspace),
                     scale=scale,
                     theme=theme,
                     accent=accent,
@@ -573,6 +591,7 @@ def run_interactive_visual_audit(
             os.chdir(workspace)
             try:
                 app, window, localization = _build_window(
+                    workspace_root=Path(workspace),
                     scale=scale,
                     theme=theme,
                     accent=accent,

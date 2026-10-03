@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
         telemetry_vm: TelemetryViewModel,
         lineage_runtime_safety: LineageRuntimeSafety | None = None,
         localization: LocalizationManager | None = None,
+        key_binding_manager: KeyBindingManager | None = None,
     ) -> None:
         super().__init__()
         self._shell_vm = shell_vm
@@ -119,7 +120,13 @@ class MainWindow(QMainWindow):
             active_workflows=[],
             localization=localization,
         )
-        self._key_binding_manager = KeyBindingManager(parent=self)
+        self._key_binding_manager = (
+            key_binding_manager
+            if key_binding_manager is not None
+            else KeyBindingManager(parent=self)
+        )
+        if self._key_binding_manager.parent() is None:
+            self._key_binding_manager.setParent(self)
         self._workspace = WorkspaceStack()
         self._workspace.register(
             "dashboard",

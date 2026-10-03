@@ -156,3 +156,58 @@ def test_interactive_visual_audit_records_current_top_level_state(tmp_path: Path
     with zipfile.ZipFile(bundle) as archive:
         names = set(archive.namelist())
     assert {"manifest.json", "summary.txt", *expected_files}.issubset(names)
+
+
+def test_visual_audit_build_window_isolates_workspace_and_user_settings(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "audit-workspace"
+    script = """
+from pathlib import Path
+import json
+import sys
+
+from tools.visual_audit import _build_window, _shutdown_window
+
+workspace = Path(sys.argv[1])
+app, window, _localization = _build_window(
+    workspace_root=workspace,
+    scale="0.90",
+    theme="velvet",
+    accent="cyan",
+    initial_locale="ru-RU",
+)
+try:
+    agents = window._workspace.workspace("agents")
+    training = window._workspace.workspace("training")
+    payload = {
+        "agents_state": str(agents._state._path),
+        "key_bindings": str(window._key_binding_manager.storage_path),
+        "qsettings": str(window._window_state_store._settings.fileName()),
+        "model_path": str(training._vm.local_model_path),
+    }
+    print(json.dumps(payload))
+finally:
+    _shutdown_window(app, window)
+"""
+    environment = dict(os.environ)
+    environment["QT_QPA_PLATFORM"] = "offscreen"
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(workspace)],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    payload = json.loads(completed.stdout.strip().splitlines()[-1])
+    resolved = workspace.resolve()
+    assert Path(payload["agents_state"]) == resolved / "agents_lineage_state.json"
+    assert Path(payload["key_bindings"]) == (
+        resolved / "visual_audit_key_bindings.json"
+    )
+    assert Path(payload["qsettings"]) == resolved / "visual_audit_qsettings.ini"
+    assert Path(payload["model_path"]) == resolved / "models" / "qwen3.5-0.8b"

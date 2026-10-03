@@ -73,3 +73,5 @@ This evidence is not automatically inherited by later commits.
 - The same explicit-workspace audit found Agents local state bypassing composition: the composed screen constructed `AtomicLineageStateStore()` with the default OS workspace even when the application used an explicit workspace override. Wiring now injects `<workspace>/agents_lineage_state.json` through `AgentsViewModel`, and the screen consumes that path.
 
 - Release audit also found that full-gate `uv build` writes `dist/` while the repository did not ignore that directory. `/dist/` is now explicitly ignored and policy-tested so producing release artifacts does not make the source candidate appear newly dirty.
+
+- Visual-audit isolation was corrected after workspace stabilization changed semantics: merely `chdir`-ing into a temporary directory no longer selected the PTL workspace. The harness now injects the temporary directory through `AppSettings`, plus audit-local key bindings and QSettings-backed window state, with a subprocess regression proving Agents/model/key-binding/window-state paths all remain inside the audit workspace.
