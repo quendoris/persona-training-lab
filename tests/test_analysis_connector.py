@@ -264,3 +264,48 @@ def test_analysis_legacy_repository_fallback_title() -> None:
         "analysis.header.title.result",
         {"result_id": "anl_001"},
     )
+
+
+
+def test_analysis_ignores_newer_unrelated_experiment_row() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    connection.executemany(
+        """
+        INSERT INTO experiments (id, title, subtitle, status, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                "exp_old",
+                "Big Five portrait · old",
+                _portrait_subtitle(2, 4, 3, snapshot="old_snapshot"),
+                "Портрет собран",
+                "2026-04-26T16:00:00Z",
+            ),
+            (
+                "exp_new",
+                "Big Five portrait · new",
+                _portrait_subtitle(4, 2, 5, snapshot="new_snapshot"),
+                "Портрет собран",
+                "2026-04-27T16:00:00Z",
+            ),
+            (
+                "exp_unrelated",
+                "manual benchmark",
+                "BENCHMARK: unrelated",
+                "completed",
+                "2026-04-28T16:00:00Z",
+            ),
+        ),
+    )
+    connection.commit()
+
+    vm = AnalysisViewModel(
+        experiments_service=_build_experiments_service(connection)
+    )
+
+    assert vm.left.subtitle == "Big Five portrait · old"
+    assert vm.right.subtitle == "Big Five portrait · new"
+    assert "E=+2.00" in vm.metrics[1].delta

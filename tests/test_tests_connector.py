@@ -184,7 +184,6 @@ def test_tests_viewmodel_run_result_uses_machine_semantics_only() -> None:
     assert "Legacy visible fallback" not in vm.subtitle
 
 
-
 def test_portrait_listing_excludes_unrelated_experiment_rows() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row

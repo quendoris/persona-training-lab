@@ -278,12 +278,14 @@ Thus Analysis results are deterministic with respect to the persisted payload an
 
 ## 17. Default Analysis pair
 
-Without exact lineage context, current Analysis uses repository order:
+Without exact lineage context, current Analysis first projects the generic experiment registry to personality-portrait records, then preserves repository order:
 
 ```text
-latest   = experiments[0]
-previous = experiments[1] when present
+latest   = portrait_experiments[0]
+previous = portrait_experiments[1] when present
 ```
+
+The current semantic experiment-title protocol identifies new portrait rows; structured legacy payloads beginning with `PORTRAIT:` or `SUMMARY:` remain accepted for compatibility. Other experiment rows are excluded from Tests/Analysis portrait history.
 
 One portrait is sufficient for current factor display.
 

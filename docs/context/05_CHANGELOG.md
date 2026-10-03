@@ -81,3 +81,5 @@ This evidence is not automatically inherited by later commits.
 - Built-package inspection is now automated and blocking in the full release gate. `tools/package_audit.py` verifies current-version wheel/sdist identity, wheel metadata, the full bundled docs tree, localization catalogs, UI assets/fonts, legal files and absence of repository-only runtime roots; its unit tests are included in the quick pytest inventory.
 
 - Evaluation crack audit closed a protocol-integrity seam: a JSONL battery could previously mix `battery_version`, `instrument` or `scoring_version` between cases while the persisted run summary advertised only the first case's identity. Battery loading now rejects mixed protocol identity before inference, with parameterized regression coverage.
+
+- Tests/Analysis now consume an explicit personality-portrait projection instead of assuming every generic `experiments` row is a portrait. Current semantic-title rows and structured legacy portrait payloads remain compatible; unrelated experiment records cannot become the latest/previous portrait pair. Regression coverage includes a newer unrelated row ahead of two valid portraits.

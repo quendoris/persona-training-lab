@@ -467,7 +467,7 @@ Read it as “the two highest factors in this run”.
 
 ## 22. Automatic latest-versus-previous analysis
 
-When Analysis is opened without an exact lineage pair, it reads saved experiments ordered by recency.
+When Analysis is opened without an exact lineage pair, it reads saved experiments ordered by recency and filters them to personality-portrait records. Unrelated/manual/future experiment rows in the generic registry do not participate in the portrait comparison.
 
 The newest portrait is treated as **latest** and the next saved portrait as **previous**.
 

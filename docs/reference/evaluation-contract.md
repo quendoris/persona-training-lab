@@ -588,7 +588,7 @@ updated_at DESC,
 title ASC
 ```
 
-Tests and Analysis rely on this ordering for “latest” semantics when no exact model-version filter/pair is supplied.
+The repository ordering is generic. Tests and Analysis first project the list to personality-portrait rows and then preserve this ordering for “latest” portrait semantics when no exact model-version filter/pair is supplied.
 
 ## 28. Portrait payload parser
 
@@ -708,9 +708,9 @@ This compatibility rule prevents malformed/legacy payloads from presenting a par
 
 ## 35. Tests view scoping
 
-Without a selected model version, Tests considers the loaded experiment list in repository order.
+Without a selected model version, Tests considers the loaded **portrait** experiment list in repository order. The portrait projection accepts the current semantic title kind and legacy structured payloads beginning with `PORTRAIT:` or `SUMMARY:`; unrelated generic experiment rows are excluded.
 
-With `target_model_version_id`, it filters experiments where:
+With `target_model_version_id`, it then filters portrait experiments where:
 
 ```text
 parse_portrait_payload(experiment.subtitle).model_version_id
@@ -750,13 +750,13 @@ This makes Analysis a deterministic transformation of the persisted payload plus
 
 ## 38. Default Analysis selection
 
-When no exact lineage pair is set, Analysis loads experiments in repository order.
+When no exact lineage pair is set, Analysis loads the personality-portrait projection in repository order. Unrelated generic experiment rows cannot displace the comparison pair.
 
 It selects:
 
 ```text
-latest   = experiments[0]
-previous = experiments[1] if present
+latest   = portrait_experiments[0]
+previous = portrait_experiments[1] if present
 ```
 
 The latest portrait is always analyzable individually when its payload can be parsed.
