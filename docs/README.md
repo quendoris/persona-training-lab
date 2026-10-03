@@ -14,6 +14,7 @@ Begin with:
 
 - [Getting Started](user-guide/getting-started.md) — source-checkout installation, first launch, workspace, first-run orientation.
 - [Interface Tour](user-guide/interface-tour.md) — shell, workspaces, Inspector, Activity, Telemetry, Issues, status bar, language/layout behavior.
+- [Operations Center](user-guide/operations-center.md) — Activity/Issues projections, refresh cadence, runtime/event routing, correlation identities, navigation guidance, and evidence/privacy boundaries.
 - [Telemetry](user-guide/telemetry.md) — operator CPU/RAM/GPU/process snapshot semantics, refresh lifecycle, failure interpretation and research-evidence limits.
 - [Profiles](user-guide/profiles.md) — define the personality fields used by downstream Training.
 - [Datasets](user-guide/datasets.md) — import/preview/validate/approve JSONL and understand approval SHA-256 semantics.
@@ -34,6 +35,7 @@ Start with:
 - [Workspace & Storage](operations/workspace-and-storage.md) — platform paths, SQLite/filesystem ownership, external UI/settings stores, local models, Training artifacts, Agents local state, Automation recipes/audit, backup/reset.
 - [Local Models](operations/local-models.md) — model path resolution, readiness checks, inference-stack health, smoke generation, Training integration, trust and reproducibility boundaries.
 - [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, Agents safety-identity mismatch, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
+- [Operations Center](user-guide/operations-center.md) — exact Activity/Issues operator behavior, runtime/event projection, routing, refresh and diagnostic limits.
 - [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency/presentation-state preservation, Agents same-snapshot recovery, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
 - [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — user-home binding storage, conflict recovery, direct capture, reset semantics, and live shell shortcut synchronization.
@@ -94,6 +96,7 @@ Start with:
 | [Documentation Coverage Map](DOCUMENTATION_MAP.md) | Developer / auditor / maintainer | Coverage status, known gaps, research/current separation and corpus scale |
 | [Getting Started](user-guide/getting-started.md) | User | Install, launch, workspace, first-run orientation |
 | [Interface Tour](user-guide/interface-tour.md) | User | Shell/workspace map and supporting panels |
+| [Operations Center](user-guide/operations-center.md) | User / operator / auditor | Activity/Issues runtime-event projection, navigation, refresh, correlation and evidence boundaries |
 | [Telemetry](user-guide/telemetry.md) | User / operator | CPU/RAM/GPU/process snapshot reading, refresh behavior, provider failures, privacy and non-research-evidence limits |
 | [Profiles](user-guide/profiles.md) | User | Create/edit personality definitions |
 | [Datasets](user-guide/datasets.md) | User / operator | JSONL structure, validation, approval fingerprints, Training eligibility |
@@ -203,6 +206,7 @@ docs/
 ├── user-guide/
 │   ├── getting-started.md
 │   ├── interface-tour.md
+│   ├── operations-center.md
 │   ├── telemetry.md
 │   ├── profiles.md
 │   ├── datasets.md
