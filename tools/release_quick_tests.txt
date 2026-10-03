@@ -29,6 +29,7 @@ tests/test_training_i18n.py
 tests/test_training_semantic_contracts.py
 tests/test_training_run_creation.py
 tests/test_training_runner.py
+tests/test_training_artifact_publication.py
 tests/test_training_input_pipeline.py
 tests/test_training_input_snapshot_integrity.py
 tests/test_local_model_probe.py
