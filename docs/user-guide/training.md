@@ -43,7 +43,7 @@ The top action strip shows the current run status and exposes:
 - **Pause**;
 - **Stop**.
 
-In v1.0, **Pause** and **Stop** are intentionally unavailable and remain disabled. A launched full fine-tune runs to a terminal result. Closing PTL while training is still active is guarded by the application's background-work shutdown policy.
+In v0.1.0, **Pause** and **Stop** are intentionally unavailable and remain disabled. A launched full fine-tune runs to a terminal result. Closing PTL while training is still active is guarded by the application's background-work shutdown policy.
 
 ### Run overview
 
@@ -199,11 +199,11 @@ The safe rule is simple:
 
 Changing only Profile notes does not invalidate the run because notes are not part of the training input.
 
-## 9. Base-model identity is path-based in v1.0
+## 9. Base-model identity is path-based in v0.1.0
 
 The run stores the resolved **base-model path/reference**, and PTL probes that path again before launch.
 
-v1.0 does **not** persist a cryptographic fingerprint of every base-model weight/tokenizer/config file as part of the run record.
+v0.1.0 does **not** persist a cryptographic fingerprint of every base-model weight/tokenizer/config file as part of the run record.
 
 For exact research reproducibility, therefore:
 
@@ -283,7 +283,7 @@ The Datasets validator is aligned with this rule: a `messages` record cannot be 
 
 ## 14. Current full-fine-tune behavior
 
-The v1.0 local backend:
+The v0.1.0 local backend:
 
 - loads the tokenizer and causal language model from the local directory;
 - chooses CUDA when available, otherwise CPU;
@@ -304,7 +304,7 @@ The current backend does not emit a periodic checkpoint after every epoch/step.
 
 On successful completion it saves one final model artifact. The run surface therefore reports one artifact/checkpoint when that final output exists.
 
-Do not interpret the v1.0 `checkpoints_count` field as a complete checkpoint-management system.
+Do not interpret the v0.1.0 `checkpoints_count` field as a complete checkpoint-management system.
 
 ## 16. Artifact location
 
@@ -336,9 +336,9 @@ The backend provenance includes the selected Profile/Dataset identifiers and tit
 
 This provenance records the Profile/Dataset snapshot actually accepted by the Training boundary alongside the published artifact.
 
-That statement is not a hash of the trained artifact itself. After publication, v1.0 does not re-hash the complete model directory, so later in-place artifact mutation can change bytes without changing `artifact_path`.
+That statement is not a hash of the trained artifact itself. After publication, v0.1.0 does not re-hash the complete model directory, so later in-place artifact mutation can change bytes without changing `artifact_path`.
 
-Remember the base-model limitation from section 9: the model path is recorded, but v1.0 does not cryptographically content-address the full base-model directory.
+Remember the base-model limitation from section 9: the model path is recorded, but v0.1.0 does not cryptographically content-address the full base-model directory.
 
 ## 18. Completion and model-version publication
 
@@ -425,7 +425,7 @@ A backup of only `app.db` does not preserve the trained model artifact. A backup
 
 See [Workspace & Storage](../operations/workspace-and-storage.md) for the workspace-level backup contract.
 
-## 23. Screenshot plan for v1.0
+## 23. Screenshot plan for v0.1.0
 
 The final documentation capture session should include:
 

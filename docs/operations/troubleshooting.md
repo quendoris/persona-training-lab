@@ -1,6 +1,6 @@
 # Troubleshooting & Diagnostic Evidence
 
-This guide describes how to diagnose Persona Training Lab v1.0 without destroying the evidence needed to understand the failure.
+This guide describes how to diagnose Persona Training Lab v0.1.0 without destroying the evidence needed to understand the failure.
 
 It is an operator guide, not a list of speculative fixes. Every procedure below is derived from current PTL behavior: workspace ownership, structured error reporting, Activity/Issues routing, runtime-operation leases, Training/Tests/Automation contracts, background-worker ownership, telemetry, and the release-audit tooling.
 
@@ -607,7 +607,7 @@ Dataset ID/hash
 
 Do not infer provenance only from human-readable titles or directory names.
 
-Remember that v1.0 does not content-hash the complete base-model directory.
+Remember that v0.1.0 does not content-hash the complete base-model directory.
 
 ## 27. Dataset or Profile appears valid but Training disagrees
 
@@ -889,7 +889,7 @@ Some workspaces deliberately prevent ordinary navigation away while owned backgr
 
 This is not the same as the whole application being frozen.
 
-Wait for the owned operation to finish or use the feature's supported cancellation path when one exists. Training v1.0 does not expose an active cooperative Stop/Pause implementation; Automation does expose Cancel.
+Wait for the owned operation to finish or use the feature's supported cancellation path when one exists. Training v0.1.0 does not expose an active cooperative Stop/Pause implementation; Automation does expose Cancel.
 
 Do not destroy the workspace widget/process to bypass ownership guards unless performing controlled crash recovery.
 
@@ -1164,9 +1164,9 @@ Do it only after:
 
 The detailed backup/reset contract is in [Backup, Reset & Recovery](backup-reset-recovery.md).
 
-## 56. Current v1.0 troubleshooting boundaries
+## 56. Current v0.1.0 troubleshooting boundaries
 
-PTL v1.0 does not claim automatic diagnosis or repair of every failure mode.
+PTL v0.1.0 does not claim automatic diagnosis or repair of every failure mode.
 
 In particular, it does not provide:
 
@@ -1214,4 +1214,4 @@ Changes to diagnostics/recovery should preserve these rules unless the product c
 - Exact Agents protected-history state machine: [Agents protected history and safety identity](../architecture/agents-protected-history.md)
 - Tests/evaluation/Delta: [Tests and Analysis](../user-guide/tests-and-analysis.md)
 - Automation execution/audit/process containment: [Automation](../user-guide/automation.md)
-- Stable guarantees/non-goals: [v1.0 Product Contract](../reference/v1-product-contract.md)
+- Stable guarantees/non-goals: [v0.1.0 Product Contract](../reference/v1-product-contract.md)

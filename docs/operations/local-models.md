@@ -1,6 +1,6 @@
 # Local Models: Setup, Readiness & Health Checks
 
-This operator guide documents the local-model path, file-readiness probe, optional inference stack, smoke-generation path, Training integration, and current v1.0 trust/reproducibility boundaries in Persona Training Lab.
+This operator guide documents the local-model path, file-readiness probe, optional inference stack, smoke-generation path, Training integration, and current v0.1.0 trust/reproducibility boundaries in Persona Training Lab.
 
 The central distinction is:
 
@@ -406,7 +406,7 @@ This is narrower than authorizing arbitrary Python from a model repository, but 
 
 Use model files from sources whose integrity/provenance you are prepared to trust.
 
-PTL v1.0 does not provide a model-file malware scanner or a model-loading sandbox.
+PTL v0.1.0 does not provide a model-file malware scanner or a model-loading sandbox.
 
 ## 20. Common readiness failures
 
@@ -481,7 +481,7 @@ Before creating/starting a real local fine-tune run:
 8. ensure sufficient compute/storage for Training artifacts;
 9. preserve model provenance/checksums separately when exact reproducibility matters.
 
-## 23. Current v1.0 limitations
+## 23. Current v0.1.0 limitations
 
 The current local-model operator contract deliberately does **not** claim:
 

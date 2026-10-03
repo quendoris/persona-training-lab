@@ -1,6 +1,6 @@
 # Workspace & Storage
 
-This document defines where Persona Training Lab stores mutable research/workflow data, what each area owns, and how Training artifacts, Agents lineage state, Automation recipes/audit, model inputs, SQLite persistence, shell presentation state, and editable input bindings fit into the v1.0 storage contract.
+This document defines where Persona Training Lab stores mutable research/workflow data, what each area owns, and how Training artifacts, Agents lineage state, Automation recipes/audit, model inputs, SQLite persistence, shell presentation state, and editable input bindings fit into the v0.1.0 storage contract.
 
 The central rule is:
 
@@ -143,7 +143,7 @@ It stores local research/presentation state such as:
 
 It does **not** replace the Dataset/Training/model-version/evaluation records in `app.db`.
 
-Production `AtomicLineageStateStore` resolves this file from the same PTL workspace root used by the rest of the application. The historical home-relative location `~/.persona_training_lab/agents_lineage_state.json` is not the v1.0 production default.
+Production `AtomicLineageStateStore` resolves this file from the same PTL workspace root used by the rest of the application. The historical home-relative location `~/.persona_training_lab/agents_lineage_state.json` is not the v0.1.0 production default.
 
 Because semantic lineage sources/resource links live in SQLite while local branch/history/layout state lives in this JSON, a complete Agents backup requires the whole workspace rather than either file alone.
 
@@ -187,7 +187,7 @@ PTL can also use an explicit model directory elsewhere.
 
 ### Base-model reproducibility boundary
 
-Training stores the resolved model path/reference but v1.0 does **not** cryptographically fingerprint the complete base-model directory in the Training run.
+Training stores the resolved model path/reference but v0.1.0 does **not** cryptographically fingerprint the complete base-model directory in the Training run.
 
 If exact research reproducibility matters, keep that directory immutable for the run and record the upstream model revision/checksum separately.
 
@@ -546,7 +546,7 @@ The code reviewed here does not provide a rationale for the key-binding path, so
 
 A clean `git status` is also not sufficient when ignored files exist. Release policy treats hidden runtime-affecting inputs under source/test/tool trees as release-integrity defects.
 
-## 27. v1.0 visual plan
+## 27. v0.1.0 visual plan
 
 The documentation asset pass should include:
 
@@ -578,5 +578,5 @@ Exact paths and destructive/executable effects remain written contracts; images 
 - [Training](../user-guide/training.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Architecture Overview](../architecture/overview.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)

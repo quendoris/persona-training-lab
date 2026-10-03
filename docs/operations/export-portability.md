@@ -1,6 +1,6 @@
 # Export & Portability Boundaries
 
-Persona Training Lab v1.0 reserves an `exports/` directory inside each workspace, but the current production application does **not** expose a general workspace export, import, migration, or portable-bundle workflow.
+Persona Training Lab v0.1.0 reserves an `exports/` directory inside each workspace, but the current production application does **not** expose a general workspace export, import, migration, or portable-bundle workflow.
 
 The central rule is:
 
@@ -20,7 +20,7 @@ and `ensure_workspace_dirs(...)` creates it eagerly together with the workspace 
 
 The path is therefore stable current workspace structure.
 
-## 2. What current v1.0 does not provide
+## 2. What current v0.1.0 does not provide
 
 Current production code does not expose a dedicated:
 
@@ -59,7 +59,7 @@ The backup guide therefore treats `exports/` as workspace data included in a who
 
 ## 5. Whole-workspace copy is backup, not portable export
 
-The supported v1.0 preservation direction is an **offline whole-workspace backup**.
+The supported v0.1.0 preservation direction is an **offline whole-workspace backup**.
 
 That backup can preserve together:
 
@@ -225,7 +225,7 @@ Copying only the workspace does not identify uncommitted source changes.
 
 A raw workspace copy may contain paths or external assumptions specific to the source host.
 
-Current v1.0 does not implement a cross-platform path-remapping migration engine.
+Current v0.1.0 does not implement a cross-platform path-remapping migration engine.
 
 Therefore:
 
@@ -288,7 +288,7 @@ failure atomicity
 partial-import behavior
 ```
 
-Until those are implemented and tested, they remain requirements for a future feature, not v1.0 guarantees.
+Until those are implemented and tested, they remain requirements for a future feature, not v0.1.0 guarantees.
 
 ## 20. Developer invariants
 

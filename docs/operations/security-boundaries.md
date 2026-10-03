@@ -1,6 +1,6 @@
 # Security, Trust & Privacy Boundaries
 
-This guide defines the security/trust/privacy boundaries that Persona Training Lab v1.0 actually implements.
+This guide defines the security/trust/privacy boundaries that Persona Training Lab v0.1.0 actually implements.
 
 It is not a generic security checklist and it does not infer guarantees from UI wording. The statements here follow current composition, persistence, model-loading, Dataset/Training, Automation, runtime-coordination, diagnostic, shell/settings, and release-policy code.
 
@@ -34,7 +34,7 @@ Keep these concepts separate. Most dangerous overclaims come from treating one n
 
 PTL is a local desktop process. Files it can read/write, libraries it loads, and trusted child commands it executes are ultimately constrained by the authority of the OS account that launched it.
 
-PTL v1.0 does not create a separate low-privilege identity for model loading, Dataset parsing, Training, evaluation, or Automation.
+PTL v0.1.0 does not create a separate low-privilege identity for model loading, Dataset parsing, Training, evaluation, or Automation.
 
 If stronger isolation is required, use OS account separation, filesystem permissions, disk encryption, network controls, containers/VMs, or other host controls appropriate to the threat model.
 
@@ -96,7 +96,7 @@ The exact native backend/location is platform-dependent. Protect it according to
 
 ## 7. Data at rest is ordinary host state
 
-PTL v1.0 does not add product-level encryption to:
+PTL v0.1.0 does not add product-level encryption to:
 
 ```text
 app.db
@@ -240,7 +240,7 @@ means expected file categories were found under the shallow readiness contract.
 
 It does not mean the model is signed, trusted, compatible, complete, memory-safe to load, or guaranteed to generate successfully.
 
-## 18. Base-model identity is path/reference based in v1.0
+## 18. Base-model identity is path/reference based in v0.1.0
 
 Training stores/resolves the base-model path/reference but does not persist a digest of every file in the base-model directory.
 
@@ -644,7 +644,7 @@ It does not securely wipe referenced artifacts or storage sectors.
 
 Across PTL, removing something from a UI/local state does not imply overwriting WAL/history/backups/external files/artifacts/storage media.
 
-v1.0 does not claim cryptographic secure deletion. Apply OS/storage destruction procedures when required by policy.
+v0.1.0 does not claim cryptographic secure deletion. Apply OS/storage destruction procedures when required by policy.
 
 ## 59. Backups inherit all contained sensitivity
 
@@ -694,9 +694,9 @@ The current contract assumes:
 
 If these assumptions do not hold, additional external isolation is required.
 
-## 65. PTL v1.0 non-claims
+## 65. PTL v0.1.0 non-claims
 
-PTL v1.0 does not claim:
+PTL v0.1.0 does not claim:
 
 - defense against an attacker already holding equivalent/higher host-account privileges;
 - hostile-code sandboxing for Automation;
@@ -792,4 +792,4 @@ Security-sensitive changes must preserve these rules unless the product contract
 - Local model trust: [Local Models](local-models.md)
 - Automation trust/process/audit: [Automation](../user-guide/automation.md)
 - Runtime coordination architecture: [Runtime resource safety](../architecture/runtime-resource-safety.md)
-- Stable release promises/non-goals: [v1.0 Product Contract](../reference/v1-product-contract.md)
+- Stable release promises/non-goals: [v0.1.0 Product Contract](../reference/v1-product-contract.md)
