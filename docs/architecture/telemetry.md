@@ -32,9 +32,14 @@ NvidiaSmiTelemetryProvider
         │
         ▼
 TelemetryViewModel
+        ▲
+        │ apply immutable snapshot on GUI thread
         │
-        ▼
 TelemetryPanel
+        │
+        └── owned Python refresh thread
+                │
+                └── SystemTelemetryService.collect_snapshot()
 ```
 
 The provider ports are defined in:
@@ -265,37 +270,68 @@ That is sufficient for a live operator panel but insufficient for rigorous histo
 
 ## 10. Refresh lifecycle
 
-`TelemetryViewModel.__post_init__()` performs an initial collection.
+`TelemetryViewModel` no longer performs host collection during construction. A newly composed view-model starts without a snapshot; collection is explicitly owned by the panel refresh lifecycle.
 
-The Telemetry panel also owns:
+The Telemetry panel owns:
 
 ```text
 auto refresh interval = 30 seconds
+manual Refresh
+refresh on show
+timer stop on hide
+one in-flight collection at a time
 ```
 
-When visible, it starts the timer and refreshes immediately on show. When hidden, it stops the auto-refresh timer.
-
-The **Refresh** button requests the same collection path manually.
-
-A `_refresh_pending` flag prevents overlapping panel refresh requests inside the same GUI object.
-
-## 11. Current GUI-thread latency boundary
-
-The panel defers `_finish_refresh()` with a zero-delay Qt timer, but the actual:
+When a refresh begins, the panel starts one non-daemon Python thread named:
 
 ```text
-TelemetryViewModel.refresh()
-  -> SystemTelemetryService.collect_snapshot()
-  -> provider collection
+ptl-telemetry-refresh
 ```
 
-still executes synchronously on the Qt GUI thread.
+That worker calls only:
 
-That means provider latency can temporarily delay UI event processing. In particular, the current path includes a 0.1-second psutil CPU sample and can wait up to the NVIDIA-SMI timeout on a problematic GPU command.
+```text
+SystemTelemetryService.collect_snapshot()
+```
 
-This is a **known responsiveness boundary**, not a claim that Telemetry has an asynchronous/background sampler.
+and emits the resulting immutable snapshot back to the GUI object. The GUI thread then applies it through:
 
-If Telemetry becomes higher-frequency, research-grade, or materially slower, collection should move behind an owned background-worker lifecycle rather than increasing GUI-thread polling complexity.
+```text
+TelemetryViewModel.apply_snapshot(...)
+```
+
+and updates widgets.
+
+A `_refresh_pending` flag prevents overlapping panel refresh requests.
+
+## 11. GUI-thread and shutdown boundary
+
+Host provider collection no longer runs on the Qt GUI thread in the normal panel path.
+
+The blocking provider calls remain real:
+
+```text
+psutil CPU sample interval = 0.1 s
+nvidia-smi timeout         = 1.0 s
+```
+
+but they execute inside the owned Telemetry refresh thread rather than delaying Qt event dispatch.
+
+Telemetry does not create a persisted runtime-operation lease for this read-only diagnostic sample. Instead, its worker lifetime participates directly in the shell background-owner contract:
+
+```text
+TelemetryPanel.shutdown_background_work(timeout_ms)
+        ↓
+stop auto-refresh timer
+        ↓
+wait, within supplied budget, for in-flight collection
+        ↓
+report stopped only when worker thread is no longer alive
+```
+
+`MainWindow.shutdown_background_work(...)` now visits both registered workspace owners and dock-panel owners. Therefore the final bootstrap drain does not release workspace ownership while an in-flight Telemetry thread is still registered as alive.
+
+The worker is not force-cancelled mid-provider call. Shutdown can wait for the bounded/current provider operation to return.
 
 ## 12. Panel visualization semantics
 
@@ -418,7 +454,9 @@ The service tests protect:
 - `processes_unavailable` behavior without discarding base/GPU metrics;
 - exact CPU/GPU `high_load` thresholds.
 
-These tests prove the snapshot semantics they exercise. They do not prove timing accuracy, platform-wide NVIDIA-SMI behavior, long-duration sampling stability, or GUI responsiveness.
+Additional background-close tests protect that Telemetry refresh starts outside the inline GUI call path, that shell shutdown includes dock background owners, and that an in-flight Telemetry collection is waited for before shutdown reports complete.
+
+These tests prove the snapshot/lifecycle semantics they exercise. They do not prove timing accuracy, platform-wide NVIDIA-SMI behavior, or long-duration sampling stability.
 
 ## 18. Developer invariants
 
@@ -434,7 +472,7 @@ Telemetry changes should preserve these rules unless the product contract is del
 8. current first-row NVIDIA behavior must not be documented as multi-GPU aggregation;
 9. current snapshots must not be called historical/persisted telemetry;
 10. current panel measurements must not be promoted to Training Dynamics evidence without a new versioned instrumentation contract;
-11. if collection moves off the GUI thread, the worker must enter the same owned shutdown/background lifecycle used elsewhere in PTL;
+11. Telemetry host collection must remain off the GUI thread in the normal panel path, and its worker must remain part of the shell-owned shutdown/background lifecycle;
 12. any new persisted Telemetry artifacts/statuses must be added to storage, status/reference, privacy, backup, and release documentation.
 
 ## 19. Audit checklist
