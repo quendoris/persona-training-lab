@@ -235,10 +235,11 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 ### P0 — continue code-as-documentation architecture audit
 
 1. Execute the new Agents projection-publication regression tranche, then continue the remaining cross-store race audit. The code now distinguishes worker `last_good` from screen-accepted projection and reconciles persisted safety links before publishing full/content generations.
-2. Finish the current-only language search for stale `planned`, `future`, old statuses, old paths, obsolete migration wording, and current docs that still describe already-fixed seams.
-3. Complete the new Telemetry tranche: execute its service-semantic regression file, then decide from evidence whether synchronous GUI-thread provider collection remains an accepted v1 responsiveness boundary or warrants a worker-lifecycle correction before freeze.
-4. Use the new cross-cutting provenance matrix to continue auditing mutable external dependencies, especially exports/artifacts and any future model/package identity fields, for claims stronger than the code proves.
-5. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
+2. Complete the new Telemetry tranche: execute its service-semantic regression file, then decide from evidence whether synchronous GUI-thread provider collection remains an accepted v1 responsiveness boundary or warrants a worker-lifecycle correction before freeze.
+3. Use the new cross-cutting provenance matrix to continue auditing mutable external dependencies, especially exports/artifacts and any future model/package identity fields, for claims stronger than the code proves.
+4. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
+
+The targeted current-only language pass across canonical root/user-guide/operations/architecture/reference/development docs is also closed. It found one stale current claim — the old unbound Automation review-to-run wording in `operations/workspace-and-storage.md` — which was corrected. Remaining `future` wording in the scanned hits is deliberate research/migration/constraint language, and the historical Agents home path is explicitly labelled non-v1. A broader final terminology/link/package audit remains P2 freeze work rather than an open P0 architecture seam.
 
 This pass also closed the cross-cutting provenance documentation gap. `architecture/provenance-and-external-state.md` now separates content-pinned Profile/Dataset identity from path-only base-model/trained-artifact identity, transient Automation recipe review identity, and external transitive dependencies. During that audit, `operations/workspace-and-storage.md` was corrected so it no longer describes the already-fixed Automation review-to-run seam as unbound. Model versions / Snapshots are therefore promoted from B to A at the documentation/code-test-consistency level; this does not create complete artifact/base-model hashing that v1.0 does not implement.
 
