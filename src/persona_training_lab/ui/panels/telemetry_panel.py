@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import Thread
 
-from PySide6.QtCore import QSize, QTimer, Qt
+from PySide6.QtCore import QSize, QTimer, Qt, Signal
 from PySide6.QtGui import (
     QHideEvent,
     QPainter,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from persona_training_lab.application.telemetry.service import TelemetrySnapshot
 from persona_training_lab.ui.i18n.manager import LocalizationManager
 from persona_training_lab.ui.panels.localization import text as panel_text
 from persona_training_lab.ui.themes.manager import apply_scrollbar_style
@@ -181,6 +183,9 @@ class _HorizontalMetric(QFrame):
 
 
 class TelemetryPanel(QFrame):
+    _snapshot_ready = Signal(object)
+    _snapshot_failed = Signal()
+
     def __init__(
         self,
         view_model: TelemetryViewModel,
@@ -193,6 +198,9 @@ class TelemetryPanel(QFrame):
         self._items = self._to_items()
         self._mode: str | None = None
         self._refresh_pending = False
+        self._refresh_thread: Thread | None = None
+        self._snapshot_ready.connect(self._apply_refresh_snapshot)
+        self._snapshot_failed.connect(self._finish_refresh_failure)
         self._metrics_widgets: list[_VerticalMetric | _HorizontalMetric] = []
         self._metrics_layout: QVBoxLayout | QHBoxLayout | None = None
         self._metrics_viewport: QWidget | None = None
@@ -473,24 +481,54 @@ class TelemetryPanel(QFrame):
             self._refresh_btn.setText(
                 self._text("panel.telemetry.refreshing")
             )
-        QTimer.singleShot(0, self._finish_refresh)
+        thread = Thread(
+            target=self._collect_refresh_snapshot,
+            name="ptl-telemetry-refresh",
+            daemon=False,
+        )
+        self._refresh_thread = thread
+        thread.start()
 
-    def _finish_refresh(self) -> None:
+    def _collect_refresh_snapshot(self) -> None:
         try:
-            self._vm.refresh()
-            self._title.setText(self._status_title())
-            self._subtitle.setText(self._status_subtitle())
-            self._error.setText(self._status_error())
-            self._error.setVisible(bool(self._error.text().strip()))
-            self._items = self._to_items()
-            self._refresh_processes()
-            self._update_metric_widgets()
-        finally:
-            self._refresh_btn.setText(
-                self._text("panel.telemetry.refresh")
-            )
-            self._refresh_btn.setEnabled(True)
-            self._refresh_pending = False
+            snapshot = self._vm.telemetry_service.collect_snapshot()
+        except Exception:
+            self._snapshot_failed.emit()
+            raise
+        self._snapshot_ready.emit(snapshot)
+
+    def _apply_refresh_snapshot(self, snapshot: object) -> None:
+        if isinstance(snapshot, TelemetrySnapshot):
+            self._vm.apply_snapshot(snapshot)
+        self._finish_refresh_ui()
+
+    def _finish_refresh_failure(self) -> None:
+        self._finish_refresh_ui()
+
+    def _finish_refresh_ui(self) -> None:
+        self._title.setText(self._status_title())
+        self._subtitle.setText(self._status_subtitle())
+        self._error.setText(self._status_error())
+        self._error.setVisible(bool(self._error.text().strip()))
+        self._items = self._to_items()
+        self._refresh_processes()
+        self._update_metric_widgets()
+        self._refresh_btn.setText(
+            self._text("panel.telemetry.refresh")
+        )
+        self._refresh_btn.setEnabled(True)
+        self._refresh_pending = False
+        self._refresh_thread = None
+
+    def shutdown_background_work(self, timeout_ms: int = 0) -> bool:
+        self._auto_refresh_timer.stop()
+        thread = self._refresh_thread
+        if thread is None or not thread.is_alive():
+            return True
+        timeout_ms = max(0, int(timeout_ms))
+        if timeout_ms:
+            thread.join(timeout_ms / 1000)
+        return not thread.is_alive()
 
     def _update_metric_widgets(self) -> None:
         if len(self._metrics_widgets) != len(self._items):
