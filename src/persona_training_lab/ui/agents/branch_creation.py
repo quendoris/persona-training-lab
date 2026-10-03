@@ -114,7 +114,7 @@ class BranchCreationController:
                 "branch_create",
                 metadata,
             )
-        except Exception as error:
+        except Exception as exc:
             compensation_errors: list[BaseException] = []
             state_restored = False
             try:
@@ -131,9 +131,9 @@ class BranchCreationController:
 
             if compensation_errors:
                 raise BranchCreationExecutionError(
-                    error,
+                    exc,
                     tuple(compensation_errors),
-                ) from error
+                ) from exc
             raise
         return child_id
 
@@ -185,8 +185,8 @@ class BranchCreationController:
 
         try:
             transition = self.state.undo_only(current_layout)
-        except Exception as error:
-            self._fail_lease_or_raise(lease, error)
+        except Exception as exc:
+            self._fail_lease_or_raise(lease, exc)
             raise
 
         if (
@@ -212,18 +212,18 @@ class BranchCreationController:
 
         try:
             forgotten_id = self.transactions.forget_creation_history(metadata)
-        except Exception as error:
+        except Exception as exc:
             compensation_errors = self._restore_and_close(
                 transaction_snapshot,
                 lease,
                 cancel=False,
-                message=str(error),
+                message=str(exc),
             )
             if compensation_errors:
                 raise BranchCreationExecutionError(
-                    error,
+                    exc,
                     compensation_errors,
-                ) from error
+                ) from exc
             raise
 
         if forgotten_id != child_id:
@@ -289,10 +289,10 @@ class BranchCreationController:
                     "safety links"
                 )
             return transition
-        except Exception as error:
+        except Exception as exc:
             self._restore_state_or_raise(
                 transaction_snapshot,
-                error,
+                exc,
             )
             raise
 
@@ -323,14 +323,14 @@ class BranchCreationController:
         try:
             self.state.restore_transaction_state(snapshot)
             state_restored = True
-        except Exception as error:
-            errors.append(error)
+        except Exception as exc:
+            errors.append(exc)
 
         if state_restored and restore_links is not None:
             try:
                 self.transactions.restore_creation_history(restore_links)
-            except Exception as error:
-                errors.append(error)
+            except Exception as exc:
+                errors.append(exc)
 
         errors.extend(
             self._close_lease(
@@ -360,8 +360,8 @@ class BranchCreationController:
                 raise RuntimeError(
                     "Branch creation Undo lease was not finalized"
                 )
-        except Exception as error:
-            return (error,)
+        except Exception as exc:
+            return (exc,)
         return ()
 
     @staticmethod
@@ -396,11 +396,11 @@ class BranchCreationController:
                 raise RuntimeError(
                     "Branch creation Undo lease was not finalized"
                 )
-        except Exception as error:
+        except Exception as exc:
             raise BranchCreationHistoryCommittedError(
                 transition,
-                error,
-            ) from error
+                exc,
+            ) from exc
 
 
 __all__ = (
