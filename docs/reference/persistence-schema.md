@@ -1,6 +1,6 @@
 # SQLite Persistence Schema Reference
 
-> **Scope:** current v1.0 SQLite schema/bootstrap contract.
+> **Scope:** current v0.1.0 SQLite schema/bootstrap contract.
 >
 > This is a mechanical reference for the schema created and extended by `infrastructure/persistence/sqlite/schema.py`. For transaction ownership, cross-store semantics, Agents JSON, filesystem artifacts, QSettings and user-home key bindings, read [Persistence architecture](../architecture/persistence.md) and [Workspace layout](workspace-layout.md).
 

@@ -1,6 +1,6 @@
 # Keyboard & Mouse Bindings Reference
 
-This is the machine-oriented v1.0 binding reference for Persona Training Lab.
+This is the machine-oriented v0.1.0 binding reference for Persona Training Lab.
 
 For the editing workflow, conflict handling, direct capture, persistence, and troubleshooting, see [Key Bindings & Mouse Gestures](../user-guide/key-bindings.md).
 

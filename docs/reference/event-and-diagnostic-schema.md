@@ -1,6 +1,6 @@
 # Event, Error and Diagnostic Evidence Reference
 
-> **Scope:** current v1.0 event-log, application-error reporter, rotating-log and Operations Center evidence contract.
+> **Scope:** current v0.1.0 event-log, application-error reporter, rotating-log and Operations Center evidence contract.
 >
 > This document describes what PTL records and how those records are surfaced. It does **not** claim that diagnostic data is automatically safe to publish or that the event log is a lossless audit trail.
 

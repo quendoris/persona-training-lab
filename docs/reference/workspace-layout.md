@@ -1,6 +1,6 @@
 # Workspace Layout Reference
 
-This reference is the compact path/ownership map for Persona Training Lab v1.0.
+This reference is the compact path/ownership map for Persona Training Lab v0.1.0.
 
 For explanations and operating procedures, see [Workspace & Storage](../operations/workspace-and-storage.md), [Backup, Reset & Recovery](../operations/backup-reset-recovery.md), and [Persistence architecture](../architecture/persistence.md).
 
@@ -118,7 +118,7 @@ Creation is lazy.
 
 This file is separate from semantic Dataset/Training/model/evaluation records in `app.db`.
 
-Historical path that is **not** the v1.0 production Agents default:
+Historical path that is **not** the v0.1.0 production Agents default:
 
 ```text
 ~/.persona_training_lab/agents_lineage_state.json
@@ -298,7 +298,7 @@ This file is user-home-relative and not automatically moved by `workspace_dir`.
 
 ## 14. Three presentation/settings stores
 
-Current v1.0 UI/operator state is split across:
+Current v0.1.0 UI/operator state is split across:
 
 ```text
 <workspace>/app.db / ui_preferences

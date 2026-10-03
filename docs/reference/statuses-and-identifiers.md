@@ -1,6 +1,6 @@
 # Statuses, Result Codes & Identifiers
 
-This reference defines the machine-semantic status values, result/error/diagnostic codes, event identities, and generated identifier formats that Persona Training Lab v1.0 currently exposes in code and persistence.
+This reference defines the machine-semantic status values, result/error/diagnostic codes, event identities, and generated identifier formats that Persona Training Lab v0.1.0 currently exposes in code and persistence.
 
 It is intentionally strict about vocabulary. A persisted status, an application action code, a user-message key, a diagnostic code, an event type, and an object ID can all be short strings, but they are **not interchangeable contracts**.
 
@@ -1069,7 +1069,7 @@ If it is a hash, is it an entity ID, a transient safety token, an audit fingerpr
 
 ## Related documentation
 
-- [v1.0 Product Contract](v1-product-contract.md)
+- [v0.1.0 Product Contract](v1-product-contract.md)
 - [Evaluation contract](evaluation-contract.md)
 - [Workspace layout reference](workspace-layout.md)
 - [Keyboard & mouse bindings reference](keyboard-mouse-bindings.md)
