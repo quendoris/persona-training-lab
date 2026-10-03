@@ -109,7 +109,7 @@ The authoritative published layout is:
 └── training_metadata.json
 ```
 
-The local full-fine-tune backend first writes those components into a same-parent hidden staging directory and only publishes the final `<run_id>/` directory after model, tokenizer, and metadata writes have all succeeded. The backend refuses to overwrite an already existing final run directory.
+The local full-fine-tune backend first writes those components into a same-parent hidden staging directory and only publishes the final `<run_id>/` directory after model, tokenizer, and metadata writes have all succeeded. The backend refuses to overwrite an already existing final run directory. The Training orchestration layer independently requires a non-empty returned artifact path before it will persist a run as `completed`, so an inconsistent backend result cannot create a completed no-artifact Training record.
 
 This closes a provenance seam in which model bytes could previously be written into the final run namespace before metadata publication succeeded. Under ordinary exception handling, failed staging is best-effort removed and no final artifact path is returned.
 

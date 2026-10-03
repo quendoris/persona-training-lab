@@ -477,7 +477,19 @@ class TrainingService:
                 provenance=provenance,
             )
 
-            self._log(run_id, result.message)
+            reported_success = (
+                normalize_training_status(result.status)
+                is TrainingRunStatus.COMPLETED
+            )
+            artifact_path = result.artifact_path.strip()
+            is_success = reported_success and bool(artifact_path)
+            terminal_message = (
+                result.message
+                if not reported_success or artifact_path
+                else "artifact_not_created"
+            )
+
+            self._log(run_id, terminal_message)
             self._log(
                 run_id,
                 "training_result: "
@@ -486,14 +498,13 @@ class TrainingService:
                 f"initial_loss={result.initial_loss:.6f}, "
                 f"final_loss={result.final_loss:.6f}",
             )
-            if result.artifact_path:
-                self._log(run_id, f"artifact_saved:{result.artifact_path}")
+            if is_success:
+                self._log(run_id, f"artifact_saved:{artifact_path}")
                 if lease is not None:
                     lease.attach(
-                        ResourceClaim("artifact_path", result.artifact_path, "write")
+                        ResourceClaim("artifact_path", artifact_path, "write")
                     )
 
-            is_success = normalize_training_status(result.status) is TrainingRunStatus.COMPLETED
             self._set_runtime(
                 run_id,
                 {
@@ -508,23 +519,23 @@ class TrainingService:
                     "progress": "1.0" if is_success else "0",
                     "loss": f"{result.final_loss:.6f}" if result.final_loss else "—",
                     "speed": "full fine-tune",
-                    "checkpoints_count": "01" if result.artifact_path else "00",
+                    "checkpoints_count": "01" if is_success else "00",
                     "started_at": started_at,
                     "finished_at": datetime.now(timezone.utc).isoformat(),
-                    "artifact_path": result.artifact_path,
-                    "error_message": "" if is_success else result.message,
+                    "artifact_path": artifact_path if is_success else "",
+                    "error_message": "" if is_success else terminal_message,
                 },
             )
             if lease is not None:
                 if is_success:
                     lease.succeed()
                 else:
-                    lease.fail(result.message)
+                    lease.fail(terminal_message)
             if is_success:
                 return ActionResult(
                     True,
                     "completed",
-                    {"artifact": result.artifact_path},
+                    {"artifact": artifact_path},
                 )
             return ActionResult(
                 False,

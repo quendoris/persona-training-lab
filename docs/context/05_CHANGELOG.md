@@ -83,3 +83,5 @@ This evidence is not automatically inherited by later commits.
 - Evaluation crack audit closed a protocol-integrity seam: a JSONL battery could previously mix `battery_version`, `instrument` or `scoring_version` between cases while the persisted run summary advertised only the first case's identity. Battery loading now rejects mixed protocol identity before inference, with parameterized regression coverage.
 
 - Tests/Analysis now consume an explicit personality-portrait projection instead of assuming every generic `experiments` row is a portrait. Current semantic-title rows and structured legacy portrait payloads remain compatible; unrelated experiment records cannot become the latest/previous portrait pair. Regression coverage includes a newer unrelated row ahead of two valid portraits.
+
+- Training/backend boundary now fails closed on an internally inconsistent backend result: `status=completed` without a published artifact path becomes terminal `artifact_not_created`, with no artifact/checkpoint persisted and regression coverage in the quick suite.

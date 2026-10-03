@@ -344,7 +344,7 @@ Failure can occur before `running` or during backend execution and produces a pe
 
 A run already in `running` is rejected as `already_running`; a run not in `ready` is rejected as `not_ready`.
 
-On success PTL persists completed status, `progress = 1.0`, final epoch progress/loss, `speed = full fine-tune`, artifact/checkpoint count, finish time, artifact path, and empty error text. On failure it persists a terminal failed state with error text and finish time.
+On success PTL persists completed status, `progress = 1.0`, final epoch progress/loss, `speed = full fine-tune`, artifact/checkpoint count, finish time, artifact path, and empty error text. The orchestration layer accepts backend `completed` only when the backend also returns a non-empty published `artifact_path`; `completed` without an artifact fails closed as `artifact_not_created` and persists no artifact/checkpoint. On failure it persists a terminal failed state with error text and finish time.
 
 ## 25. Model-version publication
 

@@ -283,3 +283,57 @@ def test_viewmodel_publishes_machine_model_version_quality(tmp_path: Path) -> No
     note_model = vm.version_note_model(version)
     assert isinstance(note_model, TrainingText)
     assert note_model.key == "training.version.note"
+
+
+
+class _CompletedWithoutArtifactBackend(_FullBackend):
+    def run(
+        self,
+        run_id: str,
+        model_path: str,
+        samples: tuple[TrainingSample, ...],
+        *,
+        epochs: int = 1,
+        batch_size: int = 1,
+        learning_rate: float = 1e-4,
+        provenance: dict[str, object] | None = None,
+    ) -> FullFineTuneResult:
+        self.samples = tuple(samples)
+        self.provenance = dict(provenance or {})
+        return FullFineTuneResult(
+            status=TrainingRunStatus.COMPLETED.value,
+            message="full_finetune_completed",
+            artifact_path="",
+            epochs=epochs,
+            max_steps=max(1, epochs),
+            learning_rate=learning_rate,
+            trainable_params=42,
+            initial_loss=1.0,
+            final_loss=0.1,
+        )
+
+
+def test_completed_backend_result_without_artifact_fails_closed(
+    tmp_path: Path,
+) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    service, run_id, _backend = _configured_service(
+        connection,
+        tmp_path,
+        backend=_CompletedWithoutArtifactBackend(),
+    )
+
+    result = service.start_full_finetune_run(run_id)
+
+    assert result.ok is False
+    assert result.code == "start_failed"
+    row = service.list_training_runs()[0]
+    assert row.status_code is TrainingRunStatus.FAILED
+    assert row.artifact_path == ""
+    assert row.checkpoints_count == "00"
+    assert row.error_message == "artifact_not_created"
+    logs = service.list_training_run_logs(run_id)
+    assert any("artifact_not_created" in log for log in logs)
+    assert not any("artifact_saved:" in log for log in logs)
