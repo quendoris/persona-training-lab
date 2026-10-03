@@ -231,7 +231,9 @@ For an imported workspace manifest, relative `working_directory` is resolved rel
 
 Workspace recipe manifests are executable trusted inputs, not signed/content-addressed capsules.
 
-v1.0 does not persist a recipe-manifest content hash that binds the detail-pane snapshot to a later Run click. Refresh/review after edits and avoid concurrent external mutation when consent/reproducibility matters.
+The current Automation UI binds the recipe snapshot reviewed in the detail pane to the later Run request with a semantic SHA-256 identity. At Run time the recipe is re-resolved; if its normalized identity changed, the service returns `recipe_stale` before acquiring the runtime lease and before launching a process.
+
+That review identity is not a durable signed package provenance record and does not hash transitive companion executables/scripts/data. Refresh/re-review after edits, and preserve external dependency revisions separately when reproducibility matters. See [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md).
 
 ## 10. Automation audit state
 
@@ -569,6 +571,7 @@ Exact paths and destructive/executable effects remain written contracts; images 
 - [Agents lineage architecture](../architecture/agents-lineage.md)
 - [Automation](../user-guide/automation.md)
 - [Automation architecture](../architecture/automation.md)
+- [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md)
 - [Datasets](../user-guide/datasets.md)
 - [Training](../user-guide/training.md)
 - [Training pipeline specification](../training_pipeline.md)
