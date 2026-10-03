@@ -95,7 +95,7 @@ There is currently no console-script entry point declared in `pyproject.toml`. D
 
 ## Versioning
 
-The package metadata currently declares version `0.1.0` in `pyproject.toml` while the project is being prepared for the v1.0 documentation/release contract.
+The package metadata currently declares version `0.1.0` in `pyproject.toml` while the project is being prepared for the v0.1.0 documentation/release contract.
 
 Treat version synchronization as a release task: package metadata, runtime `__version__`, release notes/tags and public documentation should not be assumed to update each other automatically unless tooling is added to enforce that relationship.
 

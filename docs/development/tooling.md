@@ -244,7 +244,7 @@ archive-bundler
     ← generic deterministic evidence-packaging primitive applicable to visual/release artifacts
 ```
 
-These relationships record engineering provenance, not dependency edges. PTL does not import these snippets in the current v1.0 documentation/release contract.
+These relationships record engineering provenance, not dependency edges. PTL does not import these snippets in the current v0.1.0 documentation/release contract.
 
 ## Current extraction/dependency matrix
 

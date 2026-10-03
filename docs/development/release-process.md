@@ -163,7 +163,7 @@ Do not assume these values are synchronized automatically.
 
 Before final release, compare candidate behavior against the current documentation contracts, especially:
 
-- [v1.0 Product Contract](../reference/v1-product-contract.md);
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md);
 - [Persistence architecture](../architecture/persistence.md);
 - [Security, Trust & Privacy Boundaries](../operations/security-boundaries.md);
 - [Statuses, Result Codes & Identifiers](../reference/statuses-and-identifiers.md);

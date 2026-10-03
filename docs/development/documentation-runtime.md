@@ -5,7 +5,7 @@ Persona Training Lab has two related but distinct documentation surfaces:
 1. the repository's canonical documentation tree rooted at `docs/README.md`;
 2. the in-application **Docs** workspace backed by `DocsService`, `DocsViewModel`, and `DocsScreen`.
 
-They share source files, but they are **not equivalent navigation surfaces**. This distinction is part of the current v1.0 behavior and must not be collapsed into the claim that every canonical document is automatically exposed inside the application.
+They share source files, but they are **not equivalent navigation surfaces**. This distinction is part of the current v0.1.0 behavior and must not be collapsed into the claim that every canonical document is automatically exposed inside the application.
 
 For the user-facing workflow and troubleshooting behavior, see [Documentation Workspace](../user-guide/documentation.md). This document owns the implementation/packaging contract behind that surface.
 
