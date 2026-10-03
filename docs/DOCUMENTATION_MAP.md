@@ -66,21 +66,21 @@ Across the explicit coverage-table rows in this map, the current state is:
 
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
-| **A — audited/current** | **36** | **90.0%** |
+| **A — audited/current** | **37** | **92.5%** |
 | **B — covered/current** | **2** | **5.0%** |
-| **C — distributed coverage** | **2** | **5.0%** |
+| **C — distributed coverage** | **1** | **2.5%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
-strictly audited/closed now:      36 / 40 = 90.0%
-current coverage at least B:      38 / 40 = 95.0%
-still distributed current scope:   2 / 40 =  5.0%
+strictly audited/closed now:      37 / 40 = 92.5%
+current coverage at least B:      39 / 40 = 97.5%
+still distributed current scope:   1 / 40 =  2.5%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
 ```
 
-The 95.0% figure must not be reported as “95.0% release complete”: status B still contains real polish/evidence/edge-case work, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
+The 97.5% figure must not be reported as “97.5% release complete”: status B still contains real evidence/edge-case work, the remaining C row is an explicit product-boundary choice, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
 
 ## 3.1 Current closure mind map
 
@@ -88,19 +88,18 @@ The coverage tables reduce to this current implementation/documentation state:
 
 ```text
 PTL v1.0 documentation/code audit
-├── strictly audited/current (A): 36 / 40 implemented rows = 90.0%
+├── strictly audited/current (A): 37 / 40 implemented rows = 92.5%
 ├── covered/current but not strictly closed (B): 2 / 40 = 5.0%
 │   ├── Telemetry user workflow
 │   └── Telemetry architecture
-├── distributed current coverage (C): 2 / 40 = 5.0%
-│   ├── Dashboard / Projects overview
+├── distributed current coverage (C): 1 / 40 = 2.5%
 │   └── Export / portability
 └── proposed research architecture (R): 2 rows, outside v1.0 closure denominator
     ├── Training Dynamics mathematics
     └── Training Dynamics instrumentation
 ```
 
-So there are **4 implemented/current rows that are not yet A**. Two are deliberately still distributed because the current product surface does not justify a dedicated document, and the remaining two are the Telemetry user/architecture rows pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
+So there are **3 implemented/current rows that are not yet A**. Two are the Telemetry user/architecture rows pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection. The remaining row is Export/portability: current code has an `exports/` workspace directory but no supported product-level export/migration workflow, so the contract intentionally remains distributed rather than inventing a feature that does not exist.
 
 The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
 
@@ -133,7 +132,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | strict `#RRGGBB` custom-accent write validation is implemented and targeted-tested; final visual/release pass remains |
 | Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
-| Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
+| Dashboard / Projects overview | A | `user-guide/dashboard.md`, `user-guide/interface-tour.md`, Dashboard service/viewmodel tests | Dashboard is documented as read-only workflow aggregation/routing; `projects` is explicitly a read-only compatibility/fallback source, not a current CRUD workspace |
 | Telemetry | B | `user-guide/telemetry.md`, `architecture/telemetry.md`, troubleshooting | dedicated operator workflow now exists; execute Telemetry regression evidence and resolve/accept the synchronous GUI-refresh boundary before A |
 | Operations Center / Issues / Activity | A | `user-guide/operations-center.md`, `interface-tour.md`, `troubleshooting.md`, `ui-shell.md`, `reference/event-and-diagnostic-schema.md` | dedicated operator contract now covers source projection, refresh cadence, filtering/deduplication, routing, correlation identity and failure/privacy boundaries |
 
