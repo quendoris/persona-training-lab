@@ -231,6 +231,7 @@ docs/
 │   ├── agents-lineage.md
 │   ├── agents-protected-history.md
 │   ├── automation.md
+│   ├── telemetry.md
 │   ├── localization.md
 │   ├── ui-shell.md
 │   ├── training-dynamics-mathematics.md
