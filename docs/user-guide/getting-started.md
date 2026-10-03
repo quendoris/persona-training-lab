@@ -112,7 +112,7 @@ The left sidebar is the primary workspace navigator. PTL currently exposes these
 | Snapshots | Inspect the persisted model-version registry, lineage, and artifact references |
 | Tests | Run and inspect model evaluation workflows |
 | Analysis | Inspect persisted evaluation-derived analysis and protocol-compatible comparisons |
-| Style | Change theme, accent, UI scale, and interface language |
+| Style | Change theme, accent, and interface language; use the sidebar presentation controls for UI scale |
 | Automation | Configure and run controlled automation commands/recipes |
 | Documentation | Read documentation from inside PTL |
 | Key bindings | Inspect and customize keyboard/mouse bindings |
@@ -121,7 +121,7 @@ The shell also provides supporting panels including Inspector, Activity, Issues,
 
 ## 6. Choose a language and appearance
 
-Open **Style** to configure the interface.
+Open **Style** to configure theme, accent, and interface language. Use the sidebar presentation controls for UI scale.
 
 PTL currently includes complete UI catalogs for:
 
@@ -144,9 +144,10 @@ Read [Local Models: Setup, Readiness & Health Checks](../operations/local-models
 
 ## 8. Verify a development checkout
 
-For contributors or anyone validating a checkout, the fast release gate is:
+For contributors or anyone validating a checkout, first ensure the development dependency group is present, then run the fast release gate:
 
 ```bash
+uv sync --locked --group dev
 set -o pipefail
 uv run --locked python tools/release_gate.py --quick --runs 3
 ```
