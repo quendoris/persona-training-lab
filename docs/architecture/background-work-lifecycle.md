@@ -385,13 +385,13 @@ Conversely, a live worker must not be considered harmless merely because a UI st
 
 ## 17. Current cancellation matrix
 
-| Work type | UI thread | Cooperative cancel request | Child-process containment | Shutdown may wait for synchronous work |
+| Work type | Blocking work runs on Qt GUI thread | Cooperative cancel request | Child-process containment | Shutdown may wait for synchronous work |
 |---|---|---|---|---|
-| Local model smoke/inference from Training screen | yes | no dedicated interrupt in screen shutdown | no | yes |
-| Full Training service call | yes | no dedicated force-cancel in screen shutdown | backend-specific work, not a generic shell child-process kill contract | yes |
-| Tests/evaluation | yes | no dedicated force-cancel in screen shutdown | no generic shell containment | yes |
-| Automation | yes | yes, worker cancellation flag | yes, POSIX process group / Windows Job Object | yes, until worker/process terminates |
-| Telemetry refresh | no; host sampling uses owned Python thread | no force-cancel of provider call | no | yes, until in-flight sample returns |
+| Local model smoke/inference from Training screen | no; owned QThread worker | no dedicated interrupt in screen shutdown | no | yes |
+| Full Training service call | no; owned QThread worker | no dedicated force-cancel in screen shutdown | backend-specific work, not a generic shell child-process kill contract | yes |
+| Tests/evaluation | no; owned QThread worker | no dedicated force-cancel in screen shutdown | no generic shell containment | yes |
+| Automation | no; owned QThread worker | yes, worker cancellation flag | yes, POSIX process group / Windows Job Object | yes, until worker/process terminates |
+| Telemetry refresh | no; owned Python thread | no force-cancel of provider call | no | yes, until in-flight sample returns |
 
 This table describes application-close behavior, not every feature-specific runtime state or timeout.
 

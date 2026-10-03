@@ -45,7 +45,7 @@ The test-to-production ratio under the token-aware Python-code definition is app
 
 The baseline was measured from a clean detached worktree with `Dirty: no`, so those numbers are reproducibly tied to that exact commit.
 
-The frozen table above remains the historical scale comparison point. A later clean detached quick-gate run at `39d25de13568571a019992fe84ec8a616b6e7048` measured **639 tracked text files**, **110,811 physical lines**, **63,183 Python code lines**, **40,006 Production Python code lines**, **21,035 Tests Python code lines**, and **71 documentation files / 30,979 documentation physical lines**. Those current-candidate numbers are evidence for that exact commit only; final release statistics must be regenerated after the documentation/code audit stabilizes.
+The frozen table above remains the historical scale comparison point. A later clean detached quick-gate run at `39d25de13568571a019992fe84ec8a616b6e7048` measured **639 tracked text files**, **110,810 physical lines**, **63,182 Python code lines**, **40,006 Production Python code lines**, **21,034 Tests Python code lines**, and **71 documentation files / 30,979 documentation physical lines**. Those current-candidate numbers are evidence for that exact commit only; final release statistics must be regenerated after the documentation/code audit stabilizes.
 
 For methodology, interpretation limits and regeneration commands, use [System scale and measured codebase anatomy](architecture/system-scale.md).
 

@@ -38,19 +38,20 @@ The dominant dependency direction is from UI toward application behavior and fro
 
 `persona_training_lab.bootstrap.wiring.build_container()` is the main composition root.
 
-At startup it:
+When called without explicit settings, `build_container()` creates `AppSettings`; the production desktop bootstrap instead creates `AppSettings` first so it can acquire workspace ownership **before** mutable workspace bootstrap, then passes those settings into the composition root.
 
-1. creates `AppSettings`;
-2. resolves the platform-stable workspace paths;
-3. ensures workspace directories exist;
-4. configures structured logging under the workspace;
-5. opens the SQLite database and creates/evolves the current schema;
-6. creates persistence repositories;
-7. creates error reporting, runtime-operation coordination, and lineage safety services;
-8. recovers orphaned runtime operations left by a dead process;
-9. creates application services;
-10. creates view models;
-11. returns an `AppContainer` consumed by the desktop bootstrap.
+Given the resolved settings, the composition root:
+
+1. resolves the platform-stable workspace paths;
+2. ensures workspace directories exist;
+3. configures structured logging under the workspace;
+4. opens the SQLite database and creates/evolves the current schema;
+5. creates persistence repositories;
+6. creates error reporting, runtime-operation coordination, and lineage safety services;
+7. recovers orphaned runtime operations left by a dead process;
+8. creates application services;
+9. creates view models;
+10. returns an `AppContainer` consumed by the desktop bootstrap.
 
 The composition root is intentionally explicit. It is the place where concrete adapters are selected and wired into application-facing services.
 
@@ -64,12 +65,15 @@ The sequence is, conceptually:
 sequenceDiagram
     participant P as Process
     participant A as SafeApplication
+    participant O as WorkspaceOwnership
     participant C as AppContainer
     participant I as Localization
     participant W as MainWindow
 
     P->>A: create QApplication
-    P->>C: build_container()
+    P->>P: create AppSettings
+    P->>O: acquire <workspace>/.ptl-workspace.lock
+    P->>C: build_container(settings)
     C-->>P: services + view models
     P->>A: install exception / Qt message boundaries
     P->>I: load persisted language
@@ -77,9 +81,12 @@ sequenceDiagram
     P->>W: construct shell and workspaces
     P->>W: show()
     P->>A: enter Qt event loop
+    A-->>P: event loop returns
+    P->>W: drain registered background owners
+    P->>O: release workspace writer lease
 ```
 
-The desktop bootstrap also connects application shutdown to `MainWindow.shutdown_background_work`, so owned background activity is given an explicit shutdown path rather than relying on object destruction alone.
+The desktop bootstrap also connects application shutdown to `MainWindow.shutdown_background_work`, then performs a final blocking drain after the Qt event loop returns. The workspace writer lease is released only after that drain reports every registered background owner stopped, so shutdown safety does not rely on object destruction or the return value of the `aboutToQuit` callback alone.
 
 ## 4. UI shell
 

@@ -51,3 +51,11 @@ This evidence is not automatically inherited by later commits.
 - Release/testing docs had fallen behind the real gate by omitting the blocking `docs-audit` step; they are synchronized again.
 - The Training pipeline contained a duplicated “Artifact layout and publication” section/numbering block; the duplicate was removed.
 - Legacy `docs/context/*` files were materially stale and are being rewritten as compact current handoff context rather than competing architecture truth.
+
+
+## Additional crack-audit corrections
+
+- Corrected the intermediate `67b24d2...` codebase-statistics transcription to the actual measured values: 110,810 physical lines, 63,182 Python code lines and 21,034 Tests Python code lines.
+- Corrected the architecture overview startup sequence so workspace writer ownership is acquired before `build_container(settings)`, and the final background drain/lease release ordering is visible.
+- Corrected the background-work cancellation matrix: Training inference/full Training, Tests and Automation execute blocking work in owned QThreads rather than on the Qt GUI thread.
+- Removed the last stale `v1.0` wording from the current workspace-concurrency contract.

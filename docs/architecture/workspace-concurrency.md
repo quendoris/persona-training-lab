@@ -1,6 +1,6 @@
 # Workspace concurrency and ownership
 
-Status: **current implementation contract** for the desktop bootstrap path on the v1.0 candidate branch.
+Status: **current implementation contract** for the desktop bootstrap path on the v0.1.0 candidate branch.
 
 This document answers one narrow question: **which concurrency guarantees apply when PTL reads and mutates one workspace?** It deliberately separates in-process locks, SQLite transaction guarantees, process ownership, background-worker lifetime, and atomic file replacement. Those mechanisms solve different problems and must not be treated as interchangeable.
 
@@ -38,7 +38,7 @@ SQLite can serialize conflicting database writers, but it cannot make a transact
 
 Without a workspace-level writer rule, two desktop processes could therefore observe different generations and independently perform valid local operations whose combination loses state or breaks a cross-store invariant. A particularly dangerous startup interaction is runtime recovery: a second process must not classify the first process's active operations as abandoned merely because it started later.
 
-For the v1.0 desktop architecture, preventing concurrent mutable PTL owners is simpler and stronger than pretending every store participates in one distributed transaction.
+For the v0.1.0 desktop architecture, preventing concurrent mutable PTL owners is simpler and stronger than pretending every store participates in one distributed transaction.
 
 ## 3. Concurrency layers
 
@@ -113,7 +113,7 @@ This contract is intentionally conservative. For Training and Tests, there is cu
 
 These stores are outside the workspace ownership boundary. The current product contract prevents two standard PTL desktop processes from sharing the **same workspace**, but it is not a global per-user application singleton. If future product work permits two different workspaces to be open concurrently, both processes may still address the same QSettings/key-binding preference stores.
 
-That is a separate concurrency problem and must not be hidden by the workspace lock. The current v1.0 product does not claim cross-process transactional semantics for those preference stores.
+That is a separate concurrency problem and must not be hidden by the workspace lock. The current v0.1.0 product does not claim cross-process transactional semantics for those preference stores.
 
 ## 4. What the lease does and does not prove
 
