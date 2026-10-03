@@ -1014,6 +1014,7 @@ Backup/recovery changes must preserve these rules unless the product contract is
 
 ## Next steps
 
+- Export/migration boundaries: [Export & Portability Boundaries](export-portability.md)
 - Workspace ownership/details: [Workspace & Storage](workspace-and-storage.md)
 - Exact store/path matrix: [Workspace layout reference](../reference/workspace-layout.md)
 - Diagnose before modifying state: [Troubleshooting](troubleshooting.md)
