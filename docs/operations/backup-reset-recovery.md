@@ -8,7 +8,7 @@ The central rule is:
 
 > **Treat the complete PTL workspace as one research/workflow persistence unit, perform manual backups offline, preserve external Dataset/model/Automation dependencies separately, and preserve external shell/key-binding settings separately when exact UI/input-personalization restoration matters.**
 
-For the detailed ownership map, read [Workspace & Storage](workspace-and-storage.md) and the [Workspace layout reference](../reference/workspace-layout.md). For incident triage before changing state, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md).
+For the detailed ownership map, read [Workspace & Storage](workspace-and-storage.md) and the [Workspace layout reference](../reference/workspace-layout.md). For byte/path/external dependency identity, use [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md). For incident triage before changing state, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md).
 
 ## 1. What a complete research/workflow backup means
 
