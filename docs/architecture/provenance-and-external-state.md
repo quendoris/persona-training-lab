@@ -36,7 +36,7 @@ These classes are not interchangeable.
 | Dataset JSONL | SHA-256 of complete source bytes | no; Dataset import stores path/metadata | yes, Training re-hashes source bytes | missing bytes cannot be reconstructed from the hash |
 | Base-model directory | resolved filesystem path/reference | only when operator placed it under workspace | shallow file probe only | no complete directory digest; bytes may change under the same path |
 | Training input bundle | Profile SHA-256 + Dataset SHA-256 + parsed samples | derived in memory; provenance written to Training metadata | yes, before backend execution | does not add a base-model content digest |
-| Training model artifact | filesystem artifact directory | yes for standard full fine-tune output | existence/path semantics only | artifact directory is not content-addressed after creation |
+| Training model artifact | staged same-parent run directory, then final filesystem artifact path | yes for standard full fine-tune output | publication requires model/tokenizer + metadata staging success; later use is still path/existence based | final artifact directory is not content-addressed after publication; hard crashes can leave unpublished staging debris |
 | Model-version record | stable model-version ID + Training run ID + artifact path | metadata in SQLite | registry read only | no trained-artifact directory hash in `model_versions` |
 | Automation recipe review snapshot | semantic SHA-256 of normalized recipe object | workspace recipes are copied manifests; built-ins are code | yes for the current UI review-to-run path | hash is session/workflow identity, not a signed durable manifest provenance record |
 | Automation companion executable/script/data | path/command dependency | no automatic copy | no transitive digest | command identity does not prove dependency bytes |
@@ -99,9 +99,9 @@ The standard full-fine-tune backend embeds that mapping into `<workspace>/artifa
 
 This is stronger than a display-only log, but it still inherits the base-model limitation: current metadata stores `model_path`, not a complete content digest of the source model directory.
 
-## 9. Standard Training artifact identity
+## 9. Standard Training artifact identity and publication
 
-The standard backend writes:
+The authoritative published layout is:
 
 ```text
 <workspace>/artifacts/full_finetune/<run_id>/
@@ -109,11 +109,29 @@ The standard backend writes:
 └── training_metadata.json
 ```
 
-The `model/` directory is the trained model/tokenizer output. PTL records its path in the Training run and later in a model-version row.
+The local full-fine-tune backend first writes those components into a same-parent hidden staging directory and only publishes the final `<run_id>/` directory after model, tokenizer, and metadata writes have all succeeded. The backend refuses to overwrite an already existing final run directory.
 
-Current v1.0 does not compute/persist a canonical digest for the complete output directory after save. Moving, deleting or mutating files in place can therefore change availability/effective bytes without changing `artifact_path`.
+This closes a provenance seam in which model bytes could previously be written into the final run namespace before metadata publication succeeded. Under ordinary exception handling, failed staging is best-effort removed and no final artifact path is returned.
 
-Treat generated artifacts as persistent research outputs, not cache.
+The guarantee is intentionally narrow. It is a publication/namespace rule, not a complete filesystem transaction:
+
+```text
+published <run_id>/ exists
+        =>
+backend completed model + tokenizer + metadata staging before publication
+
+but
+
+process/host crash during staging
+        =>
+hidden .<run_id>-staging-* debris may remain
+```
+
+An unpublished staging directory is not a completed artifact and must not be promoted manually merely because it contains plausible model files.
+
+After publication, `model/` remains the trained model/tokenizer output and PTL records its path in the Training run and later in a model-version row. Current v1.0 still does not compute/persist a canonical digest for the complete output directory. Moving, deleting or mutating published files in place can therefore change availability/effective bytes without changing `artifact_path`.
+
+Treat published generated artifacts as persistent research outputs, not cache.
 
 ## 10. Model-version provenance
 
@@ -181,7 +199,9 @@ referenced bytes match historical bytes
 
 ## 17. Same path can point to different bytes
 
-A referenced path can continue to exist while its bytes change. PTL protects this strongly for approved Dataset bytes and Training-relevant Profile representation, but not for the complete base-model directory or trained artifact directory.
+A referenced path can continue to exist while its bytes change. PTL protects this strongly for approved Dataset bytes and Training-relevant Profile representation, but not for the complete base-model directory or a Training artifact **after** it has been published.
+
+Staged artifact publication prevents an ordinary backend save failure from exposing a partial final run directory; it does not make the later published directory immutable or content-addressed.
 
 This distinction must remain visible in research claims.
 
@@ -254,7 +274,7 @@ Changes affecting provenance should preserve these rules unless the product cont
 2. Dataset byte hashing and Profile Training hashing must stay distinct from authorship/trust claims;
 3. Training must not silently consume Dataset/Profile content that differs from the run's pinned fingerprints;
 4. model-version titles must not replace `training_run_id` as provenance identity;
-5. artifact paths must not be described as immutable artifact hashes;
+5. staged Training publication must stay distinct from immutable/content-addressed artifact identity; artifact paths must not be described as artifact hashes;
 6. Automation recipe review identity must remain distinct from transitive dependency provenance;
 7. runtime resource claims must not be described as external filesystem immutability;
 8. workspace backups must not be described as complete when required dependencies live outside the workspace;
