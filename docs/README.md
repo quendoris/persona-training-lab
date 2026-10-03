@@ -14,6 +14,7 @@ Begin with:
 
 - [Getting Started](user-guide/getting-started.md) — source-checkout installation, first launch, workspace, first-run orientation.
 - [Interface Tour](user-guide/interface-tour.md) — shell, workspaces, Inspector, Activity, Telemetry, Issues, status bar, language/layout behavior.
+- [Telemetry](user-guide/telemetry.md) — operator CPU/RAM/GPU/process snapshot semantics, refresh lifecycle, failure interpretation and research-evidence limits.
 - [Profiles](user-guide/profiles.md) — define the personality fields used by downstream Training.
 - [Datasets](user-guide/datasets.md) — import/preview/validate/approve JSONL and understand approval SHA-256 semantics.
 - [Training](user-guide/training.md) — create a run, understand input pinning, launch local full fine-tuning, inspect logs/artifacts/provenance.
@@ -93,6 +94,7 @@ Start with:
 | [Documentation Coverage Map](DOCUMENTATION_MAP.md) | Developer / auditor / maintainer | Coverage status, known gaps, research/current separation and corpus scale |
 | [Getting Started](user-guide/getting-started.md) | User | Install, launch, workspace, first-run orientation |
 | [Interface Tour](user-guide/interface-tour.md) | User | Shell/workspace map and supporting panels |
+| [Telemetry](user-guide/telemetry.md) | User / operator | CPU/RAM/GPU/process snapshot reading, refresh behavior, provider failures, privacy and non-research-evidence limits |
 | [Profiles](user-guide/profiles.md) | User | Create/edit personality definitions |
 | [Datasets](user-guide/datasets.md) | User / operator | JSONL structure, validation, approval fingerprints, Training eligibility |
 | [Training](user-guide/training.md) | User / operator | End-to-end Training workflow and safe operating rules |
@@ -201,6 +203,7 @@ docs/
 ├── user-guide/
 │   ├── getting-started.md
 │   ├── interface-tour.md
+│   ├── telemetry.md
 │   ├── profiles.md
 │   ├── datasets.md
 │   ├── training.md
