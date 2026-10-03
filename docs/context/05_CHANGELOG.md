@@ -65,3 +65,5 @@ This evidence is not automatically inherited by later commits.
 - Synchronized developer-tool documentation with the real release gate: `tools/docs_audit.py` is now listed/described as a blocking quick/full gate component, and packaging/setup docs no longer omit it.
 
 - The documentation/version drift found during the v0.1.0 sweep is now guarded in code: `release_gate.py` fails closed when `pyproject.toml` version and runtime `persona_training_lab.__version__` diverge, and records both values in release metadata/summary.
+
+- Crack audit found a real explicit-workspace composition defect: `build_container(AppSettings(workspace_dir=...))` used the custom root for SQLite/artifacts/Automation but constructed `LocalModelService` with its default OS workspace root. Production wiring now injects `paths.root`, and a composition-level regression asserts the default model path follows the explicit workspace.

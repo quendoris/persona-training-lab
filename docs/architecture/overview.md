@@ -55,6 +55,8 @@ Given the resolved settings, the composition root:
 
 The composition root is intentionally explicit. It is the place where concrete adapters are selected and wired into application-facing services.
 
+Workspace-sensitive services receive the resolved workspace explicitly. In particular, production composition passes `paths.root` into `LocalModelService.workspace_root`; an explicit `AppSettings(workspace_dir=...)` must therefore move the default/relative local-model namespace together with the rest of that workspace rather than falling back to the host's default PTL data directory.
+
 ## 3. Desktop bootstrap
 
 `persona_training_lab.bootstrap.app.main()` owns the application startup sequence.

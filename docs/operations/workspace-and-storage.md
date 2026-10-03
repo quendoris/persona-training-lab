@@ -531,6 +531,8 @@ Do not publish a complete `app.db`, Agents state JSON, Dataset source, Training 
 
 Persistent research/workflow features must obtain workspace-owned paths from configuration/composition instead of CWD or package-relative mutable state.
 
+Production composition also injects the resolved workspace root into `LocalModelService`. Therefore an explicit `AppSettings(workspace_dir=...)` changes the default/relative `models/` namespace consistently with `app.db`, artifacts, Automation recipes and other workspace-owned paths.
+
 Agents production state follows the same rule: `AtomicLineageStateStore` resolves its default JSON file through the platform workspace resolver.
 
 Automation production recipe discovery follows the same rule: `FilesystemAutomationRecipeProvider` receives `<workspace>/automation/recipes` from composition.

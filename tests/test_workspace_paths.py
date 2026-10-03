@@ -6,6 +6,7 @@ from typing import Any, cast
 from persona_training_lab.application.local_model.service import LocalModelService
 import persona_training_lab.config.app_settings as app_settings_module
 from persona_training_lab.config.app_settings import AppSettings, default_workspace_dir
+from persona_training_lab.bootstrap.wiring import build_container
 from persona_training_lab.config.paths import build_workspace_paths
 from persona_training_lab.ui.agents.lineage_state_atomic import (
     AtomicLineageStateStore,
@@ -99,3 +100,18 @@ def test_explicit_workspace_override_remains_supported(tmp_path: Path) -> None:
     assert paths.exports == custom_root / "exports"
     assert paths.temp == custom_root / "temp"
     assert paths.cache == custom_root / "cache"
+
+
+def test_composition_injects_explicit_workspace_into_local_model_service(
+    tmp_path: Path,
+) -> None:
+    custom_root = tmp_path / "custom-workspace"
+    container = build_container(AppSettings(workspace_dir=custom_root))
+
+    service = container.training_vm.local_model_service
+
+    assert service is not None
+    assert service.workspace_root == custom_root.resolve()
+    assert Path(service.model_path) == (
+        custom_root / "models" / "qwen3.5-0.8b"
+    ).resolve()

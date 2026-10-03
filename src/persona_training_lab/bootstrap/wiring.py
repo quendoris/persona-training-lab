@@ -188,7 +188,8 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
         model_versions_repo=model_versions_repo
     )
     local_model_service = LocalModelService(
-        probe_provider=FilesystemLocalModelProbeProvider()
+        probe_provider=FilesystemLocalModelProbeProvider(),
+        workspace_root=paths.root,
     )
     experiments_service = ExperimentsService(
         experiments_repo=experiments_repo,
