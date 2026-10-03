@@ -6,6 +6,8 @@ from importlib import import_module
 import json
 from math import ceil
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Any, TypedDict
 
 from persona_training_lab.application.training.input_pipeline import TrainingSample
@@ -101,6 +103,42 @@ def _resolved_model_dir(model_path: str) -> Path:
     if not value or value == "Qwen3.5-0.8B":
         return default_workspace_dir() / "models" / "qwen3.5-0.8b"
     return Path(value).expanduser()
+
+
+def _publish_training_artifact(
+    root: Path,
+    run_id: str,
+    model: Any,
+    tokenizer: Any,
+    metadata: Mapping[str, object],
+) -> str:
+    """Publish model + metadata as one visible run-directory generation."""
+
+    root.mkdir(parents=True, exist_ok=True)
+    final_run_dir = root / run_id
+    if final_run_dir.exists():
+        raise FileExistsError(f"training artifact already exists: {final_run_dir}")
+
+    staging_run_dir = Path(
+        tempfile.mkdtemp(prefix=f".{run_id}-staging-", dir=root)
+    )
+    try:
+        staging_model_dir = staging_run_dir / "model"
+        staging_model_dir.mkdir(parents=True, exist_ok=False)
+        model.save_pretrained(staging_model_dir)
+        tokenizer.save_pretrained(staging_model_dir)
+
+        metadata_path = staging_run_dir / "training_metadata.json"
+        metadata_path.write_text(
+            json.dumps(dict(metadata), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        staging_run_dir.replace(final_run_dir)
+        return str(final_run_dir / "model")
+    except Exception:
+        shutil.rmtree(staging_run_dir, ignore_errors=True)
+        raise
 
 
 class LocalFullFineTuneBackend:
@@ -230,11 +268,6 @@ class LocalFullFineTuneBackend:
                     final_loss = value
                     best_loss = min(best_loss, value)
 
-            out_dir = self._root / run_id / "model"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            model.save_pretrained(out_dir)
-            tokenizer.save_pretrained(out_dir)
-
             metadata = {
                 "schema": "ptl:full-finetune:v1",
                 "backend": "local_full_finetune",
@@ -256,16 +289,17 @@ class LocalFullFineTuneBackend:
                 "provenance": dict(provenance or {}),
                 "status": TrainingRunStatus.COMPLETED.value,
             }
-            metadata_path = self._root / run_id / "training_metadata.json"
-            metadata_path.parent.mkdir(parents=True, exist_ok=True)
-            metadata_path.write_text(
-                json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
+            artifact_path = _publish_training_artifact(
+                self._root,
+                run_id,
+                model,
+                tokenizer,
+                metadata,
             )
             return FullFineTuneResult(
                 status=TrainingRunStatus.COMPLETED.value,
                 message="full_finetune_completed",
-                artifact_path=str(out_dir),
+                artifact_path=artifact_path,
                 epochs=int(epochs),
                 max_steps=target_steps,
                 learning_rate=float(learning_rate),
