@@ -98,7 +98,7 @@ PTL v1.0 documentation/code audit
     └── Training Dynamics instrumentation
 ```
 
-So there are **2 implemented/current rows that are not yet A**, and both are Telemetry: the user/operator workflow and the architecture page remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection. Export/portability is now closed as a negative current contract: PTL reserves `exports/` as user-facing workspace output, but v1.0 does not claim a general exporter/importer or portable migration bundle.
+So there are **2 implemented/current rows that are not yet A**, and both are Telemetry: the user/operator workflow and the architecture page remain B only until the new service/provider/background-lifecycle regression tranche is executed. The former synchronous GUI-thread collection seam has been corrected in code and synchronized into the lifecycle documentation. Export/portability is closed as a negative current contract: PTL reserves `exports/` as user-facing workspace output, but v1.0 does not claim a general exporter/importer or portable migration bundle.
 
 The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
 
@@ -107,8 +107,7 @@ P0
 ├── Agents projection publication
 │   └── execute tests/test_lineage_projection_publish_safety.py
 ├── Telemetry
-│   ├── execute service/provider regression tranche
-│   └── accept or correct synchronous GUI-thread collection before freeze
+│   └── execute service/provider/background-lifecycle regression tranche for the new off-GUI-thread collector
 └── provenance/external-state
     └── continue checking mutable path-only dependencies for overclaims
 ```
@@ -132,7 +131,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | A | `user-guide/dashboard.md`, `user-guide/interface-tour.md`, Dashboard service/viewmodel tests | Dashboard is documented as read-only workflow aggregation/routing; `projects` is explicitly a read-only compatibility/fallback source, not a current CRUD workspace |
-| Telemetry | B | `user-guide/telemetry.md`, `architecture/telemetry.md`, troubleshooting | dedicated operator workflow now exists; execute Telemetry regression evidence and resolve/accept the synchronous GUI-refresh boundary before A |
+| Telemetry | B | `user-guide/telemetry.md`, `architecture/telemetry.md`, troubleshooting | provider collection now runs in an owned background thread and participates in shell shutdown; execute the new service/provider/background-lifecycle regression tranche before promotion to A |
 | Operations Center / Issues / Activity | A | `user-guide/operations-center.md`, `interface-tour.md`, `troubleshooting.md`, `ui-shell.md`, `reference/event-and-diagnostic-schema.md` | dedicated operator contract now covers source projection, refresh cadence, filtering/deduplication, routing, correlation identity and failure/privacy boundaries |
 
 ## 5. Operations coverage
@@ -168,7 +167,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Training implementation | A | `training_pipeline.md` | current backend is full-parameter training; avoid projecting proposed dynamics math onto current v1.0 behavior |
 | Training Dynamics mathematics | R | `architecture/training-dynamics-mathematics.md` | sources/derivations and implementation design can continue to grow without claiming runtime support |
 | Training Dynamics instrumentation | R | `architecture/training-dynamics-instrumentation.md` | define artifact schema, sampling tiers, structural signatures, probe battery, storage cost budget |
-| Telemetry architecture | B | `architecture/telemetry.md`, troubleshooting, telemetry code/tests | dedicated current semantics now exist; new service-semantic tests are in the quick inventory but still need fresh execution, and synchronous GUI-thread provider latency remains an explicit v1 boundary |
+| Telemetry architecture | B | `architecture/telemetry.md`, `architecture/background-work-lifecycle.md`, troubleshooting, telemetry code/tests | provider/service/snapshot/panel contract now includes off-GUI-thread collection and dock-owner shutdown integration; execute the new regression tranche before promotion to A |
 | `WorkflowSupervisor` abstraction | A | `architecture/background-work-lifecycle.md`, audited `application/workflows/*` | current role is only a small in-memory state registry; do not describe it as worker/runtime authority; decide later whether naming/scaffolding should remain |
 | Error reporting/event log | A | `reference/event-and-diagnostic-schema.md`, troubleshooting/security/persistence | payload, dedup, rotation, Operations Center projection and privacy limits have one authority |
 
@@ -268,11 +267,11 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 ### P0 — continue code-as-documentation architecture audit
 
 1. Execute the new Agents projection-publication regression tranche, then continue the remaining cross-store race audit. The code now distinguishes worker `last_good` from screen-accepted projection and reconciles persisted safety links before publishing full/content generations.
-2. Complete the new Telemetry tranche: execute its service-semantic regression file, then decide from evidence whether synchronous GUI-thread provider collection remains an accepted v1 responsiveness boundary or warrants a worker-lifecycle correction before freeze.
+2. Complete the new Telemetry tranche by executing its service/provider/background-lifecycle regressions. Host collection has moved off the Qt GUI thread into one Telemetry-owned Python worker, and the shell shutdown drain now includes participating dock owners.
 3. Use the new cross-cutting provenance matrix to continue auditing mutable external dependencies, especially exports/artifacts and any future model/package identity fields, for claims stronger than the code proves.
 4. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
 
-The user-facing Telemetry distributed gap is also closed from C to B by `user-guide/telemetry.md`. The guide is audited against the current panel/view-model/service/provider path and explicitly documents the 30-second visible timer, synchronous GUI-thread refresh, first-row NVIDIA-SMI limitation, process-sample scope, privacy boundary and non-research-evidence status. It remains B until its new service/collector regression evidence is executed and the synchronous responsiveness boundary is explicitly accepted or corrected for v1.
+The user-facing Telemetry distributed gap is also closed from C to B by `user-guide/telemetry.md`. The guide is audited against the current panel/view-model/service/provider path and explicitly documents the 30-second visible timer, owned background refresh thread, shell shutdown participation, first-row NVIDIA-SMI limitation, process-sample scope, privacy boundary and non-research-evidence status. It remains B until the new service/provider/background-lifecycle regression evidence is executed.
 
 The targeted current-only language pass across canonical root/user-guide/operations/architecture/reference/development docs is also closed. It found one stale current claim — the old unbound Automation review-to-run wording in `operations/workspace-and-storage.md` — which was corrected. Remaining `future` wording in the scanned hits is deliberate research/migration/constraint language, and the historical Agents home path is explicitly labelled non-v1. A broader final terminology/link/package audit remains P2 freeze work rather than an open P0 architecture seam.
 
