@@ -1,58 +1,80 @@
 # Persona Training Lab — Git Workflow
 
-## 1. Зачем git используется в проекте
-Git нужен не ради “процесса ради процесса”, а как опора:
-- baseline
-- понятная история изменений
-- patch/diff вместо тяжёлых архивов
-- фиксация удачных состояний
+## 1. Current model
 
-## 2. Базовый ритм
-1. Есть baseline-коммит.
-2. Работа идёт в отдельной ветке.
-3. Изменения передаются через:
-   - `git diff > current.patch`
-   - отдельные файлы
-   - или прямой commit после успешной проверки
-4. Если решение понравилось обоим авторам, оно коммитится и становится новой базой.
+Git is the provenance backbone for PTL engineering and release evidence.
 
-## 3. Команды
-### Инициализация
-```bash
-git init
-git add .
-git commit -m "ptl: baseline"
+Current working branch:
+
+```text
+agent/history-keyguard-poller
 ```
 
-### Ветка для работы
+Release/audit claims must always name an exact commit. A successful gate on an older commit does not make a later documentation/code commit green.
+
+## 2. Normal development
+
+Before changing files:
+
 ```bash
-git checkout -b ui-polish
+git status --short
+git rev-parse HEAD
+git branch --show-current
 ```
 
-### Проверка состояния
+Keep semantic changes small enough that their diff can be reviewed. Commit accepted fixes before asking for release evidence.
+
+## 3. Clean local audit worktree
+
+For local release-style runs, a detached worktree is preferred so an unrelated local branch/upstream state cannot contaminate the candidate:
+
 ```bash
-git status
-git diff --stat
+git fetch origin
+git worktree add --detach ../zero_2.11-run <expected-sha>
+cd ../zero_2.11-run
+git status --short
+git rev-parse HEAD
 ```
 
-### Передача изменений
+To move that audit worktree to a newer committed candidate:
+
 ```bash
-git diff > current.patch
+git fetch origin
+git switch --detach <new-expected-sha>
 ```
 
-### Применение patch
+Do not set an upstream merely to silence `git pull` in a detached release worktree.
+
+## 4. Gates
+
+Iteration evidence:
+
 ```bash
-git apply current.patch
+uv run --locked python tools/release_gate.py --quick --runs 3
 ```
 
-## 4. Что считаем хорошим изменением
-Изменение хорошее, если:
-- оно применилось чисто
-- проект запускается
-- визуально или архитектурно стало лучше
-- решение принято авторами как новая правда
+Final automated evidence:
 
-## 5. Чего не делать
-- не переписывать большие куски без необходимости
-- не работать “от памяти” после фиксации удачного состояния
-- не смешивать старые версии и новые паттерны без проверки
+```bash
+uv run --locked python tools/release_gate.py --runs 1
+```
+
+The release gate refuses dirty worktrees. Preserve the generated audit directory when the run is evidence for a candidate.
+
+## 5. Change discipline
+
+Good release work:
+
+- derives a change from a concrete finding;
+- keeps code/tests/docs synchronized;
+- turns repaired failure modes into regression/audit coverage;
+- records the exact candidate SHA;
+- reruns evidence after candidate-changing commits.
+
+Avoid:
+
+- merging unrelated cleanup into a release-blocker fix;
+- working from memory when the current branch is available;
+- describing an old green run as proof for a newer commit;
+- changing files during a release-gate run and treating its report as evidence for the modified tree;
+- force-updating a branch over unknown concurrent work.
