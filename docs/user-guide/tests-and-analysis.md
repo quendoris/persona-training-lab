@@ -754,3 +754,8 @@ Do not use mock screenshots to imply behavior that the current application does 
 - Read the machine/scoring contract: [Evaluation contract](../reference/evaluation-contract.md)
 - Read research caveats: [Methodology limits](../methodology_limits.md)
 - Plan reproducible experiments: [Experiment protocol](../experiment_protocol.md)
+
+## Related documentation
+
+- [Evaluation & Analysis architecture](../architecture/evaluation-analysis.md)
+- [Evaluation contract](../reference/evaluation-contract.md)
