@@ -283,6 +283,7 @@ Does audit evidence identify only the command/record, or also transitive depende
 
 ## Related documentation
 
+- [Export & Portability Boundaries](../operations/export-portability.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Training](../user-guide/training.md)
 - [Snapshots and model versions](../user-guide/snapshots.md)
