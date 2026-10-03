@@ -116,7 +116,9 @@ Training also rechecks current Dataset bytes at its input boundary against the p
 
 ## 8. Training provenance boundary
 
-A successful local full fine-tune writes a PTL artifact directory and `training_metadata.json` containing run/backend/hyperparameter/result/provenance information.
+A successful local full fine-tune publishes a PTL artifact directory only after model/tokenizer output and `training_metadata.json` have been written in a hidden same-parent staging directory. Ordinary staging failures do not expose a new final `<run_id>/` namespace, and the backend refuses to overwrite an already existing final run directory.
+
+This is an artifact-publication integrity rule, not a complete filesystem transaction: abrupt process/host termination can leave unpublished staging debris, and the published trained artifact directory is not content-addressed against later mutation.
 
 v1.0 provides content fingerprints for the Profile Training representation and approved Dataset bytes.
 
