@@ -24,7 +24,7 @@ def test_full_release_profile_always_blocks_on_mypy_and_build() -> None:
     final_names = tuple(step.name for step in gate._final_steps())
 
     assert setup_names == ("compileall", "ruff", "typing-audit", "mypy")
-    assert final_names == ("i18n-audit", "codebase-stats", "build")
+    assert final_names == ("i18n-audit", "docs-audit", "codebase-stats", "build")
     assert all(step.blocking for step in gate._setup_steps())
     assert all(step.blocking for step in gate._final_steps())
 
@@ -39,6 +39,7 @@ def test_quick_release_profile_is_explicitly_smaller_than_full() -> None:
     )
     assert tuple(step.name for step in gate._final_steps()) == (
         "i18n-audit",
+        "docs-audit",
         "codebase-stats",
     )
 
