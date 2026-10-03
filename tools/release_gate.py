@@ -231,6 +231,14 @@ class ReleaseGate:
                 ),
             ),
             GateStep(
+                "docs-audit",
+                (
+                    sys.executable,
+                    "tools/docs_audit.py",
+                    "--json",
+                ),
+            ),
+            GateStep(
                 "codebase-stats",
                 (
                     sys.executable,
