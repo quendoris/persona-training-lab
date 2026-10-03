@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from persona_training_lab.application.errors.reporter import (
     ApplicationErrorReporter,
@@ -20,6 +21,7 @@ class AgentsViewModel(AgentsOverviewViewModel):
     lineage_projection_service: AtomicLineageProjectionService | None = None
     lineage_loader_factory: LineageLoaderFactory | None = None
     lineage_error_reporter: ApplicationErrorReporter | None = None
+    lineage_state_path: Path | None = None
 
     def build_lineage_snapshot(self) -> AtomicLineageSnapshot:
         service = self.lineage_projection_service

@@ -21,6 +21,8 @@ A. persisted semantic sources
 B. local lineage workspace state
    <workspace>/agents_lineage_state.json
 
+Production composition injects this exact path into the Agents view-model, and the composed Agents screen constructs its atomic local-state store from that injected path. An explicit workspace override therefore moves Agents local history/layout state with the rest of the workspace; the screen does not independently fall back to the host default workspace.
+
 C. derived/presentation state
    projection nodes / canonical aliases / placeholders / detail text / layout rendering
 ```

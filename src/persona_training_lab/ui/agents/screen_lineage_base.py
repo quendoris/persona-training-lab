@@ -52,7 +52,9 @@ class AgentsScreen(QWidget):
         super().__init__()
         self._vm = view_model
         self._localization = localization
-        self._state = AtomicLineageStateStore()
+        self._state = AtomicLineageStateStore(
+            getattr(view_model, "lineage_state_path", None)
+        )
         self._selected_node_id = "snapshot"
         self._lineage_nodes = self._build_nodes()
         root = QVBoxLayout(self)

@@ -236,6 +236,7 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
         agents_service=agents_service,
         lineage_loader_factory=lineage_loader_factory,
         lineage_error_reporter=error_reporter,
+        lineage_state_path=paths.root / "agents_lineage_state.json",
     )
     training_vm = TrainingViewModel(
         training_service=training_service,

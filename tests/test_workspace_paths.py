@@ -115,6 +115,9 @@ def test_composition_injects_explicit_workspace_into_local_model_service(
     assert Path(service.model_path) == (
         custom_root / "models" / "qwen3.5-0.8b"
     ).resolve()
+    assert container.agents_vm.lineage_state_path == (
+        custom_root / "agents_lineage_state.json"
+    ).resolve()
 
 
 def test_explicit_relative_workspace_is_canonicalized_before_path_fanout(

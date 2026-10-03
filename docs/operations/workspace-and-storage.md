@@ -533,7 +533,7 @@ Persistent research/workflow features must obtain workspace-owned paths from con
 
 Production composition also injects the resolved workspace root into `LocalModelService`. Therefore an explicit `AppSettings(workspace_dir=...)` changes the default/relative `models/` namespace consistently with `app.db`, artifacts, Automation recipes and other workspace-owned paths.
 
-Agents production state follows the same rule: `AtomicLineageStateStore` resolves its default JSON file through the platform workspace resolver.
+Agents production state follows the same rule. Production composition injects `<workspace>/agents_lineage_state.json` through the Agents view-model into `AtomicLineageStateStore`; its constructor's default workspace resolver remains only a fallback for standalone/default construction.
 
 Automation production recipe discovery follows the same rule: `FilesystemAutomationRecipeProvider` receives `<workspace>/automation/recipes` from composition.
 
