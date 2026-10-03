@@ -346,53 +346,25 @@ A run already in `running` is rejected as `already_running`; a run not in `ready
 
 On success PTL persists completed status, `progress = 1.0`, final epoch progress/loss, `speed = full fine-tune`, artifact/checkpoint count, finish time, artifact path, and empty error text. On failure it persists a terminal failed state with error text and finish time.
 
-## 22. Artifact layout and publication
-
-Successful output is published under:
-
-```text
-<workspace>/artifacts/full_finetune/<run_id>/
-├── model/
-└── training_metadata.json
-```
-
-The backend does not write that final run directory incrementally. It first creates a same-parent staging directory named like:
-
-```text
-.<run_id>-staging-<random>/
-```
-
-and writes the model, tokenizer, and `training_metadata.json` there. Only after all of those writes succeed does PTL rename the staging run directory to the final `<run_id>/` path and return `<run_id>/model` as the artifact path.
-
-This gives the normal backend path one publication invariant:
-
-> **The authoritative final run directory is not exposed by the backend before both model/tokenizer output and Training metadata have been written successfully.**
-
-If model/tokenizer/metadata writing raises during ordinary execution, PTL best-effort removes that staging directory and returns the existing controlled backend failure path. If the final `<run_id>/` directory already exists, the backend refuses to overwrite it.
-
-A hard process/host crash can still leave an unpublished hidden staging directory. Staging cleanup is therefore not a power-loss transaction or filesystem journal guarantee, and an unpublished staging directory must not be treated as a completed Training artifact merely because some model files exist inside it.
-
-The exact files inside `model/` depend on the Transformers model/tokenizer save implementation. The published run directory is persistent generated state.
-
-## 26. Model-version publication
+## 25. Model-version publication
 
 After the Training call returns and the view-model refreshes, a completed run with an artifact path is eligible for model-version publication through `ModelVersionsService.create_from_training_run(...)`.
 
 Publication is downstream metadata registration; it is not part of the backend weight update itself.
 
-## 27. Local inference probe distinction
+## 26. Local inference probe distinction
 
 The Training screen's local inference probe uses the configured `LocalModelService` model path. It is a readiness/smoke test for that configured local model.
 
 Completion of a Training run does not automatically repoint that service to the new `<run_id>/model` artifact.
 
-## 28. Pause/stop limitation
+## 27. Pause/stop limitation
 
 The current Training UI includes Pause and Stop controls, but they are disabled in v1.0. The full backend does not implement cooperative per-step cancellation.
 
 The application owns background thread shutdown and can refuse window closure while owned work has not stopped within the configured shutdown wait.
 
-## 29. Reproducibility statement
+## 28. Reproducibility statement
 
 v1.0 provides strong provenance for the Profile Training representation, approved Dataset bytes, run hyperparameters, sample/schema counts, backend/device/result metrics, and generated artifact path.
 
@@ -400,7 +372,7 @@ v1.0 does **not** claim full content-addressed reproducibility of the base-model
 
 A research workflow that requires bit-level rerun identity must record those additional inputs outside the current Training run schema.
 
-## 30. Acceptance coverage
+## 29. Acceptance coverage
 
 The Training contracts are covered by release tests for run creation, Dataset/Training structural compatibility, input rendering and hashing, run-level Profile/Dataset snapshot integrity, approval-byte mismatch behavior, runner completion/failure semantics, the supervised objective, local-model probing, and model-version publication.
 

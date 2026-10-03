@@ -158,9 +158,10 @@ Its current validation sequence is:
 3. typing-suppression audit;
 4. pytest using the explicit paths in `tools/release_quick_tests.txt`;
 5. i18n audit;
-6. codebase statistics.
+6. documentation audit;
+7. codebase statistics.
 
-The quick profile deliberately omits full mypy and package build. It is useful for repeated high-confidence development checks, but it is not the final release proof.
+The quick profile deliberately omits full mypy and package build. Documentation audit is blocking in both quick and full profiles. The quick profile is useful for repeated high-confidence development checks, but it is not the final release proof.
 
 ## Full release profile
 
@@ -178,8 +179,9 @@ Its current validation sequence is:
 4. mypy over `src`;
 5. complete pytest suite;
 6. i18n audit;
-7. codebase statistics;
-8. `uv build`.
+7. documentation audit;
+8. codebase statistics;
+9. `uv build`.
 
 Every current step is blocking.
 
@@ -213,6 +215,7 @@ A failed command should be diagnosed at the failing layer instead of being flatt
 - mypy failure → type-checking contract problem;
 - pytest failure → behavioral/contract regression;
 - i18n failure → catalog/literal/localization contract problem;
+- docs-audit failure → broken internal documentation links, missing required runtime topics, or bundled-doc packaging contract problem;
 - build failure → packaging/build-system problem;
 - visual-audit failure → Qt composition/navigation/capture problem.
 

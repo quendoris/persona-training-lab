@@ -57,7 +57,7 @@ For repeated stability evidence:
 uv run --locked python tools/release_gate.py --quick --runs 3
 ```
 
-The quick profile currently runs compileall, Ruff, typing-suppression audit, the curated pytest manifest, i18n audit and codebase statistics.
+The quick profile currently runs compileall, Ruff, typing-suppression audit, the curated pytest manifest, i18n audit, documentation audit and codebase statistics.
 
 It intentionally does **not** run full mypy or package build. A quick PASS is therefore an iteration gate, not the final release proof.
 
@@ -83,8 +83,9 @@ The full profile currently blocks on this sequence:
 4. mypy over `src`;
 5. complete pytest suite, repeated according to `--runs`;
 6. i18n audit;
-7. codebase statistics;
-8. `uv build`.
+7. documentation audit;
+8. codebase statistics;
+9. `uv build`.
 
 No current step is informational-only in the full profile.
 
