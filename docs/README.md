@@ -14,6 +14,7 @@ Begin with:
 
 - [Getting Started](user-guide/getting-started.md) — source-checkout installation, first launch, workspace, first-run orientation.
 - [Interface Tour](user-guide/interface-tour.md) — shell, workspaces, Inspector, Activity, Telemetry, Issues, status bar, language/layout behavior.
+- [Dashboard](user-guide/dashboard.md) — live workflow summaries, next-step routing, feature activity/readiness, quick lineage, and the read-only Projects fallback boundary.
 - [Operations Center](user-guide/operations-center.md) — Activity/Issues projections, refresh cadence, runtime/event routing, correlation identities, navigation guidance, and evidence/privacy boundaries.
 - [Telemetry](user-guide/telemetry.md) — operator CPU/RAM/GPU/process snapshot semantics, refresh lifecycle, failure interpretation and research-evidence limits.
 - [Profiles](user-guide/profiles.md) — define the personality fields used by downstream Training.
@@ -97,6 +98,7 @@ Start with:
 | [Documentation Coverage Map](DOCUMENTATION_MAP.md) | Developer / auditor / maintainer | Coverage status, known gaps, research/current separation and corpus scale |
 | [Getting Started](user-guide/getting-started.md) | User | Install, launch, workspace, first-run orientation |
 | [Interface Tour](user-guide/interface-tour.md) | User | Shell/workspace map and supporting panels |
+| [Dashboard](user-guide/dashboard.md) | User / operator / developer | Workflow aggregation/routing, recent feature activity, readiness, lineage shortcuts, and Projects fallback boundary |
 | [Operations Center](user-guide/operations-center.md) | User / operator / auditor | Activity/Issues runtime-event projection, navigation, refresh, correlation and evidence boundaries |
 | [Telemetry](user-guide/telemetry.md) | User / operator | CPU/RAM/GPU/process snapshot reading, refresh behavior, provider failures, privacy and non-research-evidence limits |
 | [Profiles](user-guide/profiles.md) | User | Create/edit personality definitions |
@@ -208,6 +210,7 @@ docs/
 ├── user-guide/
 │   ├── getting-started.md
 │   ├── interface-tour.md
+│   ├── dashboard.md
 │   ├── operations-center.md
 │   ├── telemetry.md
 │   ├── profiles.md
