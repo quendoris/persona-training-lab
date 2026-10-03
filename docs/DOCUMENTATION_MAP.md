@@ -66,15 +66,15 @@ Across the explicit coverage-table rows in this map, the current state is:
 
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
-| **A — audited/current** | **33** | **82.5%** |
-| **B — covered/current** | **5** | **12.5%** |
+| **A — audited/current** | **34** | **85.0%** |
+| **B — covered/current** | **4** | **10.0%** |
 | **C — distributed coverage** | **2** | **5.0%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
-strictly audited/closed now:      33 / 40 = 82.5%
+strictly audited/closed now:      34 / 40 = 85.0%
 current coverage at least B:      38 / 40 = 95.0%
 still distributed current scope:   2 / 40 =  5.0%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
@@ -88,9 +88,8 @@ The coverage tables reduce to this current implementation/documentation state:
 
 ```text
 PTL v1.0 documentation/code audit
-├── strictly audited/current (A): 33 / 40 implemented rows = 82.5%
-├── covered/current but not strictly closed (B): 5 / 40 = 12.5%
-│   ├── Interface shell / navigation
+├── strictly audited/current (A): 34 / 40 implemented rows = 85.0%
+├── covered/current but not strictly closed (B): 4 / 40 = 10.0%
 │   ├── Telemetry user workflow
 │   ├── Operations Center / Issues / Activity
 │   ├── Evaluation / Analysis architecture
@@ -103,7 +102,7 @@ PTL v1.0 documentation/code audit
     └── Training Dynamics instrumentation
 ```
 
-So there are **7 implemented/current rows that are not yet A**. Three of those seven are primarily final usability/visual/cross-document work; two are deliberately still distributed because the current product surface does not justify a dedicated document; and two Telemetry rows remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
+So there are **6 implemented/current rows that are not yet A**. Two of those six are primarily final user/operator or architecture consolidation work; two are deliberately still distributed because the current product surface does not justify a dedicated document; and two Telemetry rows remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
 
 The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
 
@@ -125,7 +124,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Surface | Status | Current authority | Remaining work |
 |---|---|---|---|
 | Getting started / first launch | A | `user-guide/getting-started.md`, `quickstart.md`, `development/setup.md` | source launch/dependency/workspace/UI-scale instructions audited against `pyproject.toml`, bootstrap and path code; final screenshots remain P2 evidence |
-| Interface shell / navigation | B | `user-guide/interface-tour.md`, `architecture/ui-shell.md` | screenshot population and final navigation consistency pass |
+| Interface shell / navigation | A | `user-guide/interface-tour.md`, `architecture/ui-shell.md` | twelve-workspace registry, sidebar navigation, dock topology, leave guards, stable RTL geometry and status synchronization audited against current shell code; screenshots remain P2 evidence |
 | Profiles | A | `user-guide/profiles.md`, profile service/repository/viewmodel tests | required fields, normalization limits, IDs, `ready` persistence and Training handoff audited against current code/tests; dedicated schema page remains optional |
 | Datasets | A | `user-guide/datasets.md`, `training_pipeline.md` | final import/validation examples and screenshots |
 | Training | A | `user-guide/training.md`, `training_pipeline.md` | reconcile future dynamics instrumentation with current v1.0 boundaries |
