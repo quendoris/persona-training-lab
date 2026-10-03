@@ -572,18 +572,28 @@ Use three evidence sets together:
 
 Potential causes include unavailable Training dependencies, invalid packed examples, resource exhaustion, model/runtime incompatibility, or artifact-save failure.
 
+The current full-fine-tune backend writes model/tokenizer/metadata into a hidden same-parent staging directory before publishing the final run directory. Under an ordinary save exception the staging directory is best-effort removed and the final `<run_id>/` path is not published.
+
+After an abrupt process/host termination, however, a directory matching:
+
+```text
+<workspace>/artifacts/full_finetune/.<run_id>-staging-*/
+```
+
+can remain. Treat it as **unpublished recovery evidence**, not as proof of a completed Training artifact. Record the associated Training run state and preserve the directory before any cleanup experiment. Do not rename it manually to `<run_id>/` to make a failed run look successful.
+
 A failed run is not repaired by editing its status back to `ready`. Preserve the failed run as evidence and create a new run after correcting the underlying cause.
 
 ## 26. Training completed but model version/artifact looks wrong
 
-A successful Training backend writes:
+A successful Training backend publishes:
 
 ```text
 <workspace>/artifacts/full_finetune/<run_id>/model/
 <workspace>/artifacts/full_finetune/<run_id>/training_metadata.json
 ```
 
-The Training view-model then attempts model-version publication.
+only after both model/tokenizer output and metadata were staged successfully. The Training view-model then attempts model-version publication.
 
 When diagnosing a mismatch, compare stable identifiers:
 
