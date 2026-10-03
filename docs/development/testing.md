@@ -143,6 +143,7 @@ A generalized `codebase-anatomy` implementation now exists independently in `que
 - the quick profile is explicitly smaller;
 - removed bypass flags such as `--skip-mypy` and `--skip-build` stay rejected;
 - release reports require a resolvable Git HEAD;
+- package metadata version and runtime `__version__` must match before report creation;
 - a dirty worktree is rejected before report creation;
 - ignored runtime-affecting files under `src/tests/tools` are not allowed beyond known generated/platform noise;
 - production model loaders must not opt into `trust_remote_code=True`.

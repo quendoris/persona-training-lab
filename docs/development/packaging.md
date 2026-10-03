@@ -97,9 +97,9 @@ There is currently no console-script entry point declared in `pyproject.toml`. D
 
 The package metadata currently declares version `0.1.0` in `pyproject.toml` while the project is being prepared for the v0.1.0 documentation/release contract.
 
-Treat version synchronization as a release task: package metadata, runtime `__version__`, release notes/tags and public documentation should not be assumed to update each other automatically unless tooling is added to enforce that relationship.
+Treat version synchronization as a release task. The release gate now enforces equality between package metadata and runtime `__version__` before it creates release evidence.
 
-Before a stable release, explicitly verify every exposed version source rather than inferring one from another.
+Release notes, documentation labels and the Git tag remain separate human/public surfaces and still require final review; package/runtime equality does not automatically rewrite or validate them.
 
 ## Locked dependencies
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import platform
@@ -9,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import time
+import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,6 +21,8 @@ from typing import TypedDict
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "artifacts" / "release-audit"
 QUICK_TEST_MANIFEST = ROOT / "tools" / "release_quick_tests.txt"
+PYPROJECT = ROOT / "pyproject.toml"
+RUNTIME_INIT = ROOT / "src" / "persona_training_lab" / "__init__.py"
 
 
 class StepResultPayload(TypedDict):
@@ -124,6 +128,7 @@ class ReleaseGate:
         self._quick_tests = load_quick_test_manifest()
         self._metadata = self._collect_metadata()
         self._require_clean_worktree()
+        self._require_release_identity()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         commit = str(self._metadata.get("commit") or "unknown")[:12]
         self.output_dir = output_root / f"{stamp}-{commit}-seed-{seed}"
@@ -270,6 +275,17 @@ class ReleaseGate:
             message += " Dirty paths: " + ", ".join(dirty_paths)
         raise RuntimeError(message)
 
+    def _require_release_identity(self) -> None:
+        package_version = str(self._metadata.get("package_version") or "")
+        runtime_version = str(self._metadata.get("runtime_version") or "")
+        if package_version == runtime_version and package_version:
+            return
+        raise RuntimeError(
+            "Release version mismatch: "
+            f"pyproject.toml={package_version or 'missing'}, "
+            f"persona_training_lab.__version__={runtime_version or 'missing'}"
+        )
+
     def _run_step(self, step: GateStep) -> StepResult:
         log_path = self.output_dir / f"{step.name}.log"
         command_text = shlex.join(step.command)
@@ -384,6 +400,8 @@ class ReleaseGate:
             f"- Seed: `{self._seed}`",
             f"- Test runs: `{self._runs}`",
             f"- Dirty worktree: `{self._metadata.get('dirty', False)}`",
+            f"- Package version: `{self._metadata.get('package_version', 'unknown')}`",
+            f"- Runtime version: `{self._metadata.get('runtime_version', 'unknown')}`",
             f"- Quick tests: `{len(self._quick_tests)}`",
             "",
             "| Step | Blocking | Result | Seconds | Log |",
@@ -415,12 +433,15 @@ class ReleaseGate:
                 "Release gate requires a Git worktree with a resolvable HEAD."
             )
         status = _git("status", "--porcelain")
+        package_version, runtime_version = _read_release_versions()
         return {
             "created_at": datetime.now(UTC).isoformat(),
             "commit": commit,
             "branch": _git("branch", "--show-current") or "detached",
             "dirty": bool(status.strip()),
             "dirty_paths": status.splitlines(),
+            "package_version": package_version,
+            "runtime_version": runtime_version,
             "python": sys.version,
             "python_executable": sys.executable,
             "platform": platform.platform(),
@@ -430,6 +451,38 @@ class ReleaseGate:
             "quick_test_manifest": str(QUICK_TEST_MANIFEST.relative_to(ROOT)),
             "quick_test_count": len(self._quick_tests),
         }
+
+
+def _read_release_versions() -> tuple[str, str]:
+    pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    package_version = str(pyproject.get("project", {}).get("version", "")).strip()
+
+    tree = ast.parse(
+        RUNTIME_INIT.read_text(encoding="utf-8"),
+        filename=str(RUNTIME_INIT),
+    )
+    runtime_version = ""
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if not any(
+            isinstance(target, ast.Name) and target.id == "__version__"
+            for target in targets
+        ):
+            continue
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            runtime_version = value.value.strip()
+            break
+
+    if not package_version:
+        raise RuntimeError("Release package version is missing from pyproject.toml")
+    if not runtime_version:
+        raise RuntimeError(
+            "Runtime __version__ is missing from persona_training_lab/__init__.py"
+        )
+    return package_version, runtime_version
 
 
 def _git(*args: str) -> str:

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import tools.release_gate as release_gate_module
-from tools.release_gate import ReleaseGate, _parse_args
+from tools.release_gate import ReleaseGate, _parse_args, _read_release_versions
 
 
 def _gate_for_policy(*, quick: bool) -> ReleaseGate:
@@ -84,6 +84,40 @@ def test_release_gate_rejects_dirty_worktree_before_report_creation(
 
     assert "src/persona_training_lab/example.py" in str(error.value)
     assert not tuple(tmp_path.iterdir())
+
+
+def test_release_gate_rejects_mismatched_package_and_runtime_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def _mismatched_metadata(_gate: ReleaseGate) -> dict[str, object]:
+        return {
+            "commit": "0123456789abcdef",
+            "branch": "agent/history-keyguard-poller",
+            "dirty": False,
+            "dirty_paths": [],
+            "package_version": "0.1.0",
+            "runtime_version": "0.1.1",
+        }
+
+    monkeypatch.setattr(ReleaseGate, "_collect_metadata", _mismatched_metadata)
+
+    with pytest.raises(RuntimeError, match="Release version mismatch"):
+        ReleaseGate(
+            output_root=tmp_path,
+            seed=123,
+            runs=1,
+            quick=True,
+        )
+
+    assert not tuple(tmp_path.iterdir())
+
+
+def test_release_version_sources_match_in_repository() -> None:
+    package_version, runtime_version = _read_release_versions()
+
+    assert package_version == "0.1.0"
+    assert runtime_version == package_version
 
 
 def test_release_gate_metadata_requires_resolvable_git_head(

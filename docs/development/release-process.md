@@ -6,7 +6,7 @@ This document defines the current engineering evidence sequence for preparing a 
 
 A release result should be attributable to one known Git commit and one known dependency state.
 
-The release gate therefore refuses to start from a dirty worktree and records Git, Python, platform, seed and per-step evidence into an isolated audit directory.
+The release gate therefore refuses to start from a dirty worktree, fails closed when `pyproject.toml` and runtime `persona_training_lab.__version__` disagree, and records Git, release version identity, Python, platform, seed and per-step evidence into an isolated audit directory.
 
 A release should not be declared from memory, an old successful run, or a test result produced before the candidate commit changed.
 
@@ -150,14 +150,21 @@ Until package-content inspection is fully automated, this remains an explicit re
 
 ## 8. Verify exposed version surfaces
 
-PTL currently has more than one place where release/version identity can appear. Before tagging a stable release, explicitly verify:
+PTL currently has more than one place where release/version identity can appear.
+
+The release gate now checks the two executable/package version sources before creating evidence:
 
 - `pyproject.toml` project version;
-- runtime `persona_training_lab.__version__`;
+- runtime `persona_training_lab.__version__`.
+
+A mismatch is a release-audit configuration error rather than a tested candidate.
+
+Before tagging, still verify the human/public version surfaces that are not derived automatically:
+
 - release notes/documentation version references;
 - intended Git tag/release name.
 
-Do not assume these values are synchronized automatically.
+Do not infer those public/tag values from the automated package/runtime equality check.
 
 ## 9. Review product-contract-sensitive changes
 

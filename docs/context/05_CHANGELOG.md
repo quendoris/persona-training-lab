@@ -63,3 +63,5 @@ This evidence is not automatically inherited by later commits.
 - Corrected documentation taxonomy after refreshing `docs/context/*`: context is now maintained handoff material, while only old release/audit records remain historical; the live v0.1.0 checklist is linked from the Documentation Hub and release process.
 
 - Synchronized developer-tool documentation with the real release gate: `tools/docs_audit.py` is now listed/described as a blocking quick/full gate component, and packaging/setup docs no longer omit it.
+
+- The documentation/version drift found during the v0.1.0 sweep is now guarded in code: `release_gate.py` fails closed when `pyproject.toml` version and runtime `persona_training_lab.__version__` diverge, and records both values in release metadata/summary.
