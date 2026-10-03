@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from persona_training_lab.bootstrap.app import _drain_background_work
 from persona_training_lab.ui.automation.screen import AutomationScreen
+from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
 from persona_training_lab.ui.shell.main_window_background import MainWindow
 from persona_training_lab.ui.tests.screen import TestsScreen
 from persona_training_lab.ui.training.screen import TrainingScreen
@@ -36,6 +37,30 @@ class _FakeThread:
             self.running = False
         return not self.running
 
+
+
+
+class _FakePythonThread:
+    def __init__(self, *, alive: bool = True, finish_on_join: bool = False) -> None:
+        self.alive = alive
+        self.finish_on_join = finish_on_join
+        self.join_calls: list[float] = []
+
+    def is_alive(self) -> bool:
+        return self.alive
+
+    def join(self, timeout: float) -> None:
+        self.join_calls.append(timeout)
+        if self.finish_on_join:
+            self.alive = False
+
+
+class _FakeDock:
+    def __init__(self, panel: object) -> None:
+        self._panel = panel
+
+    def widget(self) -> object:
+        return self._panel
 
 class _FakeWorker:
     def __init__(self) -> None:
@@ -167,3 +192,43 @@ def test_automation_shutdown_requests_cooperative_cancel_before_wait() -> None:
     assert worker.cancel_calls == 1
     assert thread.quit_calls == 1
     assert thread.wait_calls == [50]
+
+
+def test_main_window_shutdown_includes_dock_background_owner() -> None:
+    calls: list[tuple[str, int]] = []
+    workspace = SimpleNamespace(
+        shutdown_background_work=lambda timeout: (
+            calls.append(("workspace", timeout)) or True
+        )
+    )
+    telemetry = SimpleNamespace(
+        shutdown_background_work=lambda timeout: (
+            calls.append(("telemetry", timeout)) or False
+        )
+    )
+    window = SimpleNamespace(
+        _workspace=SimpleNamespace(workspaces=lambda: (workspace,)),
+        _docks={"telemetry": _FakeDock(telemetry)},
+    )
+
+    assert MainWindow.shutdown_background_work(window, 0) is False  # type: ignore[arg-type]
+    assert calls == [("workspace", 0), ("telemetry", 0)]
+
+
+def test_telemetry_shutdown_waits_for_inflight_collection() -> None:
+    thread = _FakePythonThread(alive=True, finish_on_join=False)
+    timer = SimpleNamespace(stop_calls=0)
+    timer.stop = lambda: setattr(timer, "stop_calls", timer.stop_calls + 1)
+    panel = SimpleNamespace(
+        _auto_refresh_timer=timer,
+        _refresh_thread=thread,
+    )
+
+    assert TelemetryPanel.shutdown_background_work(panel, 0) is False  # type: ignore[arg-type]
+    assert thread.join_calls == []
+    assert timer.stop_calls == 1
+
+    thread.finish_on_join = True
+    assert TelemetryPanel.shutdown_background_work(panel, 50) is True  # type: ignore[arg-type]
+    assert thread.join_calls == [0.05]
+    assert timer.stop_calls == 2
