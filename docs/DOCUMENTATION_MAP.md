@@ -43,7 +43,7 @@ The test-to-production ratio under the token-aware Python-code definition is app
 
 The baseline was measured from a clean detached worktree with `Dirty: no`, so those numbers are reproducibly tied to that exact commit.
 
-The current branch already contains documentation and targeted architecture-safety commits after that frozen baseline, including `architecture/system-scale.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md`, and `architecture/agents-protected-history.md`. Therefore the table above is intentionally **not relabelled as the live HEAD size**. Exact final-candidate counts must be regenerated after the documentation/code audit stabilizes.
+The current branch already contains documentation and targeted architecture-safety commits after that frozen baseline, including `architecture/system-scale.md`, `architecture/background-work-lifecycle.md`, `architecture/preference-persistence.md`, `architecture/agents-protected-history.md`, and `architecture/provenance-and-external-state.md`. Therefore the table above is intentionally **not relabelled as the live HEAD size**. Exact final-candidate counts must be regenerated after the documentation/code audit stabilizes.
 
 For methodology, interpretation limits and regeneration commands, use [System scale and measured codebase anatomy](architecture/system-scale.md).
 
@@ -66,15 +66,15 @@ Across the explicit coverage-table rows in this map, the current state is:
 
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
-| **A — audited/current** | **30** | **75.0%** |
-| **B — covered/current** | **7** | **17.5%** |
+| **A — audited/current** | **31** | **77.5%** |
+| **B — covered/current** | **6** | **15.0%** |
 | **C — distributed coverage** | **3** | **7.5%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
-strictly audited/closed now:      30 / 40 = 75.0%
+strictly audited/closed now:      31 / 40 = 77.5%
 current coverage at least B:      37 / 40 = 92.5%
 still distributed current scope:   3 / 40 =  7.5%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
@@ -91,7 +91,7 @@ The 92.5% figure must not be reported as “92.5% release complete”: status B 
 | Profiles | B | `user-guide/profiles.md` | add dedicated field/schema reference only if field set continues growing |
 | Datasets | A | `user-guide/datasets.md`, `training_pipeline.md` | final import/validation examples and screenshots |
 | Training | A | `user-guide/training.md`, `training_pipeline.md` | reconcile future dynamics instrumentation with current v1.0 boundaries |
-| Model versions / Snapshots | B | `user-guide/snapshots.md` | stronger artifact/provenance examples; final lifecycle consistency review |
+| Model versions / Snapshots | A | `user-guide/snapshots.md`, `architecture/provenance-and-external-state.md` | registry/artifact/base-model provenance boundaries audited against current service/tests; final screenshot pass remains |
 | Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | protected history is documented; safety-first projection/resource-link publication is implemented/documented with a dedicated regression file, pending local execution and the remaining race/provenance pass |
 | Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | screenshots; future bridge to richer training-dynamics evidence |
 | Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | review-to-run semantic identity now fails closed with `recipe_stale`; targeted pytest/Ruff/i18n evidence exists; final clean-gate/visual pass remains |
@@ -122,7 +122,7 @@ The 92.5% figure must not be reported as “92.5% release complete”: status B 
 |---|---|---|---|
 | System composition / layers | A | `architecture/overview.md` | final top-down consistency pass against composition root |
 | System scale / anatomy | A | `architecture/system-scale.md` | regenerate exact metrics for final clean release candidate; compare history only with compatible counting rules |
-| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md` | protected-history and projection-link acceptance boundaries are synchronized; continue remaining external-artifact/provenance and transaction/race audit |
+| Persistence | A | `architecture/persistence.md`, `reference/persistence-schema.md`, `architecture/provenance-and-external-state.md` | protected-history/projection-link boundaries and cross-cutting provenance strengths are synchronized; continue remaining transaction/race audit |
 | Workspace concurrency / writer ownership | A | `architecture/workspace-concurrency.md`, `architecture/preference-persistence.md` | workspace writer model and external preference-store boundary are separated; keep synchronized if process model changes |
 | Preference persistence / scope | A | `architecture/preference-persistence.md` | SQLite Style, QSettings shell state and user-home bindings have explicit scope/write/backup limits; no rationale invented for current placement |
 | Background work / shutdown ownership | A | `architecture/background-work-lifecycle.md` | current QThread/runtime-operation/workspace-lease roles are separated; re-audit every new long-running feature |
@@ -237,8 +237,10 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 1. Execute the new Agents projection-publication regression tranche, then continue the remaining cross-store race audit. The code now distinguishes worker `last_good` from screen-accepted projection and reconciles persisted safety links before publishing full/content generations.
 2. Finish the current-only language search for stale `planned`, `future`, old statuses, old paths, obsolete migration wording, and current docs that still describe already-fixed seams.
 3. Complete the new Telemetry tranche: execute its service-semantic regression file, then decide from evidence whether synchronous GUI-thread provider collection remains an accepted v1 responsiveness boundary or warrants a worker-lifecycle correction before freeze.
-4. Continue checking mutable external/provenance boundaries (model directories, Dataset bytes, Automation dependencies, exports/artifacts) for accidental stronger claims than the code actually proves.
+4. Use the new cross-cutting provenance matrix to continue auditing mutable external dependencies, especially exports/artifacts and any future model/package identity fields, for claims stronger than the code proves.
 5. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
+
+This pass also closed the cross-cutting provenance documentation gap. `architecture/provenance-and-external-state.md` now separates content-pinned Profile/Dataset identity from path-only base-model/trained-artifact identity, transient Automation recipe review identity, and external transitive dependencies. During that audit, `operations/workspace-and-storage.md` was corrected so it no longer describes the already-fixed Automation review-to-run seam as unbound. Model versions / Snapshots are therefore promoted from B to A at the documentation/code-test-consistency level; this does not create complete artifact/base-model hashing that v1.0 does not implement.
 
 Two P0 items that were still open in the previous revision are now **closed at targeted code/test/documentation level**:
 
