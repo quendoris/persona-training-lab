@@ -4,7 +4,7 @@ Persona Training Lab (PTL) is a desktop-first workstation for building, training
 
 The application combines a PySide6 desktop interface, SQLite-backed workspace state, local-model tooling, personality profiles and datasets, training and evaluation flows, version lineage, automation, telemetry, configurable key bindings, and multilingual UI support in one local workstation.
 
-> **Documentation status:** PTL is in the v1.0 documentation and packaging phase. The audited runtime baseline is complete; public documentation is being rebuilt against the current architecture before the v1.0 release.
+> **Documentation status:** PTL is in the v0.1.0 documentation and packaging phase. The audited runtime baseline is complete; public documentation is being rebuilt against the current architecture before the v0.1.0 release.
 
 ## Project evolution
 
@@ -53,7 +53,7 @@ Current development stage:
 - architecture review;
 - release audit pipeline;
 - packaging preparation;
-- final v1.0 quality validation.
+- final v0.1.0 quality validation.
 
 ## What PTL contains
 
@@ -135,9 +135,10 @@ The current audited runtime baseline is guarded by:
 - a typing-suppression audit;
 - an i18n catalog/UI-literal audit;
 - visual audit tooling across application routes and locales;
+- a blocking documentation audit for internal links/runtime topics/bundled-doc expectations;
 - release-policy checks for clean source inputs and local-model trust boundaries.
 
-The detailed release methodology is being consolidated into the v1.0 documentation set.
+The detailed release methodology is being consolidated into the v0.1.0 documentation set.
 
 ## Documentation
 
@@ -149,7 +150,7 @@ The documentation is organized for three different readers:
 2. **Operators / advanced users** — workspace behavior, automation, model handling, recovery, and troubleshooting.
 3. **Developers / auditors** — architecture, persistence, runtime safety, localization, testing, packaging, and release contracts.
 
-The [v1.0 Product Contract](docs/reference/v1-product-contract.md) defines what the first stable release promises and, equally importantly, what is intentionally outside that promise.
+The [v0.1.0 Product Contract](docs/reference/v1-product-contract.md) defines what the first stable release promises and, equally importantly, what is intentionally outside that promise.
 
 ## Independent development
 

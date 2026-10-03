@@ -20,14 +20,14 @@ Begin with:
 - [Profiles](user-guide/profiles.md) — define the personality fields used by downstream Training.
 - [Datasets](user-guide/datasets.md) — import/preview/validate/approve JSONL and understand approval SHA-256 semantics.
 - [Training](user-guide/training.md) — create a run, understand input pinning, launch local full fine-tuning, inspect logs/artifacts/provenance.
-- [Snapshots and model versions](user-guide/snapshots.md) — inspect registered model versions, understand lineage, artifact references, and the exact meaning of “snapshot” in v1.0.
+- [Snapshots and model versions](user-guide/snapshots.md) — inspect registered model versions, understand lineage, artifact references, and the exact meaning of “snapshot” in v0.1.0.
 - [Agents lineage](user-guide/agents-lineage.md) — read the integrated research graph, distinguish real persisted entities from local branches/placeholders, use protected history, and understand runtime-blocked deletion.
 - [Tests and Analysis](user-guide/tests-and-analysis.md) — build a scored portrait, review actual model responses, understand factor KPI values, and compare protocol-compatible model versions.
 - [Automation](user-guide/automation.md) — run trusted recipes/ad-hoc commands, understand authorization, runtime claims, timeout/cancel, bounded output, process containment, and audit/privacy boundaries.
 - [Appearance & Language](user-guide/appearance-and-language.md) — themes, accents, custom accent behavior, live UI scale, locale switching, RTL text-direction policy, and persistence.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — edit application navigation and Agents graph bindings, understand draft conflicts, persistence, reset, and current shortcut coverage.
 - [Documentation Workspace](user-guide/documentation.md) — use the in-app five-topic documentation subset, understand plain-Markdown display, locale behavior, bundled/source resolution, and its boundary from the complete canonical docs tree.
-- [v1.0 Product Contract](reference/v1-product-contract.md) — stable-release guarantees, trust/integrity boundaries, explicit non-goals.
+- [v0.1.0 Product Contract](reference/v1-product-contract.md) — stable-release guarantees, trust/integrity boundaries, explicit non-goals.
 
 ### I operate or troubleshoot PTL
 
@@ -51,9 +51,9 @@ Start with:
 - [Snapshots and model versions](user-guide/snapshots.md) — distinguish persisted model-version metadata from the referenced artifact and trace provenance back to a Training run.
 - [Tests and Analysis](user-guide/tests-and-analysis.md) — evaluation prerequisites, result states, case review, exact lineage comparison, and operational error meanings.
 - [Evaluation contract](reference/evaluation-contract.md) — exact battery, generation, persistence, scoring, comparability, and reproducibility semantics.
-- [v1.0 Product Contract](reference/v1-product-contract.md) — security/runtime/integrity boundaries before operational changes.
+- [v0.1.0 Product Contract](reference/v1-product-contract.md) — security/runtime/integrity boundaries before operational changes.
 
-The dedicated v1.0 operator guides cover workspace/storage, local models, troubleshooting, backup/reset/recovery, and security/trust/privacy boundaries. Feature-specific operating rules remain in their user/technical guides and are cross-linked rather than duplicated as competing contracts.
+The dedicated v0.1.0 operator guides cover workspace/storage, local models, troubleshooting, backup/reset/recovery, and security/trust/privacy boundaries. Feature-specific operating rules remain in their user/technical guides and are cross-linked rather than duplicated as competing contracts.
 
 ### I develop, audit, or extend PTL
 
@@ -76,7 +76,7 @@ Start with:
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
-- [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) — proposed mathematical language for parameter/function/representation/behavior trajectories, evidence levels and interpretation limits; not a claim of current v1.0 instrumentation.
+- [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) — proposed mathematical language for parameter/function/representation/behavior trajectories, evidence levels and interpretation limits; not a claim of current v0.1.0 instrumentation.
 - [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) — proposed sampling/artifact/structural-identity contract for turning that mathematical framework into future PTL evidence.
 - [Statuses, Result Codes & Identifiers](reference/statuses-and-identifiers.md) — machine-semantic taxonomy, canonical domain/runtime states, result/diagnostic/event contracts, generated-ID formats and compatibility rules.
 - [Event and diagnostic schema](reference/event-and-diagnostic-schema.md) — machine-level event/error payload, identity, persistence/projection and privacy boundaries.
@@ -92,7 +92,7 @@ Start with:
 - [Packaging](development/packaging.md) — Hatchling/uv build contract, optional extras, bundled docs and current native-packaging non-goals.
 - [Release process](development/release-process.md) — candidate identity, locked dependencies, release-gate evidence, visual review, package inspection and final-tag discipline.
 
-## Current v1.0 documentation map
+## Current v0.1.0 documentation map
 
 | Document | Audience | Purpose |
 |---|---|---|
@@ -140,7 +140,7 @@ Start with:
 | [Evaluation & Analysis architecture](architecture/evaluation-analysis.md) | Developer / auditor / researcher | Portrait execution ownership, worker/runtime coordination, exact model-version scoping, persisted evidence and protocol-guarded Analysis |
 | [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) | Researcher / developer / auditor | Proposed multi-space mathematical framework; explicitly non-current instrumentation |
 | [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) | Researcher / developer / auditor | Proposed evidence/sampling/structural-identity contract; explicitly non-current instrumentation |
-| [v1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release guarantees/boundaries/non-goals |
+| [v0.1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release guarantees/boundaries/non-goals |
 | [Localization architecture](architecture/localization.md) | Developer / auditor | i18n/RTL architecture |
 | [Runtime resource safety](architecture/runtime-resource-safety.md) | Developer / auditor | Runtime resource safety |
 | [Development setup](development/setup.md) | Developer / contributor | Locked environment, source launch, headless Qt, repository layout and release preconditions |
@@ -158,27 +158,27 @@ Existing documents retained as research inputs include:
 - [Experiment protocol](experiment_protocol.md)
 - [Methodology limits](methodology_limits.md)
 - [Personality portrait](personality_portrait.md)
-- [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) — proposed research architecture, not current v1.0 instrumentation.
-- [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) — proposed implementation/evidence contract, not current v1.0 instrumentation.
+- [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) — proposed research architecture, not current v0.1.0 instrumentation.
+- [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) — proposed implementation/evidence contract, not current v0.1.0 instrumentation.
 
-For current implementation truth, read these together with [Tests and Analysis](user-guide/tests-and-analysis.md), the [Evaluation contract](reference/evaluation-contract.md), and the [Training pipeline specification](training_pipeline.md). The canonical v1.0 docs explicitly distinguish protocol measurements from clinical/human-psychology claims and document current provenance limits such as bounded `RAW_RESPONSE` storage and incomplete generation-environment persistence.
+For current implementation truth, read these together with [Tests and Analysis](user-guide/tests-and-analysis.md), the [Evaluation contract](reference/evaluation-contract.md), and the [Training pipeline specification](training_pipeline.md). The canonical v0.1.0 docs explicitly distinguish protocol measurements from clinical/human-psychology claims and document current provenance limits such as bounded `RAW_RESPONSE` storage and incomplete generation-environment persistence.
 
 ## Historical/internal project records
 
-`docs/context/` and `docs/releases/v0.*` are **project-history inputs**, not the public v1.0 source of truth.
+`docs/context/` contains compact engineering handoff/working records. It must summarize current canonical truth rather than compete with it. `docs/releases/` contains the live v0.1.0 release checklist together with older audit/history records.
 
-They remain while current documentation is reconstructed so useful rationale is not lost. Once a topic is migrated and verified against v1.0 code, historical instructions must not override the current docs silently.
+Neither subtree overrides current code/tests or the canonical user/operations/architecture/reference/development contracts. Historical instructions must remain visibly historical when they disagree with the current candidate.
 
 ## Documentation quality rules
 
-The v1.0 documentation set follows these rules:
+The v0.1.0 documentation set follows these rules:
 
 1. **Describe observed behavior, not intended behavior.** Reconstruct docs from audited code/tests/UI.
 2. **Separate tutorials from specifications.** User workflow remains readable; technical contracts remain precise.
 3. **Show the interface when spatial understanding matters.** Screenshots/diagrams support comprehension rather than decorate.
 4. **State destructive effects before actions.** Deletion, replacement, Training, and Automation need persistence/recovery implications first.
 5. **Use machine terms exactly.** IDs, paths, status/error codes, environment variables, schemas, protocol identifiers, and commands keep product spelling.
-6. **Distinguish guarantees from assumptions.** In particular, Training content-pins Profile/Dataset inputs but v1.0 does not content-address the complete base-model directory or treat the Snapshots UI as an independent immutable artifact store. Evaluation protocol identity is version-string based rather than a persisted battery-content hash.
+6. **Distinguish guarantees from assumptions.** In particular, Training content-pins Profile/Dataset inputs but v0.1.0 does not content-address the complete base-model directory or treat the Snapshots UI as an independent immutable artifact store. Evaluation protocol identity is version-string based rather than a persisted battery-content hash.
 7. **Keep screenshots reproducible.** Capture from a clean known commit and documented locale/theme/scale/state.
 8. **Prefer a clean novice path.** Do not require repository history or unwritten project context.
 9. **Cross-link instead of duplicating contracts.** One authoritative storage/trust/integrity contract per concept.
@@ -275,7 +275,7 @@ The development subtree and current architecture/reference set now exist. Final 
 
 ## Screenshot and diagram strategy
 
-The final v1.0 documentation will use:
+The final v0.1.0 documentation will use:
 
 - full-window screenshots for spatial orientation;
 - cropped/annotated screenshots when a control must be located precisely;

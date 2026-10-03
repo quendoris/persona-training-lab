@@ -1,8 +1,10 @@
-# Persona Training Lab v1.0 Product Contract
+# Persona Training Lab v0.1.0 Product Contract
 
-This document defines the contract of the first stable Persona Training Lab release candidate.
+> **Filename note:** the path remains `v1-product-contract.md` during release closure to avoid breaking the existing documentation graph. The product/release version defined by this document is `0.1.0`, matching package/runtime metadata.
 
-It is stricter than a feature list: it states what behavior is part of the product promise, what integrity/security/storage boundaries exist, and what v1.0 deliberately does not claim.
+This document defines the contract of the first public Persona Training Lab release candidate.
+
+It is stricter than a feature list: it states what behavior is part of the product promise, what integrity/security/storage boundaries exist, and what v0.1.0 deliberately does not claim.
 
 ## 1. Product purpose
 
@@ -12,7 +14,7 @@ PTL is designed around inspectable local state rather than a remote SaaS depende
 
 ## 2. Stable-release scope
 
-The v1.0 contract includes:
+The v0.1.0 contract includes:
 
 - desktop shell and navigation;
 - Dashboard operational overview;
@@ -81,7 +83,7 @@ This prevents an editable checkout from validating against local hidden inputs t
 
 PTL may load local model files when inference/training capabilities are installed and configured.
 
-Production loaders do **not** opt into Hugging Face `trust_remote_code=True`. v1.0 therefore does not intentionally grant a model repository permission to execute arbitrary repository-supplied Python through that Transformers mechanism.
+Production loaders do **not** opt into Hugging Face `trust_remote_code=True`. v0.1.0 therefore does not intentionally grant a model repository permission to execute arbitrary repository-supplied Python through that Transformers mechanism.
 
 Model weights, configuration, tokenizer data, templates, and other files are still inputs and should come from sources the user trusts.
 
@@ -120,9 +122,9 @@ A successful local full fine-tune publishes a PTL artifact directory only after 
 
 This is an artifact-publication integrity rule, not a complete filesystem transaction: abrupt process/host termination can leave unpublished staging debris, and the published trained artifact directory is not content-addressed against later mutation.
 
-v1.0 provides content fingerprints for the Profile Training representation and approved Dataset bytes.
+v0.1.0 provides content fingerprints for the Profile Training representation and approved Dataset bytes.
 
-The base model is identified by its resolved local path/reference; v1.0 does **not** persist a cryptographic fingerprint of the complete base-model directory in the Training run.
+The base model is identified by its resolved local path/reference; v0.1.0 does **not** persist a cryptographic fingerprint of the complete base-model directory in the Training run.
 
 For exact research reproducibility, operators must keep the base-model directory immutable during the run lifecycle and separately record source revision/checksum when required.
 
@@ -132,7 +134,7 @@ The product also does not claim bit-for-bit reproducibility across arbitrary Pyt
 
 The production Training backend is local supervised full-parameter causal-language-model fine-tuning.
 
-The current UI does not expose a production LoRA/QLoRA workflow. Pause and Stop controls are present but disabled in v1.0; the backend does not implement cooperative per-step cancellation.
+The current UI does not expose a production LoRA/QLoRA workflow. Pause and Stop controls are present but disabled in v0.1.0; the backend does not implement cooperative per-step cancellation.
 
 Training executes through owned background work and runtime-resource coordination rather than running the fine-tune loop directly on the Qt GUI thread.
 
@@ -266,7 +268,7 @@ Read/read claims can coexist; a conflicting write blocks. Destructive lineage wo
 
 Agents is a projection/integration workspace, not an alternative source of truth for Training/Dataset/model/evaluation persistence.
 
-The v1.0 lineage contract includes:
+The v0.1.0 lineage contract includes:
 
 - one coherent SQLite semantic snapshot for Dataset, Training-run, model-version, and evaluation source sets;
 - stable persisted IDs used for identity when available, including modern Training `profile_id` and `dataset_id` references;
@@ -314,7 +316,7 @@ Agents must not present Delta as ready merely because two evaluations exist. Exa
 
 ## 13. Localization and RTL contract
 
-The v1.0 UI catalog set is complete for:
+The v0.1.0 UI catalog set is complete for:
 
 - `ar`
 - `en-US`
@@ -338,15 +340,16 @@ Before packaging/release acceptance, PTL is validated through multiple independe
 - curated quick pytest profile;
 - complete pytest suite;
 - i18n catalog/reference/UI-literal auditing;
+- documentation link/runtime-topic/bundling audit;
 - visual audit tooling across routes/locales;
 - source-tree/release-policy checks;
 - build and installed-package acceptance during packaging review.
 
 The evidence for a specific release belongs in that release's verification record rather than being frozen into this general contract.
 
-## 15. What v1.0 does not claim
+## 15. What v0.1.0 does not claim
 
-v1.0 does not claim exhaustive proof of:
+v0.1.0 does not claim exhaustive proof of:
 
 - long-duration soak behavior under arbitrary workloads;
 - maximum Automation concurrency/process-tree complexity;
@@ -367,17 +370,19 @@ v1.0 does not claim exhaustive proof of:
 
 These are explicit operating boundaries, not hidden promises.
 
-## 16. Stable baseline vs separate stress evidence
+## 16. Stable baseline vs post-release research falsification
 
-A v1.0 release candidate means the documented behavior and boundaries form a coherent baseline that can be validated and reviewed as one product contract.
+A v0.1.0 release candidate means the documented behavior and boundaries form a coherent baseline that can be validated, packaged and reviewed as one product contract.
 
-A separate adversarial/stress/falsification program is a different evidence layer. Findings from that program can require implementation, test, persistence, performance, instrumentation, or documentation changes before final release evidence is accepted. Any such change creates a new candidate and invalidates release-gate evidence tied to the previous commit.
+The first release still requires ordinary regression, safety, lifecycle, concurrency, failure-path and packaging evidence for implemented behavior. It does **not** require completion of the later research-oriented adversarial/falsification program.
 
-Do not infer exhaustive stress qualification from an ordinary architecture review, documentation freeze, visual audit, or release-gate PASS.
+That later program belongs to the post-v0.1.0 Training Dynamics research phase, after the corresponding mathematical models and runtime instrumentation exist strongly enough to be tested for counterexamples. Its purpose is to attack mathematical/causal/generalization claims, not to retroactively redefine whether the first engineering baseline can be released.
+
+Findings from post-release falsification become inputs to later implementation, tests, instrumentation, documentation and release candidates. Do not infer exhaustive stress or scientific qualification from a v0.1.0 architecture review, documentation freeze, visual audit or release-gate PASS.
 
 ## 17. Documentation is part of the product contract
 
-For v1.0, documentation is release material.
+For v0.1.0, documentation is release material.
 
 It must provide:
 
