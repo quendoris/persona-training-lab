@@ -348,7 +348,7 @@ On success PTL persists completed status, `progress = 1.0`, final epoch progress
 
 ## 25. Model-version publication
 
-After the Training call returns and the view-model refreshes, a completed run with an artifact path is eligible for model-version publication through `ModelVersionsService.create_from_training_run(...)`.
+After the Training call returns, the exact run ID that was launched is retained as the publication identity. If that same run is completed and has an artifact path, it is eligible for model-version publication through `ModelVersionsService.create_from_training_run(...)`. Publication does not reselect whichever Training row happens to be newest after refresh.
 
 Publication is downstream metadata registration; it is not part of the backend weight update itself.
 

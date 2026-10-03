@@ -135,7 +135,7 @@ Treat published generated artifacts as persistent research outputs, not cache.
 
 ## 10. Model-version provenance
 
-The current publication path creates a model-version record only when a completed Training result has a non-empty artifact path. The record carries model-version ID, status, base-model reference, Profile title, Dataset title, Training run ID, artifact path, quality summary and timestamps.
+The current publication path creates a model-version record only when the exact Training run that was launched is completed and has a non-empty artifact path. The view-model carries that started run ID across refresh instead of reselecting the newest registry row for publication. The record carries model-version ID, status, base-model reference, Profile title, Dataset title, Training run ID, artifact path, quality summary and timestamps.
 
 `training_run_id` is the strongest direct link back to the pinned Profile/Dataset Training inputs.
 

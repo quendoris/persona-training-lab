@@ -87,3 +87,5 @@ This evidence is not automatically inherited by later commits.
 - Training/backend boundary now fails closed on an internally inconsistent backend result: `status=completed` without a published artifact path becomes terminal `artifact_not_created`, with no artifact/checkpoint persisted and regression coverage in the quick suite.
 
 - Dataset import now canonicalizes external JSONL paths with `expanduser().resolve()` before persistence. This closes a provenance seam where a relative stored path could resolve to different bytes after restart from another working directory; regression coverage verifies the persisted path is absolute/canonical.
+
+- Model-version publication no longer reselects the newest Training row after a run finishes. The exact started `run_id` is carried through completion and published only if that same run is completed with an artifact; a regression injects a newer distractor row during backend execution and proves it is not published.

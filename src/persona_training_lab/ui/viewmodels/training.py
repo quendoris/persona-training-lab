@@ -1051,14 +1051,22 @@ class TrainingViewModel:
         )
         self.inference_response = response
 
-    def _publish_latest_completed_run(self) -> None:
+    def _publish_completed_run(self, run_id: str) -> None:
         if (
             self.training_service is None
             or self.model_versions_service is None
+            or not run_id
         ):
             return
         try:
-            current = self._latest_run()
+            current = next(
+                (
+                    run
+                    for run in self.training_service.list_training_runs()
+                    if run.run_id == run_id
+                ),
+                None,
+            )
         except Exception:
             return
         if (
@@ -1097,9 +1105,10 @@ class TrainingViewModel:
                 "training.message.run_not_found"
             )
             return False, self.creation_message
+        started_run_id = self.current_run_id
         try:
             result = self.training_service.start_real_or_skeleton_run(
-                self.current_run_id
+                started_run_id
             )
         except TrainingValidationError as exc:
             self.creation_message = exc.code
@@ -1125,8 +1134,8 @@ class TrainingViewModel:
             if logs:
                 self._set_log_models(tuple(logs))
 
-        if self.status_code == TrainingRunStatus.COMPLETED.value:
-            self._publish_latest_completed_run()
+        if result.ok and result.code == "completed":
+            self._publish_completed_run(started_run_id)
             self._apply_model_versions_connector()
 
         self.creation_message = result.code

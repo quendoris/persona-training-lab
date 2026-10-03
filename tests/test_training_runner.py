@@ -337,3 +337,99 @@ def test_completed_backend_result_without_artifact_fails_closed(
     logs = service.list_training_run_logs(run_id)
     assert any("artifact_not_created" in log for log in logs)
     assert not any("artifact_saved:" in log for log in logs)
+
+
+
+class _FullBackendWithNewerCompletedRun(_FullBackend):
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        super().__init__()
+        self._connection = connection
+
+    def run(
+        self,
+        run_id: str,
+        model_path: str,
+        samples: tuple[TrainingSample, ...],
+        *,
+        epochs: int = 1,
+        batch_size: int = 1,
+        learning_rate: float = 1e-4,
+        provenance: dict[str, object] | None = None,
+    ) -> FullFineTuneResult:
+        result = super().run(
+            run_id,
+            model_path,
+            samples,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            provenance=provenance,
+        )
+        self._connection.execute(
+            """
+            INSERT INTO training_runs (
+                id, title, subtitle, status, base_model, profile,
+                dataset_version, mode, epoch_progress, loss, speed,
+                checkpoints_count, updated_at, artifact_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "trn_distractor",
+                "Distractor",
+                "newer registry row",
+                TrainingRunStatus.COMPLETED.value,
+                "/models/distractor",
+                "Other profile",
+                "Other dataset",
+                "Full fine-tune",
+                "1 / 1",
+                "0.2",
+                "full fine-tune",
+                "01",
+                "9999-01-01T00:00:00+00:00",
+                "artifacts/full_finetune/trn_distractor/model",
+            ),
+        )
+        self._connection.commit()
+        return result
+
+
+def test_viewmodel_publishes_exact_started_run_not_newest_registry_row(
+    tmp_path: Path,
+) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    backend = _FullBackendWithNewerCompletedRun(connection)
+    service, run_id, _backend = _configured_service(
+        connection,
+        tmp_path,
+        backend=backend,
+    )
+    model_versions_service = ModelVersionsService(
+        model_versions_repo=SQLiteModelVersionsRepository(connection)
+    )
+    vm = TrainingViewModel(
+        training_service=service,
+        model_versions_service=model_versions_service,
+    )
+    assert vm.current_run_id == run_id
+
+    ok, code = vm.start_selected_training_run()
+
+    assert ok is True
+    assert code == "completed"
+    published = connection.execute(
+        """
+        SELECT training_run_id, artifact_path
+        FROM model_versions
+        ORDER BY created_at ASC
+        """
+    ).fetchall()
+    assert [(row["training_run_id"], row["artifact_path"]) for row in published] == [
+        (
+            run_id,
+            f"artifacts/full_finetune/{run_id}/model",
+        )
+    ]
+    assert vm.current_run_id == "trn_distractor"
