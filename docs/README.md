@@ -38,6 +38,7 @@ Start with:
 - [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) — evidence-first triage, Issues/Activity/logs, runtime blockers, Agents safety-identity mismatch, crash/orphan handling, subsystem failures, dirty/merged source trees, and release-gate diagnostics.
 - [Operations Center](user-guide/operations-center.md) — exact Activity/Issues operator behavior, runtime/event projection, routing, refresh and diagnostic limits.
 - [Backup, Reset & Recovery](operations/backup-reset-recovery.md) — whole-workspace backup/restore, external dependency/presentation-state preservation, Agents same-snapshot recovery, crash/orphan recovery, partial reset/cleanup risks, and restore validation.
+- [Export & Portability Boundaries](operations/export-portability.md) — exact meaning of `exports/`, whole-workspace copy vs portable export, external path dependencies, migration limits, and acceptance checks.
 - [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) — OS/workspace authority, storage privacy, model/Dataset trust, Automation consent/audit/process boundaries, logging/redaction limits, and source-integrity guarantees.
 - [Key Bindings & Mouse Gestures](user-guide/key-bindings.md) — user-home binding storage, conflict recovery, direct capture, reset semantics, and live shell shortcut synchronization.
 - [Documentation Workspace](user-guide/documentation.md) — distinguish a missing registered runtime topic from the normal absence of unregistered canonical documents in the in-app subset.
@@ -123,6 +124,7 @@ Start with:
 | [Local Models](operations/local-models.md) | User / operator / developer | Model paths, readiness probe, inference health, Training integration, trust/reproducibility limits |
 | [Troubleshooting & Diagnostic Evidence](operations/troubleshooting.md) | User / operator / developer | Evidence-first triage, runtime blockers vs safety-identity mismatch, subsystem diagnosis, source/release-audit troubleshooting |
 | [Backup, Reset & Recovery](operations/backup-reset-recovery.md) | User / operator / developer | Offline whole-workspace backup/restore, same-snapshot Agents pairing, crash recovery, partial reset risks |
+| [Export & Portability Boundaries](operations/export-portability.md) | User / operator / developer / auditor | Reserved exports path, backup-vs-export distinction, external dependencies, migration and portability non-goals |
 | [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) | User / operator / developer / auditor | OS authority, unencrypted local state, model/data trust, Automation execution/audit, diagnostic privacy, source integrity |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
 | [System scale and measured codebase anatomy](architecture/system-scale.md) | Developer / auditor / maintainer | Clean source-size baseline, counting methodology, scale ratios and interpretation limits |
@@ -228,6 +230,7 @@ docs/
 │   ├── local-models.md
 │   ├── troubleshooting.md
 │   ├── backup-reset-recovery.md
+│   ├── export-portability.md
 │   └── security-boundaries.md
 ├── architecture/
 │   ├── overview.md
