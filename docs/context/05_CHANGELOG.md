@@ -85,3 +85,5 @@ This evidence is not automatically inherited by later commits.
 - Tests/Analysis now consume an explicit personality-portrait projection instead of assuming every generic `experiments` row is a portrait. Current semantic-title rows and structured legacy portrait payloads remain compatible; unrelated experiment records cannot become the latest/previous portrait pair. Regression coverage includes a newer unrelated row ahead of two valid portraits.
 
 - Training/backend boundary now fails closed on an internally inconsistent backend result: `status=completed` without a published artifact path becomes terminal `artifact_not_created`, with no artifact/checkpoint persisted and regression coverage in the quick suite.
+
+- Dataset import now canonicalizes external JSONL paths with `expanduser().resolve()` before persistence. This closes a provenance seam where a relative stored path could resolve to different bytes after restart from another working directory; regression coverage verifies the persisted path is absolute/canonical.

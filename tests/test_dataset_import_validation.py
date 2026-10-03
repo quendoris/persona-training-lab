@@ -365,3 +365,34 @@ def preview_surfaces():
     assert not any(text == "not_found" for _, text in findings)
     assert not any(text == "invalid_json" for _, text in findings)
     assert not any(text == "structure_error" for _, text in findings)
+
+
+
+def test_import_canonicalizes_relative_dataset_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    service = DatasetsService(
+        datasets_repo=SQLiteDatasetsRepository(connection)
+    )
+
+    source_dir = tmp_path / "sources"
+    source_dir.mkdir()
+    dataset_file = source_dir / "relative.jsonl"
+    dataset_file.write_text(
+        '{"prompt":"Hello","response":"Hi"}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    created = service.add_dataset_from_path("sources/relative.jsonl")
+
+    assert Path(created.path) == dataset_file.resolve()
+    persisted = SQLiteDatasetsRepository(connection).get_dataset(
+        created.dataset_id
+    )
+    assert persisted is not None
+    assert Path(str(persisted["path"])) == dataset_file.resolve()

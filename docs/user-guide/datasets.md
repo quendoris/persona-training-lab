@@ -30,7 +30,7 @@ Version comparison is deliberately unavailable in the current v0.1.0 implementat
 
 ## 2. Source-file ownership
 
-PTL stores the source path and reopens that file for preview, validation, approval, and Training.
+PTL canonicalizes the selected source with `expanduser().resolve()` at import, stores that absolute resolved path, and reopens that file for preview, validation, approval, and Training. This prevents a relative import from silently changing meaning when PTL is later started from another working directory.
 
 Therefore:
 

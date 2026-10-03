@@ -55,7 +55,7 @@ This does not prove that every Profile field or operator note is immutable.
 
 ## 4. Dataset byte identity
 
-Dataset import records the external JSONL path. It does **not** copy the source bytes into SQLite.
+Dataset import canonicalizes the external JSONL path with `expanduser().resolve()` and records that absolute resolved path. It does **not** copy the source bytes into SQLite. Relative-path meaning is therefore frozen at import time rather than reinterpreted against a future process working directory.
 
 Validation/approval computes SHA-256 over the complete file bytes. Training creation pins that approved digest into `training_runs.dataset_sha256`, and Training launch re-hashes the current JSONL bytes while constructing the input bundle.
 

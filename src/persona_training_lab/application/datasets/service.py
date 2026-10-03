@@ -67,7 +67,7 @@ class DatasetsService:
         return [self._row_to_summary(row) for row in self.datasets_repo.list_datasets()]
 
     def add_dataset_from_path(self, file_path: str) -> DatasetSummary:
-        path = Path(file_path)
+        path = Path(file_path).expanduser().resolve()
         if not path.exists() or not path.is_file():
             raise DatasetServiceError(DatasetServiceErrorCode.FILE_NOT_FOUND)
         if path.suffix.lower() != ".jsonl":

@@ -204,7 +204,7 @@ idx_datasets_updated(updated_at DESC)
 
 Compatibility bootstrap can add `path`, `format`, `valid_count`, `invalid_count`, `validation_errors_preview`, `content_sha256`, and `created_at`.
 
-`content_sha256` is the important approved-content fingerprint used by Training provenance. The SQL column does not itself guarantee that the referenced external file remains unchanged; service validation/approval semantics provide the stronger contract.
+`path` is stored by the current import service as an absolute canonicalized `expanduser().resolve()` filesystem path. `content_sha256` is the important approved-content fingerprint used by Training provenance. The SQL columns do not themselves guarantee that the referenced external file remains present or unchanged; service validation/approval semantics provide the stronger contract.
 
 ## 10. `training_runs`
 
