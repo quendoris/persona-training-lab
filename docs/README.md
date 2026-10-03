@@ -56,6 +56,7 @@ Start with:
 
 - [Architecture Overview](architecture/overview.md) — composition root, layers, UI shell, persistence, runtime coordination, models, Automation, telemetry, error boundaries.
 - [System scale and measured codebase anatomy](architecture/system-scale.md) — frozen clean size baseline, counting methodology, test/production ratio and limits of LOC as a complexity measure.
+- [Provenance & External-State Boundaries](architecture/provenance-and-external-state.md) — exact map of content-pinned, semantic-hashed, path-only and externally managed inputs/artifacts.
 - [Persistence architecture](architecture/persistence.md) — SQLite connection/transaction boundaries, repository locking, schema/bootstrap behavior, lineage snapshots, Agents JSON, filesystem artifacts, external state, and cross-store atomicity limits.
 - [Workspace concurrency and ownership](architecture/workspace-concurrency.md) — single-writer workspace lease, in-process vs SQLite vs file-atomicity guarantees and preference-store boundary.
 - [Background work lifecycle](architecture/background-work-lifecycle.md) — screen-owned QThreads, runtime-operation distinction, nonblocking close retry, final bootstrap drain and workspace-lease handoff.
@@ -117,6 +118,7 @@ Start with:
 | [Security, Trust & Privacy Boundaries](operations/security-boundaries.md) | User / operator / developer / auditor | OS authority, unencrypted local state, model/data trust, Automation execution/audit, diagnostic privacy, source integrity |
 | [Architecture Overview](architecture/overview.md) | Developer / auditor | System layers/composition/trust boundaries |
 | [System scale and measured codebase anatomy](architecture/system-scale.md) | Developer / auditor / maintainer | Clean source-size baseline, counting methodology, scale ratios and interpretation limits |
+| [Provenance & External-State Boundaries](architecture/provenance-and-external-state.md) | Developer / operator / auditor / researcher | Dataset/Profile hashes, base-model/artifact path identity, model-version linkage, Automation dependency provenance and backup limits |
 | [Persistence architecture](architecture/persistence.md) | Developer / auditor | SQLite/filesystem/settings ownership, transaction/locking boundaries, schema bootstrap, cross-store consistency |
 | [Workspace concurrency and ownership](architecture/workspace-concurrency.md) | Developer / auditor | Process writer lease, SQLite/thread/file atomicity boundaries and external preference-store concurrency |
 | [Background work lifecycle](architecture/background-work-lifecycle.md) | Developer / auditor | QThread owners, shutdown aggregation, runtime-operation distinction and lease-release ordering |
@@ -218,6 +220,7 @@ docs/
 ├── architecture/
 │   ├── overview.md
 │   ├── system-scale.md
+│   ├── provenance-and-external-state.md
 │   ├── persistence.md
 │   ├── workspace-concurrency.md
 │   ├── background-work-lifecycle.md
