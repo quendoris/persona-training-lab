@@ -4,7 +4,7 @@ The **Snapshots** workspace is the read-only user view of PTL's persisted **mode
 
 This distinction matters: in v1.0 a Snapshot is **not** a second copy of model weights, a separate immutable database object, or a content-addressed checkpoint. The screen projects records from `model_versions` and follows their stored lineage back to the Training run and artifact path.
 
-For the Training-side provenance contract, see [Training](training.md) and the [Training pipeline specification](../training_pipeline.md).
+For the Training-side provenance contract, see [Training](training.md), the [Training pipeline specification](../training_pipeline.md), and the cross-cutting [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md).
 
 ## 1. Where Snapshots come from
 
@@ -329,6 +329,8 @@ For the strongest v1.0 reconstruction of how a model version was produced, prese
 
 The model-version row alone is intentionally not claimed to be a complete cryptographic provenance bundle.
 
+The central provenance matrix documents exactly which layers are content-pinned, path-only, or externally managed: [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md).
+
 ## 19. Manual database edits are not a supported workflow
 
 Do not create or “repair” model versions by inserting rows directly into `model_versions` during normal use.
@@ -355,6 +357,7 @@ Use the reproducible visual-audit workflow and record commit, locale, theme, sca
 
 - Understand how the version was produced: [Training](training.md)
 - Inspect the exact Training provenance contract: [Training pipeline specification](../training_pipeline.md)
+- Compare byte/path/external provenance strength: [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md)
 - Preserve database + artifact state correctly: [Workspace & Storage](../operations/workspace-and-storage.md)
 - Run and interpret model evaluation: [Tests and Analysis](tests-and-analysis.md)
 - Audit score/comparison semantics: [Evaluation contract](../reference/evaluation-contract.md)
