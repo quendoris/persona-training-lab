@@ -95,3 +95,5 @@ This evidence is not automatically inherited by later commits.
 - Bootstrap failure ownership is now explicit: if `build_container()` raises after opening the primary SQLite connection but before publishing an `AppContainer`, it closes the connection and drops the connection-lock registry entry before re-raising. A regression forces a mid-composition repository-construction failure and proves the connection is closed.
 
 - Release evidence now closes candidate identity at both ends of a run. Quick and full gates finish with a blocking `candidate_identity_audit.py` step that requires HEAD to still match the recorded start commit and the worktree to remain clean; tests cover both worktree mutation and HEAD movement.
+
+- The first post-audit quick gate exposed a compatibility seam in Agents screen construction: standalone/test view-models without an injected `lineage_state_path` must continue using `AtomicLineageStateStore()` with its default/fake factory contract, while production composition passes the explicit workspace path. The constructor now branches on path presence instead of always passing `None`.
