@@ -2,7 +2,7 @@
 
 This document is the technical v1.0 specification for Persona Training Lab's local Training pipeline.
 
-It describes the behavior implemented by the audited codebase, not a future training architecture. The task-oriented workflow is documented separately in [Training](user-guide/training.md).
+It describes the behavior implemented by the audited codebase, not a future training architecture. The task-oriented workflow is documented separately in [Training](user-guide/training.md). The cross-cutting byte/path/external identity limits are centralized in [Provenance & External-State Boundaries](architecture/provenance-and-external-state.md).
 
 ## 1. Scope
 
