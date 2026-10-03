@@ -109,7 +109,9 @@ P0
 ├── Telemetry
 │   └── execute service/provider/background-lifecycle regression tranche for the new off-GUI-thread collector
 └── provenance/external-state
-    └── continue checking mutable path-only dependencies for overclaims
+    ├── Training artifact publication seam fixed with same-parent staging
+    ├── execute tests/test_training_artifact_publication.py
+    └── continue checking remaining mutable path-only dependencies for overclaims
 ```
 
 After those are resolved, the dominant remaining work is P2 freeze evidence: screenshots/diagrams where useful, link/bundled-doc validation, final terminology consistency, and fresh clean quick/full release evidence.
@@ -164,7 +166,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | mutable manifest review-to-run identity is now bound by a semantic SHA-256 expectation and fails closed before lease/process launch; transitive executable provenance remains explicitly outside this guarantee |
 | Localization | A | `architecture/localization.md` | no major gap currently |
 | Evaluation / Analysis | A | `architecture/evaluation-analysis.md`, `reference/evaluation-contract.md`, `user-guide/tests-and-analysis.md` | execution ownership, QThread/runtime separation, exact model-version scoping, persisted portrait evidence, protocol guard and compatibility `analysis_results` boundary are now consolidated; future richer evidence remains in Training Dynamics R docs |
-| Training implementation | A | `training_pipeline.md` | current backend is full-parameter training; avoid projecting proposed dynamics math onto current v1.0 behavior |
+| Training implementation | A | `training_pipeline.md`, `architecture/provenance-and-external-state.md` | current backend is full-parameter training; final artifact namespace is now staged/published rather than incrementally exposed, with the new regression pending local execution; avoid projecting proposed dynamics math onto current v1.0 behavior |
 | Training Dynamics mathematics | R | `architecture/training-dynamics-mathematics.md` | sources/derivations and implementation design can continue to grow without claiming runtime support |
 | Training Dynamics instrumentation | R | `architecture/training-dynamics-instrumentation.md` | define artifact schema, sampling tiers, structural signatures, probe battery, storage cost budget |
 | Telemetry architecture | B | `architecture/telemetry.md`, `architecture/background-work-lifecycle.md`, troubleshooting, telemetry code/tests | provider/service/snapshot/panel contract now includes off-GUI-thread collection and dock-owner shutdown integration; execute the new regression tranche before promotion to A |
@@ -268,12 +270,15 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 
 1. Execute the new Agents projection-publication regression tranche, then continue the remaining cross-store race audit. The code now distinguishes worker `last_good` from screen-accepted projection and reconciles persisted safety links before publishing full/content generations.
 2. Complete the new Telemetry tranche by executing its service/provider/background-lifecycle regressions. Host collection has moved off the Qt GUI thread into one Telemetry-owned Python worker, and the shell shutdown drain now includes participating dock owners.
-3. Use the new cross-cutting provenance matrix to continue auditing mutable external dependencies, especially exports/artifacts and any future model/package identity fields, for claims stronger than the code proves.
-4. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
+3. Execute the staged Training-artifact publication regression. The provenance audit found that the backend previously wrote final model bytes before metadata publication could succeed; the current code now builds model/tokenizer/metadata in a hidden same-parent staging directory and publishes the final run namespace only after staging completes. Ordinary failures clean staging best-effort and existing final run directories are not overwritten.
+4. Continue using the cross-cutting provenance matrix to audit the remaining mutable path-only dependencies, especially base-model bytes, published trained-artifact mutation after publication, and Automation transitive dependencies, for claims stronger than the code proves.
+5. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
 
 The user-facing Telemetry distributed gap is also closed from C to B by `user-guide/telemetry.md`. The guide is audited against the current panel/view-model/service/provider path and explicitly documents the 30-second visible timer, owned background refresh thread, shell shutdown participation, first-row NVIDIA-SMI limitation, process-sample scope, privacy boundary and non-research-evidence status. It remains B until the new service/provider/background-lifecycle regression evidence is executed.
 
 The targeted current-only language pass across canonical root/user-guide/operations/architecture/reference/development docs is also closed. It found one stale current claim — the old unbound Automation review-to-run wording in `operations/workspace-and-storage.md` — which was corrected. Remaining `future` wording in the scanned hits is deliberate research/migration/constraint language, and the historical Agents home path is explicitly labelled non-v1. A broader final terminology/link/package audit remains P2 freeze work rather than an open P0 architecture seam.
+
+The provenance pass then found a concrete Training publication seam rather than merely an overclaim: `LocalFullFineTuneBackend` previously wrote the final `<run_id>/model/` namespace before `training_metadata.json` was guaranteed to succeed. That allowed ordinary metadata-save failure to leave apparently final model bytes without an authoritative completed Training artifact. The backend now stages model, tokenizer, and metadata under a hidden same-parent directory and publishes the final run directory only after staging succeeds; ordinary exceptions best-effort clean the staging directory, existing final run directories are not overwritten, and abrupt process/host termination is still documented as capable of leaving **unpublished** staging debris. `tests/test_training_artifact_publication.py` is in the quick-test inventory but still requires local execution before this new tranche receives executed evidence.
 
 This pass also closed the cross-cutting provenance documentation gap. `architecture/provenance-and-external-state.md` now separates content-pinned Profile/Dataset identity from path-only base-model/trained-artifact identity, transient Automation recipe review identity, and external transitive dependencies. During that audit, `operations/workspace-and-storage.md` was corrected so it no longer describes the already-fixed Automation review-to-run seam as unbound. Model versions / Snapshots are therefore promoted from B to A at the documentation/code-test-consistency level; this does not create complete artifact/base-model hashing that v1.0 does not implement.
 
