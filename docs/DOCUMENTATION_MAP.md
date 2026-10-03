@@ -359,11 +359,28 @@ state outside workspace lease
 
 The preference audit found no reason to invent a v1.0 migration: ordinary default-workspace desktop launches are already serialized by `WorkspaceOwnership`. It does establish a hard constraint for any future simultaneous different-workspace process model because QSettings and the home-relative binding file are user-level stores without a PTL interprocess CAS/transaction contract.
 
-### P1 — close distributed coverage only where it improves use
+### P1 — consolidate current coverage without inventing product surface
 
-1. operator-facing Operations Center page only if user testing shows the current interface-tour/troubleshooting/reference split is hard to navigate;
-2. Telemetry now has dedicated user + architecture semantics; keep it operator-only until a separate versioned/persisted Training Dynamics measurement contract exists;
-3. dedicated Dashboard/Projects workflow only if those surfaces become more than orientation/projection.
+There are no remaining status-C rows in the implemented/current map.
+
+The two formerly distributed areas were closed deliberately:
+
+```text
+Operations Center
+    -> dedicated user/operator contract
+
+Dashboard / Projects
+    -> dedicated Dashboard contract
+    -> Projects explicitly documented as read-only compatibility/fallback state
+
+Export / portability
+    -> dedicated negative operating contract
+    -> reserved exports path != implemented exporter/importer
+```
+
+Telemetry already has dedicated user + architecture semantics. Keep current operator telemetry separate from Training Dynamics until a versioned/persisted research-measurement contract actually exists.
+
+Do not create additional standalone pages merely to increase a coverage percentage; add one only when a real user, operator, machine-reference, or architecture boundary would otherwise remain ambiguous.
 
 ### P2 — usability and evidence
 
