@@ -8,7 +8,7 @@ The central rule is:
 
 > **PTL coordinates trusted local research workflows inside the authority of the current operating-system account. It is not a sandbox, privilege boundary, encrypted secret vault, or hostile-input execution environment.**
 
-For operational failures and evidence handling, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md). For backup/storage boundaries, read [Backup, Reset & Recovery](backup-reset-recovery.md), [Workspace & Storage](workspace-and-storage.md), and the [Workspace layout reference](../reference/workspace-layout.md).
+For operational failures and evidence handling, read [Troubleshooting & Diagnostic Evidence](troubleshooting.md). For backup/storage boundaries, read [Backup, Reset & Recovery](backup-reset-recovery.md), [Workspace & Storage](workspace-and-storage.md), and the [Workspace layout reference](../reference/workspace-layout.md). For the exact strength of content, semantic, path and external provenance identities, read [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md).
 
 ## 1. Security model at a glance
 
