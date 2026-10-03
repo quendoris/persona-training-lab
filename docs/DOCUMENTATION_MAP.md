@@ -67,16 +67,16 @@ Across the explicit coverage-table rows in this map, the current state is:
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
 | **A — audited/current** | **31** | **77.5%** |
-| **B — covered/current** | **6** | **15.0%** |
-| **C — distributed coverage** | **3** | **7.5%** |
+| **B — covered/current** | **7** | **17.5%** |
+| **C — distributed coverage** | **2** | **5.0%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
 strictly audited/closed now:      31 / 40 = 77.5%
-current coverage at least B:      37 / 40 = 92.5%
-still distributed current scope:   3 / 40 =  7.5%
+current coverage at least B:      38 / 40 = 95.0%
+still distributed current scope:   2 / 40 =  5.0%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
 ```
 
@@ -99,7 +99,7 @@ The 92.5% figure must not be reported as “92.5% release complete”: status B 
 | Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
-| Telemetry | C | `interface-tour.md`, `ui-shell.md`, troubleshooting | **G:** dedicated telemetry semantics/limitations if used as research evidence |
+| Telemetry | B | `user-guide/telemetry.md`, `architecture/telemetry.md`, troubleshooting | dedicated operator workflow now exists; execute Telemetry regression evidence and resolve/accept the synchronous GUI-refresh boundary before A |
 | Operations Center / Issues / Activity | B | `interface-tour.md`, `troubleshooting.md`, `ui-shell.md`, `reference/event-and-diagnostic-schema.md` | operator workflow is mechanically specified; dedicated page remains optional if navigation proves unclear |
 
 ## 5. Operations coverage
@@ -239,6 +239,8 @@ Current historical corpus includes context/handoff/working-rule documents and ol
 3. Use the new cross-cutting provenance matrix to continue auditing mutable external dependencies, especially exports/artifacts and any future model/package identity fields, for claims stronger than the code proves.
 4. After each correction, synchronize architecture, operator/recovery, machine-reference and hub/map surfaces before moving on.
 
+The user-facing Telemetry distributed gap is also closed from C to B by `user-guide/telemetry.md`. The guide is audited against the current panel/view-model/service/provider path and explicitly documents the 30-second visible timer, synchronous GUI-thread refresh, first-row NVIDIA-SMI limitation, process-sample scope, privacy boundary and non-research-evidence status. It remains B until its new service/collector regression evidence is executed and the synchronous responsiveness boundary is explicitly accepted or corrected for v1.
+
 The targeted current-only language pass across canonical root/user-guide/operations/architecture/reference/development docs is also closed. It found one stale current claim — the old unbound Automation review-to-run wording in `operations/workspace-and-storage.md` — which was corrected. Remaining `future` wording in the scanned hits is deliberate research/migration/constraint language, and the historical Agents home path is explicitly labelled non-v1. A broader final terminology/link/package audit remains P2 freeze work rather than an open P0 architecture seam.
 
 This pass also closed the cross-cutting provenance documentation gap. `architecture/provenance-and-external-state.md` now separates content-pinned Profile/Dataset identity from path-only base-model/trained-artifact identity, transient Automation recipe review identity, and external transitive dependencies. During that audit, `operations/workspace-and-storage.md` was corrected so it no longer describes the already-fixed Automation review-to-run seam as unbound. Model versions / Snapshots are therefore promoted from B to A at the documentation/code-test-consistency level; this does not create complete artifact/base-model hashing that v1.0 does not implement.
@@ -327,7 +329,7 @@ The preference audit found no reason to invent a v1.0 migration: ordinary defaul
 ### P1 — close distributed coverage only where it improves use
 
 1. operator-facing Operations Center page only if user testing shows the current interface-tour/troubleshooting/reference split is hard to navigate;
-2. Telemetry now has dedicated architecture/semantics; keep it operator-only until a separate versioned/persisted Training Dynamics measurement contract exists;
+2. Telemetry now has dedicated user + architecture semantics; keep it operator-only until a separate versioned/persisted Training Dynamics measurement contract exists;
 3. dedicated Dashboard/Projects workflow only if those surfaces become more than orientation/projection.
 
 ### P2 — usability and evidence
