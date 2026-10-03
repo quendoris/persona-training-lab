@@ -49,6 +49,7 @@ tests/test_automation_execution.py
 tests/test_automation_windows_launcher.py
 tests/test_automation_command_draft.py
 tests/test_automation_i18n.py
+tests/test_docs_audit.py
 tests/test_docs_service.py
 tests/test_docs_i18n.py
 tests/test_personality_battery_loader.py
