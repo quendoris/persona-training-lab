@@ -176,7 +176,7 @@ Current comparability key:
 
 Numerical delta разрешается только при известном одинаковом ключе.
 
-Но PTL v1.0 не сохраняет SHA-256 bundled battery JSONL в portrait result.
+Но PTL v0.1.0 не сохраняет SHA-256 bundled battery JSONL в portrait result.
 
 Поэтому guard предполагает честную version discipline:
 
@@ -204,7 +204,7 @@ Evaluation может быть связана с `model_version_id` и `artifact
 
 ## 16. Base-model identity Training также ограничена
 
-Training pin'ит Profile Training representation и Dataset bytes, но base model в v1.0 идентифицируется path/reference, а не hash всей директории.
+Training pin'ит Profile Training representation и Dataset bytes, но base model в v0.1.0 идентифицируется path/reference, а не hash всей директории.
 
 Поэтому end-to-end вывод «всё входное состояние полностью content-addressed PTL» неверен.
 
@@ -228,7 +228,7 @@ native-template vs fallback route
 versioned full generation-parameter payload
 ```
 
-Следовательно, PTL v1.0 поддерживает практическое локальное сравнение, но один portrait row не является полным replication package.
+Следовательно, PTL v0.1.0 поддерживает практическое локальное сравнение, но один portrait row не является полным replication package.
 
 ## 18. `RAW_RESPONSE` ограничен
 

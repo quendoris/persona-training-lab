@@ -1,6 +1,6 @@
 # Mathematical Framework for Training Dynamics Analysis
 
-> **Status:** proposed architecture / research design. This document defines the mathematical language PTL should use to observe, describe, and later explain neural-network change during Training. It does **not** claim that the complete instrumentation described here already exists in v1.0.
+> **Status:** proposed architecture / research design. This document defines the mathematical language PTL should use to observe, describe, and later explain neural-network change during Training. It does **not** claim that the complete instrumentation described here already exists in v0.1.0.
 
 ## Purpose
 

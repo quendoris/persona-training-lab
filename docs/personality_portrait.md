@@ -145,7 +145,7 @@ RESPONSE: INVALID: ...
 
 Следовательно:
 
-> `RAW_RESPONSE` в v1.0 — bounded diagnostic representation, а не lossless forensic capture полного generation output.
+> `RAW_RESPONSE` в v0.1.0 — bounded diagnostic representation, а не lossless forensic capture полного generation output.
 
 Текущий Tests/Analysis workflow не предоставляет отдельного lossless full-generation export для этого portrait protocol. Если исследованию нужен полный transcript, его надо сохранять отдельным внешним или специально реализованным capture-механизмом; нельзя считать `RAW_RESPONSE` таким архивом.
 
@@ -261,7 +261,7 @@ PTL не считает два run сравнимыми только потом�
 
 должны сопровождаться изменением `battery_version` и/или `scoring_version` по смыслу изменения.
 
-Текущий v1.0 guard сравнивает именно version identifiers, а не hash файла батареи.
+Текущий v0.1.0 guard сравнивает именно version identifiers, а не hash файла батареи.
 
 ## Ограничения воспроизводимости
 
@@ -306,7 +306,7 @@ commit/release PTL
 существенные generation/runtime environment details
 ```
 
-Для строгой репликации дополнительно сохраняйте hashes и версии внешних/локальных артефактов, которые v1.0 portrait row сам не content-addresses.
+Для строгой репликации дополнительно сохраняйте hashes и версии внешних/локальных артефактов, которые v0.1.0 portrait row сам не content-addresses.
 
 ## Дальше
 

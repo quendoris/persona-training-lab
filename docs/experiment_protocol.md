@@ -65,7 +65,7 @@ dataset_sha256
 
 ### Base model
 
-Training run хранит resolved path/reference base model, но v1.0 не сохраняет hash всей model directory.
+Training run хранит resolved path/reference base model, но v0.1.0 не сохраняет hash всей model directory.
 
 Следовательно:
 
@@ -212,7 +212,7 @@ VALID_SCORE: 1
 
 Для аудита CASE сохраняйте оба поля. Нельзя сводить всё качество execution к одному `VALID_SCORE`.
 
-## 12. `RAW_RESPONSE` в текущем v1.0
+## 12. `RAW_RESPONSE` в текущем v0.1.0
 
 Поле `RAW_RESPONSE` не является lossless raw generation transcript.
 
@@ -237,7 +237,7 @@ generation parameters
 PTL commit/release
 ```
 
-Не все эти поля являются first-class persisted PTL fields в v1.0.
+Не все эти поля являются first-class persisted PTL fields в v0.1.0.
 
 ## 14. Battery integrity
 
@@ -280,7 +280,7 @@ CASE coverage/status/score evidence
 factor KPI + allowed protocol-compatible delta
 ```
 
-Дополнительно сохраняйте внешние hashes/environment details, которые PTL v1.0 сам не content-addresses.
+Дополнительно сохраняйте внешние hashes/environment details, которые PTL v0.1.0 сам не content-addresses.
 
 ## 16. Повторные прогоны
 

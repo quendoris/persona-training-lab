@@ -1,6 +1,6 @@
 # Training Dynamics instrumentation contract
 
-> **Status:** proposed research architecture / implementation contract. This document specifies how the mathematical framework in [`training-dynamics-mathematics.md`](training-dynamics-mathematics.md) should become observable, persisted PTL evidence. It does **not** claim that these measurements already exist in v1.0.
+> **Status:** proposed research architecture / implementation contract. This document specifies how the mathematical framework in [`training-dynamics-mathematics.md`](training-dynamics-mathematics.md) should become observable, persisted PTL evidence. It does **not** claim that these measurements already exist in v0.1.0.
 
 ## 1. Purpose
 
@@ -17,7 +17,7 @@ The central rule is:
 
 This matters especially when two checkpoints do not have the same serialized parameter structure.
 
-## 2. Current v1.0 boundary
+## 2. Current v0.1.0 boundary
 
 The current `LocalFullFineTuneBackend` records useful but intentionally limited run metadata:
 
@@ -565,7 +565,7 @@ A Training Dynamics implementation should not be considered scientifically usabl
 
 This contract deliberately sits ahead of the current implementation.
 
-Current v1.0 Training already gives PTL several foundations that the subsystem should reuse:
+Current v0.1.0 Training already gives PTL several foundations that the subsystem should reuse:
 
 - exact Training run identity;
 - pinned Profile and Dataset fingerprints at run creation;
@@ -578,7 +578,7 @@ Current v1.0 Training already gives PTL several foundations that the subsystem s
 
 What is still absent is the high-dimensional observation layer described here: structural manifests, checkpoint-level probe/representation geometry, Fisher/Hessian/Jacobian sketches, parameter correspondences, attribution and controlled replay evidence.
 
-That absence must remain visible in v1.0 documentation until each corresponding component is actually implemented and tested.
+That absence must remain visible in v0.1.0 documentation until each corresponding component is actually implemented and tested.
 
 ## 19. Primary mathematical companion
 

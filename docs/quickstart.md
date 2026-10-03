@@ -95,7 +95,7 @@ found
 - локальную base model;
 - нужные параметры запуска.
 
-При создании run PTL фиксирует Profile/Dataset fingerprints и разрешённый путь base model. Полные байты директории base model в v1.0 не content-addressed, поэтому неизменность пути не гарантирует неизменность самой модели.
+При создании run PTL фиксирует Profile/Dataset fingerprints и разрешённый путь base model. Полные байты директории base model в v0.1.0 не content-addressed, поэтому неизменность пути не гарантирует неизменность самой модели.
 
 Перед фактическим стартом PTL снова проверяет доступность base model. Это позволяет обнаружить ситуацию, когда модель существовала при создании run, но исчезла/была перемещена до старта.
 
@@ -138,7 +138,7 @@ Training выполняется как управляемая runtime operation.
 
 После успешного Training откройте **Снимки**.
 
-В текущем v1.0 Snapshots показывает persisted model-version registry и provenance/reference на артефакт. Это не отдельное универсальное immutable artifact storage поверх filesystem.
+В текущем v0.1.0 Snapshots показывает persisted model-version registry и provenance/reference на артефакт. Это не отдельное универсальное immutable artifact storage поверх filesystem.
 
 Проверьте связь новой model version с Training run и artifact reference.
 
