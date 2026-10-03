@@ -129,7 +129,7 @@ Those would be separate packaging layers with their own trust, filesystem, Qt pl
 
 ## Relationship to release validation
 
-In the full release gate, `uv build` is blocking and occurs after compile, lint, typing, pytest, i18n and codebase-statistics steps.
+In the full release gate, `uv build` is blocking and occurs after compile, lint, typing, pytest, i18n, documentation-audit and codebase-statistics steps.
 
 The quick release profile intentionally skips build. Therefore a quick-gate PASS is not packaging evidence.
 

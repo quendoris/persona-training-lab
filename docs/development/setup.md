@@ -83,7 +83,7 @@ pyproject.toml               package/dependency/tool configuration
 uv.lock                      locked dependency graph
 ```
 
-`tools/` currently contains project-specific audit/build-support programs such as the release gate, typing audit, i18n audit, codebase statistics and visual audit harness. These are part of PTL's engineering process, not runtime application workspaces.
+`tools/` currently contains project-specific audit/build-support programs such as the release gate, typing audit, i18n audit, documentation audit, codebase statistics and visual audit harness. These are part of PTL's engineering process, not runtime application workspaces.
 
 ## Before editing behavior
 

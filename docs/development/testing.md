@@ -97,6 +97,24 @@ uv run --locked python tools/i18n_audit.py --strict-ui-literals
 
 The current release gate invokes the JSON audit without the `--strict-ui-literals` flag. Do not describe the stricter flag as part of the release gate unless the implementation is changed accordingly.
 
+## Documentation audit
+
+Run the repository documentation audit with:
+
+```bash
+uv run --locked python tools/docs_audit.py
+```
+
+Machine-readable form:
+
+```bash
+uv run --locked python tools/docs_audit.py --json
+```
+
+The current audit checks repository-local Markdown link targets, verifies every runtime `DOC_TOPICS` path exists, and checks the wheel `docs` force-include destination. It is blocking in both quick and full release profiles.
+
+Passing this audit does **not** prove native Docs-workspace rendering, installed-wheel startup, screenshot quality, or heading-fragment semantics that the current tool does not parse.
+
 ## Codebase statistics
 
 The repository-local statistics tool is:

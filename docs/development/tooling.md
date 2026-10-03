@@ -11,6 +11,7 @@ The distinction matters because a reusable implementation elsewhere does **not**
 ```text
 tools/
 ├── codebase_stats.py
+├── docs_audit.py
 ├── i18n_audit.py
 ├── release_gate.py
 ├── release_quick_tests.txt
@@ -54,6 +55,20 @@ The current category rules are PTL-specific. For example, every `src/*.py` file 
 An independent generalized descendant exists in `quendoris/snippets` as `codebase-anatomy`. It adds multi-language accounting and explicit repository-declared semantic groups instead of exporting PTL's path taxonomy as universal truth.
 
 PTL still keeps and uses `tools/codebase_stats.py`. The existence of `codebase-anatomy` is not a dependency migration and does not alter PTL release evidence.
+
+## `docs_audit.py`
+
+The documentation audit checks repository-tracked Markdown/navigation and the runtime documentation packaging seam.
+
+It currently verifies:
+
+- local Markdown link targets resolve inside the repository;
+- every path registered in `application/docs/service.py::DOC_TOPICS` exists;
+- wheel packaging still force-includes repository `docs/` under `persona_training_lab/docs`.
+
+It deliberately does not prove rendered Markdown appearance, native UI layout, link-fragment/heading semantics, or installed-wheel startup. Those remain separate evidence domains unless the tool is extended.
+
+`docs_audit.py` is a blocking step in both quick and full release-gate profiles.
 
 ## `i18n_audit.py`
 
@@ -255,6 +270,7 @@ These relationships record engineering provenance, not dependency edges. PTL doe
 | generic evidence ZIP/inventory need | `archive-bundler` | independently extracted; no PTL dependency migration |
 | release audit orchestration | none in the PTL dependency graph | local `release_gate.py` is authoritative |
 | `typing_audit.py` scanner/policy | none in the PTL dependency graph | local tool/policy is authoritative |
+| `docs_audit.py` documentation/runtime-topic/package-path audit | none in the PTL dependency graph | local release audit is authoritative |
 | font vendoring integrity flow | none in the PTL dependency graph | local font-vendoring tool is authoritative |
 | `i18n_audit.py` | none in the PTL dependency graph | local localization audit is authoritative |
 
