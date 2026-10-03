@@ -66,15 +66,15 @@ Across the explicit coverage-table rows in this map, the current state is:
 
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
-| **A — audited/current** | **35** | **87.5%** |
-| **B — covered/current** | **3** | **7.5%** |
+| **A — audited/current** | **36** | **90.0%** |
+| **B — covered/current** | **2** | **5.0%** |
 | **C — distributed coverage** | **2** | **5.0%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
-strictly audited/closed now:      35 / 40 = 87.5%
+strictly audited/closed now:      36 / 40 = 90.0%
 current coverage at least B:      38 / 40 = 95.0%
 still distributed current scope:   2 / 40 =  5.0%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
@@ -88,10 +88,9 @@ The coverage tables reduce to this current implementation/documentation state:
 
 ```text
 PTL v1.0 documentation/code audit
-├── strictly audited/current (A): 35 / 40 implemented rows = 87.5%
-├── covered/current but not strictly closed (B): 3 / 40 = 7.5%
+├── strictly audited/current (A): 36 / 40 implemented rows = 90.0%
+├── covered/current but not strictly closed (B): 2 / 40 = 5.0%
 │   ├── Telemetry user workflow
-│   ├── Evaluation / Analysis architecture
 │   └── Telemetry architecture
 ├── distributed current coverage (C): 2 / 40 = 5.0%
 │   ├── Dashboard / Projects overview
@@ -101,7 +100,7 @@ PTL v1.0 documentation/code audit
     └── Training Dynamics instrumentation
 ```
 
-So there are **5 implemented/current rows that are not yet A**. One is an architecture-consolidation item, two are deliberately still distributed because the current product surface does not justify a dedicated document, and two Telemetry rows remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
+So there are **4 implemented/current rows that are not yet A**. Two are deliberately still distributed because the current product surface does not justify a dedicated document, and the remaining two are the Telemetry user/architecture rows pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
 
 The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
 
@@ -167,7 +166,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Runtime resource safety | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, `architecture/agents-protected-history.md` | primary delete/create-Undo/delete-Redo pre/post-lease identity rules synchronized; continue audit of any other destructive resource paths |
 | Automation | A | `architecture/automation.md`, `reference/automation-recipe-schema.md` | mutable manifest review-to-run identity is now bound by a semantic SHA-256 expectation and fails closed before lease/process launch; transitive executable provenance remains explicitly outside this guarantee |
 | Localization | A | `architecture/localization.md` | no major gap currently |
-| Evaluation / Analysis | B | `reference/evaluation-contract.md`, methodology docs | optional dedicated architecture page only if orchestration becomes more complex |
+| Evaluation / Analysis | A | `architecture/evaluation-analysis.md`, `reference/evaluation-contract.md`, `user-guide/tests-and-analysis.md` | execution ownership, QThread/runtime separation, exact model-version scoping, persisted portrait evidence, protocol guard and compatibility `analysis_results` boundary are now consolidated; future richer evidence remains in Training Dynamics R docs |
 | Training implementation | A | `training_pipeline.md` | current backend is full-parameter training; avoid projecting proposed dynamics math onto current v1.0 behavior |
 | Training Dynamics mathematics | R | `architecture/training-dynamics-mathematics.md` | sources/derivations and implementation design can continue to grow without claiming runtime support |
 | Training Dynamics instrumentation | R | `architecture/training-dynamics-instrumentation.md` | define artifact schema, sampling tiers, structural signatures, probe battery, storage cost budget |
