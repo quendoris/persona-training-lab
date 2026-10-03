@@ -337,8 +337,9 @@ def test_telemetry_snapshot_switches_language_without_refresh(
         gpu_provider=None,
     )
     vm = TelemetryViewModel(telemetry_service=service)
-    snapshot = vm.snapshot
-    assert snapshot is not None
+    snapshot = service.collect_snapshot()
+    vm.apply_snapshot(snapshot)
+    assert vm.snapshot is snapshot
     assert snapshot.cpu_status == "high_load"
     assert snapshot.cpu_status_code == "high_load"
     assert snapshot.gpu_status == "gpu_unavailable"
