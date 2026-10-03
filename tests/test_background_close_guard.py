@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from persona_training_lab.bootstrap.app import _drain_background_work
 from persona_training_lab.ui.automation.screen import AutomationScreen
 from persona_training_lab.ui.panels.telemetry_panel import TelemetryPanel
@@ -232,3 +234,44 @@ def test_telemetry_shutdown_waits_for_inflight_collection() -> None:
     assert TelemetryPanel.shutdown_background_work(panel, 50) is True  # type: ignore[arg-type]
     assert thread.join_calls == [0.05]
     assert timer.stop_calls == 2
+
+
+def test_telemetry_refresh_starts_worker_without_collecting_inline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collected: list[str] = []
+    started: list[str] = []
+
+    class _DeferredThread:
+        def __init__(self, *, target, name: str, daemon: bool) -> None:
+            assert name == "ptl-telemetry-refresh"
+            assert daemon is False
+            self.target = target
+
+        def start(self) -> None:
+            started.append("start")
+
+    monkeypatch.setattr(
+        "persona_training_lab.ui.panels.telemetry_panel.Thread",
+        _DeferredThread,
+    )
+    button = SimpleNamespace()
+    button.setEnabled = lambda _enabled: None
+    button.setText = lambda _text: None
+    panel = SimpleNamespace(
+        _refresh_pending=False,
+        _refresh_thread=None,
+        _refresh_btn=button,
+        _text=lambda key: key,
+        _collect_refresh_snapshot=lambda: collected.append("collect"),
+    )
+
+    TelemetryPanel._run_refresh(  # type: ignore[arg-type]
+        panel,
+        show_pending=True,
+    )
+
+    assert started == ["start"]
+    assert collected == []
+    assert panel._refresh_pending is True
+    assert panel._refresh_thread is not None
