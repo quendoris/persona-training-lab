@@ -66,21 +66,21 @@ Across the explicit coverage-table rows in this map, the current state is:
 
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
-| **A — audited/current** | **37** | **92.5%** |
+| **A — audited/current** | **38** | **95.0%** |
 | **B — covered/current** | **2** | **5.0%** |
-| **C — distributed coverage** | **1** | **2.5%** |
+| **C — distributed coverage** | **0** | **0.0%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
-strictly audited/closed now:      37 / 40 = 92.5%
-current coverage at least B:      39 / 40 = 97.5%
-still distributed current scope:   1 / 40 =  2.5%
+strictly audited/closed now:      38 / 40 = 95.0%
+current coverage at least B:      40 / 40 = 100.0%
+still distributed current scope:   0 / 40 =  0.0%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
 ```
 
-The 97.5% figure must not be reported as “97.5% release complete”: status B still contains real evidence/edge-case work, the remaining C row is an explicit product-boundary choice, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
+The 100.0% current-coverage figure must not be reported as “100% release complete”: two Telemetry rows remain status B rather than A, research/proposed rows are tracked separately, and final release evidence remains outstanding. For this map, **A is the strict closure count**.
 
 ## 3.1 Current closure mind map
 
@@ -88,18 +88,17 @@ The coverage tables reduce to this current implementation/documentation state:
 
 ```text
 PTL v1.0 documentation/code audit
-├── strictly audited/current (A): 37 / 40 implemented rows = 92.5%
+├── strictly audited/current (A): 38 / 40 implemented rows = 95.0%
 ├── covered/current but not strictly closed (B): 2 / 40 = 5.0%
 │   ├── Telemetry user workflow
 │   └── Telemetry architecture
-├── distributed current coverage (C): 1 / 40 = 2.5%
-│   └── Export / portability
+└── distributed current coverage (C): 0 / 40 = 0.0%
 └── proposed research architecture (R): 2 rows, outside v1.0 closure denominator
     ├── Training Dynamics mathematics
     └── Training Dynamics instrumentation
 ```
 
-So there are **3 implemented/current rows that are not yet A**. Two are the Telemetry user/architecture rows pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection. The remaining row is Export/portability: current code has an `exports/` workspace directory but no supported product-level export/migration workflow, so the contract intentionally remains distributed rather than inventing a feature that does not exist.
+So there are **2 implemented/current rows that are not yet A**, and both are Telemetry: the user/operator workflow and the architecture page remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection. Export/portability is now closed as a negative current contract: PTL reserves `exports/` as user-facing workspace output, but v1.0 does not claim a general exporter/importer or portable migration bundle.
 
 The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
 
@@ -148,7 +147,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | Runtime-operation leases | A | `architecture/runtime-resource-safety.md`, `architecture/workspace-concurrency.md`, troubleshooting | protected-history exact identity now distinguishes lease ownership from historical identity; document new resource kinds introduced by future instrumentation |
 | Background shutdown / ownership handoff | A | `architecture/background-work-lifecycle.md`, `architecture/workspace-concurrency.md` | keep every new long-running workspace integrated with shell final-drain ownership |
 | UI/input preference restore scope | A | `architecture/preference-persistence.md`, backup/storage docs | QSettings and user-home bindings remain intentionally outside whole-workspace backup semantics |
-| Export / portability | C | storage + backup docs | **G:** dedicated export/portability contract if PTL adds supported workspace migration/export rather than raw backup |
+| Export / portability | A | `operations/export-portability.md`, `operations/backup-reset-recovery.md`, `reference/workspace-layout.md`, `architecture/provenance-and-external-state.md` | current negative contract is explicit: `exports/` is user-facing workspace output, whole-workspace copy is backup rather than normalized export, and no general import/migration bundle is claimed |
 
 ## 6. Architecture coverage
 
