@@ -163,6 +163,8 @@ For local full fine-tuning, the canonical layout is:
 
 The `model/` directory contains the saved trained model/tokenizer output. `training_metadata.json` records run/backend/provenance information.
 
+The current local full-fine-tune backend builds those two components under a hidden same-parent `.<run_id>-staging-*/` directory and publishes the final `<run_id>/` namespace only after staging succeeds. Ordinary save failures best-effort remove the staging directory; abrupt termination can leave unpublished staging debris. A staging directory is not a completed artifact and should not be manually promoted during recovery.
+
 Do **not** treat `artifacts/` as disposable cache. Generated model output may be the only copy of a completed workflow result.
 
 Agents local branch deletion does not garbage-collect these artifact directories merely because a branch referenced them.
