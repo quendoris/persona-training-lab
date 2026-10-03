@@ -145,6 +145,7 @@ A generalized `codebase-anatomy` implementation now exists independently in `que
 - release reports require a resolvable Git HEAD;
 - package metadata version and runtime `__version__` must match before report creation;
 - a dirty worktree is rejected before report creation;
+- final candidate identity rechecks both the recorded HEAD and clean worktree after the gated steps;
 - ignored runtime-affecting files under `src/tests/tools` are not allowed beyond known generated/platform noise;
 - production model loaders must not opt into `trust_remote_code=True`.
 
@@ -178,7 +179,8 @@ Its current validation sequence is:
 4. pytest using the explicit paths in `tools/release_quick_tests.txt`;
 5. i18n audit;
 6. documentation audit;
-7. codebase statistics.
+7. codebase statistics;
+8. final candidate-identity audit.
 
 The quick profile deliberately omits full mypy, package build and inspection. Documentation audit is blocking in both quick and full profiles. Package-audit unit tests remain in the quick pytest inventory, while inspection of the actual built artifacts is full-gate only. The quick profile is useful for repeated high-confidence development checks, but it is not the final release proof.
 
@@ -200,7 +202,9 @@ Its current validation sequence is:
 6. i18n audit;
 7. documentation audit;
 8. codebase statistics;
-9. `uv build`.
+9. `uv build`;
+10. package audit of the generated wheel/sdist;
+11. final candidate-identity audit.
 
 Every current step is blocking.
 
@@ -236,6 +240,8 @@ A failed command should be diagnosed at the failing layer instead of being flatt
 - i18n failure → catalog/literal/localization contract problem;
 - docs-audit failure → broken internal documentation links, missing required runtime topics, or bundled-doc packaging contract problem;
 - build failure → packaging/build-system problem;
+- package-audit failure → built distribution content/metadata problem;
+- candidate-identity failure → HEAD/worktree changed during release validation;
 - visual-audit failure → Qt composition/navigation/capture problem.
 
 Preserve the corresponding logs before modifying the failing state when the evidence may matter for release diagnosis.

@@ -10,6 +10,7 @@ The distinction matters because a reusable implementation elsewhere does **not**
 
 ```text
 tools/
+├── candidate_identity_audit.py
 ├── codebase_stats.py
 ├── docs_audit.py
 ├── i18n_audit.py
@@ -126,6 +127,12 @@ The JSON form records total, blocking, informational and per-finding details.
 ### Reuse boundary
 
 The scanner/classifier mechanics are separable from policy in principle, but PTL's exact blocking policy is product/release policy. No independently versioned typing-suppression snippet is part of PTL's current dependency or release contract.
+
+## `candidate_identity_audit.py`
+
+This release-integrity helper re-resolves `git rev-parse HEAD` and `git status --porcelain` against the commit recorded when the gate started. It passes only when HEAD is unchanged and the worktree is still clean.
+
+Both quick and full release profiles execute it as their final blocking step. It complements the gate's initial clean-worktree precondition so a long validation run cannot silently finish as PASS after the candidate changed underneath it.
 
 ## `package_audit.py`
 

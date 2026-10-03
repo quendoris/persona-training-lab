@@ -6,7 +6,7 @@ This document defines the current engineering evidence sequence for preparing a 
 
 A release result should be attributable to one known Git commit and one known dependency state.
 
-The release gate therefore refuses to start from a dirty worktree, fails closed when `pyproject.toml` and runtime `persona_training_lab.__version__` disagree, and records Git, release version identity, Python, platform, seed and per-step evidence into an isolated audit directory.
+The release gate therefore refuses to start from a dirty worktree, fails closed when `pyproject.toml` and runtime `persona_training_lab.__version__` disagree, records Git/release/Python/platform/seed evidence, and rechecks candidate identity as its final blocking step. The end-of-gate check requires the current HEAD to equal the recorded start commit and the worktree to still be clean.
 
 A release should not be declared from memory, an old successful run, or a test result produced before the candidate commit changed.
 
@@ -57,7 +57,7 @@ For repeated stability evidence:
 uv run --locked python tools/release_gate.py --quick --runs 3
 ```
 
-The quick profile currently runs compileall, Ruff, typing-suppression audit, the curated pytest manifest, i18n audit, documentation audit and codebase statistics.
+The quick profile currently runs compileall, Ruff, typing-suppression audit, the curated pytest manifest, i18n audit, documentation audit, codebase statistics, and a final candidate-identity audit.
 
 It intentionally does **not** run full mypy or package build. A quick PASS is therefore an iteration gate, not the final release proof.
 
@@ -86,9 +86,10 @@ The full profile currently blocks on this sequence. Its final `uv build` writes 
 7. documentation audit;
 8. codebase statistics;
 9. `uv build`;
-10. built-package audit over the resulting wheel/sdist.
+10. built-package audit over the resulting wheel/sdist;
+11. final candidate-identity audit confirming the recorded HEAD and a clean worktree.
 
-No current step is informational-only in the full profile.
+No current step is informational-only in the full profile. Quick mode also ends with the same candidate-identity audit.
 
 The `codebase statistics` step above means PTL's committed `tools/codebase_stats.py`, not the independently generalized `codebase-anatomy` snippet. The same rule applies to every other local gate component until the release gate implementation itself is deliberately changed.
 
@@ -221,7 +222,7 @@ When the gate stops on a blocking step:
 4. commit the fix;
 5. rerun validation from the new clean commit.
 
-Do not edit files while a report is running and then present that report as evidence for the modified tree. The clean-worktree precondition protects the start state; release discipline must preserve the identity of the candidate throughout the run.
+Do not edit files while a report is running. The gate checks both ends of the run: the clean-worktree precondition protects the start state, and the final candidate-identity step rejects evidence if HEAD changed or tracked/untracked non-ignored worktree state appeared before completion. A transient edit that is made and perfectly reverted during the run cannot be reconstructed afterward, so operator discipline still matters for that narrower case.
 
 ## What a full gate does not prove
 
