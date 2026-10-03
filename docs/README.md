@@ -70,6 +70,7 @@ Start with:
 - [Automation architecture](architecture/automation.md) — recipe schema/discovery, trusted-host command contract, runtime leases, audit fail-closed behavior, bounded process execution, process-tree containment, and explicit trust limitations.
 - [Automation recipe schema](reference/automation-recipe-schema.md) — exact manifest fields, validation, placeholders, discovery/import collision behavior and resource-claim semantics.
 - [Telemetry architecture](architecture/telemetry.md) — provider/service/panel measurement contract, failure isolation, refresh lifecycle, privacy and research-evidence limits.
+- [Evaluation & Analysis architecture](architecture/evaluation-analysis.md) — execution/persistence/worker/runtime-lease boundaries, exact model-version selection, protocol-guarded read-time Analysis, and compatibility-storage limits.
 - [Runtime resource safety](architecture/runtime-resource-safety.md) — shared-resource/operation safety contracts.
 - [Localization architecture](architecture/localization.md) — catalog, RTL, font, and localization contracts.
 - [Training pipeline specification](training_pipeline.md) — detailed Profile/Dataset fingerprints, Training parser/backend, artifact metadata, limitations.
@@ -132,6 +133,7 @@ Start with:
 | [Agents protected history and safety identity](architecture/agents-protected-history.md) | Developer / operator / auditor | Exact cross-store branch history identity, destructive guards, fail-closed recovery and compensation |
 | [Automation architecture](architecture/automation.md) | Developer / auditor | Recipe/provider/service/process/audit architecture, trusted-host boundary, runtime claims, containment, failure semantics |
 | [Telemetry architecture](architecture/telemetry.md) | Developer / operator / auditor | Host metric providers, snapshot/status semantics, refresh/failure boundaries, privacy and non-research-evidence contract |
+| [Evaluation & Analysis architecture](architecture/evaluation-analysis.md) | Developer / auditor / researcher | Portrait execution ownership, worker/runtime coordination, exact model-version scoping, persisted evidence and protocol-guarded Analysis |
 | [Training Dynamics mathematics](architecture/training-dynamics-mathematics.md) | Researcher / developer / auditor | Proposed multi-space mathematical framework; explicitly non-current instrumentation |
 | [Training Dynamics instrumentation](architecture/training-dynamics-instrumentation.md) | Researcher / developer / auditor | Proposed evidence/sampling/structural-identity contract; explicitly non-current instrumentation |
 | [v1.0 Product Contract](reference/v1-product-contract.md) | Everyone | Stable-release guarantees/boundaries/non-goals |
@@ -236,6 +238,7 @@ docs/
 │   ├── agents-protected-history.md
 │   ├── automation.md
 │   ├── telemetry.md
+│   ├── evaluation-analysis.md
 │   ├── localization.md
 │   ├── ui-shell.md
 │   ├── training-dynamics-mathematics.md
