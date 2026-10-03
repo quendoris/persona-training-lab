@@ -29,7 +29,7 @@ A fourth type, `WorkflowSupervisor`, exists in `application.workflows`, but it i
 
 The standard desktop shutdown rule is:
 
-> **The workspace writer lease is retained until every registered workspace background owner reports that its worker has stopped.**
+> **The workspace writer lease is retained until every shell-registered background owner — workspace or participating dock panel — reports that its worker has stopped.**
 
 This protects the handoff between one PTL desktop process and the next cooperating process that opens the same workspace.
 
@@ -53,21 +53,27 @@ Those questions are related but not equivalent.
 
 For example, a Training worker can execute a synchronous backend call inside a `QThread` while its `RuntimeOperationLease` records the semantic resource claims for the Training operation. The thread object and SQLite lease have different purposes and different cleanup paths.
 
-## 3. Workspace screens are the current worker owners
+## 3. Workspaces and participating dock panels are the current worker owners
 
-`WorkspaceStack` stores the live workspace widgets registered in the main window.
+`WorkspaceStack` stores the live workspace widgets registered in the main window. The shell also owns dock widgets such as Telemetry.
 
-For shutdown, `MainWindow.shutdown_background_work()` iterates every registered workspace and dynamically looks for:
+For shutdown, `MainWindow.shutdown_background_work()` builds an owner set from:
+
+```text
+all registered workspace widgets
++
+all current dock-panel widgets
+```
+
+and dynamically looks for:
 
 ```text
 shutdown_background_work(timeout_ms)
 ```
 
-A workspace without that method is treated as having no shell-managed background worker.
+Objects without that method are treated as having no shell-managed background worker. Duplicate object identities are visited only once.
 
-This is the current registration contract. There is no separate central table of QThreads in the bootstrap container.
-
-The shell therefore owns shutdown **through the workspace objects that own the workers**, rather than by inspecting arbitrary Python threads globally.
+There is no separate central table of every Python/QThread worker in the bootstrap container. The shell owns shutdown **through the UI object that explicitly owns each worker**, rather than by inspecting arbitrary process threads globally.
 
 ## 4. Training worker lifetime
 
@@ -157,21 +163,32 @@ contained child-process termination
 
 This is stronger than the current Training/Tests shutdown contract. It still does not make Automation a filesystem/network sandbox; containment is a process-lifetime property, not a host-effect rollback mechanism.
 
-## 7. Main-window shutdown aggregation
+## 7. Telemetry dock worker lifetime
+
+`TelemetryPanel` owns one non-daemon Python thread while a host snapshot is being collected.
+
+The worker performs only the blocking host-provider call and emits the immutable `TelemetrySnapshot` back to the GUI object. Qt widget mutation remains on the GUI thread.
+
+`TelemetryPanel.shutdown_background_work(timeout_ms)` stops the auto-refresh timer, waits within the supplied timeout for an in-flight collection, and returns `False` while that thread is still alive. The current provider call is not force-cancelled mid-sample.
+
+Telemetry does not create a persisted runtime-operation lease for each diagnostic refresh; its safety requirement here is worker lifetime ownership rather than semantic write-resource coordination.
+
+## 8. Main-window shutdown aggregation
 
 The outer `ui.shell.main_window_background.MainWindow` implements the application-level background-work guard.
 
 `shutdown_background_work(timeout_ms)`:
 
 1. creates one total deadline from the supplied timeout;
-2. iterates every registered workspace;
-3. calls each callable `shutdown_background_work(remaining_ms)`;
-4. does not stop visiting later owners merely because an earlier owner failed to stop;
-5. returns `True` only when every participating owner reports stopped.
+2. gathers every registered workspace plus current dock-panel widgets;
+3. de-duplicates owners by object identity;
+4. calls each callable `shutdown_background_work(remaining_ms)`;
+5. does not stop visiting later owners merely because an earlier owner failed to stop;
+6. returns `True` only when every participating owner reports stopped.
 
 This means the timeout is a **shared total budget**, not a fresh full timeout for every workspace.
 
-## 8. Normal close is deliberately non-blocking on the GUI thread
+## 9. Normal close is deliberately non-blocking on the GUI thread
 
 `MainWindow.closeEvent()` does not wait several seconds in the GUI event handler.
 
@@ -201,7 +218,7 @@ The leave/close guard is latched after it succeeds so a delayed shutdown does no
 
 This keeps the Qt GUI responsive while workers finish.
 
-## 9. Event-loop exit has a second safety net
+## 10. Event-loop exit has a second safety net
 
 Normal window-close handling is not the only possible way `app.exec()` can return.
 
@@ -236,7 +253,7 @@ workspace writer lease may be released
 
 not the reverse.
 
-## 10. Why the final drain matters
+## 11. Why the final drain matters
 
 Without the final drain, this sequence would be possible in principle:
 
@@ -256,7 +273,7 @@ That would defeat the single-writer-per-workspace contract even though both desk
 
 The final drain closes that handoff gap for registered workspace-owned workers.
 
-## 11. `aboutToQuit` is advisory cleanup, not the ownership proof
+## 12. `aboutToQuit` is advisory cleanup, not the ownership proof
 
 Bootstrap also connects:
 
@@ -272,7 +289,7 @@ Therefore the `aboutToQuit` callback is **not** the proof that all work stopped.
 
 The proof used for workspace-ownership release is the subsequent blocking `_drain_background_work()` loop in bootstrap.
 
-## 12. RuntimeOperationCoordinator is not the QThread supervisor
+## 13. RuntimeOperationCoordinator is not the QThread supervisor
 
 `RuntimeOperationCoordinator` persists semantic operation identity and resource claims through its repository.
 
@@ -296,7 +313,7 @@ It does **not** own Qt thread objects and does not replace screen `shutdown_back
 
 Likewise, stopping a QThread is not equivalent to proving that every runtime-operation row has reached its intended terminal semantic state. Feature services own that transition logic.
 
-## 13. Operations Center is observational/projection infrastructure
+## 14. Operations Center is observational/projection infrastructure
 
 The shell's live active-workflow chrome, Activity and Issues surfaces are fed by `OperationsCenterService`, which reads runtime operations and event evidence.
 
@@ -304,7 +321,7 @@ That visible activity stream must not be confused with ownership of worker execu
 
 The Operations Center can describe and route to work; the screen/feature service still owns the actual worker and semantic operation lifecycle.
 
-## 14. `WorkflowSupervisor` has a much smaller current role
+## 15. `WorkflowSupervisor` has a much smaller current role
 
 The repository also contains:
 
@@ -345,7 +362,7 @@ Its present implementation is best classified as a **small in-memory workflow-st
 
 Whether it should remain, be renamed, or be removed as architectural residue is a separate code-design decision. This document records current behavior rather than inventing a rationale.
 
-## 15. Worker lifetime and runtime lease lifetime can diverge during failures
+## 16. Worker lifetime and runtime lease lifetime can diverge during failures
 
 A robust mental model is:
 
@@ -366,7 +383,7 @@ That recovery does not reconstruct or roll back arbitrary model/filesystem side 
 
 Conversely, a live worker must not be considered harmless merely because a UI status stopped updating.
 
-## 16. Current cancellation matrix
+## 17. Current cancellation matrix
 
 | Work type | UI thread | Cooperative cancel request | Child-process containment | Shutdown may wait for synchronous work |
 |---|---|---|---|---|
@@ -374,10 +391,11 @@ Conversely, a live worker must not be considered harmless merely because a UI st
 | Full Training service call | yes | no dedicated force-cancel in screen shutdown | backend-specific work, not a generic shell child-process kill contract | yes |
 | Tests/evaluation | yes | no dedicated force-cancel in screen shutdown | no generic shell containment | yes |
 | Automation | yes | yes, worker cancellation flag | yes, POSIX process group / Windows Job Object | yes, until worker/process terminates |
+| Telemetry refresh | no; host sampling uses owned Python thread | no force-cancel of provider call | no | yes, until in-flight sample returns |
 
 This table describes application-close behavior, not every feature-specific runtime state or timeout.
 
-## 17. What the shell does not promise
+## 18. What the shell does not promise
 
 The current background-work contract does not claim that:
 
@@ -387,11 +405,11 @@ The current background-work contract does not claim that:
 - closing PTL rolls back partially produced Training artifacts;
 - closing PTL reverses Automation host effects;
 - runtime-operation recovery proves every descendant process is gone after an abnormal OS failure;
-- background work outside registered workspace ownership is automatically included in the final drain.
+- arbitrary background work outside registered workspace/dock ownership is automatically included in the final drain.
 
 A new long-running workspace feature must therefore explicitly join the shutdown ownership contract.
 
-## 18. Extension rule for new background work
+## 19. Extension rule for new background work
 
 A new feature that starts work capable of surviving beyond one GUI event handler should answer all of the following before release:
 
@@ -401,14 +419,14 @@ A new feature that starts work capable of surviving beyond one GUI event handler
 4. **How does normal completion reach a terminal state?**
 5. **How does application shutdown request cancellation/termination?**
 6. **Can shutdown safely wait if force-cancellation is impossible?**
-7. **Does its workspace expose `shutdown_background_work(timeout_ms)`?**
+7. **Does its owning workspace or dock panel expose `shutdown_background_work(timeout_ms)`?**
 8. **What happens after crash/restart?**
 9. **Which filesystem/external side effects may remain after failure?**
 10. **Which tests prove the close/drain contract?**
 
 If those answers are absent, the feature is not yet integrated into the current workspace-lifetime architecture.
 
-## 19. Test evidence
+## 20. Test evidence
 
 `tests/test_background_close_guard.py` currently covers important shell/worker invariants, including:
 
@@ -417,13 +435,15 @@ If those answers are absent, the feature is not yet integrated into the current 
 - Training shutdown does not pretend a still-running worker stopped;
 - Tests/evaluation participates in the same shell close guard;
 - Automation requests cooperative cancellation before waiting;
-- the final bootstrap drain retries instead of treating one unsuccessful stop attempt as permission to release ownership.
+- the final bootstrap drain retries instead of treating one unsuccessful stop attempt as permission to release ownership;
+- dock-panel background owners participate in the same shell aggregation;
+- Telemetry refresh is dispatched outside the inline GUI path and an in-flight sample is waited for during shutdown.
 
 Feature-specific Training, Tests, Automation and runtime-operation tests provide additional behavior coverage outside this narrow shutdown suite.
 
 This is test evidence for the implemented contract, not proof that arbitrary future worker implementations automatically comply.
 
-## 20. Relationship to workspace ownership
+## 21. Relationship to workspace ownership
 
 The lifecycle hierarchy is:
 
@@ -436,14 +456,15 @@ WorkspaceOwnership (.ptl-workspace.lock)
         │               │
         │               ├── Training workers
         │               ├── Tests/evaluation worker
-        │               └── Automation worker/process tree
+        │               ├── Automation worker/process tree
+        │               └── Telemetry dock refresh thread
         │
         └── released only after final registered-worker drain
 ```
 
 Persisted runtime-operation leases run orthogonally through feature services inside that ownership envelope.
 
-## 21. Related documents
+## 22. Related documents
 
 - [Workspace concurrency and ownership](workspace-concurrency.md)
 - [UI shell architecture](ui-shell.md)
