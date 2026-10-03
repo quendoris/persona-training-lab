@@ -85,10 +85,11 @@ sequenceDiagram
     P->>A: enter Qt event loop
     A-->>P: event loop returns
     P->>W: drain registered background owners
+    P->>C: close primary SQLite connection
     P->>O: release workspace writer lease
 ```
 
-The desktop bootstrap also connects application shutdown to `MainWindow.shutdown_background_work`, then performs a final blocking drain after the Qt event loop returns. The workspace writer lease is released only after that drain reports every registered background owner stopped, so shutdown safety does not rely on object destruction or the return value of the `aboutToQuit` callback alone.
+The desktop bootstrap also connects application shutdown to `MainWindow.shutdown_background_work`, then performs a final blocking drain after the Qt event loop returns. After the drain succeeds it explicitly closes the container-owned primary SQLite connection and only then releases the workspace writer lease, so normal shutdown does not rely on object destruction, interpreter garbage collection, or the return value of the `aboutToQuit` callback alone.
 
 ## 4. UI shell
 

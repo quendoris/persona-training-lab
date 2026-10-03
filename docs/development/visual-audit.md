@@ -4,7 +4,7 @@ PTL includes a repository-local Qt capture harness in `tools/visual_audit.py`. I
 
 That distinction matters: the harness builds the real container, creates `SafeApplication`, applies style preferences through the normal view-model path, creates `MainWindow`, and navigates the registered application routes.
 
-Each audit run now injects its `TemporaryDirectory` as an explicit `AppSettings.workspace_dir`. The same temporary root owns the audit's SQLite database, Agents local state, relative/default model namespace and Automation workspace state. The harness also injects an audit-local `KeyBindingManager` and file-backed `WindowStateStore`, so release screenshots do not inherit or mutate the operator's normal `~/.persona_training_lab/key_bindings.json` or platform Qt shell state.
+Each audit run now injects its `TemporaryDirectory` as an explicit `AppSettings.workspace_dir`. The same temporary root owns the audit's SQLite database, Agents local state, relative/default model namespace and Automation workspace state. The harness also injects an audit-local `KeyBindingManager` and file-backed `WindowStateStore`, so release screenshots do not inherit or mutate the operator's normal `~/.persona_training_lab/key_bindings.json` or platform Qt shell state. Shutdown drains registered background owners and explicitly closes the audit `AppContainer` before the temporary workspace is removed.
 
 The independent `quendoris/snippets` repository now contains reusable descendants of some low-level ideas (`app-screenshotter` for in-process Qt capture/manifests and `archive-bundler` for deterministic evidence packaging). PTL does **not** use those repositories as release dependencies at this point. `tools/visual_audit.py` remains the PTL visual-audit source of truth.
 

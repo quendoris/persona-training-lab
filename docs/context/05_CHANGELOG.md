@@ -75,3 +75,5 @@ This evidence is not automatically inherited by later commits.
 - Release audit also found that full-gate `uv build` writes `dist/` while the repository did not ignore that directory. `/dist/` is now explicitly ignored and policy-tested so producing release artifacts does not make the source candidate appear newly dirty.
 
 - Visual-audit isolation was corrected after workspace stabilization changed semantics: merely `chdir`-ing into a temporary directory no longer selected the PTL workspace. The harness now injects the temporary directory through `AppSettings`, plus audit-local key bindings and QSettings-backed window state, with a subprocess regression proving Agents/model/key-binding/window-state paths all remain inside the audit workspace.
+
+- Primary SQLite lifetime is now explicit: `AppContainer` owns the writable connection, normal desktop/visual-audit shutdown closes it after worker drain and before workspace release/temp cleanup, and the connection-lock registry entry is removed. This avoids relying on interpreter GC and closes a Windows temporary-workspace cleanup seam.

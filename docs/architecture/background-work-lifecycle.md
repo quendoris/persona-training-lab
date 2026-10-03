@@ -241,12 +241,14 @@ window.shutdown_background_work(slice_ms=500)
 
 and sleeps briefly between unsuccessful attempts until all registered owners report stopped.
 
-Only after that drain returns is `WorkspaceOwnership.release()` executed.
+Only after that drain returns does bootstrap close the `AppContainer` primary SQLite connection; `WorkspaceOwnership.release()` is executed after that close attempt.
 
 This ordering is a safety invariant:
 
 ```text
 background workspace owners stopped
+        ↓
+primary AppContainer SQLite connection closed
         ↓
 workspace writer lease may be released
 ```
