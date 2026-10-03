@@ -8,7 +8,7 @@ Its architectural requirement is:
 
 > **Execution must be explicit, attributable, bounded, cancellable, and coordinated — without pretending that host commands are sandboxed.**
 
-This document defines the v1.0 implementation contract. For the cross-cutting distinction between recipe semantic identity, command identity and transitive external dependency provenance, see [Provenance & External-State Boundaries](provenance-and-external-state.md).
+This document defines the v0.1.0 implementation contract. For the cross-cutting distinction between recipe semantic identity, command identity and transitive external dependency provenance, see [Provenance & External-State Boundaries](provenance-and-external-state.md).
 
 ## 1. Composition
 
@@ -895,9 +895,9 @@ The pre-v1 suite does not claim exhaustive proof of:
 
 Those remain explicit operating/stress boundaries.
 
-## 48. v1.0 invariants
+## 48. v0.1.0 invariants
 
-A v1.0 Automation implementation must preserve these invariants unless the public contract is deliberately revised:
+A v0.1.0 Automation implementation must preserve these invariants unless the public contract is deliberately revised:
 
 1. ad-hoc host effects require explicit authorization;
 2. the reviewed UI recipe path fails closed before lease/process launch when fresh recipe identity differs from the latest displayed snapshot;
@@ -916,4 +916,4 @@ A v1.0 Automation implementation must preserve these invariants unless the publi
 - [Automation user guide](../user-guide/automation.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
 - [Runtime resource safety](runtime-resource-safety.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)

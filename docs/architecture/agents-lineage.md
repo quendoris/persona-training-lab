@@ -8,7 +8,7 @@ The architectural requirement is stronger than "draw a graph":
 
 > **Agents must never invent persisted identity, lose safety identity, or present a partial multi-subsystem read as a coherent lineage.**
 
-This document defines the v1.0 implementation contract behind that requirement.
+This document defines the v0.1.0 implementation contract behind that requirement.
 
 ## 1. Architectural boundaries
 
@@ -208,7 +208,7 @@ Default path:
 
 The workspace root comes from the same platform resolver used by the rest of PTL.
 
-The old home-relative path `~/.persona_training_lab/agents_lineage_state.json` is not the production default in the v1.0 architecture.
+The old home-relative path `~/.persona_training_lab/agents_lineage_state.json` is not the production default in the v0.1.0 architecture.
 
 ### 8.1 Local payload ownership
 
@@ -823,9 +823,9 @@ Agents uses several independent containment mechanisms:
 | UI publication fails after successful projection-link reconciliation | safety registry may remain conservatively newer than visible graph until retry; do not roll safety identity backward merely to match a failed presentation update |
 | localization refresh | presentation-only; semantic projection signature invariant |
 
-## 29. v1.0 operating boundaries
+## 29. v0.1.0 operating boundaries
 
-The audited v1.0 architecture deliberately does not claim:
+The audited v0.1.0 architecture deliberately does not claim:
 
 - distributed/multi-host runtime locking;
 - unlimited lineage graph scale;
@@ -871,7 +871,7 @@ Changes to Agents should preserve regression coverage for at least these contrac
 - localization not mutating semantic projection;
 - contextual navigation identity.
 
-Runtime changes during final v1.0 documentation/release work require a concrete audit/test/docs/release finding, not an aesthetic refactor opportunity.
+Runtime changes during final v0.1.0 documentation/release work require a concrete audit/test/docs/release finding, not an aesthetic refactor opportunity.
 
 For the exact cross-store history state machine and fail-closed matrices, use [Agents protected history and safety identity](agents-protected-history.md).
 
@@ -886,4 +886,4 @@ For the exact cross-store history state machine and fail-closed matrices, use [A
 - [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Evaluation contract](../reference/evaluation-contract.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)

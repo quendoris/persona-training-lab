@@ -1,6 +1,6 @@
 # Background work lifecycle and shutdown ownership
 
-Status: **current implementation contract** for PTL desktop background work on the v1.0 candidate branch.
+Status: **current implementation contract** for PTL desktop background work on the v0.1.0 candidate branch.
 
 This document answers a narrow but safety-critical question: **what actually owns long-running work in PTL, how does application shutdown wait for it, and which objects are merely status registries rather than execution supervisors?**
 

@@ -4,7 +4,7 @@
 
 Persona Training Lab uses catalog-driven runtime localization with live language switching, locale-aware plural handling, Qt translation integration, stable shell geometry, and explicit RTL text behavior.
 
-This document describes the current v1.0 localization architecture. It is not a migration plan.
+This document describes the current v0.1.0 localization architecture. It is not a migration plan.
 
 The user-facing workflow is documented in [Appearance & Language](../user-guide/appearance-and-language.md).
 
@@ -395,7 +395,7 @@ Raw exception text, Qt diagnostics, paths, IDs, component names, and other machi
 
 ## 17. Current invariants
 
-The v1.0 localization contract includes:
+The v0.1.0 localization contract includes:
 
 1. all exposed application catalogs pass catalog-set completeness/signature validation;
 2. missing application translation keys do not silently fall back to another locale;

@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This document describes the v1.0 architecture of Persona Training Lab (PTL) as implemented in the audited codebase.
+This document describes the v0.1.0 architecture of Persona Training Lab (PTL) as implemented in the audited codebase.
 
 It is a map of responsibilities and boundaries, not a line-by-line source tour. Use it to understand where behavior belongs, how state moves through the application, and which subsystems own persistence, long-running work, and user interaction.
 
@@ -89,7 +89,7 @@ The main UI is a `QMainWindow` containing three spatial layers:
 - a central `WorkspaceStack` containing the active feature screen;
 - movable/closable/floating dock panels for operational context.
 
-The registered v1.0 workspaces are:
+The registered v0.1.0 workspaces are:
 
 - Dashboard
 - Profiles
@@ -190,7 +190,7 @@ For the exact storage/transaction/schema boundaries, see [Persistence architectu
 
 The SQLite database is only one part of the workspace. PTL also owns filesystem areas for artifacts, exports, temporary data, cache, logs, automation recipes, and model/training outputs.
 
-The default root is independent from the process current working directory. This is a v1.0 integrity requirement: launching PTL from a different folder must not silently create a different application database beside the source code or shell script.
+The default root is independent from the process current working directory. This is a v0.1.0 integrity requirement: launching PTL from a different folder must not silently create a different application database beside the source code or shell script.
 
 See [Workspace & Storage](../operations/workspace-and-storage.md) for the concrete platform paths and lifecycle rules.
 
@@ -290,7 +290,7 @@ This does not make arbitrary failures recoverable. It makes failure reporting an
 
 ## 15. Localization and layout direction
 
-Localization is runtime-switchable and catalog-driven. Complete v1.0 UI catalogs exist for Arabic, English, Spanish, and Russian.
+Localization is runtime-switchable and catalog-driven. Complete v0.1.0 UI catalogs exist for Arabic, English, Spanish, and Russian.
 
 A critical architectural rule is that text direction and shell geometry are separate concerns:
 
@@ -311,11 +311,11 @@ This is part of the current release-integrity regression contract.
 
 ## 17. What architecture documentation does not claim
 
-This document describes the current audited v1.0 architecture baseline.
+This document describes the current audited v0.1.0 architecture baseline.
 
 It does **not** claim completion of a separate adversarial/stress/falsification program covering extreme scale, duration, fault injection, resource exhaustion, or concurrency envelopes. Evidence from such a program is a distinct validation layer and must not be inferred from ordinary architecture documentation or a normal release-gate PASS.
 
-The v1.0 architecture is therefore a defined product baseline, not a claim that every possible failure envelope has already been explored.
+The v0.1.0 architecture is therefore a defined product baseline, not a claim that every possible failure envelope has already been explored.
 
 ## 18. Source landmarks
 

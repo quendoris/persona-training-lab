@@ -1,6 +1,6 @@
 # Evaluation & Analysis Architecture
 
-Persona Training Lab v1.0 separates **evaluation execution** from **analysis of persisted evaluation results**.
+Persona Training Lab v0.1.0 separates **evaluation execution** from **analysis of persisted evaluation results**.
 
 The central rule is:
 
@@ -403,7 +403,7 @@ The current portrait pipeline is a versioned product/research protocol.
 
 It is not a clinical human personality assessment and Analysis must not silently translate its means/deltas into claims about inaccessible internal mental state.
 
-The stronger mathematical/mechanistic framework belongs to the proposed Training Dynamics layer and remains separate from current v1.0 instrumentation.
+The stronger mathematical/mechanistic framework belongs to the proposed Training Dynamics layer and remains separate from current v0.1.0 instrumentation.
 
 ## 27. Regression contract
 

@@ -239,7 +239,7 @@ Reason: the normal committed deleted state has no links for those custom nodes. 
 
 Failing closed preserves the unexpected rows for diagnosis instead of normalizing an ambiguous recovery state silently.
 
-If future recovery machinery introduces a formally journaled partial-Undo state, that would justify a different idempotency contract. Current v1.0 history has no such cross-store journal.
+If future recovery machinery introduces a formally journaled partial-Undo state, that would justify a different idempotency contract. Current v0.1.0 history has no such cross-store journal.
 
 ## 9. Deletion Undo compensation
 
