@@ -178,8 +178,10 @@ The documentation tree is part of the application package. Check that:
 
 - `docs/README.md` links to every current public/developer document;
 - renamed files have no stale links;
-- historical `docs/context/` and `docs/releases/v0.*` material is not presented as current v1 truth;
+- maintained `docs/context/` handoff files do not override canonical contracts, and historical release/audit records are not presented as current v0.1.0 truth;
 - in-application documentation resolves after packaging.
+
+For the current first-release status checklist, see [v0.1.0 release checklist](../releases/v0.1.0-checklist.md).
 
 ## 11. Tag only after evidence is tied to the final commit
 

@@ -243,13 +243,16 @@ The next major research-documentation tasks are:
 - uncertainty/coverage reporting for every derived explanation;
 - data-volume and compute-budget tiers for instrumentation.
 
-## 10. Historical material
+## 10. Working context and historical material
 
-`docs/context/` and `docs/releases/v0.*` are status **H**.
+`docs/context/` is **maintained working/handoff context**, not an authoritative architecture layer and no longer treated as wholly historical. It must summarize current canonical truth and stay subordinate to current code/tests plus the user/operations/architecture/reference/development contracts.
 
-They are useful for rationale recovery, chronology, and forensic reconstruction. They are not allowed to silently define current behavior when they disagree with current code/tests/canonical docs.
+`docs/releases/` is mixed-purpose:
 
-Current historical corpus includes context/handoff/working-rule documents and old release/audit records. Before final documentation freeze, every cross-link from canonical docs into historical material should be intentional and visibly labelled historical.
+- `releases/v0.1.0-checklist.md` is a **live release-closure checklist** for the current candidate;
+- older shell/architecture audit records are **H — historical** evidence.
+
+Historical records remain useful for rationale recovery, chronology and forensic reconstruction, but they must not silently define current behavior. Before final documentation freeze, every cross-link into a historical record should be intentional and visibly historical.
 
 ## 11. Highest-priority remaining documentation work
 

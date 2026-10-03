@@ -59,3 +59,5 @@ This evidence is not automatically inherited by later commits.
 - Corrected the architecture overview startup sequence so workspace writer ownership is acquired before `build_container(settings)`, and the final background drain/lease release ordering is visible.
 - Corrected the background-work cancellation matrix: Training inference/full Training, Tests and Automation execute blocking work in owned QThreads rather than on the Qt GUI thread.
 - Removed the last stale `v1.0` wording from the current workspace-concurrency contract.
+
+- Corrected documentation taxonomy after refreshing `docs/context/*`: context is now maintained handoff material, while only old release/audit records remain historical; the live v0.1.0 checklist is linked from the Documentation Hub and release process.

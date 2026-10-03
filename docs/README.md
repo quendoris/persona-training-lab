@@ -91,6 +91,7 @@ Start with:
 - [Visual audit](development/visual-audit.md) — real-application automatic/interactive Qt capture, manifests, geometry, privacy and publication boundaries.
 - [Packaging](development/packaging.md) — Hatchling/uv build contract, optional extras, bundled docs and current native-packaging non-goals.
 - [Release process](development/release-process.md) — candidate identity, locked dependencies, release-gate evidence, visual review, package inspection and final-tag discipline.
+- [v0.1.0 release checklist](releases/v0.1.0-checklist.md) — live first-release closure checklist for crack audit, final gates, visual review, clean-package acceptance and publication.
 
 ## Current v0.1.0 documentation map
 
@@ -150,6 +151,7 @@ Start with:
 | [Visual audit](development/visual-audit.md) | Developer / auditor / documentation author | Reproducible Qt captures, manifest evidence, interactive mode and sensitive-data boundaries |
 | [Packaging](development/packaging.md) | Developer / release operator | Python build metadata, docs inclusion, extras and distribution verification |
 | [Release process](development/release-process.md) | Developer / release operator / auditor | Candidate-to-tag validation/evidence sequence and limits of automated proof |
+| [v0.1.0 release checklist](releases/v0.1.0-checklist.md) | Developer / release operator / auditor | Live release-closure status and acceptance checklist for the first public package |
 
 ## Research/methodology references
 
