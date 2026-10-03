@@ -46,7 +46,7 @@ For the v0.1.0 desktop architecture, preventing concurrent mutable PTL owners is
 
 `WorkspaceOwnership` is the outermost mutable-workspace guard.
 
-It canonicalizes the workspace path with `Path.resolve()`, ensures the directory exists, and asks `QLockFile.tryLock(0)` for immediate ownership. There is no waiting queue in the current bootstrap contract: a process either owns the workspace when it starts or fails closed.
+It canonicalizes the workspace path with `expanduser().resolve()`, ensures the directory exists, and asks `QLockFile.tryLock(0)` for immediate ownership. The configured workspace path is canonicalized with the same expand/resolve rule before SQLite/artifact/cache/etc. path fan-out, so the writer lock and the mutable stores cannot diverge merely because an explicit override used `~` or a relative path. There is no waiting queue in the current bootstrap contract: a process either owns the workspace when it starts or fails closed.
 
 The lock filename is an implementation detail of the current contract. It is not user data and must not be copied as evidence that a backup was taken while PTL was offline.
 

@@ -465,6 +465,7 @@ Current important rules:
 ```text
 PTL workspace root
   -> platform resolver / explicit AppSettings(workspace_dir=...)
+  -> expanduser() + resolve() before workspace path fan-out
 
 relative local-model path
   -> resolved relative to workspace root

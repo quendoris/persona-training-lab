@@ -17,7 +17,7 @@ class WorkspacePaths:
 
 
 def build_workspace_paths(settings: AppSettings) -> WorkspacePaths:
-    root = settings.workspace_dir
+    root = settings.workspace_dir.expanduser().resolve()
     return WorkspacePaths(
         root=root,
         sqlite_db=root / settings.sqlite_filename,

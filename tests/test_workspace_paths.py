@@ -115,3 +115,21 @@ def test_composition_injects_explicit_workspace_into_local_model_service(
     assert Path(service.model_path) == (
         custom_root / "models" / "qwen3.5-0.8b"
     ).resolve()
+
+
+def test_explicit_relative_workspace_is_canonicalized_before_path_fanout(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+
+    paths = build_workspace_paths(
+        AppSettings(workspace_dir=Path("relative-workspace"))
+    )
+
+    expected_root = (cwd / "relative-workspace").resolve()
+    assert paths.root == expected_root
+    assert paths.sqlite_db == expected_root / "app.db"
+    assert paths.artifacts == expected_root / "artifacts"
