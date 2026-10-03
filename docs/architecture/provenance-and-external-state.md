@@ -6,7 +6,7 @@ The central rule is:
 
 > **A stable PTL identifier or filesystem path is not automatically proof of stable bytes. Provenance strength must be stated separately for each input/output surface.**
 
-This document is the cross-cutting v1.0 provenance map for Datasets, Profiles, base models, Training artifacts, model versions, Automation dependencies, Telemetry and backups.
+This document is the cross-cutting v0.1.0 provenance map for Datasets, Profiles, base models, Training artifacts, model versions, Automation dependencies, Telemetry and backups.
 
 ## 1. Provenance classes used by current PTL
 
@@ -129,7 +129,7 @@ hidden .<run_id>-staging-* debris may remain
 
 An unpublished staging directory is not a completed artifact and must not be promoted manually merely because it contains plausible model files.
 
-After publication, `model/` remains the trained model/tokenizer output and PTL records its path in the Training run and later in a model-version row. Current v1.0 still does not compute/persist a canonical digest for the complete output directory. Moving, deleting or mutating published files in place can therefore change availability/effective bytes without changing `artifact_path`.
+After publication, `model/` remains the trained model/tokenizer output and PTL records its path in the Training run and later in a model-version row. Current v0.1.0 still does not compute/persist a canonical digest for the complete output directory. Moving, deleting or mutating published files in place can therefore change availability/effective bytes without changing `artifact_path`.
 
 Treat published generated artifacts as persistent research outputs, not cache.
 
@@ -262,7 +262,7 @@ These guarantees remain narrower than complete experiment/environment provenance
 
 ## 23. What current PTL cannot prove by itself
 
-Current v1.0 does not by itself prove complete base-model directory byte identity, complete trained-artifact directory byte identity, immutable external Dataset availability after approval, transitive Automation executable/data identity, complete Python/package/driver/CUDA environment identity for every historical run, persisted Telemetry history suitable for research evidence, or authorship/trustworthiness merely from SHA-256 equality.
+Current v0.1.0 does not by itself prove complete base-model directory byte identity, complete trained-artifact directory byte identity, immutable external Dataset availability after approval, transitive Automation executable/data identity, complete Python/package/driver/CUDA environment identity for every historical run, persisted Telemetry history suitable for research evidence, or authorship/trustworthiness merely from SHA-256 equality.
 
 These are explicit boundaries, not implied defects in hashing itself.
 

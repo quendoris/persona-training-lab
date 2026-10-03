@@ -1,6 +1,6 @@
 # Persistence Architecture
 
-This document describes the actual Persona Training Lab v1.0 persistence architecture: ownership, connection/transaction boundaries, repository contracts, SQLite configuration, filesystem state, Agents local state, Qt shell settings, user-home key bindings, runtime leases, and cross-medium consistency limits.
+This document describes the actual Persona Training Lab v0.1.0 persistence architecture: ownership, connection/transaction boundaries, repository contracts, SQLite configuration, filesystem state, Agents local state, Qt shell settings, user-home key bindings, runtime leases, and cross-medium consistency limits.
 
 It is an architecture document rather than a backup tutorial. For operator procedures, see [Workspace & Storage](../operations/workspace-and-storage.md), [Backup, Reset & Recovery](../operations/backup-reset-recovery.md), and the [Workspace layout reference](../reference/workspace-layout.md).
 
@@ -87,7 +87,7 @@ The Agents semantic-lineage loader owns one such read-only connection in its cal
 
 WAL is a SQLite concurrency/recovery choice. It does not turn an online copy of `app.db` into a coordinated snapshot of SQLite + Agents JSON + artifacts + recipe files + external files + settings.
 
-PTL v1.0 does not expose a coordinated whole-product hot-backup operation. Manual workspace backup therefore stops PTL first.
+PTL v0.1.0 does not expose a coordinated whole-product hot-backup operation. Manual workspace backup therefore stops PTL first.
 
 ## 6. Process-local repository locking
 
@@ -644,7 +644,7 @@ The default model reference resolves under:
 
 but explicit paths can live elsewhere.
 
-Training stores/resolves the path/reference and selected downstream fingerprints; v1.0 does not hash the entire base-model directory into the Training run.
+Training stores/resolves the path/reference and selected downstream fingerprints; v0.1.0 does not hash the entire base-model directory into the Training run.
 
 ## 45. File logs are another persistence surface
 
@@ -792,7 +792,7 @@ Those two are not part of the whole-workspace backup merely because PTL uses the
 
 ## 54. Security/privacy follows every storage surface
 
-PTL's SQLite, JSON, artifacts, logs, recipe manifests, key-binding JSON, and Qt settings are ordinary host/platform state. v1.0 does not add a product-wide encryption layer.
+PTL's SQLite, JSON, artifacts, logs, recipe manifests, key-binding JSON, and Qt settings are ordinary host/platform state. v0.1.0 does not add a product-wide encryption layer.
 
 Confidentiality therefore depends on OS/filesystem/storage policy.
 
@@ -800,7 +800,7 @@ See [Security, Trust & Privacy Boundaries](../operations/security-boundaries.md)
 
 ## 55. Current persistence non-goals
 
-The v1.0 architecture does not claim:
+The v0.1.0 architecture does not claim:
 
 - one global ACID transaction across SQLite/filesystem/platform/external effects;
 - a general arbitrary schema migration/downgrade engine;
@@ -887,4 +887,4 @@ If those answers are not explicit, the feature is not persistence-complete merel
 - [Keyboard & mouse bindings reference](../reference/keyboard-mouse-bindings.md)
 - [Training pipeline specification](../training_pipeline.md)
 - [Evaluation contract](../reference/evaluation-contract.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)

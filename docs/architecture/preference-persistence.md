@@ -344,7 +344,7 @@ The current audit leaves these seams visible rather than hiding them:
 4. shell-state save failure does not block shutdown;
 5. `ui_preferences` updates are full-row read-modify-write operations whose current safety relies partly on the standard single-writer workspace model.
 
-None of these facts alone requires a v1.0 migration while the supported desktop process model remains single-writer on the default workspace. They are constraints on future architecture and on what current documentation may promise.
+None of these facts alone requires a v0.1.0 migration while the supported desktop process model remains single-writer on the default workspace. They are constraints on future architecture and on what current documentation may promise.
 
 ## 17. Extension rule
 

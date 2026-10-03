@@ -1,6 +1,6 @@
 # UI Shell Architecture
 
-This document describes the actual Persona Training Lab v1.0 desktop shell: composition ownership, workspace registration/navigation, leave/close guards, background-worker shutdown, docks/panels, Operations Center integration, context navigation, shortcuts, style/localization application, durable shell state, and exception containment.
+This document describes the actual Persona Training Lab v0.1.0 desktop shell: composition ownership, workspace registration/navigation, leave/close guards, background-worker shutdown, docks/panels, Operations Center integration, context navigation, shortcuts, style/localization application, durable shell state, and exception containment.
 
 It deliberately separates shell lifecycle responsibilities from individual workspace business logic.
 

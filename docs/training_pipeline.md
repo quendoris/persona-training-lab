@@ -1,12 +1,12 @@
 # Training pipeline specification
 
-This document is the technical v1.0 specification for Persona Training Lab's local Training pipeline.
+This document is the technical v0.1.0 specification for Persona Training Lab's local Training pipeline.
 
 It describes the behavior implemented by the audited codebase, not a future training architecture. The task-oriented workflow is documented separately in [Training](user-guide/training.md). The cross-cutting byte/path/external identity limits are centralized in [Provenance & External-State Boundaries](architecture/provenance-and-external-state.md).
 
 ## 1. Scope
 
-The v1.0 Training pipeline is a local supervised **full-parameter** causal-language-model fine-tune.
+The v0.1.0 Training pipeline is a local supervised **full-parameter** causal-language-model fine-tune.
 
 The pipeline accepts a Profile, an approved Dataset, a local base-model path, and explicit `epochs`, `batch_size`, and `learning_rate` values. On success it produces:
 
@@ -91,7 +91,7 @@ A new run ID is `trn_<8 hexadecimal characters>`.
 - a local-model service is configured;
 - the resolved model path passes the local model-file probe.
 
-The Dataset status normalizer accepts compatibility aliases such as `approved`, but the canonical persisted/readiness spelling documented for current v1.0 data is `approved_for_training`.
+The Dataset status normalizer accepts compatibility aliases such as `approved`, but the canonical persisted/readiness spelling documented for current v0.1.0 data is `approved_for_training`.
 
 A successful run is stored as `ready`.
 
@@ -148,7 +148,7 @@ The source JSONL remains externally owned filesystem state; PTL does not copy it
 
 ## 9. Base-model identity boundary
 
-The run stores a resolved local **path/reference** for the base model. PTL probes that model location at creation and again at launch, but v1.0 does not persist a cryptographic digest of the complete model directory.
+The run stores a resolved local **path/reference** for the base model. PTL probes that model location at creation and again at launch, but v0.1.0 does not persist a cryptographic digest of the complete model directory.
 
 Therefore the Training provenance contract is content-pinned for the Profile representation and Dataset approval bytes, while the base model is path-identified.
 
@@ -233,7 +233,7 @@ The backend trains every model parameter whose `requires_grad` flag is true and 
 
 If none are trainable, it returns `no_trainable_parameters`.
 
-v1.0 does not expose LoRA/QLoRA/adapters as the Training workspace's production backend.
+v0.1.0 does not expose LoRA/QLoRA/adapters as the Training workspace's production backend.
 
 ## 18. Supervised objective
 
@@ -257,7 +257,7 @@ max(1, min(configured_batch_size, sample_count))
 
 Batches are padded to the longest sequence in the batch. Attention-mask padding is `0`; label padding is `-100`.
 
-The v1.0 backend uses SGD at the configured learning rate. For each step it zeroes gradients, performs the forward pass, backpropagates loss, clips gradient norm to `1.0`, and steps the optimizer. A missing loss returns `training_loss_missing`.
+The v0.1.0 backend uses SGD at the configured learning rate. For each step it zeroes gradients, performs the forward pass, backpropagates loss, clips gradient norm to `1.0`, and steps the optimizer. A missing loss returns `training_loss_missing`.
 
 ## 20. Epoch/step calculation
 
@@ -360,15 +360,15 @@ Completion of a Training run does not automatically repoint that service to the 
 
 ## 27. Pause/stop limitation
 
-The current Training UI includes Pause and Stop controls, but they are disabled in v1.0. The full backend does not implement cooperative per-step cancellation.
+The current Training UI includes Pause and Stop controls, but they are disabled in v0.1.0. The full backend does not implement cooperative per-step cancellation.
 
 The application owns background thread shutdown and can refuse window closure while owned work has not stopped within the configured shutdown wait.
 
 ## 28. Reproducibility statement
 
-v1.0 provides strong provenance for the Profile Training representation, approved Dataset bytes, run hyperparameters, sample/schema counts, backend/device/result metrics, and generated artifact path.
+v0.1.0 provides strong provenance for the Profile Training representation, approved Dataset bytes, run hyperparameters, sample/schema counts, backend/device/result metrics, and generated artifact path.
 
-v1.0 does **not** claim full content-addressed reproducibility of the base-model directory, Python/driver/CUDA binaries, hardware state, or every nondeterministic behavior of the underlying ML stack.
+v0.1.0 does **not** claim full content-addressed reproducibility of the base-model directory, Python/driver/CUDA binaries, hardware state, or every nondeterministic behavior of the underlying ML stack.
 
 A research workflow that requires bit-level rerun identity must record those additional inputs outside the current Training run schema.
 
@@ -384,5 +384,5 @@ The canonical release gate, not this document, is the source of truth for a part
 - [Datasets](user-guide/datasets.md)
 - [Profiles](user-guide/profiles.md)
 - [Workspace & Storage](operations/workspace-and-storage.md)
-- [v1.0 Product Contract](reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](reference/v1-product-contract.md)
 - [Runtime resource safety](architecture/runtime-resource-safety.md)

@@ -163,7 +163,7 @@ protecting one link set must not authorize deletion while `branch_delete_v1`
 records another set that appeared during guard acquisition.
 
 Registered model-version rows and physical artifact directories are not deleted
-by the local-tree command. PTL v1.0 does not provide transactional/quarantine
+by the local-tree command. PTL v0.1.0 does not provide transactional/quarantine
 artifact deletion through this operation, so destructive artifact removal is
 outside the custom-branch delete contract.
 
@@ -352,7 +352,7 @@ backups. Failure to create the diagnostic file does not block application startu
 ## Current limitations and separate stress evidence
 
 - Training's current full fine-tune backend does not expose cooperative per-step
-  cancellation; the UI Pause/Stop controls are disabled in v1.0.
+  cancellation; the UI Pause/Stop controls are disabled in v0.1.0.
 - Persisted physical artifact deletion is not part of the current Agents
   custom-branch deletion contract.
 - Protected cross-store Agents history is compensating orchestration across
@@ -381,4 +381,4 @@ be revalidated rather than being described as already covered by this document.
 - [Troubleshooting](../operations/troubleshooting.md)
 - [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)
