@@ -6,7 +6,7 @@ The central distinction is:
 
 > **A model directory passing the PTL file probe means that the expected local files are present. It does not prove that Transformers can load the model, that the host has enough compute/memory, or that a Training run is reproducible from the path alone.**
 
-For workspace ownership and backup semantics, also read [Workspace & Storage](workspace-and-storage.md). For Training input/artifact semantics, read the [Training pipeline specification](../training_pipeline.md).
+For workspace ownership and backup semantics, also read [Workspace & Storage](workspace-and-storage.md). For Training input/artifact semantics, read the [Training pipeline specification](../training_pipeline.md). For the exact distinction between content-pinned and path-only identity, use [Provenance & External-State Boundaries](../architecture/provenance-and-external-state.md).
 
 ## 1. Optional model stack
 
