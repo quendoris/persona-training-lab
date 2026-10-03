@@ -420,9 +420,9 @@ After a crash:
 
 ## 17. Why PTL may refuse to close immediately
 
-The shell owns background workspace workers.
+The shell owns registered background work through workspace widgets and participating dock panels.
 
-On close, PTL first runs workspace-leave/close guards and then asks registered workspaces to shut down owned background work. If a worker has not stopped yet, the close event is ignored, a background-shutdown status is shown, and the shell schedules another close attempt.
+On close, PTL first runs workspace-leave/close guards and then asks registered workspace/dock owners to shut down owned background work. If a worker has not stopped yet, the close event is ignored, a background-shutdown status is shown, and the shell schedules another close attempt.
 
 This behavior exists to avoid destroying a workspace object while its worker still owns data/state.
 
@@ -453,9 +453,11 @@ If process rows are unavailable, that state is represented separately.
 
 Do not interpret missing NVIDIA telemetry as proof that local inference cannot run. Model execution and telemetry collection have different provider paths.
 
-Current panel refresh is also **not** a background sampling pipeline: provider collection runs synchronously on the Qt GUI thread. The normal psutil CPU sample uses a 0.1-second interval, and a problematic NVIDIA-SMI call can wait up to its one-second timeout. A short UI delay around a Telemetry refresh can therefore be provider latency rather than a deadlock. Preserve the exact provider/status evidence before treating that delay as a general shell failure.
+Current panel provider collection runs in an owned non-daemon Telemetry refresh thread rather than synchronously on the Qt GUI thread. The normal psutil CPU sample still uses a 0.1-second interval, and a problematic NVIDIA-SMI call can still wait up to its one-second timeout, but that provider latency should no longer block normal Qt event dispatch.
 
-Current Telemetry samples are in-memory live diagnostics. They are not persisted time-series/run/checkpoint evidence and should not be used as Training Dynamics measurements.
+If PTL is closing while a Telemetry sample is in flight, the Telemetry dock participates in the shell background-owner drain. A brief delayed close can therefore reflect the shell waiting for that sample to finish rather than a deadlock.
+
+Current Telemetry samples remain in-memory live diagnostics. They are not persisted time-series/run/checkpoint evidence and should not be used as Training Dynamics measurements.
 
 ## 19. CPU/GPU load during Training or inference
 
