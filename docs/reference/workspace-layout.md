@@ -530,6 +530,7 @@ A path existing in code is not enough; its ownership, backup/reset behavior, and
 
 ## Related documentation
 
+- [Export & Portability Boundaries](../operations/export-portability.md)
 - [Workspace & Storage](../operations/workspace-and-storage.md)
 - [Backup, Reset & Recovery](../operations/backup-reset-recovery.md)
 - [Troubleshooting & Diagnostic Evidence](../operations/troubleshooting.md)
