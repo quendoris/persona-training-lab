@@ -742,9 +742,9 @@ The final documentation capture pass should include at least:
 
 Capture from a clean demo workspace. Do not put real secrets, tokens, personal paths, or destructive commands into release screenshots.
 
-## 38. v1.0 boundaries
+## 38. v0.1.0 boundaries
 
-v1.0 Automation does not claim:
+v0.1.0 Automation does not claim:
 
 - arbitrary commands are safe merely because PTL launches them;
 - resource claims enforce OS permissions;
@@ -763,4 +763,4 @@ It does provide a coherent local trusted-host execution contract with fail-close
 - [Workspace & Storage](../operations/workspace-and-storage.md)
 - [Automation architecture](../architecture/automation.md)
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)

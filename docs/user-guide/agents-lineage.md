@@ -551,15 +551,15 @@ For normal recovery, those files should come from the **same offline whole-works
 
 Modern protected history is deliberately fail-closed for that mismatch. For example, deletion Undo will not overwrite a non-empty supposedly deleted link slot, while creation Undo/deletion Redo require exact recorded/current safety identity around destructive lease acquisition.
 
-PTL v1.0 does not automatically merge or reconcile different backup generations. If a protected history action exposes such a mismatch, preserve the pair and restore a coherent same-snapshot workspace when available rather than editing links/history into agreement.
+PTL v0.1.0 does not automatically merge or reconcile different backup generations. If a protected history action exposes such a mismatch, preserve the pair and restore a coherent same-snapshot workspace when available rather than editing links/history into agreement.
 
 A backup of `app.db` alone does **not** include local Agents JSON layout/history/custom branches. An Agents-JSON-only restore likewise does not restore the matching SQLite safety-link state.
 
 See [Backup, Reset & Recovery](../operations/backup-reset-recovery.md), [Workspace & Storage](../operations/workspace-and-storage.md), and [Agents protected history and safety identity](../architecture/agents-protected-history.md).
 
-## 24. v1.0 boundaries
+## 24. v0.1.0 boundaries
 
-The v1.0 Agents contract does not claim:
+The v0.1.0 Agents contract does not claim:
 
 - unlimited graph size or interaction-rate stress qualification;
 - distributed/multi-host locking;
@@ -611,4 +611,4 @@ Generate these from a clean demo workspace with the existing [`tools/visual_audi
 - [Agents lineage architecture](../architecture/agents-lineage.md)
 - [Agents protected history and safety identity](../architecture/agents-protected-history.md)
 - [Runtime resource safety](../architecture/runtime-resource-safety.md)
-- [v1.0 Product Contract](../reference/v1-product-contract.md)
+- [v0.1.0 Product Contract](../reference/v1-product-contract.md)

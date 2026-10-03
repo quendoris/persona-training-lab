@@ -2,7 +2,7 @@
 
 Dashboard is Persona Training Lab's read-only orientation and workflow-routing workspace.
 
-It aggregates current state from the main v1.0 workflow services and turns that state into summaries, attention hints, lineage shortcuts and a suggested next action. It does **not** own the underlying Training, Dataset, model-version, evaluation or lineage records.
+It aggregates current state from the main v0.1.0 workflow services and turns that state into summaries, attention hints, lineage shortcuts and a suggested next action. It does **not** own the underlying Training, Dataset, model-version, evaluation or lineage records.
 
 The central rule is:
 

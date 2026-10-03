@@ -26,7 +26,7 @@ Eligible for Training run creation
 
 The top action bar exposes **Add dataset**, **Validate**, **Approve**, and **Compare versions**.
 
-Version comparison is deliberately unavailable in the current v1.0 implementation. The service reports `version_compare_unavailable` rather than pretending that a comparison occurred.
+Version comparison is deliberately unavailable in the current v0.1.0 implementation. The service reports `version_compare_unavailable` rather than pretending that a comparison occurred.
 
 ## 2. Source-file ownership
 
@@ -43,7 +43,7 @@ Generated Training artifacts are different: those are PTL-owned outputs under th
 
 ## 3. Supported file type
 
-The v1.0 import path accepts only regular files with the extension:
+The v0.1.0 import path accepts only regular files with the extension:
 
 ```text
 .jsonl
@@ -264,7 +264,7 @@ Keeping those actions separate makes both machine validity and user intent visib
 
 ## 14. Editing Dataset contents
 
-PTL v1.0 does not provide an in-table JSONL editor.
+PTL v0.1.0 does not provide an in-table JSONL editor.
 
 To change a Dataset:
 
@@ -318,7 +318,7 @@ Create a small 3–10 record JSONL using one supported schema, for example:
 
 Then import, preview, Validate, verify counts, and Approve it. Once the flow is clear, replace the demo source with real research/training data.
 
-## 18. Screenshot plan for v1.0
+## 18. Screenshot plan for v0.1.0
 
 The final capture pass should include the workspace overview, add-file dialog, successful validation, a failed validation example, and the approved-for-Training state.
 

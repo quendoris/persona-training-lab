@@ -2,7 +2,7 @@
 
 Persona Training Lab applies theme, accent, interface scale, and language as live application-wide presentation settings.
 
-This guide documents what the current v1.0 code actually does: which choices exist, where they are persisted, what changes immediately, how automatic scale is calculated, how Arabic text direction works without mirroring the shell, and what current validation boundaries remain.
+This guide documents what the current v0.1.0 code actually does: which choices exist, where they are persisted, what changes immediately, how automatic scale is calculated, how Arabic text direction works without mirroring the shell, and what current validation boundaries remain.
 
 ## 1. Where appearance settings are exposed
 
@@ -779,7 +779,7 @@ The documentation asset pass should capture at least:
 
 Capture metadata should include commit, locale, theme, accent, scale, and host scale/DPI context.
 
-## 56. Current v1.0 boundaries
+## 56. Current v0.1.0 boundaries
 
 The current presentation system does not claim:
 

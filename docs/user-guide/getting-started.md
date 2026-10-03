@@ -163,6 +163,6 @@ The release gate requires a clean Git worktree and also checks for ignored runti
 
 ## Next steps
 
-Return to the [Documentation Hub](../README.md) for the canonical v1.0 guide and reference set.
+Return to the [Documentation Hub](../README.md) for the canonical v0.1.0 guide and reference set.
 
-Before relying on PTL for an advanced workflow, read the [v1.0 Product Contract](../reference/v1-product-contract.md) so the release guarantees and deliberate non-goals are clear.
+Before relying on PTL for an advanced workflow, read the [v0.1.0 Product Contract](../reference/v1-product-contract.md) so the release guarantees and deliberate non-goals are clear.

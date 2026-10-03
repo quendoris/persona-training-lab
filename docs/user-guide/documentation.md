@@ -154,7 +154,7 @@ For the general locale/RTL contract, see [Appearance & Language](appearance-and-
 
 Use the in-app workspace for the five registered quick/reference topics.
 
-Use [`docs/README.md`](../README.md) as the canonical documentation map when you need the complete v1.0 set, including:
+Use [`docs/README.md`](../README.md) as the canonical documentation map when you need the complete v0.1.0 set, including:
 
 - end-to-end user workflows;
 - operations/recovery/security guidance;
@@ -279,7 +279,7 @@ Open the canonical [`docs/README.md`](../README.md) from the repository/package 
 
 ### Markdown looks unformatted
 
-That is the current v1.0 display behavior. The body is shown as read-only plain text, so Markdown syntax remains visible.
+That is the current v0.1.0 display behavior. The body is shown as read-only plain text, so Markdown syntax remains visible.
 
 ### I changed the interface language, but the document text did not change
 
@@ -299,7 +299,7 @@ For an installed build, this points toward package/documentation integrity and s
 
 ## Screenshot plan
 
-The final v1.0 documentation capture set for this workspace should include:
+The final v0.1.0 documentation capture set for this workspace should include:
 
 1. **Documentation workspace overview** — Topics, Content and Next/context columns visible;
 2. **one selected runtime topic** — title/summary plus the read-only Markdown source body;
