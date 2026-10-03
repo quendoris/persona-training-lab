@@ -78,7 +78,7 @@ Telemetry presents **live operator diagnostics** from the available telemetry pr
 
 The current panel keeps only the latest in-memory snapshot; it is not a persisted historical time series and is not Training Dynamics evidence. On multi-GPU NVIDIA systems the current provider parses the first NVIDIA-SMI output row rather than presenting a complete device inventory.
 
-For exact thresholds, refresh/failure behavior, provider timing, privacy, and research-evidence limits, see [Telemetry architecture](../architecture/telemetry.md).
+For day-to-day reading/refresh/troubleshooting, see [Telemetry](telemetry.md). For exact provider, timing, privacy, and research-evidence boundaries, see [Telemetry architecture](../architecture/telemetry.md).
 
 ### Issues
 
