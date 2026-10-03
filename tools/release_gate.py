@@ -253,7 +253,19 @@ class ReleaseGate:
             ),
         ]
         if not self._quick:
-            steps.append(GateStep("build", ("uv", "build")))
+            steps.extend(
+                (
+                    GateStep("build", ("uv", "build")),
+                    GateStep(
+                        "package-audit",
+                        (
+                            sys.executable,
+                            "tools/package_audit.py",
+                            "--json",
+                        ),
+                    ),
+                )
+            )
         return tuple(steps)
 
     def _require_clean_worktree(self) -> None:
