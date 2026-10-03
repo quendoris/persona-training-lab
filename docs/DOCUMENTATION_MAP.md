@@ -66,15 +66,15 @@ Across the explicit coverage-table rows in this map, the current state is:
 
 | Status | Rows | Share of implemented/current rows |
 |---|---:|---:|
-| **A — audited/current** | **34** | **85.0%** |
-| **B — covered/current** | **4** | **10.0%** |
+| **A — audited/current** | **35** | **87.5%** |
+| **B — covered/current** | **3** | **7.5%** |
 | **C — distributed coverage** | **2** | **5.0%** |
 | **R — research/proposed** | **2** | separate from the implemented/current denominator |
 
 There are **40 implemented/current rows** (`A+B+C`) and two intentionally proposed research rows. Therefore:
 
 ```text
-strictly audited/closed now:      34 / 40 = 85.0%
+strictly audited/closed now:      35 / 40 = 87.5%
 current coverage at least B:      38 / 40 = 95.0%
 still distributed current scope:   2 / 40 =  5.0%
 research/proposed:                  2 rows, not counted as v1.0 closure debt
@@ -88,10 +88,9 @@ The coverage tables reduce to this current implementation/documentation state:
 
 ```text
 PTL v1.0 documentation/code audit
-├── strictly audited/current (A): 34 / 40 implemented rows = 85.0%
-├── covered/current but not strictly closed (B): 4 / 40 = 10.0%
+├── strictly audited/current (A): 35 / 40 implemented rows = 87.5%
+├── covered/current but not strictly closed (B): 3 / 40 = 7.5%
 │   ├── Telemetry user workflow
-│   ├── Operations Center / Issues / Activity
 │   ├── Evaluation / Analysis architecture
 │   └── Telemetry architecture
 ├── distributed current coverage (C): 2 / 40 = 5.0%
@@ -102,7 +101,7 @@ PTL v1.0 documentation/code audit
     └── Training Dynamics instrumentation
 ```
 
-So there are **6 implemented/current rows that are not yet A**. Two of those six are primarily final user/operator or architecture consolidation work; two are deliberately still distributed because the current product surface does not justify a dedicated document; and two Telemetry rows remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
+So there are **5 implemented/current rows that are not yet A**. One is an architecture-consolidation item, two are deliberately still distributed because the current product surface does not justify a dedicated document, and two Telemetry rows remain B pending executed regression evidence plus an explicit v1 decision on synchronous GUI-thread collection.
 
 The remaining work should not be confused with the much larger amount already closed. The current P0 engineering/documentation blockers are only:
 
@@ -137,7 +136,7 @@ After those are resolved, the dominant remaining work is P2 freeze evidence: scr
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
 | Dashboard / Projects overview | C | `user-guide/interface-tour.md`, service/viewmodel docs indirectly | **G:** dedicated user workflow if Projects/Dashboard becomes more than orientation |
 | Telemetry | B | `user-guide/telemetry.md`, `architecture/telemetry.md`, troubleshooting | dedicated operator workflow now exists; execute Telemetry regression evidence and resolve/accept the synchronous GUI-refresh boundary before A |
-| Operations Center / Issues / Activity | B | `interface-tour.md`, `troubleshooting.md`, `ui-shell.md`, `reference/event-and-diagnostic-schema.md` | operator workflow is mechanically specified; dedicated page remains optional if navigation proves unclear |
+| Operations Center / Issues / Activity | A | `user-guide/operations-center.md`, `interface-tour.md`, `troubleshooting.md`, `ui-shell.md`, `reference/event-and-diagnostic-schema.md` | dedicated operator contract now covers source projection, refresh cadence, filtering/deduplication, routing, correlation identity and failure/privacy boundaries |
 
 ## 5. Operations coverage
 
