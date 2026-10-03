@@ -11,6 +11,7 @@ from persona_training_lab.application.experiments.service import (
     ExperimentRunResult,
     ExperimentsService,
     experiment_result,
+    is_personality_portrait_experiment,
 )
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
@@ -181,7 +182,19 @@ class TestsViewModel:
             self._set_service_unavailable()
             return
         try:
-            scenarios = self.experiments_service.list_experiments()
+            portrait_loader = getattr(
+                self.experiments_service,
+                "list_portrait_experiments",
+                None,
+            )
+            if callable(portrait_loader):
+                scenarios = portrait_loader()
+            else:
+                scenarios = [
+                    experiment
+                    for experiment in self.experiments_service.list_experiments()
+                    if is_personality_portrait_experiment(experiment)
+                ]
         except Exception:
             self._set_load_failed()
             return

@@ -182,3 +182,44 @@ def test_tests_viewmodel_run_result_uses_machine_semantics_only() -> None:
     )
     _assert_base_projection(vm)
     assert "Legacy visible fallback" not in vm.subtitle
+
+
+
+def test_portrait_listing_excludes_unrelated_experiment_rows() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    connection.executemany(
+        """
+        INSERT INTO experiments (id, title, subtitle, status, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            (
+                "exp_other",
+                "manual experiment",
+                "not a portrait payload",
+                "completed",
+                "2026-10-03T12:00:00Z",
+            ),
+            (
+                "exp_portrait",
+                "legacy title",
+                "PORTRAIT: 1/1 Big Five items · "
+                "model_version=mdl_1 · battery=v1 · scoring=s1",
+                "completed",
+                "2026-10-03T11:00:00Z",
+            ),
+        ),
+    )
+    connection.commit()
+
+    service = _build_service(connection)
+
+    assert [row.experiment_id for row in service.list_experiments()] == [
+        "exp_other",
+        "exp_portrait",
+    ]
+    assert [
+        row.experiment_id for row in service.list_portrait_experiments()
+    ] == ["exp_portrait"]

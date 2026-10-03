@@ -10,6 +10,7 @@ from persona_training_lab.application.experiments.portrait import (
 from persona_training_lab.application.experiments.service import (
     ExperimentSummary,
     ExperimentsService,
+    is_personality_portrait_experiment,
 )
 from persona_training_lab.domain.evaluation.statuses import (
     EvaluationRunStatus,
@@ -233,7 +234,7 @@ class AnalysisViewModel:
             self._apply_analysis_connector()
             return
         try:
-            experiments = self.experiments_service.list_experiments()
+            experiments = self._portrait_experiments()
         except Exception:
             self._set_load_failed()
             return
@@ -255,7 +256,7 @@ class AnalysisViewModel:
             )
             return
         try:
-            experiments = service.list_experiments()
+            experiments = self._portrait_experiments()
         except Exception:
             self._set_missing_pair(
                 selected_id,
@@ -304,6 +305,19 @@ class AnalysisViewModel:
         )
         self.title = render_base_evaluation_text(self._title_model)
         self.subtitle = render_base_evaluation_text(self._subtitle_model)
+
+    def _portrait_experiments(self) -> list[ExperimentSummary]:
+        service = self.experiments_service
+        if service is None:
+            return []
+        loader = getattr(service, "list_portrait_experiments", None)
+        if callable(loader):
+            return list(loader())
+        return [
+            experiment
+            for experiment in service.list_experiments()
+            if is_personality_portrait_experiment(experiment)
+        ]
 
     @staticmethod
     def _experiment_for_version(

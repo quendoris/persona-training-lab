@@ -17,6 +17,7 @@ from persona_training_lab.application.experiments.status_mapping import (
 )
 from persona_training_lab.application.experiments.titles import (
     ExperimentTitleKind,
+    decode_experiment_title,
     encode_experiment_title,
 )
 from persona_training_lab.application.local_model.service import (
@@ -154,6 +155,18 @@ class ExperimentSummary:
     updated_at: str = ""
 
 
+def is_personality_portrait_experiment(
+    experiment: ExperimentSummary,
+) -> bool:
+    if (
+        decode_experiment_title(experiment.title)
+        is ExperimentTitleKind.PERSONALITY_PORTRAIT
+    ):
+        return True
+    payload = experiment.subtitle.lstrip().upper()
+    return payload.startswith(("PORTRAIT:", "SUMMARY:"))
+
+
 @dataclass(slots=True, frozen=True)
 class ExperimentRunResult:
     ok: bool
@@ -206,6 +219,13 @@ class ExperimentsService:
                 updated_at=row.get("updated_at", ""),
             )
             for row in rows
+        ]
+
+    def list_portrait_experiments(self) -> list[ExperimentSummary]:
+        return [
+            experiment
+            for experiment in self.list_experiments()
+            if is_personality_portrait_experiment(experiment)
         ]
 
     def run_smoke_test_pack(
