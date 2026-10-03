@@ -274,9 +274,9 @@ The backend does not create periodic step/epoch checkpoints.
 
 After all configured steps complete successfully it saves one final model/tokenizer artifact. The run's `checkpoints_count` is therefore `01` when a final artifact path exists and `00` otherwise.
 
-## 22. Artifact layout
+## 22. Artifact layout and publication
 
-Successful output is stored under:
+Successful output is published under:
 
 ```text
 <workspace>/artifacts/full_finetune/<run_id>/
@@ -284,7 +284,23 @@ Successful output is stored under:
 └── training_metadata.json
 ```
 
-The exact files inside `model/` depend on the Transformers model/tokenizer save implementation. The entire run directory is persistent generated state.
+The backend does not write that final run directory incrementally. It first creates a same-parent staging directory named like:
+
+```text
+.<run_id>-staging-<random>/
+```
+
+and writes the model, tokenizer, and `training_metadata.json` there. Only after all of those writes succeed does PTL rename the staging run directory to the final `<run_id>/` path and return `<run_id>/model` as the artifact path.
+
+This gives the normal backend path one publication invariant:
+
+> **The authoritative final run directory is not exposed by the backend before both model/tokenizer output and Training metadata have been written successfully.**
+
+If model/tokenizer/metadata writing raises during ordinary execution, PTL best-effort removes that staging directory and returns the existing controlled backend failure path. If the final `<run_id>/` directory already exists, the backend refuses to overwrite it.
+
+A hard process/host crash can still leave an unpublished hidden staging directory. Staging cleanup is therefore not a power-loss transaction or filesystem journal guarantee, and an unpublished staging directory must not be treated as a completed Training artifact merely because some model files exist inside it.
+
+The exact files inside `model/` depend on the Transformers model/tokenizer save implementation. The published run directory is persistent generated state.
 
 ## 23. Training metadata and provenance
 
@@ -330,9 +346,33 @@ A run already in `running` is rejected as `already_running`; a run not in `ready
 
 On success PTL persists completed status, `progress = 1.0`, final epoch progress/loss, `speed = full fine-tune`, artifact/checkpoint count, finish time, artifact path, and empty error text. On failure it persists a terminal failed state with error text and finish time.
 
-## 25. Error boundary
+## 22. Artifact layout and publication
 
-Unexpected exceptions are captured through the application error reporter when configured. The Training service then records `safe_stop` or `safe_stop:<error_id>` and returns a controlled action result.
+Successful output is published under:
+
+```text
+<workspace>/artifacts/full_finetune/<run_id>/
+├── model/
+└── training_metadata.json
+```
+
+The backend does not write that final run directory incrementally. It first creates a same-parent staging directory named like:
+
+```text
+.<run_id>-staging-<random>/
+```
+
+and writes the model, tokenizer, and `training_metadata.json` there. Only after all of those writes succeed does PTL rename the staging run directory to the final `<run_id>/` path and return `<run_id>/model` as the artifact path.
+
+This gives the normal backend path one publication invariant:
+
+> **The authoritative final run directory is not exposed by the backend before both model/tokenizer output and Training metadata have been written successfully.**
+
+If model/tokenizer/metadata writing raises during ordinary execution, PTL best-effort removes that staging directory and returns the existing controlled backend failure path. If the final `<run_id>/` directory already exists, the backend refuses to overwrite it.
+
+A hard process/host crash can still leave an unpublished hidden staging directory. Staging cleanup is therefore not a power-loss transaction or filesystem journal guarantee, and an unpublished staging directory must not be treated as a completed Training artifact merely because some model files exist inside it.
+
+The exact files inside `model/` depend on the Transformers model/tokenizer save implementation. The published run directory is persistent generated state.
 
 ## 26. Model-version publication
 
