@@ -153,19 +153,24 @@ Examples include a workspace that still owns a background worker or an active op
 
 The shell treats a false guard result as a lifecycle veto rather than forcing navigation.
 
-## 9. Background work is owned by workspace widgets
+## 9. Background work is owned by workspaces and participating dock panels
 
-The final shell iterates all registered workspaces and looks for callable:
+The final shell gathers both:
+
+```text
+registered workspace widgets
+current dock-panel widgets
+```
+
+and looks for callable:
 
 ```text
 shutdown_background_work(timeout_ms)
 ```
 
-Each workspace that implements it is responsible for stopping its own worker(s).
+Each object that implements it is responsible for stopping its own worker(s). Owners are de-duplicated by object identity before shutdown.
 
-The shell aggregates the result across workspaces.
-
-This avoids a single global worker registry knowing feature internals.
+This keeps feature internals with their UI owner while allowing non-workspace surfaces such as Telemetry to participate in the same final drain.
 
 ## 10. `aboutToQuit` also asks the shell to stop background work
 
@@ -185,7 +190,7 @@ The final `closeEvent` sequence is:
 
 ```text
 1. pass current workspace close guard
-2. ask all workspace background workers to stop immediately/non-blocking
+2. ask all registered workspace/dock background owners to stop immediately/non-blocking
 3. if any remains alive:
      - ignore close event
      - show background-shutdown status
