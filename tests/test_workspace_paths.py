@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 from typing import Any, cast
+
+import pytest
 
 from persona_training_lab.application.local_model.service import LocalModelService
 import persona_training_lab.config.app_settings as app_settings_module
@@ -136,3 +139,19 @@ def test_explicit_relative_workspace_is_canonicalized_before_path_fanout(
     assert paths.root == expected_root
     assert paths.sqlite_db == expected_root / "app.db"
     assert paths.artifacts == expected_root / "artifacts"
+
+
+def test_app_container_closes_primary_connection_explicitly_and_idempotently(
+    tmp_path: Path,
+) -> None:
+    container = build_container(
+        AppSettings(workspace_dir=tmp_path / "workspace")
+    )
+    connection = container.primary_connection
+    assert connection.execute("SELECT 1").fetchone()[0] == 1
+
+    container.close()
+    container.close()
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute("SELECT 1")

@@ -18,3 +18,10 @@ def connection_lock(connection: sqlite3.Connection) -> RLock:
             lock = RLock()
             _CONNECTION_LOCKS[key] = lock
         return lock
+
+
+def forget_connection_lock(connection: sqlite3.Connection) -> None:
+    """Drop the registry entry once the owning connection is closed."""
+
+    with _REGISTRY_LOCK:
+        _CONNECTION_LOCKS.pop(id(connection), None)

@@ -8,7 +8,7 @@ from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 
 from persona_training_lab import __version__
 from persona_training_lab.application.messages import UserMessage
-from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.bootstrap.wiring import AppContainer, build_container
 from persona_training_lab.bootstrap.workspace_ownership import (
     WorkspaceAlreadyOpenError,
     WorkspaceOwnership,
@@ -44,6 +44,7 @@ def main() -> int:
         return 2
 
     window: MainWindow | None = None
+    container: AppContainer | None = None
     try:
         container = build_container(settings)
         app.set_error_reporter(container.error_reporter)
@@ -96,7 +97,11 @@ def main() -> int:
     finally:
         if window is not None:
             _drain_background_work(window)
-        workspace_ownership.release()
+        try:
+            if container is not None:
+                container.close()
+        finally:
+            workspace_ownership.release()
 
 
 def _drain_background_work(

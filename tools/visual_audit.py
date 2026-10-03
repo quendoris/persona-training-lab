@@ -18,7 +18,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from persona_training_lab import __version__
-from persona_training_lab.bootstrap.wiring import build_container
+from persona_training_lab.bootstrap.wiring import AppContainer, build_container
 from persona_training_lab.config.app_settings import AppSettings
 from persona_training_lab.i18n.catalog import CatalogSet
 from persona_training_lab.ui.density import apply_density, apply_scaled_styles
@@ -89,7 +89,7 @@ def _build_window(
     theme: str,
     accent: str,
     initial_locale: str,
-) -> tuple[SafeApplication, MainWindow, LocalizationManager]:
+) -> tuple[SafeApplication, MainWindow, LocalizationManager, AppContainer]:
     app = SafeApplication(sys.argv[:1])
     app.setOrganizationName("Persona Training Lab")
     app.setOrganizationDomain("persona-training-lab.local")
@@ -149,7 +149,7 @@ def _build_window(
     )
     app.aboutToQuit.connect(window.shutdown_background_work)
     window.setProperty("ptl_density_name", density.name)
-    return app, window, localization
+    return app, window, localization, container
 
 
 def _capture_widget(widget: QWidget, target: Path) -> dict[str, object]:
@@ -265,12 +265,19 @@ def _session_directory(output_root: Path, commit: str, suffix: str = "") -> Path
     return session_dir
 
 
-def _shutdown_window(app: SafeApplication | None, window: MainWindow | None) -> None:
+def _shutdown_window(
+    app: SafeApplication | None,
+    window: MainWindow | None,
+    container: AppContainer | None = None,
+) -> None:
     if window is not None:
-        window.shutdown_background_work()
+        while not window.shutdown_background_work(500):
+            time.sleep(0.05)
         window.close()
     if app is not None:
         app.processEvents()
+    if container is not None:
+        container.close()
 
 
 def _stabilize_window_geometry(
@@ -341,11 +348,12 @@ def run_visual_audit(
     previous_cwd = Path.cwd()
     app: SafeApplication | None = None
     window: MainWindow | None = None
+    container: AppContainer | None = None
     try:
         with tempfile.TemporaryDirectory(prefix="ptl-visual-audit-") as workspace:
             os.chdir(workspace)
             try:
-                app, window, localization = _build_window(
+                app, window, localization, container = _build_window(
                     workspace_root=Path(workspace),
                     scale=scale,
                     theme=theme,
@@ -405,7 +413,7 @@ def run_visual_audit(
                             }
                         )
             finally:
-                _shutdown_window(app, window)
+                _shutdown_window(app, window, container)
     except Exception as exc:
         failures = manifest["failures"]
         assert isinstance(failures, list)
@@ -590,7 +598,7 @@ def run_interactive_visual_audit(
         with tempfile.TemporaryDirectory(prefix="ptl-visual-audit-") as workspace:
             os.chdir(workspace)
             try:
-                app, window, localization = _build_window(
+                app, window, localization, container = _build_window(
                     workspace_root=Path(workspace),
                     scale=scale,
                     theme=theme,
@@ -626,7 +634,7 @@ def run_interactive_visual_audit(
                     QTimer.singleShot(0, session.capture)
                 app.exec()
             finally:
-                _shutdown_window(app, window)
+                _shutdown_window(app, window, container)
     except Exception as exc:
         failures = manifest["failures"]
         assert isinstance(failures, list)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import sqlite3
 from functools import partial
 
 from persona_training_lab.application.agents.service import AgentsService
@@ -79,6 +80,9 @@ from persona_training_lab.infrastructure.persistence.repositories.ui_preferences
     SQLiteUIPreferencesRepository,
 )
 from persona_training_lab.infrastructure.persistence.sqlite.db import SQLiteDatabase
+from persona_training_lab.infrastructure.persistence.sqlite.locking import (
+    forget_connection_lock,
+)
 from persona_training_lab.infrastructure.persistence.sqlite.schema import (
     create_minimal_schema,
 )
@@ -122,6 +126,17 @@ class AppContainer:
     lineage_runtime_safety: LineageRuntimeSafety
     operations_center: OperationsCenterService
     error_reporter: ApplicationErrorReporter
+    primary_connection: sqlite3.Connection = field(repr=False)
+    _closed: bool = field(default=False, init=False, repr=False)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self.primary_connection.close()
+        finally:
+            forget_connection_lock(self.primary_connection)
+            self._closed = True
 
 
 def build_container(settings: AppSettings | None = None) -> AppContainer:
@@ -274,4 +289,5 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
         lineage_runtime_safety=lineage_runtime_safety,
         operations_center=operations_center,
         error_reporter=error_reporter,
+        primary_connection=connection,
     )

@@ -170,7 +170,7 @@ import sys
 from tools.visual_audit import _build_window, _shutdown_window
 
 workspace = Path(sys.argv[1])
-app, window, _localization = _build_window(
+app, window, _localization, container = _build_window(
     workspace_root=workspace,
     scale="0.90",
     theme="velvet",
@@ -188,7 +188,7 @@ try:
     }
     print(json.dumps(payload))
 finally:
-    _shutdown_window(app, window)
+    _shutdown_window(app, window, container)
 """
     environment = dict(os.environ)
     environment["QT_QPA_PLATFORM"] = "offscreen"
