@@ -129,6 +129,8 @@ def test_provider_error_to_viewmodel_controlled_error() -> None:
     )
 
     vm = TelemetryViewModel(telemetry_service=service)
+    assert vm.snapshot is None
+    vm.refresh()
     assert vm.snapshot is not None
     assert vm.snapshot.status == "active"
     assert vm.snapshot.error_message == ""
@@ -146,6 +148,8 @@ def test_formatting_cpu_ram_vram_values() -> None:
     )
 
     vm = TelemetryViewModel(telemetry_service=service)
+    assert vm.metric_items() == ()
+    vm.refresh()
     items = vm.metric_items()
     labels = {item.short_label: item for item in items}
     assert labels["CPU"].tooltip == "Норма · 42.5%"
