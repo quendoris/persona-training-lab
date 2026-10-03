@@ -8,7 +8,7 @@ Its architectural requirement is:
 
 > **Execution must be explicit, attributable, bounded, cancellable, and coordinated — without pretending that host commands are sandboxed.**
 
-This document defines the v1.0 implementation contract.
+This document defines the v1.0 implementation contract. For the cross-cutting distinction between recipe semantic identity, command identity and transitive external dependency provenance, see [Provenance & External-State Boundaries](provenance-and-external-state.md).
 
 ## 1. Composition
 
