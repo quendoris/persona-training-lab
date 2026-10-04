@@ -113,10 +113,12 @@ ptl.model.probe
 ptl.model.generate
 ptl.profile.create
 ptl.dataset.import
+ptl.dataset.preview
 ptl.dataset.validate
 ptl.dataset.approve
 ptl.training.create
 ptl.training.start
+ptl.training.logs
 ptl.model_versions.list
 ptl.experiment.portrait
 ptl.analysis.compare
