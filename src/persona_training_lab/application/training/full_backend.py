@@ -277,6 +277,7 @@ class LocalFullFineTuneBackend:
                 "schema": "ptl:full-finetune:v1",
                 "backend": "local_full_finetune",
                 "transformers_loader": runtime_spec.loader_name,
+                "transformers_model_class": runtime_spec.model_class_name,
                 "model_type": runtime_spec.model_type,
                 "run_id": run_id,
                 "model_path": resolved_model_path,
