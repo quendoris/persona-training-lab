@@ -77,6 +77,19 @@ _LOCAL_MODEL_DIAGNOSTIC_KEYS = {
     ),
     "model_files_ready": "training.local_model.diagnostic.model_files_ready",
     "model_check_failed": "training.local_model.note.check_failed",
+    "inference_dependencies_missing": (
+        "training.local_model.diagnostic.inference_dependencies_missing"
+    ),
+    "model_runtime_incompatible": (
+        "training.local_model.diagnostic.model_runtime_incompatible"
+    ),
+    "inference_runtime_ready": (
+        "training.local_model.diagnostic.inference_runtime_ready"
+    ),
+    "generation_failed": "training.local_model.diagnostic.generation_failed",
+    "insufficient_resources": (
+        "training.local_model.diagnostic.insufficient_resources"
+    ),
     "unknown": "training.local_model.diagnostic.unknown",
 }
 _MODEL_VERSION_STATUS_KEYS = {
@@ -985,17 +998,51 @@ class TrainingViewModel:
         try:
             result = self.local_model_service.probe_model_files()
             status_code = normalize_local_model_status(result.status)
+            if status_code is not LocalModelStatus.FOUND:
+                self._set_local_model_state(
+                    status_code,
+                    self._local_status_text(status_code, result.status),
+                    self._local_diagnostic_text(
+                        result.diagnostic,
+                        result.details,
+                    ),
+                    raw_status=(
+                        result.status
+                        if status_code is LocalModelStatus.UNKNOWN
+                        else None
+                    ),
+                )
+                return
+
+            backend = self.local_model_service.probe_inference_backend()
+            backend_code = (
+                backend.diagnostic.code
+                if backend.diagnostic is not None
+                else ""
+            )
+            if backend_code != "inference_runtime_ready":
+                self._set_local_model_state(
+                    LocalModelStatus.INFERENCE_UNAVAILABLE,
+                    self._local_status_text(
+                        LocalModelStatus.INFERENCE_UNAVAILABLE,
+                        LocalModelStatus.INFERENCE_UNAVAILABLE.value,
+                    ),
+                    self._local_diagnostic_text(
+                        backend.diagnostic,
+                        backend.message,
+                    ),
+                )
+                return
+
             self._set_local_model_state(
-                status_code,
-                self._local_status_text(status_code, result.status),
-                self._local_diagnostic_text(
-                    result.diagnostic,
-                    result.details,
+                LocalModelStatus.FOUND,
+                self._local_status_text(
+                    LocalModelStatus.FOUND,
+                    result.status,
                 ),
-                raw_status=(
-                    result.status
-                    if status_code is LocalModelStatus.UNKNOWN
-                    else None
+                self._local_diagnostic_text(
+                    backend.diagnostic,
+                    backend.message,
                 ),
             )
         except Exception:
