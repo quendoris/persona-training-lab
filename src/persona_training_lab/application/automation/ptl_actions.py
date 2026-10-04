@@ -95,10 +95,12 @@ class PTLAutomationActionRunner:
             "model.generate": self._model_generate,
             "profile.create": self._profile_create,
             "dataset.import": self._dataset_import,
+            "dataset.preview": self._dataset_preview,
             "dataset.validate": self._dataset_validate,
             "dataset.approve": self._dataset_approve,
             "training.create": self._training_create,
             "training.start": self._training_start,
+            "training.logs": self._training_logs,
             "model_versions.list": self._model_versions_list,
             "experiment.portrait": self._experiment_portrait,
             "analysis.compare": self._analysis_compare,
@@ -252,6 +254,31 @@ class PTLAutomationActionRunner:
             {"dataset": _jsonable(dataset)},
         )
 
+    def _dataset_preview(
+        self,
+        inputs: Mapping[str, str],
+    ) -> AutomationInternalActionResult:
+        dataset_id = inputs.get("dataset_id", "").strip()
+        if not dataset_id:
+            return AutomationInternalActionResult(
+                False,
+                "input_required",
+                {"inputs": ["dataset_id"]},
+            )
+        limit = int(inputs.get("limit", "25") or "25")
+        records = self.datasets_service.preview_dataset(
+            dataset_id,
+            limit=max(1, min(limit, 200)),
+        )
+        return AutomationInternalActionResult(
+            bool(records),
+            "dataset_previewed" if records else "dataset_preview_empty",
+            {
+                "dataset_id": dataset_id,
+                "records": _jsonable(records),
+            },
+        )
+
     def _dataset_validate(
         self,
         inputs: Mapping[str, str],
@@ -345,6 +372,31 @@ class PTLAutomationActionRunner:
                 "training_run": _jsonable(run),
                 "model_version": _jsonable(version),
                 "logs": self.training_service.list_training_run_logs(run_id),
+            },
+        )
+
+    def _training_logs(
+        self,
+        inputs: Mapping[str, str],
+    ) -> AutomationInternalActionResult:
+        run_id = inputs.get("run_id", "").strip()
+        if not run_id:
+            return AutomationInternalActionResult(
+                False,
+                "input_required",
+                {"inputs": ["run_id"]},
+            )
+        limit = int(inputs.get("limit", "200") or "200")
+        logs = self.training_service.list_training_run_logs(
+            run_id,
+            limit=max(1, min(limit, 2000)),
+        )
+        return AutomationInternalActionResult(
+            True,
+            "training_logs",
+            {
+                "run_id": run_id,
+                "logs": list(logs),
             },
         )
 
@@ -634,6 +686,12 @@ class PTLAutomationActionRunner:
         else:
             dataset_id = existing_dataset.dataset_id
 
+        preview = self._dataset_preview(
+            {"dataset_id": dataset_id, "limit": "10"}
+        )
+        if not preview.ok:
+            return preview
+
         validated = self._dataset_validate({"dataset_id": dataset_id})
         if not validated.ok:
             return validated
@@ -822,6 +880,7 @@ class PTLAutomationActionRunner:
                 "model_generate": dict(generated.payload),
                 "profile_id": profile_id,
                 "dataset_id": dataset_id,
+                "dataset_preview": dict(preview.payload),
                 "baseline": dict(baseline.payload),
                 "training": dict(trained.payload),
                 "model_version_id": version_id,
