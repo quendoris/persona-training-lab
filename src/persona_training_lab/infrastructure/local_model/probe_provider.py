@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+import importlib.util
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,11 @@ from persona_training_lab.application.ports.local_model_probe import (
     LocalInferenceResult,
     ModelProbeResult,
     local_model_diagnostic,
+)
+from persona_training_lab.infrastructure.local_model.transformers_runtime import (
+    TransformersRuntimeError,
+    inspect_transformers_runtime,
+    load_text_generation_components,
 )
 
 
@@ -69,8 +75,37 @@ class FilesystemLocalModelProbeProvider:
             )
 
     def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
+        missing = self._missing_inference_dependencies()
+        if missing:
+            joined = ", ".join(missing)
+            return InferenceProbeResult(
+                message=f"Missing optional inference dependencies: {joined}",
+                diagnostic=local_model_diagnostic(
+                    "inference_dependencies_missing",
+                    packages=joined,
+                ),
+            )
+        try:
+            transformers: Any = import_module("transformers")
+            spec = inspect_transformers_runtime(transformers, model_path)
+        except Exception as exc:
+            return InferenceProbeResult(
+                message=f"Model runtime is incompatible: {exc}",
+                diagnostic=local_model_diagnostic(
+                    "model_runtime_incompatible",
+                    detail=str(exc),
+                ),
+            )
         return InferenceProbeResult(
-            diagnostic=local_model_diagnostic("inference_check_deferred")
+            message=(
+                f"Inference runtime ready: {spec.loader_name} "
+                f"({spec.model_type or 'unknown model type'})"
+            ),
+            diagnostic=local_model_diagnostic(
+                "inference_runtime_ready",
+                loader=spec.loader_name,
+                model_type=spec.model_type or "unknown",
+            ),
         )
 
     def generate(
@@ -79,29 +114,33 @@ class FilesystemLocalModelProbeProvider:
         prompt: str,
         instruction_prompt: str | None = None,
     ) -> LocalInferenceResult:
-        try:
-            torch: Any = import_module("torch")
-            transformers: Any = import_module("transformers")
-            AutoModelForCausalLM = transformers.AutoModelForCausalLM
-            AutoTokenizer = transformers.AutoTokenizer
-        except Exception:
+        missing = self._missing_inference_dependencies()
+        if missing:
+            joined = ", ".join(missing)
             return LocalInferenceResult(
                 status=LocalModelStatus.INFERENCE_UNAVAILABLE.value,
+                message=(
+                    "Missing optional inference dependencies: "
+                    f"{joined}. Install the PTL inference/training extra."
+                ),
                 diagnostic=local_model_diagnostic(
-                    "inference_backend_unavailable"
+                    "inference_dependencies_missing",
+                    packages=joined,
                 ),
             )
 
         try:
+            torch: Any = import_module("torch")
+            transformers: Any = import_module("transformers")
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             dtype = torch.float16 if device.type == "cuda" else torch.float32
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            if tokenizer.pad_token is None and tokenizer.eos_token is not None:
-                tokenizer.pad_token = tokenizer.eos_token
-            model = AutoModelForCausalLM.from_pretrained(
+            model, tokenizer, _spec = load_text_generation_components(
+                transformers,
                 model_path,
                 torch_dtype=dtype,
             )
+            if tokenizer.pad_token is None and tokenizer.eos_token is not None:
+                tokenizer.pad_token = tokenizer.eos_token
             model.to(device)
             model.eval()
             inputs = self._encode_prompt(tokenizer, prompt, instruction_prompt)
@@ -130,16 +169,51 @@ class FilesystemLocalModelProbeProvider:
                 status=LocalModelStatus.RESPONDING.value,
                 response=text,
             )
-        except RuntimeError:
-            return LocalInferenceResult(
-                status=LocalModelStatus.RESOURCE_EXHAUSTED.value,
-                diagnostic=local_model_diagnostic("insufficient_resources"),
-            )
-        except Exception:
+        except TransformersRuntimeError as exc:
             return LocalInferenceResult(
                 status=LocalModelStatus.GENERATION_FAILED.value,
-                diagnostic=local_model_diagnostic("generation_failed"),
+                message=f"Model runtime is incompatible: {exc}",
+                diagnostic=local_model_diagnostic(
+                    "model_runtime_incompatible",
+                    detail=str(exc),
+                ),
             )
+        except RuntimeError as exc:
+            detail = str(exc)
+            lowered = detail.casefold()
+            if "out of memory" in lowered:
+                return LocalInferenceResult(
+                    status=LocalModelStatus.RESOURCE_EXHAUSTED.value,
+                    message=detail,
+                    diagnostic=local_model_diagnostic(
+                        "insufficient_resources"
+                    ),
+                )
+            return LocalInferenceResult(
+                status=LocalModelStatus.GENERATION_FAILED.value,
+                message=f"Generation failed: {detail}",
+                diagnostic=local_model_diagnostic(
+                    "generation_failed",
+                    detail=detail,
+                ),
+            )
+        except Exception as exc:
+            return LocalInferenceResult(
+                status=LocalModelStatus.GENERATION_FAILED.value,
+                message=f"Generation failed: {exc}",
+                diagnostic=local_model_diagnostic(
+                    "generation_failed",
+                    detail=str(exc),
+                ),
+            )
+
+    @staticmethod
+    def _missing_inference_dependencies() -> tuple[str, ...]:
+        return tuple(
+            name
+            for name in ("torch", "transformers")
+            if importlib.util.find_spec(name) is None
+        )
 
     def _encode_prompt(
         self,
