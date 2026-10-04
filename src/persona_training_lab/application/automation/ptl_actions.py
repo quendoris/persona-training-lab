@@ -16,6 +16,9 @@ from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.experiments.portrait import (
     parse_portrait_payload,
 )
+from persona_training_lab.application.experiments.protocol import (
+    portrait_protocols_match,
+)
 from persona_training_lab.application.experiments.service import (
     ExperimentsService,
 )
@@ -620,11 +623,50 @@ class PTLAutomationActionRunner:
 
         baseline_portrait = baseline.payload.get("portrait")
         post_portrait = post.payload.get("portrait")
+        baseline_experiment = baseline.payload.get("experiment")
+        post_experiment = post.payload.get("experiment")
+        if not (
+            isinstance(baseline_experiment, Mapping)
+            and isinstance(post_experiment, Mapping)
+            and portrait_protocols_match(
+                str(baseline_experiment.get("subtitle", "")),
+                str(post_experiment.get("subtitle", "")),
+            )
+        ):
+            return AutomationInternalActionResult(
+                False,
+                "analysis_protocol_mismatch",
+                {
+                    "baseline": dict(baseline.payload),
+                    "post": dict(post.payload),
+                },
+            )
+
         deltas: dict[str, float] = {}
         if (
             isinstance(baseline_portrait, Mapping)
             and isinstance(post_portrait, Mapping)
         ):
+            if not (
+                int(baseline_portrait.get("passed", 0))
+                == int(baseline_portrait.get("total", 0))
+                == 10
+            ):
+                return AutomationInternalActionResult(
+                    False,
+                    "baseline_portrait_incomplete",
+                    {"baseline": dict(baseline.payload)},
+                )
+            if not (
+                int(post_portrait.get("passed", 0))
+                == int(post_portrait.get("total", 0))
+                == 10
+            ):
+                return AutomationInternalActionResult(
+                    False,
+                    "post_portrait_incomplete",
+                    {"post": dict(post.payload)},
+                )
             before = baseline_portrait.get("trait_scores")
             after = post_portrait.get("trait_scores")
             if isinstance(before, Mapping) and isinstance(after, Mapping):
