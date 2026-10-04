@@ -143,6 +143,8 @@
     "automation.recipe.ptl_state_snapshot.title": "PTL · Снимок состояния",
     "automation.recipe.ptl_state_snapshot.description": "Собрать исследовательское состояние application layer в структурированный JSON.",
     "automation.recipe.ptl_acceptance_run.title": "PTL · Полная проверка релиза",
-    "automation.recipe.ptl_acceptance_run.description": "Прогнать модель, Dataset, Training, ModelVersion и Big Five в чистом workspace."
+    "automation.recipe.ptl_acceptance_run.description": "Прогнать модель, Dataset, Training, ModelVersion и Big Five в чистом workspace.",
+    "automation.recipe.ptl_analysis_compare.title": "PTL · Сравнить портреты",
+    "automation.recipe.ptl_analysis_compare.description": "Сравнить два сохранённых эксперимента Big Five в рамках одного протокола."
   }
 }
