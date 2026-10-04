@@ -143,6 +143,8 @@
     "automation.recipe.ptl_state_snapshot.title": "PTL · Instantánea de estado",
     "automation.recipe.ptl_state_snapshot.description": "Recopilar el estado de investigación de la capa de aplicación como JSON estructurado.",
     "automation.recipe.ptl_acceptance_run.title": "PTL · Aceptación completa de release",
-    "automation.recipe.ptl_acceptance_run.description": "Ejecutar modelo, Dataset, Training, ModelVersion y Big Five en un workspace limpio."
+    "automation.recipe.ptl_acceptance_run.description": "Ejecutar modelo, Dataset, Training, ModelVersion y Big Five en un workspace limpio.",
+    "automation.recipe.ptl_analysis_compare.title": "PTL · Comparar retratos",
+    "automation.recipe.ptl_analysis_compare.description": "Comparar dos experimentos Big Five persistidos bajo el mismo protocolo."
   }
 }
