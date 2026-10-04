@@ -145,6 +145,10 @@
     "automation.recipe.ptl_acceptance_run.title": "PTL · قبول الإصدار الكامل",
     "automation.recipe.ptl_acceptance_run.description": "شغّل النموذج وDataset وTraining وModelVersion وBig Five في workspace نظيف.",
     "automation.recipe.ptl_analysis_compare.title": "PTL · مقارنة ملفات Big Five",
-    "automation.recipe.ptl_analysis_compare.description": "قارن تجربتي Big Five محفوظتين ضمن البروتوكول نفسه."
+    "automation.recipe.ptl_analysis_compare.description": "قارن تجربتي Big Five محفوظتين ضمن البروتوكول نفسه.",
+    "automation.recipe.ptl_dataset_preview.title": "PTL · معاينة مجموعة البيانات",
+    "automation.recipe.ptl_dataset_preview.description": "اعرض صفوف Dataset بعد تحليلها وقبل التحقق.",
+    "automation.recipe.ptl_training_logs.title": "PTL · سجلات التدريب",
+    "automation.recipe.ptl_training_logs.description": "أعد السجلات المحفوظة لتشغيل Training محدد."
   }
 }
