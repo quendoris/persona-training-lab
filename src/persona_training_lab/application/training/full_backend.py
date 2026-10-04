@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib import import_module
 import json
-from math import ceil
+from math import ceil, isfinite
 from pathlib import Path
 import shutil
 import tempfile
@@ -30,6 +30,10 @@ class FullFineTuneResult:
     trainable_params: int = 0
     initial_loss: float = 0.0
     final_loss: float = 0.0
+    completed_steps: int = 0
+    failure_step: int = 0
+    compute_dtype: str = ""
+    max_gradient_norm: float = 0.0
 
 
 class _FineTuneExample(TypedDict):
@@ -100,6 +104,20 @@ def _batch(
         out["attention_mask"].append(mask + [0] * padding)
         out["labels"].append(labels + [-100] * padding)
     return out
+
+
+def _select_training_dtype(torch: Any, device: Any) -> Any:
+    if getattr(device, "type", "") != "cuda":
+        return torch.float32
+    cuda = getattr(torch, "cuda", None)
+    supports_bf16 = getattr(cuda, "is_bf16_supported", None)
+    if callable(supports_bf16):
+        try:
+            if supports_bf16():
+                return torch.bfloat16
+        except Exception:
+            pass
+    return torch.float16
 
 
 def _resolved_model_dir(model_path: str) -> Path:
@@ -191,7 +209,8 @@ class LocalFullFineTuneBackend:
         try:
             resolved_model_path = str(model_dir)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            dtype = torch.float16 if device.type == "cuda" else torch.float32
+            dtype = _select_training_dtype(torch, device)
+            dtype_name = str(dtype).removeprefix("torch.")
             model, tokenizer, runtime_spec = load_text_generation_components(
                 transformers,
                 resolved_model_path,
@@ -220,6 +239,7 @@ class LocalFullFineTuneBackend:
             initial_loss = 0.0
             final_loss = 0.0
             best_loss = float("inf")
+            max_gradient_norm = 0.0
             pad_token_id = tokenizer.pad_token_id or tokenizer.eos_token_id or 0
 
             for _epoch in range(int(epochs)):
@@ -261,15 +281,69 @@ class LocalFullFineTuneBackend:
                         return FullFineTuneResult(
                             TrainingRunStatus.FAILED.value,
                             "training_loss_missing",
+                            max_steps=target_steps,
+                            completed_steps=completed_steps,
+                            failure_step=completed_steps + 1,
+                            learning_rate=float(learning_rate),
+                            trainable_params=trainable_params,
+                            initial_loss=initial_loss,
+                            final_loss=final_loss,
+                            compute_dtype=dtype_name,
+                            max_gradient_norm=max_gradient_norm,
                         )
+
+                    step = completed_steps + 1
+                    value = float(loss.detach().float().cpu().item())
+                    if completed_steps == 0:
+                        initial_loss = value
+                    if not isfinite(value):
+                        return FullFineTuneResult(
+                            TrainingRunStatus.FAILED.value,
+                            "non_finite_loss",
+                            max_steps=target_steps,
+                            completed_steps=completed_steps,
+                            failure_step=step,
+                            learning_rate=float(learning_rate),
+                            trainable_params=trainable_params,
+                            initial_loss=initial_loss,
+                            final_loss=value,
+                            compute_dtype=dtype_name,
+                            max_gradient_norm=max_gradient_norm,
+                        )
+
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(trainable, max_norm=1.0)
+                    gradient_norm_tensor = torch.nn.utils.clip_grad_norm_(
+                        trainable,
+                        max_norm=1.0,
+                    )
+                    gradient_norm = float(
+                        gradient_norm_tensor.detach().float().cpu().item()
+                        if hasattr(gradient_norm_tensor, "detach")
+                        else gradient_norm_tensor
+                    )
+                    max_gradient_norm = max(
+                        max_gradient_norm,
+                        gradient_norm if isfinite(gradient_norm) else 0.0,
+                    )
+                    if not isfinite(gradient_norm):
+                        optimizer.zero_grad(set_to_none=True)
+                        return FullFineTuneResult(
+                            TrainingRunStatus.FAILED.value,
+                            "non_finite_gradient",
+                            max_steps=target_steps,
+                            completed_steps=completed_steps,
+                            failure_step=step,
+                            learning_rate=float(learning_rate),
+                            trainable_params=trainable_params,
+                            initial_loss=initial_loss,
+                            final_loss=value,
+                            compute_dtype=dtype_name,
+                            max_gradient_norm=max_gradient_norm,
+                        )
+
                     optimizer.step()
 
-                    value = float(loss.detach().float().cpu().item())
                     completed_steps += 1
-                    if completed_steps == 1:
-                        initial_loss = value
                     final_loss = value
                     best_loss = min(best_loss, value)
 
@@ -294,6 +368,8 @@ class LocalFullFineTuneBackend:
                 "final_loss": final_loss,
                 "best_loss": best_loss,
                 "device": str(device),
+                "compute_dtype": dtype_name,
+                "max_gradient_norm": max_gradient_norm,
                 "provenance": dict(provenance or {}),
                 "status": TrainingRunStatus.COMPLETED.value,
             }
@@ -314,6 +390,9 @@ class LocalFullFineTuneBackend:
                 trainable_params=trainable_params,
                 initial_loss=initial_loss,
                 final_loss=final_loss,
+                completed_steps=completed_steps,
+                compute_dtype=dtype_name,
+                max_gradient_norm=max_gradient_norm,
             )
         except TransformersRuntimeError:
             return FullFineTuneResult(
