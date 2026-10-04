@@ -1428,8 +1428,8 @@ requires-dist = [
     { name = "tokenizers", marker = "extra == 'training'", specifier = ">=0.15" },
     { name = "torch", marker = "extra == 'inference'", specifier = ">=2.3" },
     { name = "torch", marker = "extra == 'training'", specifier = ">=2.3" },
-    { name = "transformers", marker = "extra == 'inference'", specifier = ">=4.41" },
-    { name = "transformers", marker = "extra == 'training'", specifier = ">=4.41" },
+    { name = "transformers", marker = "extra == 'inference'", specifier = ">=4.57" },
+    { name = "transformers", marker = "extra == 'training'", specifier = ">=4.57" },
 ]
 provides-extras = ["inference", "training"]
 
