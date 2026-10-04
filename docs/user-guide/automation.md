@@ -111,6 +111,7 @@ ptl.training.create
 ptl.training.start
 ptl.model_versions.list
 ptl.experiment.portrait
+ptl.analysis.compare
 ptl.state.snapshot
 ptl.acceptance.run
 ```
@@ -788,9 +789,10 @@ It does provide a coherent trusted-host execution contract with fail-closed revi
 6. pinned Training-run creation and full fine-tune;
 7. exact ModelVersion resolution from that Training run;
 8. post-training Big Five portrait on that exact version;
-9. exact battery/scoring protocol comparability check;
-10. complete 10/10 requirement for both portraits;
-11. structured trait deltas in the action output.
+9. application-level Analysis comparison of the two persisted portrait experiments;
+10. exact battery/scoring protocol comparability check;
+11. complete 10/10 requirement for both portraits;
+12. structured trait deltas in the action output.
 
 The action deliberately fails closed if Training/ModelVersion/experiment state already exists in the acceptance workspace. Trait direction itself is observational rather than a software PASS criterion.
 
