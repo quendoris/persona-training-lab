@@ -153,7 +153,11 @@ This closes package-content inspection as automated release evidence. Installing
 
 ## 8. Run isolated real-model Automation acceptance
 
-The source/package gate deliberately does not download or execute an external model. Before v0.1.0 tagging, run a separate acceptance workspace with the supported ML extra installed:
+The source/package gate deliberately does not download or execute an external model. Before v0.1.0 tagging, run a separate acceptance workspace with the supported ML extra installed.
+
+For long local acceptance sessions on Unix-like development hosts, `bash tools/terminal_log.sh` can be started first. It appends a flushed terminal transcript under the host temporary directory using the exact current Git HEAD as the filename, so an interrupted/restarted session on the same candidate continues the same transcript without dirtying the worktree. This transcript is convenience/operator evidence only; preserve the structured Automation/Training artifacts separately.
+
+Then launch PTL:
 
 ```bash
 XDG_DATA_HOME=<isolated-xdg-root> \
