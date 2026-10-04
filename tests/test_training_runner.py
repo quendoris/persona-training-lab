@@ -242,7 +242,9 @@ def test_viewmodel_start_action(tmp_path: Path) -> None:
     assert vm.status_model().key == "training.status.completed"
 
 
-def test_viewmodel_publishes_machine_model_version_quality(tmp_path: Path) -> None:
+def test_training_service_publication_surfaces_machine_quality_in_viewmodel(
+    tmp_path: Path,
+) -> None:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     create_minimal_schema(conn)
@@ -250,6 +252,7 @@ def test_viewmodel_publishes_machine_model_version_quality(tmp_path: Path) -> No
     model_versions_service = ModelVersionsService(
         model_versions_repo=SQLiteModelVersionsRepository(conn)
     )
+    service.model_versions_service = model_versions_service
     vm = TrainingViewModel(
         training_service=service,
         model_versions_service=model_versions_service,
@@ -394,7 +397,7 @@ class _FullBackendWithNewerCompletedRun(_FullBackend):
         return result
 
 
-def test_viewmodel_publishes_exact_started_run_not_newest_registry_row(
+def test_training_service_publishes_exact_run_despite_newer_registry_row(
     tmp_path: Path,
 ) -> None:
     connection = sqlite3.connect(":memory:")
@@ -409,6 +412,7 @@ def test_viewmodel_publishes_exact_started_run_not_newest_registry_row(
     model_versions_service = ModelVersionsService(
         model_versions_repo=SQLiteModelVersionsRepository(connection)
     )
+    service.model_versions_service = model_versions_service
     vm = TrainingViewModel(
         training_service=service,
         model_versions_service=model_versions_service,
