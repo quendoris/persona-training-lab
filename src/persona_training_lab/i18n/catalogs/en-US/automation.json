@@ -143,6 +143,8 @@
     "automation.recipe.ptl_state_snapshot.title": "PTL · State snapshot",
     "automation.recipe.ptl_state_snapshot.description": "Collect application-layer research state as structured JSON.",
     "automation.recipe.ptl_acceptance_run.title": "PTL · Full release acceptance",
-    "automation.recipe.ptl_acceptance_run.description": "Run the model, Dataset, Training, ModelVersion and Big Five workflow in a clean workspace."
+    "automation.recipe.ptl_acceptance_run.description": "Run the model, Dataset, Training, ModelVersion and Big Five workflow in a clean workspace.",
+    "automation.recipe.ptl_analysis_compare.title": "PTL · Compare portraits",
+    "automation.recipe.ptl_analysis_compare.description": "Compare two persisted Big Five experiments under the same protocol."
   }
 }
