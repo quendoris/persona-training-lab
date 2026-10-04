@@ -21,6 +21,12 @@ from persona_training_lab.application.local_model.status_mapping import (
     normalize_local_model_status,
 )
 from persona_training_lab.application.messages import ActionResult, UserMessage
+from persona_training_lab.application.model_versions.quality import (
+    training_completed_quality,
+)
+from persona_training_lab.application.model_versions.service import (
+    ModelVersionsService,
+)
 from persona_training_lab.application.ports.repositories import (
     TrainingReadRepositoryPort,
     TrainingWriteRepositoryPort,
@@ -109,6 +115,7 @@ class TrainingService:
     profiles_service: ProfilesService | None = None
     datasets_service: DatasetsService | None = None
     local_model_service: LocalModelService | None = None
+    model_versions_service: ModelVersionsService | None = None
     full_backend: LocalFullFineTuneBackend | Any | None = None
     marker_backend: Any | None = None
     operation_coordinator: RuntimeOperationCoordinator | None = None
@@ -532,10 +539,22 @@ class TrainingService:
                 else:
                     lease.fail(terminal_message)
             if is_success:
+                model_version_id = self._publish_model_version(
+                    run_id=run_id,
+                    run=run,
+                    profile=profile,
+                    dataset=dataset,
+                    artifact_path=artifact_path,
+                    loss=f"{result.final_loss:.6f}",
+                    checkpoints="01",
+                )
+                values = {"artifact": artifact_path}
+                if model_version_id:
+                    values["model_version_id"] = model_version_id
                 return ActionResult(
                     True,
                     "completed",
-                    {"artifact": artifact_path},
+                    values,
                 )
             return ActionResult(
                 False,
@@ -583,6 +602,48 @@ class TrainingService:
         finally:
             if lease is not None and not lease.closed:
                 lease.fail("operation_without_terminal_status")
+
+    def _publish_model_version(
+        self,
+        *,
+        run_id: str,
+        run: dict[str, str],
+        profile: ProfileSummary,
+        dataset: DatasetSummary,
+        artifact_path: str,
+        loss: str,
+        checkpoints: str,
+    ) -> str:
+        service = self.model_versions_service
+        if service is None:
+            return ""
+        try:
+            created = service.create_from_training_run(
+                training_run_id=run_id,
+                base_model=run.get("base_model", ""),
+                profile_title=profile.title,
+                dataset_title=dataset.title,
+                artifact_path=artifact_path,
+                quality_summary=training_completed_quality(
+                    loss=loss,
+                    checkpoints=checkpoints,
+                ),
+            )
+        except Exception as exc:
+            self._log(
+                run_id,
+                f"model_version_publish_failed:{type(exc).__name__}",
+                "ERROR",
+            )
+            return ""
+        if created is None:
+            self._log(run_id, "model_version_publish_failed:empty", "ERROR")
+            return ""
+        self._log(
+            run_id,
+            f"Model version registered: {created.version_id}",
+        )
+        return created.version_id
 
     def _set_terminal_error(self, run: dict[str, str], message: str) -> None:
         self._set_runtime(
