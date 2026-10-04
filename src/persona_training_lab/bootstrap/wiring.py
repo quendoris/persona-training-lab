@@ -241,7 +241,8 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
         )
         automation_service = AutomationService(
             recipe_provider=FilesystemAutomationRecipeProvider(
-                paths.root / "automation" / "recipes"
+                paths.root / "automation" / "recipes",
+                include_ptl_actions=True,
             ),
             operation_coordinator=runtime_operations,
             workspace_root=paths.root,
