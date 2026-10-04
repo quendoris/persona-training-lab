@@ -13,6 +13,10 @@ from typing import Any, TypedDict
 from persona_training_lab.application.training.input_pipeline import TrainingSample
 from persona_training_lab.config.app_settings import default_workspace_dir
 from persona_training_lab.domain.training.statuses import TrainingRunStatus
+from persona_training_lab.infrastructure.local_model.transformers_runtime import (
+    TransformersRuntimeError,
+    load_text_generation_components,
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -178,8 +182,6 @@ class LocalFullFineTuneBackend:
         try:
             torch: Any = import_module("torch")
             transformers: Any = import_module("transformers")
-            auto_model = transformers.AutoModelForCausalLM
-            auto_tokenizer = transformers.AutoTokenizer
         except Exception:
             return FullFineTuneResult(
                 TrainingRunStatus.FAILED.value,
@@ -190,10 +192,13 @@ class LocalFullFineTuneBackend:
             resolved_model_path = str(model_dir)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             dtype = torch.float16 if device.type == "cuda" else torch.float32
-            tokenizer = auto_tokenizer.from_pretrained(resolved_model_path)
+            model, tokenizer, runtime_spec = load_text_generation_components(
+                transformers,
+                resolved_model_path,
+                torch_dtype=dtype,
+            )
             if tokenizer.pad_token is None and tokenizer.eos_token is not None:
                 tokenizer.pad_token = tokenizer.eos_token
-            model = auto_model.from_pretrained(resolved_model_path, torch_dtype=dtype)
             if getattr(model.config, "use_cache", None) is not None:
                 model.config.use_cache = False
             model.to(device)
@@ -271,6 +276,8 @@ class LocalFullFineTuneBackend:
             metadata = {
                 "schema": "ptl:full-finetune:v1",
                 "backend": "local_full_finetune",
+                "transformers_loader": runtime_spec.loader_name,
+                "model_type": runtime_spec.model_type,
                 "run_id": run_id,
                 "model_path": resolved_model_path,
                 "epochs": int(epochs),
@@ -307,10 +314,20 @@ class LocalFullFineTuneBackend:
                 initial_loss=initial_loss,
                 final_loss=final_loss,
             )
-        except RuntimeError:
+        except TransformersRuntimeError:
             return FullFineTuneResult(
                 TrainingRunStatus.FAILED.value,
-                "insufficient_resources",
+                "model_runtime_incompatible",
+            )
+        except RuntimeError as exc:
+            if "out of memory" in str(exc).casefold():
+                return FullFineTuneResult(
+                    TrainingRunStatus.FAILED.value,
+                    "insufficient_resources",
+                )
+            return FullFineTuneResult(
+                TrainingRunStatus.FAILED.value,
+                "training_runtime_failed",
             )
         except Exception:
             return FullFineTuneResult(
