@@ -252,3 +252,45 @@ def build_automation_surfaces():
     inspector.close()
     inspector.deleteLater()
     app.processEvents()
+
+
+
+def test_internal_ptl_recipe_titles_localize_live(tmp_path: Path) -> None:
+    app = _app()
+    manager = _manager(app)
+    provider = FilesystemAutomationRecipeProvider(
+        tmp_path / "automation" / "recipes",
+        include_ptl_actions=True,
+    )
+    service = AutomationService(
+        provider,
+        _UnusedCoordinator(),  # type: ignore[arg-type]
+        tmp_path,
+    )
+    screen = AutomationScreen(AutomationViewModel(service), manager)
+    screen.resize(1400, 800)
+    screen.show()
+    app.processEvents()
+
+    screen._search.setText("ptl.model.probe")
+    app.processEvents()
+    english = _visible_texts(screen)
+    assert "PTL · Model probe" in english
+    assert any(
+        "Transformers text runtime" in text
+        for text in english
+    )
+
+    manager.set_locale("ru-RU", persist=False)
+    app.processEvents()
+    russian = _visible_texts(screen)
+    assert "PTL · Проверка модели" in russian
+    assert any(
+        "Transformers" in text and "runtime" in text
+        for text in russian
+    )
+    assert "PTL · Model probe" not in russian
+
+    screen.close()
+    screen.deleteLater()
+    app.processEvents()
