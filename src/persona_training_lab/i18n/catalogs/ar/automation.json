@@ -143,6 +143,8 @@
     "automation.recipe.ptl_state_snapshot.title": "PTL · لقطة الحالة",
     "automation.recipe.ptl_state_snapshot.description": "اجمع حالة البحث في طبقة التطبيق بصيغة JSON منظمة.",
     "automation.recipe.ptl_acceptance_run.title": "PTL · قبول الإصدار الكامل",
-    "automation.recipe.ptl_acceptance_run.description": "شغّل النموذج وDataset وTraining وModelVersion وBig Five في workspace نظيف."
+    "automation.recipe.ptl_acceptance_run.description": "شغّل النموذج وDataset وTraining وModelVersion وBig Five في workspace نظيف.",
+    "automation.recipe.ptl_analysis_compare.title": "PTL · مقارنة ملفات Big Five",
+    "automation.recipe.ptl_analysis_compare.description": "قارن تجربتي Big Five محفوظتين ضمن البروتوكول نفسه."
   }
 }
