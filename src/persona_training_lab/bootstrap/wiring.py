@@ -8,6 +8,9 @@ from persona_training_lab.application.agents.service import AgentsService
 from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.automation import AutomationService
 from persona_training_lab.application.automation.audit import AutomationAuditTrail
+from persona_training_lab.application.automation.ptl_actions import (
+    PTLAutomationActionRunner,
+)
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.docs.service import DocsService
 from persona_training_lab.application.errors.reporter import ApplicationErrorReporter
@@ -224,6 +227,18 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
             operation_coordinator=runtime_operations,
             error_reporter=error_reporter,
         )
+        automation_actions = PTLAutomationActionRunner(
+            local_model_service=local_model_service,
+            profiles_service=profiles_service,
+            datasets_service=datasets_service,
+            training_service=training_service,
+            model_versions_service=model_versions_service,
+            experiments_service=experiments_service,
+            analysis_service=analysis_service,
+            agents_service=agents_service,
+            projects_service=projects_service,
+            style_service=style_service,
+        )
         automation_service = AutomationService(
             recipe_provider=FilesystemAutomationRecipeProvider(
                 paths.root / "automation" / "recipes"
@@ -231,6 +246,7 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
             operation_coordinator=runtime_operations,
             workspace_root=paths.root,
             audit_trail=AutomationAuditTrail(event_log_repo),
+            action_runner=automation_actions,
         )
         telemetry_service = SystemTelemetryService(
             system_provider=PsutilTelemetryProvider(),
