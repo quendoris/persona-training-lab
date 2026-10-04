@@ -145,6 +145,10 @@
     "automation.recipe.ptl_acceptance_run.title": "PTL · Полная проверка релиза",
     "automation.recipe.ptl_acceptance_run.description": "Прогнать модель, Dataset, Training, ModelVersion и Big Five в чистом workspace.",
     "automation.recipe.ptl_analysis_compare.title": "PTL · Сравнить портреты",
-    "automation.recipe.ptl_analysis_compare.description": "Сравнить два сохранённых эксперимента Big Five в рамках одного протокола."
+    "automation.recipe.ptl_analysis_compare.description": "Сравнить два сохранённых эксперимента Big Five в рамках одного протокола.",
+    "automation.recipe.ptl_dataset_preview.title": "PTL · Предпросмотр датасета",
+    "automation.recipe.ptl_dataset_preview.description": "Показать разобранные строки Dataset до валидации.",
+    "automation.recipe.ptl_training_logs.title": "PTL · Логи обучения",
+    "automation.recipe.ptl_training_logs.description": "Вернуть сохранённые логи точного Training run."
   }
 }
