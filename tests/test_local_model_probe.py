@@ -12,6 +12,7 @@ from persona_training_lab.application.ports.local_model_probe import (
     InferenceProbeResult,
     LocalInferenceResult,
     ModelProbeResult,
+    local_model_diagnostic,
 )
 from persona_training_lab.i18n.deep_audit import collect_deep_literals
 from persona_training_lab.infrastructure.local_model.probe_provider import (
@@ -43,7 +44,19 @@ class StubLocalModelProbeProvider:
         )
 
 
-class StubSuccessLocalModelProbeProvider(StubLocalModelProbeProvider):
+class StubReadyLocalModelProbeProvider(StubLocalModelProbeProvider):
+    def check_inference_backend(self, model_path: str) -> InferenceProbeResult:
+        return InferenceProbeResult(
+            message="runtime ready",
+            diagnostic=local_model_diagnostic(
+                "inference_runtime_ready",
+                loader="AutoModelForMultimodalLM",
+                model_type="qwen3_5",
+            ),
+        )
+
+
+class StubSuccessLocalModelProbeProvider(StubReadyLocalModelProbeProvider):
     def generate(
         self,
         model_path: str,
@@ -146,12 +159,6 @@ def test_local_model_probe_found_with_minimal_files(tmp_path: Path) -> None:
     assert result.details == ""
     assert result.diagnostic is not None
     assert result.diagnostic.code == "model_files_ready"
-
-    vm = TrainingViewModel(local_model_service=service)
-    vm.check_local_model()
-    assert vm.local_model_status_code is LocalModelStatus.FOUND
-    assert vm.local_model_status == "Модель найдена"
-    assert vm.local_model_note == "Структура файлов модели выглядит корректно."
 
     audit_root = tmp_path / "audit-source"
     audit_root.mkdir()
@@ -341,3 +348,33 @@ def test_qwen35_runtime_rejects_causal_only_transformers_build() -> None:
             _FakeTransformersCausalOnly,
             "/models/qwen3.5-0.8b",
         )
+
+
+
+def test_model_check_requires_runtime_compatibility() -> None:
+    service = LocalModelService(
+        probe_provider=StubLocalModelProbeProvider()
+    )
+    vm = TrainingViewModel(local_model_service=service)
+
+    vm.check_local_model()
+
+    assert (
+        vm.local_model_status_code
+        is LocalModelStatus.INFERENCE_UNAVAILABLE
+    )
+    assert vm.local_model_status == "Inference backend не подключён"
+
+
+def test_model_check_is_ready_only_when_files_and_runtime_are_ready() -> None:
+    service = LocalModelService(
+        probe_provider=StubReadyLocalModelProbeProvider()
+    )
+    vm = TrainingViewModel(local_model_service=service)
+
+    vm.check_local_model()
+
+    assert vm.local_model_status_code is LocalModelStatus.FOUND
+    assert vm.local_model_status == "Модель найдена"
+    assert "AutoModelForMultimodalLM" in vm.local_model_note
+    assert "qwen3_5" in vm.local_model_note
