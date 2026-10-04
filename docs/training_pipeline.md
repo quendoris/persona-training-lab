@@ -225,7 +225,7 @@ If a lease is opened, the Training service closes it with success/failure termin
 
 The full backend imports `torch` and `transformers` at runtime. If those dependencies are unavailable, it returns `training_backend_unavailable`.
 
-The backend selects CUDA when `torch.cuda.is_available()` and CPU otherwise. It uses float16 on CUDA and float32 on CPU, moves the model to the selected device, and sets training mode.
+The backend selects CUDA when `torch.cuda.is_available()` and CPU otherwise. On CUDA it prefers bfloat16 when `torch.cuda.is_bf16_supported()` reports support, falling back to float16 otherwise; CPU uses float32. The selected compute dtype is recorded in Training diagnostics/metadata. The model is moved to the selected device and set to training mode.
 
 ## 17. Trainable parameters
 
@@ -257,7 +257,7 @@ max(1, min(configured_batch_size, sample_count))
 
 Batches are padded to the longest sequence in the batch. Attention-mask padding is `0`; label padding is `-100`.
 
-The v0.1.0 backend uses SGD at the configured learning rate. For each step it zeroes gradients, performs the forward pass, backpropagates loss, clips gradient norm to `1.0`, and steps the optimizer. A missing loss returns `training_loss_missing`.
+The v0.1.0 backend uses SGD at the configured learning rate. For each step it zeroes gradients, performs the forward pass, checks that the scalar loss is finite, backpropagates, clips gradient norm to `1.0`, checks that the pre-clip norm is finite, and only then steps the optimizer. A missing loss returns `training_loss_missing`; non-finite loss/gradient values fail the run as `non_finite_loss` or `non_finite_gradient` before a completed model artifact is published.
 
 ## 20. Epoch/step calculation
 
@@ -311,7 +311,7 @@ schema = ptl:full-finetune:v1
 backend = local_full_finetune
 ```
 
-and records the run ID, model path, configured/effective batch size, epochs, learning rate, sample/step counts, trainable parameter count, losses, device, provenance, and terminal status.
+and records the run ID, model path, configured/effective batch size, epochs, learning rate, sample/step counts, trainable parameter count, losses, device, compute dtype, maximum observed gradient norm, provenance, and terminal status.
 
 The Training service supplies provenance containing:
 
@@ -344,7 +344,7 @@ Failure can occur before `running` or during backend execution and produces a pe
 
 A run already in `running` is rejected as `already_running`; a run not in `ready` is rejected as `not_ready`.
 
-On success PTL persists completed status, `progress = 1.0`, final epoch progress/loss, `speed = full fine-tune`, artifact/checkpoint count, finish time, artifact path, and empty error text. The orchestration layer accepts backend `completed` only when the backend also returns a non-empty published `artifact_path`; `completed` without an artifact fails closed as `artifact_not_created` and persists no artifact/checkpoint. On failure it persists a terminal failed state with error text and finish time.
+On success PTL persists completed status, `progress = 1.0`, final epoch progress/loss, `speed = full fine-tune`, artifact/checkpoint count, finish time, artifact path, and empty error text. The orchestration layer accepts backend `completed` only when the backend also returns a non-empty published `artifact_path` **and a finite final loss**. `completed` without an artifact fails closed as `artifact_not_created`; a backend that reports completion with NaN/Inf loss fails closed as `non_finite_training_result`. Neither case publishes a ModelVersion. On failure PTL persists a terminal failed state with error text and finish time.
 
 ## 25. Model-version publication
 
