@@ -29,6 +29,12 @@ from persona_training_lab.application.local_model.status_mapping import (
     LocalModelStatus,
     normalize_local_model_status,
 )
+from persona_training_lab.application.lineage.projection import (
+    LineageEntityKind,
+    LineageProjectionService,
+    LineageRelation,
+    lineage_node_id,
+)
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
 )
@@ -481,6 +487,13 @@ class PTLAutomationActionRunner:
                 }
             )
 
+        lineage = LineageProjectionService(
+            datasets_service=self.datasets_service,
+            training_service=self.training_service,
+            model_versions_service=self.model_versions_service,
+            experiments_service=self.experiments_service,
+        ).build_projection()
+
         payload: dict[str, object] = {
             "profiles": _jsonable(self.profiles_service.list_profiles()),
             "datasets": _jsonable(self.datasets_service.list_datasets()),
@@ -497,6 +510,7 @@ class PTLAutomationActionRunner:
             "analysis_results": _jsonable(
                 self.analysis_service.list_analysis_results()
             ),
+            "lineage_projection": _jsonable(lineage),
         }
         if self.agents_service is not None:
             payload["agents"] = _jsonable(self.agents_service.list_agents())
@@ -746,6 +760,60 @@ class PTLAutomationActionRunner:
                 },
             )
 
+        lineage = LineageProjectionService(
+            datasets_service=self.datasets_service,
+            training_service=self.training_service,
+            model_versions_service=self.model_versions_service,
+            experiments_service=self.experiments_service,
+        ).build_projection()
+        post_experiment_id = str(
+            post_experiment.get("experiment_id", "")
+        ).strip()
+        run_node_id = lineage_node_id(
+            LineageEntityKind.TRAINING_RUN,
+            run_id,
+        )
+        version_node_id = lineage_node_id(
+            LineageEntityKind.MODEL_VERSION,
+            version_id,
+        )
+        evaluation_node_id = lineage_node_id(
+            LineageEntityKind.EVALUATION_RUN,
+            post_experiment_id,
+        )
+        lineage_edges = set(lineage.edges)
+        expected_edges = {
+            (
+                run_node_id,
+                version_node_id,
+                LineageRelation.PRODUCES_VERSION,
+            ),
+            (
+                version_node_id,
+                evaluation_node_id,
+                LineageRelation.EVALUATES_VERSION,
+            ),
+        }
+        observed_edges = {
+            (
+                edge.source_node_id,
+                edge.target_node_id,
+                edge.relation,
+            )
+            for edge in lineage_edges
+        }
+        if not expected_edges.issubset(observed_edges):
+            return AutomationInternalActionResult(
+                False,
+                "lineage_projection_incomplete",
+                {
+                    "run_id": run_id,
+                    "model_version_id": version_id,
+                    "post_experiment_id": post_experiment_id,
+                    "projection": _jsonable(lineage),
+                },
+            )
+
         return AutomationInternalActionResult(
             True,
             "acceptance_completed",
@@ -762,6 +830,14 @@ class PTLAutomationActionRunner:
                     "protocol": list(comparison.protocol_key or ()),
                     "complete": comparison.complete,
                     "trait_deltas": dict(comparison.deltas),
+                },
+                "lineage": {
+                    "topology_revision": lineage.topology_revision,
+                    "content_revision": lineage.content_revision,
+                    "expected_edges_present": True,
+                    "source_failures": _jsonable(
+                        lineage.source_failures
+                    ),
                 },
             },
         )
