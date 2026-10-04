@@ -4,7 +4,7 @@
 >
 > **Frozen clean scale baseline:** `69ef4d28013d1ae666a73bcbe2470ae257bcf3ee`
 >
-> **Latest clean quick-gate evidence:** `39d25de13568571a019992fe84ec8a616b6e7048` — `603 passed ×3`
+> **Latest fully executed pre-acceptance release-gate evidence:** `2f06aa5d0898f1141af4474f9b77b19b2b5896fb` — full gate PASS, `672 passed`
 >
 > This file is a maintenance map, not a second source of product truth. Feature behavior remains authoritative in the linked user/operations/architecture/reference documents and ultimately in audited code/tests.
 
@@ -98,9 +98,9 @@ PTL v0.1.0 documentation/code audit
     └── Training Dynamics instrumentation
 ```
 
-All **40 implemented/current rows are now A** at the code/test/document-consistency level. The previously pending Agents projection-publication, Telemetry background-lifecycle, and staged Training-artifact publication regressions were executed locally and are also present in the quick manifest. The clean `39d25de...` quick gate then exercised the curated inventory three times with **603 passed in each run**.
+All **40 implemented/current rows are A** at the code/test/document-consistency level. The last frozen pre-acceptance candidate `2f06aa5d...` completed the full release gate with production mypy clean, **672 pytest passes**, i18n/docs/build/package/candidate-identity PASS. Real-model acceptance then exposed additional current work in model-runtime readiness and PTL-internal Automation; those later commits are documented/tested in source but do **not** inherit the `2f06aa5d...` execution evidence.
 
-There is therefore no remaining P0 item whose only missing step is “execute the already-written regression”. The remaining work is a final **crack audit + freeze-evidence pass**: continue looking for code/document contract mismatches, repair only concrete findings, then produce fresh quick/full-gate, visual, packaging/install and final release evidence. The release gate now checks candidate identity at both start and completion so evidence cannot silently follow a moving HEAD/worktree.
+There is therefore no remaining P0 item whose only missing step is “execute an old regression”. The current P0 is the **real-model acceptance correction tranche**: finish model-runtime/Automation orchestration, execute its new regressions locally, then repeat quick/full-gate, native visual, package/install and isolated real-model acceptance on one final immutable SHA. Candidate identity remains checked at both ends of the release gate.
 
 ## 4. User-facing workflow coverage
 
@@ -110,11 +110,11 @@ There is therefore no remaining P0 item whose only missing step is “execute th
 | Interface shell / navigation | A | `user-guide/interface-tour.md`, `architecture/ui-shell.md` | twelve-workspace registry, sidebar navigation, dock topology, leave guards, stable RTL geometry and status synchronization audited against current shell code; screenshots remain P2 evidence |
 | Profiles | A | `user-guide/profiles.md`, profile service/repository/viewmodel tests | required fields, normalization limits, IDs, `ready` persistence and Training handoff audited against current code/tests; dedicated schema page remains optional |
 | Datasets | A | `user-guide/datasets.md`, `training_pipeline.md` | final import/validation examples and screenshots |
-| Training | A | `user-guide/training.md`, `training_pipeline.md` | reconcile future dynamics instrumentation with current v0.1.0 boundaries |
+| Training | A | `user-guide/training.md`, `training_pipeline.md` | model readiness now includes Transformers text-mapping support; ModelVersion publication is application-owned; fresh local/full real-model evidence remains |
 | Model versions / Snapshots | A | `user-guide/snapshots.md`, `architecture/provenance-and-external-state.md` | registry/artifact/base-model provenance boundaries audited against current service/tests; final screenshot pass remains |
 | Agents lineage | A | `user-guide/agents-lineage.md`, `architecture/agents-lineage.md`, `architecture/agents-protected-history.md` | safety-first projection/resource-link publication and protected history are implemented, documented and executed in the quick-gate inventory; continue only concrete remaining race/provenance findings |
-| Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | screenshots; future bridge to richer training-dynamics evidence |
-| Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | review-to-run semantic identity now fails closed with `recipe_stale`; targeted pytest/Ruff/i18n evidence exists; final clean-gate/visual pass remains |
+| Tests / Analysis | A | `user-guide/tests-and-analysis.md`, `reference/evaluation-contract.md` | application-level portrait comparison now shares protocol identity/delta semantics with acceptance; fresh execution evidence and screenshots remain |
+| Automation | A | `user-guide/automation.md`, `architecture/automation.md`, `reference/automation-recipe-schema.md` | production now has reserved `ptl_internal` actions over live services plus clean-workspace full acceptance; workspace recipes remain trusted-host only; fresh local/full/real-model execution evidence remains |
 | Appearance / language | A | `user-guide/appearance-and-language.md`, `architecture/localization.md`, `architecture/preference-persistence.md` | strict `#RRGGBB` custom-accent write validation is implemented and targeted-tested; final visual/release pass remains |
 | Key bindings / gestures | A | `user-guide/key-bindings.md`, `reference/keyboard-mouse-bindings.md`, `architecture/preference-persistence.md` | current user-global persistence/concurrency boundary is explicit; revisit only if multi-workspace processes become supported |
 | In-app Docs workspace | A | `user-guide/documentation.md`, `development/documentation-runtime.md` | visual examples; rendered-Markdown remains explicitly non-current |
@@ -188,7 +188,7 @@ The developer layer is largely complete:
 
 `tools/codebase_stats.py` makes measurement provenance explicit: human and JSON output identify repository root, branch, full/short commit, upstream and dirty state; untracked files remain outside `git ls-files` statistics but are reported in provenance. The clean `69ef4d28...` run provides the frozen scale baseline instead of an estimate.
 
-The current branch has fresh **quick-gate** evidence at `39d25de13568571a019992fe84ec8a616b6e7048`: compileall PASS, Ruff PASS, typing audit PASS with zero blocking findings, **603 pytest passes ×3**, i18n audit PASS with zero UI literals/missing references, docs audit PASS, and clean codebase statistics. This is still not the final release proof because full mypy/build/package-audit, native visual review, installed-package acceptance and final-SHA evidence remain outstanding.
+The last fully executed frozen candidate is `2f06aa5d0898f1141af4474f9b77b19b2b5896fb`: compileall/Ruff/typing PASS, production mypy **0 issues in 323 source files**, full pytest **672 passed**, i18n/docs audit PASS, wheel+sdist build PASS, package audit PASS and final candidate-identity PASS. Real-model acceptance work moved HEAD beyond that commit, so this evidence is historical for the pre-acceptance baseline rather than proof of the current branch.
 
 Targeted local evidence supplied for commit `015952d669802fe8234432b78edd7149f8c5b2bb` established a narrower checkpoint for the Automation review-identity + strict custom-accent tranche:
 
@@ -206,10 +206,12 @@ The supplied typing-audit output showed the known informational suppression inve
 Remaining work is predominantly **final-candidate audit/evidence population**, not missing broad feature prose:
 
 - continue the code-vs-document crack audit and repair only concrete mismatches;
-- run the **full** release gate on the clean final candidate after documentation stabilizes;
-- regenerate final codebase statistics and compare them with the frozen `69ef4d28...` baseline and the intermediate `39d25de...` candidate;
+- execute the new model-runtime/internal-Automation regression tranche locally;
+- run quick ×3 and then the **full** release gate on the clean final candidate;
+- regenerate final codebase statistics and compare them with the frozen `69ef4d28...` baseline and the pre-acceptance `2f06aa5d...` candidate;
 - run automatic and native/manual visual audit on controlled/demo state;
-- execute the full-gate built-package audit and install the resulting wheel into a clean environment;
+- execute built-package/install acceptance in a clean environment;
+- run isolated `ptl.acceptance.run` with the real Qwen3.5-0.8B + controlled JSONL Dataset and preserve structured output/logs;
 - verify links and bundled in-application docs after final documentation changes;
 - replace screenshot plans with reproducible captures where spatial understanding matters.
 
