@@ -321,31 +321,53 @@ class _FakeAutoConfig:
         return cls.config
 
 
-class _FakeTransformersMultimodal:
+class _FakeQwen35TextModel:
+    pass
+
+
+class _FakeAutoModelForCausalLM:
+    _model_mapping = {_FakeConfig: _FakeQwen35TextModel}
+
+
+class _FakeAutoTokenizer:
+    pass
+
+
+class _FakeTransformersTextReady:
     AutoConfig = _FakeAutoConfig
-    AutoModelForMultimodalLM = object()
+    AutoModelForCausalLM = _FakeAutoModelForCausalLM
+    AutoTokenizer = _FakeAutoTokenizer
 
 
-class _FakeTransformersCausalOnly:
+class _FakeTransformersUnsupported:
     AutoConfig = _FakeAutoConfig
-    AutoModelForCausalLM = object()
+    AutoModelForCausalLM = type(
+        "_UnsupportedAutoModel",
+        (),
+        {"_model_mapping": {}},
+    )
+    AutoTokenizer = _FakeAutoTokenizer
 
 
-def test_qwen35_runtime_selects_multimodal_auto_loader() -> None:
+def test_qwen35_runtime_selects_text_causal_auto_loader() -> None:
     spec = inspect_transformers_runtime(
-        _FakeTransformersMultimodal,
+        _FakeTransformersTextReady,
         "/models/qwen3.5-0.8b",
     )
 
     assert spec.model_type == "qwen3_5"
     assert spec.architectures == ("Qwen3_5ForConditionalGeneration",)
-    assert spec.loader_name == "AutoModelForMultimodalLM"
+    assert spec.loader_name == "AutoModelForCausalLM"
+    assert spec.model_class_name == "_FakeQwen35TextModel"
 
 
-def test_qwen35_runtime_rejects_causal_only_transformers_build() -> None:
-    with pytest.raises(TransformersRuntimeError, match="compatible"):
+def test_qwen35_runtime_rejects_transformers_without_text_mapping() -> None:
+    with pytest.raises(
+        TransformersRuntimeError,
+        match="does not support",
+    ):
         inspect_transformers_runtime(
-            _FakeTransformersCausalOnly,
+            _FakeTransformersUnsupported,
             "/models/qwen3.5-0.8b",
         )
 
