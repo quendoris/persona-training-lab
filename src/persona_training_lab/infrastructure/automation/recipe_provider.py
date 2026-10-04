@@ -133,6 +133,35 @@ class FilesystemAutomationRecipeProvider:
 
     @staticmethod
     def _builtin_recipes() -> tuple[AutomationRecipe, ...]:
+        def action(
+            recipe_id: str,
+            title: str,
+            description: str,
+            action_id: str,
+            *,
+            inputs: tuple[AutomationInput, ...] = (),
+            tags: tuple[str, ...] = (),
+        ) -> AutomationRecipe:
+            return AutomationRecipe(
+                recipe_id=recipe_id,
+                version="1.0.0",
+                title=title,
+                description=description,
+                command=("ptl-action", action_id),
+                tags=("ptl", "internal", *tags),
+                inputs=inputs,
+                outputs=(AutomationOutput("stdout_json"),),
+                resource_claims=(
+                    AutomationResourceClaim(
+                        "automation_action",
+                        recipe_id,
+                        "write",
+                    ),
+                ),
+                source="builtin",
+                internal_action=action_id,
+            )
+
         return (
             AutomationRecipe(
                 recipe_id="workspace_health",
@@ -150,6 +179,180 @@ class FilesystemAutomationRecipeProvider:
                     AutomationResourceClaim("workspace", "{workspace}", "read"),
                 ),
                 source="builtin",
+            ),
+            action(
+                "ptl.model.probe",
+                "PTL · Model probe",
+                "Check model files and Transformers runtime compatibility.",
+                "model.probe",
+                inputs=(
+                    AutomationInput(
+                        "model_path",
+                        default="Qwen3.5-0.8B",
+                        description="Model reference or local path.",
+                    ),
+                ),
+                tags=("model", "diagnostic"),
+            ),
+            action(
+                "ptl.model.generate",
+                "PTL · Model generate",
+                "Run one text generation through the configured local model.",
+                "model.generate",
+                inputs=(
+                    AutomationInput(
+                        "model_path",
+                        default="Qwen3.5-0.8B",
+                        description="Model reference or local path.",
+                    ),
+                    AutomationInput(
+                        "prompt",
+                        required=True,
+                        description="User prompt.",
+                    ),
+                    AutomationInput(
+                        "instruction",
+                        description="Optional system instruction.",
+                    ),
+                ),
+                tags=("model", "inference"),
+            ),
+            action(
+                "ptl.profile.create",
+                "PTL · Create profile",
+                "Create a Profile through ProfilesService.",
+                "profile.create",
+                inputs=(
+                    AutomationInput("title", required=True),
+                    AutomationInput("description", required=True),
+                    AutomationInput(
+                        "communication_style",
+                        required=True,
+                    ),
+                    AutomationInput("principles", required=True),
+                    AutomationInput("constraints", required=True),
+                    AutomationInput("notes"),
+                ),
+                tags=("profile", "write"),
+            ),
+            action(
+                "ptl.dataset.import",
+                "PTL · Import dataset",
+                "Import an external JSONL Dataset.",
+                "dataset.import",
+                inputs=(AutomationInput("path", required=True),),
+                tags=("dataset", "write"),
+            ),
+            action(
+                "ptl.dataset.validate",
+                "PTL · Validate dataset",
+                "Validate a persisted Dataset against its current bytes.",
+                "dataset.validate",
+                inputs=(AutomationInput("dataset_id", required=True),),
+                tags=("dataset", "validation"),
+            ),
+            action(
+                "ptl.dataset.approve",
+                "PTL · Approve dataset",
+                "Validate and approve a Dataset with its current SHA-256.",
+                "dataset.approve",
+                inputs=(AutomationInput("dataset_id", required=True),),
+                tags=("dataset", "approval"),
+            ),
+            action(
+                "ptl.training.create",
+                "PTL · Create training run",
+                "Create a pinned Training run through TrainingService.",
+                "training.create",
+                inputs=(
+                    AutomationInput("title", default="Automation training"),
+                    AutomationInput("profile_id", required=True),
+                    AutomationInput("dataset_id", required=True),
+                    AutomationInput(
+                        "base_model",
+                        default="Qwen3.5-0.8B",
+                    ),
+                    AutomationInput("epochs", default="1"),
+                    AutomationInput("batch_size", default="1"),
+                    AutomationInput("learning_rate", default="0.0001"),
+                ),
+                tags=("training", "write"),
+            ),
+            action(
+                "ptl.training.start",
+                "PTL · Start training",
+                "Run the exact pinned Training run and publish its ModelVersion.",
+                "training.start",
+                inputs=(AutomationInput("run_id", required=True),),
+                tags=("training", "model-version"),
+            ),
+            action(
+                "ptl.model_versions.list",
+                "PTL · List model versions",
+                "Return the persisted ModelVersion registry.",
+                "model_versions.list",
+                tags=("model-version", "read"),
+            ),
+            action(
+                "ptl.experiment.portrait",
+                "PTL · Big Five portrait",
+                "Run the built-in Big Five battery on base/latest or an exact ModelVersion.",
+                "experiment.portrait",
+                inputs=(
+                    AutomationInput(
+                        "model_version_id",
+                        description=(
+                            "Optional exact ModelVersion ID; empty selects "
+                            "the normal service default."
+                        ),
+                    ),
+                ),
+                tags=("evaluation", "big-five"),
+            ),
+            action(
+                "ptl.state.snapshot",
+                "PTL · State snapshot",
+                "Collect application-layer research state as structured JSON.",
+                "state.snapshot",
+                tags=("diagnostic", "provenance"),
+            ),
+            action(
+                "ptl.acceptance.run",
+                "PTL · Full release acceptance",
+                "Run model, Dataset, Training, ModelVersion and Big Five workflow in a clean workspace.",
+                "acceptance.run",
+                inputs=(
+                    AutomationInput(
+                        "dataset_path",
+                        required=True,
+                        description="Controlled JSONL acceptance dataset.",
+                    ),
+                    AutomationInput(
+                        "model_path",
+                        default="Qwen3.5-0.8B",
+                    ),
+                    AutomationInput(
+                        "prompt",
+                        default="Reply briefly: PTL acceptance probe.",
+                    ),
+                    AutomationInput("instruction"),
+                    AutomationInput(
+                        "profile_title",
+                        default="Acceptance Neutral v1",
+                    ),
+                    AutomationInput("profile_description"),
+                    AutomationInput("communication_style"),
+                    AutomationInput("principles"),
+                    AutomationInput("constraints"),
+                    AutomationInput(
+                        "training_title",
+                        default="PTL automated acceptance",
+                    ),
+                    AutomationInput("epochs", default="1"),
+                    AutomationInput("batch_size", default="1"),
+                    AutomationInput("learning_rate", default="0.0001"),
+                ),
+                tags=("acceptance", "release", "end-to-end"),
             ),
         )
 
