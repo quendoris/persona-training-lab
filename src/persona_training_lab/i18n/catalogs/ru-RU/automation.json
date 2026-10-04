@@ -118,6 +118,7 @@
     "inspector.context.automation.status": "Реестр воспроизводимых recipes и auditable trusted-host ad-hoc выполнение.",
     "inspector.context.automation.title": "Автоматизация",
     "nav.automation": "Автоматизация",
-    "operations.kind.automation": "Автоматизация"
+    "operations.kind.automation": "Автоматизация",
+    "automation.effect_scope.ptl_internal": "внутренний PTL"
   }
 }
