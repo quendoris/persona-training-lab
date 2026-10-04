@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from persona_training_lab.application.local_model.service import LocalModelService
 from persona_training_lab.application.local_model.status_mapping import (
     LocalModelStatus,
@@ -14,6 +16,10 @@ from persona_training_lab.application.ports.local_model_probe import (
 from persona_training_lab.i18n.deep_audit import collect_deep_literals
 from persona_training_lab.infrastructure.local_model.probe_provider import (
     FilesystemLocalModelProbeProvider,
+)
+from persona_training_lab.infrastructure.local_model.transformers_runtime import (
+    TransformersRuntimeError,
+    inspect_transformers_runtime,
 )
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
@@ -283,3 +289,55 @@ def test_local_model_inference_success_with_stub_provider() -> None:
     assert vm.local_inference_status_code is LocalModelStatus.RESPONDING
     assert vm.local_inference_status == "Модель отвечает"
     assert vm.inference_response == "ok"
+
+
+
+class _FakeConfig:
+    def __init__(
+        self,
+        model_type: str,
+        architectures: tuple[str, ...],
+    ) -> None:
+        self.model_type = model_type
+        self.architectures = architectures
+
+
+class _FakeAutoConfig:
+    config = _FakeConfig(
+        "qwen3_5",
+        ("Qwen3_5ForConditionalGeneration",),
+    )
+
+    @classmethod
+    def from_pretrained(cls, _path: str, **kwargs):
+        assert kwargs["trust_remote_code"] is False
+        return cls.config
+
+
+class _FakeTransformersMultimodal:
+    AutoConfig = _FakeAutoConfig
+    AutoModelForMultimodalLM = object()
+
+
+class _FakeTransformersCausalOnly:
+    AutoConfig = _FakeAutoConfig
+    AutoModelForCausalLM = object()
+
+
+def test_qwen35_runtime_selects_multimodal_auto_loader() -> None:
+    spec = inspect_transformers_runtime(
+        _FakeTransformersMultimodal,
+        "/models/qwen3.5-0.8b",
+    )
+
+    assert spec.model_type == "qwen3_5"
+    assert spec.architectures == ("Qwen3_5ForConditionalGeneration",)
+    assert spec.loader_name == "AutoModelForMultimodalLM"
+
+
+def test_qwen35_runtime_rejects_causal_only_transformers_build() -> None:
+    with pytest.raises(TransformersRuntimeError, match="compatible"):
+        inspect_transformers_runtime(
+            _FakeTransformersCausalOnly,
+            "/models/qwen3.5-0.8b",
+        )
