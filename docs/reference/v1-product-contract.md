@@ -169,7 +169,7 @@ and are discovered under:
 
 Recipe execution uses explicit argv/`exec` semantics. Inputs/placeholders/resource claims/timeout/working directory are validated/rendered before the execution snapshot is created.
 
-The built-in `workspace_health` diagnostic declares a workspace read claim. Production also exposes built-in internal actions for model, Profile, Dataset, Training, ModelVersion, Big Five evaluation, protocol-safe Analysis comparison, state inspection and a clean-workspace end-to-end release acceptance workflow.
+The built-in `workspace_health` diagnostic declares a workspace read claim. Production also exposes built-in internal actions for model, Profile, Dataset import/preview/validation/approval, Training creation/start/logs, ModelVersion, Big Five evaluation, protocol-safe Analysis comparison, lineage/state inspection and a clean-workspace end-to-end release acceptance workflow.
 
 ### 10.2 Ad-hoc authorization
 
