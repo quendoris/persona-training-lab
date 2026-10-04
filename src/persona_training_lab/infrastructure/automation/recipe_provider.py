@@ -370,6 +370,51 @@ class FilesystemAutomationRecipeProvider:
                 tags=("diagnostic", "provenance"),
             ),
             action(
+                "ptl.training.sweep",
+                "PTL · Training sweep",
+                "Run controlled sequential full-finetune arms from one baseline.",
+                "training.sweep",
+                inputs=(
+                    AutomationInput(
+                        "dataset_path",
+                        required=True,
+                        description="Controlled JSONL sweep dataset.",
+                    ),
+                    AutomationInput(
+                        "model_path",
+                        default="Qwen3.5-0.8B",
+                    ),
+                    AutomationInput(
+                        "prompt",
+                        default="Reply briefly: PTL sweep probe.",
+                    ),
+                    AutomationInput("instruction"),
+                    AutomationInput(
+                        "profile_title",
+                        default="Sweep Neutral v1",
+                    ),
+                    AutomationInput("profile_description"),
+                    AutomationInput("communication_style"),
+                    AutomationInput("principles"),
+                    AutomationInput("constraints"),
+                    AutomationInput(
+                        "training_title_prefix",
+                        default="PTL LR sweep",
+                    ),
+                    AutomationInput(
+                        "learning_rates",
+                        default="0.0001,0.00003,0.00001,0.000003",
+                        description=(
+                            "Comma-separated positive learning rates; "
+                            "each arm starts from the same base model."
+                        ),
+                    ),
+                    AutomationInput("epochs", default="1"),
+                    AutomationInput("batch_size", default="1"),
+                ),
+                tags=("training", "sweep", "experiment"),
+            ),
+            action(
                 "ptl.acceptance.run",
                 "PTL · Full release acceptance",
                 "Run the complete model-to-evaluation acceptance workflow.",
