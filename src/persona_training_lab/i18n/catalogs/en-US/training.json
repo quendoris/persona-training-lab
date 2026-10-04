@@ -142,6 +142,11 @@
     "training.version.status.draft": "draft",
     "training.version.status.failed": "failed",
     "training.version.status.unknown": "{status}",
-    "training.version.title": "Personality version · {title}"
+    "training.version.title": "Personality version · {title}",
+    "training.local_model.diagnostic.inference_dependencies_missing": "Missing optional inference dependencies: {packages}. Install the PTL inference or training extra.",
+    "training.local_model.diagnostic.model_runtime_incompatible": "The installed Transformers runtime cannot load this model architecture: {detail}",
+    "training.local_model.diagnostic.inference_runtime_ready": "Inference runtime is ready: {loader} ({model_type}).",
+    "training.local_model.diagnostic.generation_failed": "Generation failed: {detail}",
+    "training.local_model.diagnostic.insufficient_resources": "The model runtime ran out of available compute or memory resources."
   }
 }
