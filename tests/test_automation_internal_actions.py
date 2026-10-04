@@ -79,7 +79,6 @@ def test_production_automation_exposes_and_runs_internal_ptl_actions(
         container.close()
 
 
-
 def test_training_sweep_learning_rate_parser() -> None:
     assert _parse_learning_rates(
         "0.0001, 3e-5, 1e-5, 0.000003"
