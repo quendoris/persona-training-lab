@@ -142,6 +142,11 @@
     "training.version.status.draft": "مسودة",
     "training.version.status.failed": "فشل",
     "training.version.status.unknown": "{status}",
-    "training.version.title": "إصدار الشخصية · {title}"
+    "training.version.title": "إصدار الشخصية · {title}",
+    "training.local_model.diagnostic.inference_dependencies_missing": "تبعيات الاستدلال الاختيارية مفقودة: {packages}. ثبّت إضافة inference أو training الخاصة بـ PTL.",
+    "training.local_model.diagnostic.model_runtime_incompatible": "بيئة Transformers المثبتة لا تستطيع تحميل بنية هذا النموذج: {detail}",
+    "training.local_model.diagnostic.inference_runtime_ready": "بيئة الاستدلال جاهزة: {loader} ({model_type}).",
+    "training.local_model.diagnostic.generation_failed": "فشل التوليد: {detail}",
+    "training.local_model.diagnostic.insufficient_resources": "نفدت موارد الحوسبة أو الذاكرة المتاحة أثناء تشغيل النموذج."
   }
 }
