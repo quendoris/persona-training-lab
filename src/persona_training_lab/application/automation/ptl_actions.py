@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
+from math import sqrt
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -69,6 +70,24 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+def _parse_learning_rates(value: str) -> tuple[float, ...]:
+    raw_items = [item.strip() for item in value.split(",") if item.strip()]
+    if not raw_items:
+        raise ValueError("learning_rates must contain at least one value")
+    if len(raw_items) > 12:
+        raise ValueError("learning_rates supports at most 12 values")
+    rates: list[float] = []
+    for raw in raw_items:
+        try:
+            rate = float(raw)
+        except ValueError as exc:
+            raise ValueError(f"invalid learning rate: {raw}") from exc
+        if rate <= 0:
+            raise ValueError("learning rates must be positive")
+        rates.append(rate)
+    return tuple(rates)
+
+
 @dataclass(slots=True)
 class PTLAutomationActionRunner:
     local_model_service: LocalModelService
@@ -108,6 +127,7 @@ class PTLAutomationActionRunner:
             "analysis.compare": self._analysis_compare,
             "state.snapshot": self._state_snapshot,
             "acceptance.run": self._acceptance_run,
+            "training.sweep": self._training_sweep,
         }
         handler = actions.get(action_id)
         if handler is None:
@@ -580,6 +600,278 @@ class PTLAutomationActionRunner:
             True,
             "state_snapshot",
             payload,
+        )
+
+    def _training_sweep(
+        self,
+        inputs: Mapping[str, str],
+    ) -> AutomationInternalActionResult:
+        if self.model_versions_service.list_model_versions():
+            return AutomationInternalActionResult(
+                False,
+                "sweep_requires_clean_workspace",
+                {"reason": "model_versions_not_empty"},
+            )
+        if self.training_service.list_training_runs():
+            return AutomationInternalActionResult(
+                False,
+                "sweep_requires_clean_workspace",
+                {"reason": "training_runs_not_empty"},
+            )
+        if self.experiments_service.list_experiments():
+            return AutomationInternalActionResult(
+                False,
+                "sweep_requires_clean_workspace",
+                {"reason": "experiments_not_empty"},
+            )
+
+        try:
+            learning_rates = _parse_learning_rates(
+                inputs.get(
+                    "learning_rates",
+                    "0.0001,0.00003,0.00001,0.000003",
+                )
+            )
+        except ValueError as exc:
+            return AutomationInternalActionResult(
+                False,
+                "sweep_invalid_learning_rates",
+                {"learning_rates": inputs.get("learning_rates", "")},
+                str(exc),
+            )
+
+        probe = self._model_probe(inputs)
+        if not probe.ok:
+            return probe
+        generated = self._model_generate(inputs)
+        if not generated.ok:
+            return generated
+
+        profile_title = (
+            inputs.get("profile_title", "").strip()
+            or "Sweep Neutral v1"
+        )
+        created = self._profile_create(
+            {
+                "title": profile_title,
+                "description": (
+                    inputs.get("profile_description", "").strip()
+                    or "Controlled PTL training-sweep profile."
+                ),
+                "communication_style": (
+                    inputs.get("communication_style", "").strip()
+                    or "Follow the supplied training examples."
+                ),
+                "principles": (
+                    inputs.get("principles", "").strip()
+                    or "Remain internally consistent."
+                ),
+                "constraints": (
+                    inputs.get("constraints", "").strip()
+                    or "Do not invent unavailable facts."
+                ),
+                "notes": "Created by PTL internal training sweep.",
+            }
+        )
+        if not created.ok:
+            return created
+        profile_payload = created.payload.get("profile")
+        profile_id = (
+            str(profile_payload.get("profile_id", ""))
+            if isinstance(profile_payload, Mapping)
+            else ""
+        )
+
+        dataset_path = inputs.get("dataset_path", "").strip()
+        if not dataset_path:
+            return AutomationInternalActionResult(
+                False,
+                "input_required",
+                {"inputs": ["dataset_path"]},
+            )
+        resolved_dataset = str(Path(dataset_path).expanduser().resolve())
+        imported = self._dataset_import({"path": resolved_dataset})
+        if not imported.ok:
+            return imported
+        dataset_payload = imported.payload.get("dataset")
+        dataset_id = (
+            str(dataset_payload.get("dataset_id", ""))
+            if isinstance(dataset_payload, Mapping)
+            else ""
+        )
+
+        preview = self._dataset_preview(
+            {"dataset_id": dataset_id, "limit": "10"}
+        )
+        if not preview.ok:
+            return preview
+        validated = self._dataset_validate({"dataset_id": dataset_id})
+        if not validated.ok:
+            return validated
+        approved = self._dataset_approve({"dataset_id": dataset_id})
+        if not approved.ok:
+            return approved
+
+        baseline = self._experiment_portrait({})
+        baseline_portrait = baseline.payload.get("portrait")
+        if not baseline.ok or not isinstance(baseline_portrait, Mapping):
+            return AutomationInternalActionResult(
+                False,
+                "sweep_baseline_failed",
+                {"baseline": dict(baseline.payload)},
+                baseline.error,
+            )
+        baseline_passed = int(baseline_portrait.get("passed", 0))
+        baseline_total = int(baseline_portrait.get("total", 0))
+        if not (baseline_passed == baseline_total == 10):
+            return AutomationInternalActionResult(
+                False,
+                "sweep_baseline_incomplete",
+                {"baseline": dict(baseline.payload)},
+            )
+
+        baseline_experiment = baseline.payload.get("experiment")
+        if not isinstance(baseline_experiment, Mapping):
+            return AutomationInternalActionResult(
+                False,
+                "sweep_baseline_missing",
+                {"baseline": dict(baseline.payload)},
+            )
+        baseline_subtitle = str(baseline_experiment.get("subtitle", ""))
+
+        arms: list[dict[str, object]] = []
+        title_prefix = (
+            inputs.get("training_title_prefix", "").strip()
+            or "PTL LR sweep"
+        )
+        for index, learning_rate in enumerate(learning_rates, start=1):
+            rate_text = format(learning_rate, ".12g")
+            created_run = self._training_create(
+                {
+                    "title": f"{title_prefix} · lr={rate_text}",
+                    "profile_id": profile_id,
+                    "dataset_id": dataset_id,
+                    "base_model": (
+                        inputs.get("model_path", "").strip()
+                        or self.local_model_service.model_name
+                    ),
+                    "epochs": inputs.get("epochs", "1"),
+                    "batch_size": inputs.get("batch_size", "1"),
+                    "learning_rate": rate_text,
+                }
+            )
+            if not created_run.ok:
+                arms.append(
+                    {
+                        "index": index,
+                        "learning_rate": learning_rate,
+                        "status": "create_failed",
+                        "code": created_run.code,
+                    }
+                )
+                continue
+
+            run_payload = created_run.payload.get("training_run")
+            run_id = (
+                str(run_payload.get("run_id", ""))
+                if isinstance(run_payload, Mapping)
+                else ""
+            )
+            trained = self._training_start({"run_id": run_id})
+            arm: dict[str, object] = {
+                "index": index,
+                "learning_rate": learning_rate,
+                "run_id": run_id,
+                "training_ok": trained.ok,
+                "training_code": trained.code,
+                "training": dict(trained.payload),
+            }
+            if not trained.ok:
+                arm["status"] = "training_failed"
+                arms.append(arm)
+                continue
+
+            version_payload = trained.payload.get("model_version")
+            version_id = (
+                str(version_payload.get("version_id", ""))
+                if isinstance(version_payload, Mapping)
+                else ""
+            )
+            arm["model_version_id"] = version_id
+            if not version_id:
+                arm["status"] = "model_version_missing"
+                arms.append(arm)
+                continue
+
+            post = self._experiment_portrait(
+                {"model_version_id": version_id}
+            )
+            arm["post_ok"] = post.ok
+            arm["post_code"] = post.code
+            arm["post"] = dict(post.payload)
+
+            post_portrait = post.payload.get("portrait")
+            if not isinstance(post_portrait, Mapping):
+                arm["status"] = "post_missing"
+                arms.append(arm)
+                continue
+
+            passed = int(post_portrait.get("passed", 0))
+            total = int(post_portrait.get("total", 0))
+            arm["post_passed"] = passed
+            arm["post_total"] = total
+            arm["response_valid_ratio"] = (
+                passed / total if total > 0 else 0.0
+            )
+            arm["trait_scores"] = dict(
+                post_portrait.get("trait_scores", {})
+                if isinstance(post_portrait.get("trait_scores"), Mapping)
+                else {}
+            )
+
+            post_experiment = post.payload.get("experiment")
+            if isinstance(post_experiment, Mapping):
+                comparison = compare_portrait_payloads(
+                    baseline_subtitle,
+                    str(post_experiment.get("subtitle", "")),
+                )
+                arm["comparison_code"] = comparison.reason_code
+                arm["comparison_complete"] = comparison.complete
+                arm["trait_deltas"] = dict(comparison.deltas)
+                arm["trait_delta_l2"] = sqrt(
+                    sum(
+                        float(value) ** 2
+                        for value in comparison.deltas.values()
+                    )
+                )
+                arm["status"] = (
+                    "completed"
+                    if comparison.comparable
+                    else "portrait_incomplete"
+                )
+            else:
+                arm["status"] = "post_experiment_missing"
+            arms.append(arm)
+
+        complete_arms = sum(
+            1 for arm in arms if arm.get("status") == "completed"
+        )
+        return AutomationInternalActionResult(
+            True,
+            "sweep_completed",
+            {
+                "model_probe": dict(probe.payload),
+                "model_generate": dict(generated.payload),
+                "profile_id": profile_id,
+                "dataset_id": dataset_id,
+                "baseline": dict(baseline.payload),
+                "learning_rates": list(learning_rates),
+                "epochs": int(inputs.get("epochs", "1") or "1"),
+                "batch_size": int(inputs.get("batch_size", "1") or "1"),
+                "arms": arms,
+                "complete_arms": complete_arms,
+                "attempted_arms": len(arms),
+            },
         )
 
     def _acceptance_run(
