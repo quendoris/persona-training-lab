@@ -142,6 +142,11 @@
     "training.version.status.draft": "черновик",
     "training.version.status.failed": "ошибка",
     "training.version.status.unknown": "{status}",
-    "training.version.title": "Версия личности · {title}"
+    "training.version.title": "Версия личности · {title}",
+    "training.local_model.diagnostic.inference_dependencies_missing": "Не установлены дополнительные зависимости inference: {packages}. Установите extra inference или training для PTL.",
+    "training.local_model.diagnostic.model_runtime_incompatible": "Установленный Transformers не может загрузить архитектуру этой модели: {detail}",
+    "training.local_model.diagnostic.inference_runtime_ready": "Inference runtime готов: {loader} ({model_type}).",
+    "training.local_model.diagnostic.generation_failed": "Ошибка генерации: {detail}",
+    "training.local_model.diagnostic.insufficient_resources": "Для выполнения модели не хватило доступных вычислительных ресурсов или памяти."
   }
 }
