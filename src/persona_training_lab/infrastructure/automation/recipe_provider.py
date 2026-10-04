@@ -324,6 +324,23 @@ class FilesystemAutomationRecipeProvider:
                 tags=("evaluation", "big-five"),
             ),
             action(
+                "ptl.analysis.compare",
+                "PTL · Compare portraits",
+                "Compare two persisted Big Five experiments.",
+                "analysis.compare",
+                inputs=(
+                    AutomationInput(
+                        "left_experiment_id",
+                        required=True,
+                    ),
+                    AutomationInput(
+                        "right_experiment_id",
+                        required=True,
+                    ),
+                ),
+                tags=("analysis", "big-five"),
+            ),
+            action(
                 "ptl.state.snapshot",
                 "PTL · State snapshot",
                 "Collect application research state as structured JSON.",
