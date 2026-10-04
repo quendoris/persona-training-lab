@@ -66,6 +66,7 @@ class AutomationRecipe:
     source_path: str = ""
     working_directory: str = ""
     timeout_seconds: int = 0
+    internal_action: str = ""
 
 
 def automation_recipe_identity(recipe: AutomationRecipe) -> str:
@@ -104,6 +105,7 @@ def automation_recipe_identity(recipe: AutomationRecipe) -> str:
         "source_path": recipe.source_path,
         "working_directory": recipe.working_directory,
         "timeout_seconds": recipe.timeout_seconds,
+        "internal_action": recipe.internal_action,
     }
     canonical = json.dumps(
         payload,
@@ -158,6 +160,33 @@ class AutomationRunResult:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class AutomationInternalActionResult:
+    ok: bool
+    code: str
+    payload: Mapping[str, object] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+    error: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "payload",
+            MappingProxyType(dict(self.payload)),
+        )
+
+
+class AutomationInternalActionRunner(Protocol):
+    def run(
+        self,
+        action_id: str,
+        inputs: Mapping[str, str],
+        *,
+        cancel_requested: Callable[[], bool] | None = None,
+    ) -> AutomationInternalActionResult: ...
+
+
 class AutomationRecipeProvider(Protocol):
     def list_recipes(self) -> tuple[AutomationRecipe, ...]: ...
 
@@ -173,6 +202,7 @@ class AutomationService:
     workspace_root: Path
     process_runner: AutomationProcessRunner = run_automation_process
     audit_trail: AutomationAuditTrail | None = None
+    action_runner: AutomationInternalActionRunner | None = None
 
     def list_recipes(self, query: str = "") -> tuple[AutomationRecipe, ...]:
         recipes = tuple(self.recipe_provider.list_recipes())
