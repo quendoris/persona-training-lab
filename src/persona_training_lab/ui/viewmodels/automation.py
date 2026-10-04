@@ -21,9 +21,33 @@ from persona_training_lab.application.automation.service import (
 
 AUTOMATION_RECIPE_TITLE_KEYS = {
     "workspace_health": "automation.recipe.workspace_health.title",
+    "ptl.model.probe": "automation.recipe.ptl_model_probe.title",
+    "ptl.model.generate": "automation.recipe.ptl_model_generate.title",
+    "ptl.profile.create": "automation.recipe.ptl_profile_create.title",
+    "ptl.dataset.import": "automation.recipe.ptl_dataset_import.title",
+    "ptl.dataset.validate": "automation.recipe.ptl_dataset_validate.title",
+    "ptl.dataset.approve": "automation.recipe.ptl_dataset_approve.title",
+    "ptl.training.create": "automation.recipe.ptl_training_create.title",
+    "ptl.training.start": "automation.recipe.ptl_training_start.title",
+    "ptl.model_versions.list": "automation.recipe.ptl_model_versions_list.title",
+    "ptl.experiment.portrait": "automation.recipe.ptl_experiment_portrait.title",
+    "ptl.state.snapshot": "automation.recipe.ptl_state_snapshot.title",
+    "ptl.acceptance.run": "automation.recipe.ptl_acceptance_run.title",
 }
 AUTOMATION_RECIPE_DESCRIPTION_KEYS = {
     "workspace_health": "automation.recipe.workspace_health.description",
+    "ptl.model.probe": "automation.recipe.ptl_model_probe.description",
+    "ptl.model.generate": "automation.recipe.ptl_model_generate.description",
+    "ptl.profile.create": "automation.recipe.ptl_profile_create.description",
+    "ptl.dataset.import": "automation.recipe.ptl_dataset_import.description",
+    "ptl.dataset.validate": "automation.recipe.ptl_dataset_validate.description",
+    "ptl.dataset.approve": "automation.recipe.ptl_dataset_approve.description",
+    "ptl.training.create": "automation.recipe.ptl_training_create.description",
+    "ptl.training.start": "automation.recipe.ptl_training_start.description",
+    "ptl.model_versions.list": "automation.recipe.ptl_model_versions_list.description",
+    "ptl.experiment.portrait": "automation.recipe.ptl_experiment_portrait.description",
+    "ptl.state.snapshot": "automation.recipe.ptl_state_snapshot.description",
+    "ptl.acceptance.run": "automation.recipe.ptl_acceptance_run.description",
 }
 AUTOMATION_RUN_STATUS_KEYS = {
     "succeeded": "automation.run.status.succeeded",
