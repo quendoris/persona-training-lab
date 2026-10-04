@@ -167,7 +167,7 @@ class FilesystemAutomationRecipeProvider:
                 internal_action=action_id,
             )
 
-        return (
+        base = (
             AutomationRecipe(
                 recipe_id="workspace_health",
                 version="1.0.0",
@@ -181,18 +181,23 @@ class FilesystemAutomationRecipeProvider:
                 tags=("diagnostic", "workspace"),
                 outputs=(AutomationOutput("stdout_json"),),
                 resource_claims=(
-                    AutomationResourceClaim("workspace", "{workspace}", "read"),
+                    AutomationResourceClaim(
+                        "workspace",
+                        "{workspace}",
+                        "read",
+                    ),
                 ),
                 source="builtin",
             ),
-        ) + (
-            ()
-            if not self._include_ptl_actions
-            else (
-                action(
+        )
+        if not self._include_ptl_actions:
+            return base
+
+        ptl_actions = (
+            action(
                 "ptl.model.probe",
                 "PTL · Model probe",
-                "Check model files and Transformers runtime compatibility.",
+                "Check model files and Transformers text runtime support.",
                 "model.probe",
                 inputs=(
                     AutomationInput(
@@ -206,7 +211,7 @@ class FilesystemAutomationRecipeProvider:
             action(
                 "ptl.model.generate",
                 "PTL · Model generate",
-                "Run one text generation through the configured local model.",
+                "Run one text generation through the local model.",
                 "model.generate",
                 inputs=(
                     AutomationInput(
@@ -290,7 +295,7 @@ class FilesystemAutomationRecipeProvider:
             action(
                 "ptl.training.start",
                 "PTL · Start training",
-                "Run the exact pinned Training run and publish its ModelVersion.",
+                "Run the exact pinned Training run and publish ModelVersion.",
                 "training.start",
                 inputs=(AutomationInput("run_id", required=True),),
                 tags=("training", "model-version"),
@@ -305,7 +310,7 @@ class FilesystemAutomationRecipeProvider:
             action(
                 "ptl.experiment.portrait",
                 "PTL · Big Five portrait",
-                "Run the built-in Big Five battery on base/latest or an exact ModelVersion.",
+                "Run Big Five on the base model or an exact ModelVersion.",
                 "experiment.portrait",
                 inputs=(
                     AutomationInput(
@@ -321,14 +326,14 @@ class FilesystemAutomationRecipeProvider:
             action(
                 "ptl.state.snapshot",
                 "PTL · State snapshot",
-                "Collect application-layer research state as structured JSON.",
+                "Collect application research state as structured JSON.",
                 "state.snapshot",
                 tags=("diagnostic", "provenance"),
             ),
             action(
                 "ptl.acceptance.run",
                 "PTL · Full release acceptance",
-                "Run model, Dataset, Training, ModelVersion and Big Five workflow in a clean workspace.",
+                "Run the complete model-to-evaluation acceptance workflow.",
                 "acceptance.run",
                 inputs=(
                     AutomationInput(
@@ -362,9 +367,9 @@ class FilesystemAutomationRecipeProvider:
                     AutomationInput("learning_rate", default="0.0001"),
                 ),
                 tags=("acceptance", "release", "end-to-end"),
-                ),
-            )
+            ),
         )
+        return base + ptl_actions
 
     @staticmethod
     def _required_text(payload: dict[str, Any], key: str) -> str:
