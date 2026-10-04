@@ -21,6 +21,7 @@ from persona_training_lab.infrastructure.local_model.probe_provider import (
 from persona_training_lab.infrastructure.local_model.transformers_runtime import (
     TransformersRuntimeError,
     inspect_transformers_runtime,
+    load_text_generation_components,
 )
 from persona_training_lab.ui.viewmodels.training import TrainingViewModel
 
@@ -400,3 +401,47 @@ def test_model_check_is_ready_only_when_files_and_runtime_are_ready() -> None:
     assert vm.local_model_status == "Модель найдена"
     assert "AutoModelForMultimodalLM" in vm.local_model_note
     assert "qwen3_5" in vm.local_model_note
+
+
+
+class _RecordingAutoTokenizer(_FakeAutoTokenizer):
+    kwargs: dict[str, object] = {}
+
+    @classmethod
+    def from_pretrained(cls, _path: str, **kwargs):
+        cls.kwargs = dict(kwargs)
+        return object()
+
+
+class _RecordingAutoModelForCausalLM(_FakeAutoModelForCausalLM):
+    kwargs: dict[str, object] = {}
+
+    @classmethod
+    def from_pretrained(cls, _path: str, **kwargs):
+        cls.kwargs = dict(kwargs)
+        return object()
+
+
+class _FakeTransformersTextLoadable:
+    AutoConfig = _FakeAutoConfig
+    AutoModelForCausalLM = _RecordingAutoModelForCausalLM
+    AutoTokenizer = _RecordingAutoTokenizer
+
+
+def test_qwen35_text_loader_preserves_requested_dtype() -> None:
+    model, tokenizer, spec = load_text_generation_components(
+        _FakeTransformersTextLoadable,
+        "/models/qwen3.5-0.8b",
+        torch_dtype="float16",
+    )
+
+    assert model is not None
+    assert tokenizer is not None
+    assert spec.loader_name == "AutoModelForCausalLM"
+    assert _RecordingAutoModelForCausalLM.kwargs == {
+        "dtype": "float16",
+        "trust_remote_code": False,
+    }
+    assert _RecordingAutoTokenizer.kwargs == {
+        "trust_remote_code": False,
+    }
