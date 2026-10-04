@@ -17,6 +17,7 @@ tools/
 ├── package_audit.py
 ├── release_gate.py
 ├── release_quick_tests.txt
+├── terminal_log.sh
 ├── typing_audit.py
 ├── vendor_noto_arabic_fonts.py
 └── visual_audit.py
@@ -90,6 +91,38 @@ The command returns non-zero when the resulting localization report does not pas
 The wrapper itself is PTL-specific: its meaning depends on PTL localization architecture and catalog semantics.
 
 No independent generic catalog/source-audit package is part of the current PTL toolchain. Any reusable implementation would need an explicit contract for catalog roots, base locale, literal policy and failure semantics rather than inheriting PTL paths or assumptions implicitly.
+
+## `terminal_log.sh`
+
+`terminal_log.sh` is a Unix-like developer convenience for long local runs whose terminal output should remain available after interruption or chat handoff.
+
+Run it without arguments to open a captured interactive shell:
+
+```bash
+bash tools/terminal_log.sh
+```
+
+The tool resolves the repository's current full Git `HEAD` and appends the terminal transcript to:
+
+```text
+${PTL_TERMINAL_LOG_DIR:-${TMPDIR:-/tmp}/persona-training-lab-terminal}/<full-head-sha>.log
+```
+
+It uses util-linux `script --append --flush --return`, so output is written continuously rather than buffered until normal process exit. Ctrl+C may interrupt the current foreground command without deleting or replacing already-recorded output; leaving the captured shell and starting the tool again on the same commit appends another timestamped session to the same file. Each session records repository root, exact HEAD, branch/detached state, starting directory and final exit code.
+
+The current log path is also exported inside the captured shell as `PTL_TERMINAL_LOG_FILE`.
+
+A command may be captured directly instead of opening an interactive shell:
+
+```bash
+bash tools/terminal_log.sh uv run --locked python tools/release_gate.py --quick
+```
+
+This is intentionally operator evidence, not a replacement for structured release-gate, Automation, Training or acceptance artifacts. The transcript is a terminal recording and may contain ANSI/control sequences emitted by interactive programs. It is kept under the host temporary directory by default so it cannot dirty the release candidate worktree.
+
+### Reuse boundary
+
+The append/flush session-capture idea is generic, but this wrapper deliberately records PTL Git identity and uses PTL naming/default paths. It remains a repository-local developer helper and is not part of the runtime package or release gate.
 
 ## `typing_audit.py`
 
