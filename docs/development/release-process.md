@@ -151,7 +151,36 @@ The full gate now follows `uv build` with `tools/package_audit.py --json`. The b
 
 This closes package-content inspection as automated release evidence. Installing the wheel into a brand-new environment and exercising installed-package startup/documentation remain separate acceptance steps.
 
-## 8. Verify exposed version surfaces
+## 8. Run isolated real-model Automation acceptance
+
+The source/package gate deliberately does not download or execute an external model. Before v0.1.0 tagging, run a separate acceptance workspace with the supported ML extra installed:
+
+```bash
+XDG_DATA_HOME=<isolated-xdg-root> \
+  uv run --locked --extra training \
+  python -m persona_training_lab.bootstrap.app
+```
+
+Use the production built-in `ptl_internal` recipes rather than ad-hoc SQLite writes or a second application container. The release acceptance path must cover:
+
+- model file + Transformers text-runtime probe;
+- real text generation;
+- Profile creation;
+- Dataset import, preview, validation and approval;
+- baseline Big Five;
+- pinned full Training;
+- artifact + exact ModelVersion publication;
+- persisted Training logs;
+- post-training Big Five on that exact ModelVersion;
+- protocol-safe Analysis comparison;
+- lineage projection containing Training → ModelVersion → evaluation;
+- restart/persistence inspection.
+
+For the controlled end-to-end run, use `ptl.acceptance.run` in a clean acceptance workspace. A surprising trait delta is experimental evidence rather than a software failure; broken provenance, missing artifacts/versions, incomplete 10/10 evaluation, protocol mismatch or broken lineage are release failures.
+
+Preserve the structured Automation output, relevant Training logs and the acceptance workspace identity with the final release evidence.
+
+## 9. Verify exposed version surfaces
 
 PTL currently has more than one place where release/version identity can appear.
 
@@ -169,7 +198,7 @@ Before tagging, still verify the human/public version surfaces that are not deri
 
 Do not infer those public/tag values from the automated package/runtime equality check.
 
-## 9. Review product-contract-sensitive changes
+## 10. Review product-contract-sensitive changes
 
 Before final release, compare candidate behavior against the current documentation contracts, especially:
 
@@ -182,7 +211,7 @@ Before final release, compare candidate behavior against the current documentati
 
 If code and documentation disagree, do not silently choose whichever is more convenient. Determine the intended release behavior, then update implementation/tests/docs so one contract remains.
 
-## 10. Review documentation navigation and bundled docs
+## 11. Review documentation navigation and bundled docs
 
 The documentation tree is part of the application package. Check that:
 
@@ -193,7 +222,7 @@ The documentation tree is part of the application package. Check that:
 
 For the current first-release status checklist, see [v0.1.0 release checklist](../releases/v0.1.0-checklist.md).
 
-## 11. Tag only after evidence is tied to the final commit
+## 12. Tag only after evidence is tied to the final commit
 
 The final validation reports must refer to the same commit that will be tagged/released.
 
