@@ -20,6 +20,7 @@ def test_production_automation_exposes_and_runs_internal_ptl_actions(
         assert "workspace_health" in ids
         assert "ptl.model.probe" in ids
         assert "ptl.profile.create" in ids
+        assert "ptl.analysis.compare" in ids
         assert "ptl.acceptance.run" in ids
 
         created = container.automation_vm.run_recipe(
@@ -52,6 +53,10 @@ def test_production_automation_exposes_and_runs_internal_ptl_actions(
             item["profile_id"] == profile["profile_id"]
             for item in state["profiles"]
         )
+        lineage = state["lineage_projection"]
+        assert lineage["nodes"] == []
+        assert lineage["edges"] == []
+        assert lineage["source_failures"] == []
 
         operations = container.primary_connection.execute(
             """
