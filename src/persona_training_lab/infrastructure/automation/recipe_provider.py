@@ -22,9 +22,15 @@ _VALID_ACCESS_MODES = frozenset({"read", "write"})
 
 
 class FilesystemAutomationRecipeProvider:
-    def __init__(self, registry_dir: Path) -> None:
+    def __init__(
+        self,
+        registry_dir: Path,
+        *,
+        include_ptl_actions: bool = False,
+    ) -> None:
         self._registry_dir = registry_dir
         self._registry_dir.mkdir(parents=True, exist_ok=True)
+        self._include_ptl_actions = include_ptl_actions
         self._issues: tuple[AutomationDiscoveryIssue, ...] = ()
 
     @property
@@ -131,8 +137,7 @@ class FilesystemAutomationRecipeProvider:
             timeout_seconds=timeout,
         )
 
-    @staticmethod
-    def _builtin_recipes() -> tuple[AutomationRecipe, ...]:
+    def _builtin_recipes(self) -> tuple[AutomationRecipe, ...]:
         def action(
             recipe_id: str,
             title: str,
@@ -180,7 +185,11 @@ class FilesystemAutomationRecipeProvider:
                 ),
                 source="builtin",
             ),
-            action(
+        ) + (
+            ()
+            if not self._include_ptl_actions
+            else (
+                action(
                 "ptl.model.probe",
                 "PTL · Model probe",
                 "Check model files and Transformers runtime compatibility.",
@@ -353,7 +362,8 @@ class FilesystemAutomationRecipeProvider:
                     AutomationInput("learning_rate", default="0.0001"),
                 ),
                 tags=("acceptance", "release", "end-to-end"),
-            ),
+                ),
+            )
         )
 
     @staticmethod
