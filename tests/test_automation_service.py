@@ -18,6 +18,7 @@ from persona_training_lab.application.automation.execution import (
 )
 from persona_training_lab.application.automation.service import (
     AutomationCommandRequest,
+    AutomationInternalActionResult,
 )
 from persona_training_lab.application.ports.event_log import EventRecord
 from persona_training_lab.application.runtime.operations import (
@@ -622,3 +623,95 @@ def test_builtin_workspace_health_recipe_runs_headless(tmp_path: Path) -> None:
     assert payload["workspace"] == str(tmp_path.resolve())
     assert all(item["exists"] for item in payload["directories"].values())
     assert coordinator.leases[0].state == "succeeded"
+
+
+
+class _InternalActionRunner:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, str]]] = []
+
+    def run(self, action_id, inputs, *, cancel_requested=None):
+        self.calls.append((action_id, dict(inputs)))
+        return AutomationInternalActionResult(
+            True,
+            "model_ready",
+            {"observed": dict(inputs)},
+        )
+
+
+def test_internal_ptl_action_recipe_runs_without_host_process(
+    tmp_path: Path,
+) -> None:
+    provider = FilesystemAutomationRecipeProvider(
+        tmp_path / "automation" / "recipes",
+        include_ptl_actions=True,
+    )
+    recipe = next(
+        item
+        for item in provider.list_recipes()
+        if item.recipe_id == "ptl.model.probe"
+    )
+    assert recipe.internal_action == "model.probe"
+
+    coordinator = _Coordinator()
+    audit_trail, event_log = _audit()
+    runner = _InternalActionRunner()
+    host_process_called = False
+
+    def host_process(*args, **kwargs):
+        nonlocal host_process_called
+        host_process_called = True
+        return AutomationProcessResult(0)
+
+    service = AutomationService(
+        provider,
+        coordinator,  # type: ignore[arg-type]
+        tmp_path,
+        process_runner=host_process,
+        audit_trail=audit_trail,
+        action_runner=runner,  # type: ignore[arg-type]
+    )
+
+    result = service.run_recipe(
+        "ptl.model.probe",
+        {"model_path": "models/base"},
+    )
+
+    assert result.ok is True
+    assert result.code == "succeeded"
+    assert result.effect_scope == "ptl_internal"
+    assert result.return_code == 0
+    assert result.values["action_code"] == "model_ready"
+    assert host_process_called is False
+    assert runner.calls == [
+        ("model.probe", {"model_path": "models/base"})
+    ]
+    assert coordinator.calls[0]["operation_kind"] == "automation_action"
+    assert coordinator.leases[0].state == "succeeded"
+    assert [record.event_type for record in event_log.records] == [
+        "automation.run.started",
+        "automation.run.finished",
+    ]
+    started = json.loads(event_log.records[0].payload_json)
+    assert started["effect_scope"] == "ptl_internal"
+    assert "models/base" not in event_log.records[0].payload_json
+
+
+def test_internal_ptl_actions_are_not_exposed_without_composition_opt_in(
+    tmp_path: Path,
+) -> None:
+    default_provider = FilesystemAutomationRecipeProvider(
+        tmp_path / "default"
+    )
+    production_provider = FilesystemAutomationRecipeProvider(
+        tmp_path / "production",
+        include_ptl_actions=True,
+    )
+
+    assert {item.recipe_id for item in default_provider.list_recipes()} == {
+        "workspace_health"
+    }
+    ids = {item.recipe_id for item in production_provider.list_recipes()}
+    assert "workspace_health" in ids
+    assert "ptl.model.probe" in ids
+    assert "ptl.acceptance.run" in ids
