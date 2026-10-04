@@ -433,3 +433,39 @@ def test_viewmodel_publishes_exact_started_run_not_newest_registry_row(
         )
     ]
     assert vm.current_run_id == "trn_distractor"
+
+
+
+def test_training_service_publishes_model_version_without_viewmodel(
+    tmp_path: Path,
+) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    service, run_id, _backend = _configured_service(
+        connection,
+        tmp_path,
+    )
+    service.model_versions_service = ModelVersionsService(
+        model_versions_repo=SQLiteModelVersionsRepository(connection)
+    )
+
+    result = service.start_full_finetune_run(run_id)
+
+    assert result.ok is True
+    assert result.code == "completed"
+    assert result.values["model_version_id"]
+    rows = connection.execute(
+        """
+        SELECT training_run_id, artifact_path, quality_summary
+        FROM model_versions
+        """
+    ).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["training_run_id"] == run_id
+    assert rows[0]["artifact_path"] == (
+        f"artifacts/full_finetune/{run_id}/model"
+    )
+    quality = parse_model_version_quality(rows[0]["quality_summary"])
+    assert quality is not None
+    assert quality.code == "training_completed"
