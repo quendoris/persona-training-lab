@@ -115,6 +115,7 @@ ptl.model_versions.list
 ptl.experiment.portrait
 ptl.analysis.compare
 ptl.state.snapshot
+ptl.training.sweep
 ptl.acceptance.run
 ```
 
@@ -779,7 +780,26 @@ v0.1.0 Automation does not claim:
 
 It does provide a coherent trusted-host execution contract with fail-closed review-to-run recipe identity, explicit ad-hoc authorization, bounded output, timeout/cancellation, process-tree containment, runtime claims and structured audit metadata. It also provides a distinct built-in `ptl_internal` action path that reuses the live application services for end-to-end product orchestration rather than spawning a second PTL instance or writing SQLite directly.
 
-## 39. Full release-acceptance action
+## 39. Controlled training sweep
+
+`ptl.training.sweep` is an experimental comparison workflow for a clean workspace. It performs one model probe/smoke generation, creates one Profile and one approved Dataset, records one baseline Big Five portrait, then runs several independent full-finetune arms **sequentially** from the same base-model path.
+
+The default learning-rate grid is:
+
+```text
+1e-4
+3e-5
+1e-5
+3e-6
+```
+
+Each arm gets its own Training run, artifact and ModelVersion. A failed/partial post-training portrait is recorded as an arm outcome and does not abort later arms. Complete arms also receive protocol-safe baseline/post comparison and a Euclidean Big Five delta magnitude.
+
+Sequential execution is deliberate for the first sweep contract: it avoids making same-GPU VRAM contention, scheduling and thermal overlap part of the comparison. Parallel/multi-device sweeps can be added separately once device assignment is an explicit experiment variable.
+
+The sweep does not label the largest personality change as “best”. It reports training result, post-portrait validity, trait scores and trait deltas so the experimenter can distinguish behavioral movement from functional collapse.
+
+## 40. Full release-acceptance action
 
 `ptl.acceptance.run` is the built-in end-to-end acceptance workflow for a clean research workspace. It performs, through application services:
 
