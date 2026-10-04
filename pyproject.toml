@@ -14,7 +14,7 @@ dependencies = [
 [project.optional-dependencies]
 inference = [
     "torch>=2.3",
-    "transformers>=4.57",
+    "transformers>=5.15.0",
     "accelerate>=0.30",
     "safetensors>=0.4",
     "tokenizers>=0.15",
@@ -22,7 +22,7 @@ inference = [
 ]
 training = [
     "torch>=2.3",
-    "transformers>=4.57",
+    "transformers>=5.15.0",
     "accelerate>=0.30",
     "safetensors>=0.4",
     "tokenizers>=0.15",
