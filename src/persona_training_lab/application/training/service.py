@@ -500,10 +500,14 @@ class TrainingService:
             self._log(
                 run_id,
                 "training_result: "
-                f"steps={result.max_steps}, learning_rate={result.learning_rate:g}, "
+                f"steps={result.completed_steps}/{result.max_steps}, "
+                f"failure_step={result.failure_step or '—'}, "
+                f"learning_rate={result.learning_rate:g}, "
+                f"dtype={result.compute_dtype or 'unknown'}, "
                 f"trainable_params={result.trainable_params}, "
                 f"initial_loss={result.initial_loss:.6f}, "
-                f"final_loss={result.final_loss:.6f}",
+                f"final_loss={result.final_loss:.6f}, "
+                f"max_gradient_norm={result.max_gradient_norm:.6f}",
             )
             if is_success:
                 self._log(run_id, f"artifact_saved:{artifact_path}")
