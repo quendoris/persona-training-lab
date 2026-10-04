@@ -78,7 +78,7 @@ The local-model card can:
 
 The local-model check is a two-layer readiness diagnostic: PTL first validates the required files and then inspects the installed Transformers runtime against the architecture declared by the model config, without loading the weights. A green model check therefore means both file structure and loader selection are available. The separate inference probe then loads the model and performs a small generation.
 
-The default Qwen3.5 checkpoint declares the `qwen3_5` conditional-generation architecture. PTL uses an architecture-aware loader: Qwen3.5/conditional-generation configs select the available multimodal text-capable auto-model loader, while ordinary causal-LM configs use `AutoModelForCausalLM`. Production loading keeps `trust_remote_code=False`.
+The default Qwen3.5 checkpoint is a composite multimodal config, but PTL's current workflow is text-only. PTL therefore requires a Transformers runtime that maps that composite config through `AutoModelForCausalLM` to the model's text sub-config/class (`Qwen3_5ForCausalLM`). The readiness check verifies that mapping without loading weights. Production loading keeps `trust_remote_code=False`; the v0.1.0 ML extras require `transformers>=5.15.0` so this mapping and dtype path are part of the supported baseline.
 
 Inference/training dependencies are optional package extras. If `torch` or `transformers` is absent, the model check reports the missing packages instead of showing a misleading files-only success. Use the `inference` or `training` extra when exercising those capabilities.
 
