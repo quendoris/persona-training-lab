@@ -60,6 +60,7 @@ AUTOMATION_EXECUTION_MODE_KEYS = {
 }
 AUTOMATION_EFFECT_SCOPE_KEYS = {
     "trusted_host": "automation.effect_scope.trusted_host",
+    "ptl_internal": "automation.effect_scope.ptl_internal",
 }
 
 
