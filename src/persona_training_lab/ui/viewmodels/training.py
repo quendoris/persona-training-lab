@@ -14,7 +14,6 @@ from persona_training_lab.application.local_model.status_mapping import (
 from persona_training_lab.application.messages import ActionResult
 from persona_training_lab.application.model_versions.quality import (
     parse_model_version_quality,
-    training_completed_quality,
 )
 from persona_training_lab.application.model_versions.service import (
     ModelVersionsService,
@@ -1098,53 +1097,6 @@ class TrainingViewModel:
         )
         self.inference_response = response
 
-    def _publish_completed_run(self, run_id: str) -> None:
-        if (
-            self.training_service is None
-            or self.model_versions_service is None
-            or not run_id
-        ):
-            return
-        try:
-            current = next(
-                (
-                    run
-                    for run in self.training_service.list_training_runs()
-                    if run.run_id == run_id
-                ),
-                None,
-            )
-        except Exception:
-            return
-        if (
-            current is None
-            or current.status_code is not TrainingRunStatus.COMPLETED
-            or not current.artifact_path
-        ):
-            return
-        try:
-            created = self.model_versions_service.create_from_training_run(
-                training_run_id=current.run_id,
-                base_model=current.base_model,
-                profile_title=current.profile,
-                dataset_title=current.dataset_version,
-                artifact_path=current.artifact_path,
-                quality_summary=training_completed_quality(
-                    loss=current.loss,
-                    checkpoints=current.checkpoints_count,
-                ),
-            )
-            if created is not None:
-                logger = getattr(self.training_service, "_log", None)
-                if logger is not None:
-                    logger(
-                        current.run_id,
-                        "Model version registered: "
-                        f"{created.version_id}",
-                    )
-        except Exception:
-            return
-
     def start_selected_training_run(self) -> tuple[bool, str]:
         if self.training_service is None or not self.current_run_id:
             self.creation_message = "run_not_found"
@@ -1182,7 +1134,6 @@ class TrainingViewModel:
                 self._set_log_models(tuple(logs))
 
         if result.ok and result.code == "completed":
-            self._publish_completed_run(started_run_id)
             self._apply_model_versions_connector()
 
         self.creation_message = result.code
