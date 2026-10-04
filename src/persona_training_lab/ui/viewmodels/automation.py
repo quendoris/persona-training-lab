@@ -31,6 +31,7 @@ AUTOMATION_RECIPE_TITLE_KEYS = {
     "ptl.training.start": "automation.recipe.ptl_training_start.title",
     "ptl.model_versions.list": "automation.recipe.ptl_model_versions_list.title",
     "ptl.experiment.portrait": "automation.recipe.ptl_experiment_portrait.title",
+    "ptl.analysis.compare": "automation.recipe.ptl_analysis_compare.title",
     "ptl.state.snapshot": "automation.recipe.ptl_state_snapshot.title",
     "ptl.acceptance.run": "automation.recipe.ptl_acceptance_run.title",
 }
@@ -46,6 +47,7 @@ AUTOMATION_RECIPE_DESCRIPTION_KEYS = {
     "ptl.training.start": "automation.recipe.ptl_training_start.description",
     "ptl.model_versions.list": "automation.recipe.ptl_model_versions_list.description",
     "ptl.experiment.portrait": "automation.recipe.ptl_experiment_portrait.description",
+    "ptl.analysis.compare": "automation.recipe.ptl_analysis_compare.description",
     "ptl.state.snapshot": "automation.recipe.ptl_state_snapshot.description",
     "ptl.acceptance.run": "automation.recipe.ptl_acceptance_run.description",
 }
