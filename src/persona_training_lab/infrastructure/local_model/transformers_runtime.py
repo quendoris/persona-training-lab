@@ -9,6 +9,7 @@ class TransformersRuntimeSpec:
     model_type: str
     architectures: tuple[str, ...]
     loader_name: str
+    frontend_name: str
 
 
 class TransformersRuntimeError(RuntimeError):
@@ -49,10 +50,18 @@ def inspect_transformers_runtime(
     )
     for name in candidates:
         if getattr(transformers, name, None) is not None:
+            frontend_name = (
+                "AutoProcessor"
+                if needs_multimodal
+                else "AutoTokenizer"
+            )
+            if getattr(transformers, frontend_name, None) is None:
+                continue
             return TransformersRuntimeSpec(
                 model_type=model_type,
                 architectures=architectures,
                 loader_name=name,
+                frontend_name=frontend_name,
             )
 
     detail = ", ".join(architectures) or model_type or "unknown"
@@ -69,12 +78,12 @@ def load_text_generation_components(
     torch_dtype: Any,
 ) -> tuple[Any, Any, TransformersRuntimeSpec]:
     spec = inspect_transformers_runtime(transformers, model_path)
-    tokenizer_loader = getattr(transformers, "AutoTokenizer", None)
-    if tokenizer_loader is None:
+    frontend_loader = getattr(transformers, spec.frontend_name, None)
+    if frontend_loader is None:
         raise TransformersRuntimeError(
-            "transformers.AutoTokenizer is unavailable"
+            f"transformers.{spec.frontend_name} is unavailable"
         )
-    tokenizer = tokenizer_loader.from_pretrained(
+    frontend = frontend_loader.from_pretrained(
         model_path,
         trust_remote_code=False,
     )
@@ -84,4 +93,8 @@ def load_text_generation_components(
         torch_dtype=torch_dtype,
         trust_remote_code=False,
     )
-    return model, tokenizer, spec
+    return model, frontend, spec
+
+
+def text_tokenizer(frontend: Any) -> Any:
+    return getattr(frontend, "tokenizer", frontend)
