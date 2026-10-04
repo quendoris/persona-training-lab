@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from typing import Any
 from uuid import uuid4
 
@@ -489,12 +490,18 @@ class TrainingService:
                 is TrainingRunStatus.COMPLETED
             )
             artifact_path = result.artifact_path.strip()
-            is_success = reported_success and bool(artifact_path)
-            terminal_message = (
-                result.message
-                if not reported_success or artifact_path
-                else "artifact_not_created"
+            finite_result = isfinite(float(result.final_loss))
+            is_success = (
+                reported_success
+                and bool(artifact_path)
+                and finite_result
             )
+            if reported_success and artifact_path and not finite_result:
+                terminal_message = "non_finite_training_result"
+            elif reported_success and not artifact_path:
+                terminal_message = "artifact_not_created"
+            else:
+                terminal_message = result.message
 
             self._log(run_id, terminal_message)
             self._log(
