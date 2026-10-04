@@ -289,6 +289,67 @@ def test_training_service_publication_surfaces_machine_quality_in_viewmodel(
 
 
 
+class _CompletedWithNonFiniteLossBackend(_FullBackend):
+    def run(
+        self,
+        run_id: str,
+        model_path: str,
+        samples: tuple[TrainingSample, ...],
+        *,
+        epochs: int = 1,
+        batch_size: int = 1,
+        learning_rate: float = 1e-4,
+        provenance: dict[str, object] | None = None,
+    ) -> FullFineTuneResult:
+        self.samples = tuple(samples)
+        self.provenance = dict(provenance or {})
+        return FullFineTuneResult(
+            status=TrainingRunStatus.COMPLETED.value,
+            message="full_finetune_completed",
+            artifact_path=f"artifacts/full_finetune/{run_id}/model",
+            epochs=epochs,
+            max_steps=max(1, epochs),
+            completed_steps=max(1, epochs),
+            learning_rate=learning_rate,
+            trainable_params=42,
+            initial_loss=1.0,
+            final_loss=float("nan"),
+            compute_dtype="bfloat16",
+            max_gradient_norm=1.0,
+        )
+
+
+def test_completed_backend_result_with_non_finite_loss_fails_closed(
+    tmp_path: Path,
+) -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    create_minimal_schema(connection)
+    backend = _CompletedWithNonFiniteLossBackend()
+    service, run_id, _backend = _configured_service(
+        connection,
+        tmp_path,
+        backend=backend,
+    )
+    service.model_versions_service = ModelVersionsService(
+        model_versions_repo=SQLiteModelVersionsRepository(connection)
+    )
+
+    result = service.start_full_finetune_run(run_id)
+
+    assert result.ok is False
+    assert result.code == "start_failed"
+    row = service.list_training_runs()[0]
+    assert row.status_code is TrainingRunStatus.FAILED
+    assert row.artifact_path == ""
+    assert row.checkpoints_count == "00"
+    assert row.error_message == "non_finite_training_result"
+    assert service.model_versions_service.list_model_versions() == []
+    logs = service.list_training_run_logs(run_id)
+    assert any("non_finite_training_result" in log for log in logs)
+
+
+
 class _CompletedWithoutArtifactBackend(_FullBackend):
     def run(
         self,
