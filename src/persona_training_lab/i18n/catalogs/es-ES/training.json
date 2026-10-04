@@ -142,6 +142,11 @@
     "training.version.status.draft": "borrador",
     "training.version.status.failed": "fallido",
     "training.version.status.unknown": "{status}",
-    "training.version.title": "Versión de personalidad · {title}"
+    "training.version.title": "Versión de personalidad · {title}",
+    "training.local_model.diagnostic.inference_dependencies_missing": "Faltan dependencias opcionales de inferencia: {packages}. Instala el extra inference o training de PTL.",
+    "training.local_model.diagnostic.model_runtime_incompatible": "El runtime de Transformers instalado no puede cargar la arquitectura de este modelo: {detail}",
+    "training.local_model.diagnostic.inference_runtime_ready": "El runtime de inferencia está listo: {loader} ({model_type}).",
+    "training.local_model.diagnostic.generation_failed": "Falló la generación: {detail}",
+    "training.local_model.diagnostic.insufficient_resources": "El runtime del modelo agotó los recursos de cómputo o memoria disponibles."
   }
 }
