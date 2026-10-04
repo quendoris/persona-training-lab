@@ -83,7 +83,7 @@ This prevents an editable checkout from validating against local hidden inputs t
 
 ## 5. Local-model trust boundary
 
-PTL may load local model files when inference/training capabilities are installed and configured. Model readiness combines file-structure checks with architecture/loader compatibility. The default Qwen3.5 checkpoint is loaded through its declared conditional-generation architecture; PTL does not force it through a causal-LM auto-loader merely because the current workflow is text-only.
+PTL may load local model files when inference/training capabilities are installed and configured. Model readiness combines file-structure checks with Transformers text-generation mapping compatibility. The default Qwen3.5 checkpoint is a composite multimodal config, while v0.1.0 PTL inference/Training is text-only; supported Transformers maps that config through `AutoModelForCausalLM` to its text sub-config/class. The readiness probe verifies that mapping before weights are loaded.
 
 Production loaders do **not** opt into Hugging Face `trust_remote_code=True`. v0.1.0 therefore does not intentionally grant a model repository permission to execute arbitrary repository-supplied Python through that Transformers mechanism.
 
@@ -134,7 +134,7 @@ The product also does not claim bit-for-bit reproducibility across arbitrary Pyt
 
 ## 9. Training execution boundary
 
-The production Training backend is local supervised full-parameter text training over an architecture-aware Transformers model loader. Ordinary causal models use the causal-LM loader; compatible conditional-generation/Qwen3.5 models use the multimodal conditional-generation loader while PTL supplies text-only training tensors.
+The production Training backend is local supervised full-parameter text training through `AutoModelForCausalLM`. For composite models such as Qwen3.5, the supported Transformers runtime resolves the text sub-config/class before loading the checkpoint; PTL does not instantiate the vision/conditional-generation model for this text-only workflow.
 
 The current UI does not expose a production LoRA/QLoRA workflow. Pause and Stop controls are present but disabled in v0.1.0; the backend does not implement cooperative per-step cancellation.
 
