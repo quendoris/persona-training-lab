@@ -118,6 +118,7 @@
     "inspector.context.automation.status": "Registro reproducible de recetas y ejecución ad hoc auditada en host de confianza.",
     "inspector.context.automation.title": "Automatización",
     "nav.automation": "Automatización",
-    "operations.kind.automation": "Automatización"
+    "operations.kind.automation": "Automatización",
+    "automation.effect_scope.ptl_internal": "interno de PTL"
   }
 }
