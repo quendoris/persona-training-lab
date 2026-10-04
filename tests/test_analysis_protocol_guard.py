@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import cast
 
+from persona_training_lab.application.analysis.portrait_pair import (
+    compare_portrait_payloads,
+)
 from persona_training_lab.application.experiments.service import (
     ExperimentSummary,
     ExperimentsService,
@@ -199,3 +202,47 @@ def test_lineage_pair_reports_protocol_mismatch_without_substitution() -> None:
     reason = subtitle.values["reason"]
     assert reason == EvaluationText("analysis.pair.same_protocol")
     assert vm.metrics[1].delta == "—"
+
+
+
+def test_application_portrait_comparison_matches_analysis_protocol_contract() -> None:
+    previous = _portrait_payload(
+        model_version_id="mdl_old",
+        first_score=2,
+        reverse_score=4,
+    )
+    latest = _portrait_payload(
+        model_version_id="mdl_new",
+        first_score=4,
+        reverse_score=2,
+    )
+
+    comparison = compare_portrait_payloads(previous, latest)
+
+    assert comparison.comparable is True
+    assert comparison.reason_code == "comparable"
+    assert comparison.protocol_key == (
+        "big_five_short_v1",
+        "big_five_score_v1",
+    )
+    assert comparison.deltas == {"Extraversion": 2.0}
+
+
+def test_application_portrait_comparison_fails_closed_on_protocol_mismatch() -> None:
+    previous = _portrait_payload(
+        model_version_id="mdl_old",
+        first_score=2,
+        reverse_score=4,
+        battery="big_five_short_v0",
+    )
+    latest = _portrait_payload(
+        model_version_id="mdl_new",
+        first_score=4,
+        reverse_score=2,
+    )
+
+    comparison = compare_portrait_payloads(previous, latest)
+
+    assert comparison.comparable is False
+    assert comparison.reason_code == "protocol_mismatch"
+    assert comparison.deltas == {}
