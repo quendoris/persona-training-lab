@@ -8,6 +8,9 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 from persona_training_lab.application.agents.service import AgentsService
+from persona_training_lab.application.analysis.portrait_pair import (
+    compare_portrait_payloads,
+)
 from persona_training_lab.application.analysis.service import AnalysisService
 from persona_training_lab.application.automation.service import (
     AutomationInternalActionResult,
@@ -15,9 +18,6 @@ from persona_training_lab.application.automation.service import (
 from persona_training_lab.application.datasets.service import DatasetsService
 from persona_training_lab.application.experiments.portrait import (
     parse_portrait_payload,
-)
-from persona_training_lab.application.experiments.protocol import (
-    portrait_protocols_match,
 )
 from persona_training_lab.application.experiments.service import (
     ExperimentsService,
@@ -95,6 +95,7 @@ class PTLAutomationActionRunner:
             "training.start": self._training_start,
             "model_versions.list": self._model_versions_list,
             "experiment.portrait": self._experiment_portrait,
+            "analysis.compare": self._analysis_compare,
             "state.snapshot": self._state_snapshot,
             "acceptance.run": self._acceptance_run,
         }
@@ -388,6 +389,66 @@ class PTLAutomationActionRunner:
             },
         )
 
+    def _analysis_compare(
+        self,
+        inputs: Mapping[str, str],
+    ) -> AutomationInternalActionResult:
+        left_id = inputs.get("left_experiment_id", "").strip()
+        right_id = inputs.get("right_experiment_id", "").strip()
+        if not left_id or not right_id:
+            return AutomationInternalActionResult(
+                False,
+                "input_required",
+                {
+                    "inputs": [
+                        name
+                        for name, value in (
+                            ("left_experiment_id", left_id),
+                            ("right_experiment_id", right_id),
+                        )
+                        if not value
+                    ]
+                },
+            )
+
+        experiments = {
+            item.experiment_id: item
+            for item in self.experiments_service.list_portrait_experiments()
+        }
+        left = experiments.get(left_id)
+        right = experiments.get(right_id)
+        if left is None or right is None:
+            return AutomationInternalActionResult(
+                False,
+                "experiment_not_found",
+                {
+                    "left_experiment_id": left_id,
+                    "right_experiment_id": right_id,
+                },
+            )
+
+        comparison = compare_portrait_payloads(
+            left.subtitle,
+            right.subtitle,
+        )
+        return AutomationInternalActionResult(
+            comparison.comparable,
+            comparison.reason_code,
+            {
+                "left_experiment_id": left_id,
+                "right_experiment_id": right_id,
+                "protocol": (
+                    list(comparison.protocol_key)
+                    if comparison.protocol_key is not None
+                    else None
+                ),
+                "complete": comparison.complete,
+                "left_scores": comparison.left.trait_scores(),
+                "right_scores": comparison.right.trait_scores(),
+                "deltas": dict(comparison.deltas),
+            },
+        )
+
     def _state_snapshot(
         self,
         _inputs: Mapping[str, str],
@@ -623,30 +684,7 @@ class PTLAutomationActionRunner:
 
         baseline_portrait = baseline.payload.get("portrait")
         post_portrait = post.payload.get("portrait")
-        baseline_experiment = baseline.payload.get("experiment")
-        post_experiment = post.payload.get("experiment")
-        if not (
-            isinstance(baseline_experiment, Mapping)
-            and isinstance(post_experiment, Mapping)
-            and portrait_protocols_match(
-                str(baseline_experiment.get("subtitle", "")),
-                str(post_experiment.get("subtitle", "")),
-            )
-        ):
-            return AutomationInternalActionResult(
-                False,
-                "analysis_protocol_mismatch",
-                {
-                    "baseline": dict(baseline.payload),
-                    "post": dict(post.payload),
-                },
-            )
-
-        deltas: dict[str, float] = {}
-        if (
-            isinstance(baseline_portrait, Mapping)
-            and isinstance(post_portrait, Mapping)
-        ):
+        if isinstance(baseline_portrait, Mapping):
             if not (
                 int(baseline_portrait.get("passed", 0))
                 == int(baseline_portrait.get("total", 0))
@@ -657,6 +695,7 @@ class PTLAutomationActionRunner:
                     "baseline_portrait_incomplete",
                     {"baseline": dict(baseline.payload)},
                 )
+        if isinstance(post_portrait, Mapping):
             if not (
                 int(post_portrait.get("passed", 0))
                 == int(post_portrait.get("total", 0))
@@ -667,14 +706,35 @@ class PTLAutomationActionRunner:
                     "post_portrait_incomplete",
                     {"post": dict(post.payload)},
                 )
-            before = baseline_portrait.get("trait_scores")
-            after = post_portrait.get("trait_scores")
-            if isinstance(before, Mapping) and isinstance(after, Mapping):
-                for trait in sorted(set(before) & set(after)):
-                    deltas[str(trait)] = round(
-                        float(after[trait]) - float(before[trait]),
-                        2,
-                    )
+
+        baseline_experiment = baseline.payload.get("experiment")
+        post_experiment = post.payload.get("experiment")
+        if not (
+            isinstance(baseline_experiment, Mapping)
+            and isinstance(post_experiment, Mapping)
+        ):
+            return AutomationInternalActionResult(
+                False,
+                "analysis_pair_missing",
+                {
+                    "baseline": dict(baseline.payload),
+                    "post": dict(post.payload),
+                },
+            )
+
+        comparison = compare_portrait_payloads(
+            str(baseline_experiment.get("subtitle", "")),
+            str(post_experiment.get("subtitle", "")),
+        )
+        if not comparison.comparable:
+            return AutomationInternalActionResult(
+                False,
+                f"analysis_{comparison.reason_code}",
+                {
+                    "baseline": dict(baseline.payload),
+                    "post": dict(post.payload),
+                },
+            )
 
         return AutomationInternalActionResult(
             True,
@@ -688,6 +748,10 @@ class PTLAutomationActionRunner:
                 "training": dict(trained.payload),
                 "model_version_id": version_id,
                 "post": dict(post.payload),
-                "trait_deltas": deltas,
+                "analysis": {
+                    "protocol": list(comparison.protocol_key or ()),
+                    "complete": comparison.complete,
+                    "trait_deltas": dict(comparison.deltas),
+                },
             },
         )
