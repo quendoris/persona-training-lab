@@ -119,6 +119,7 @@ ptl.training.create
 ptl.training.start
 ptl.model_versions.list
 ptl.experiment.portrait
+ptl.analysis.compare
 ptl.state.snapshot
 ptl.acceptance.run
 ```
