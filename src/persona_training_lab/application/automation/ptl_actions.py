@@ -135,17 +135,27 @@ class PTLAutomationActionRunner:
         )
         path = self.local_model_service.resolve_model_path(reference)
         files = self.local_model_service.probe_model_files_at(path)
-        backend = self.local_model_service.probe_inference_backend_at(path)
         file_status = normalize_local_model_status(files.status)
+        if file_status is not LocalModelStatus.FOUND:
+            return AutomationInternalActionResult(
+                False,
+                "model_not_ready",
+                {
+                    "model_path": path,
+                    "file_status": file_status.value,
+                    "file_diagnostic": _jsonable(files.diagnostic),
+                    "backend_message": "",
+                    "backend_diagnostic": None,
+                },
+            )
+
+        backend = self.local_model_service.probe_inference_backend_at(path)
         backend_code = (
             backend.diagnostic.code
             if backend.diagnostic is not None
             else ""
         )
-        ok = (
-            file_status is LocalModelStatus.FOUND
-            and backend_code == "inference_runtime_ready"
-        )
+        ok = backend_code == "inference_runtime_ready"
         return AutomationInternalActionResult(
             ok,
             "model_ready" if ok else "model_not_ready",
