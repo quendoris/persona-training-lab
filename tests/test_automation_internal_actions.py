@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from persona_training_lab.application.automation.ptl_actions import (
+    _parse_learning_rates,
+)
 from persona_training_lab.bootstrap.wiring import build_container
 from persona_training_lab.config.app_settings import AppSettings
 
@@ -21,6 +24,7 @@ def test_production_automation_exposes_and_runs_internal_ptl_actions(
         assert "ptl.model.probe" in ids
         assert "ptl.profile.create" in ids
         assert "ptl.analysis.compare" in ids
+        assert "ptl.training.sweep" in ids
         assert "ptl.acceptance.run" in ids
 
         created = container.automation_vm.run_recipe(
@@ -73,3 +77,25 @@ def test_production_automation_exposes_and_runs_internal_ptl_actions(
         )
     finally:
         container.close()
+
+
+
+def test_training_sweep_learning_rate_parser() -> None:
+    assert _parse_learning_rates(
+        "0.0001, 3e-5, 1e-5, 0.000003"
+    ) == (
+        0.0001,
+        0.00003,
+        0.00001,
+        0.000003,
+    )
+
+
+def test_training_sweep_learning_rate_parser_rejects_invalid_values() -> None:
+    for value in ("", "0", "-1e-5", "abc"):
+        try:
+            _parse_learning_rates(value)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for {value!r}")
