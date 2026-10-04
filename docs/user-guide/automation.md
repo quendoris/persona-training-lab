@@ -1,6 +1,6 @@
 # Automation
 
-Automation is Persona Training Lab's explicit host-execution workspace. It can run trusted PTL recipes and operator-authored ad-hoc commands while coordinating shared runtime resources, capturing bounded output, containing descendant processes, and recording structured audit metadata.
+Automation is Persona Training Lab's explicit orchestration workspace. It supports two deliberately separate execution families: trusted-host process execution for workspace/ad-hoc commands, and built-in `ptl_internal` actions that call the same application services used by the GUI. Both participate in runtime coordination and structured audit metadata.
 
 The most important rule is simple:
 
@@ -53,13 +53,16 @@ Only one Automation worker is started by this screen at a time.
 
 ## 2. Trust model
 
-Automation currently exposes one effect scope:
+Automation exposes two effect scopes:
 
 ```text
 trusted_host
+ptl_internal
 ```
 
-That means the executed process is a normal host process under the PTL user's operating-system permissions.
+`trusted_host` means a normal host process under the PTL user's operating-system permissions. `ptl_internal` is reserved for built-in PTL action recipes: no host child process is launched; the action runs through the already composed application services and the shared runtime/audit infrastructure.
+
+Workspace recipe manifests cannot opt into `ptl_internal`; imported/custom recipes remain trusted-host executable input.
 
 Automation does **not** currently provide:
 
@@ -93,13 +96,26 @@ The manifest schema is:
 ptl:automation-recipe:v1
 ```
 
-PTL also exposes the built-in recipe:
+PTL exposes the read-only built-in `workspace_health` recipe plus production-only built-in PTL action recipes for model probe/generation, Profile creation, Dataset import/validation/approval, Training creation/start, ModelVersion listing, Big Five evaluation, state snapshots and full release acceptance.
+
+The internal action registry includes:
 
 ```text
-workspace_health
+ptl.model.probe
+ptl.model.generate
+ptl.profile.create
+ptl.dataset.import
+ptl.dataset.validate
+ptl.dataset.approve
+ptl.training.create
+ptl.training.start
+ptl.model_versions.list
+ptl.experiment.portrait
+ptl.state.snapshot
+ptl.acceptance.run
 ```
 
-which performs a read-only workspace diagnostic.
+These action recipes are supplied by production composition. A standalone recipe provider keeps only the legacy `workspace_health` built-in unless PTL actions are explicitly enabled.
 
 ## 4. Refresh and discovery
 
@@ -662,6 +678,8 @@ Start with the built-in diagnostic:
 6. inspect stdout JSON;
 7. verify the reported workspace path is the one you expect.
 
+Then try `ptl.model.probe` or `ptl.state.snapshot` to exercise the internal application-action path. Internal actions do not require the ad-hoc trusted-host authorization checkbox because they do not launch arbitrary operator code.
+
 Then try a harmless ad-hoc `exec` command:
 
 ```json
@@ -756,7 +774,25 @@ v0.1.0 Automation does not claim:
 - distributed/multi-host runtime coordination;
 - exhaustive stress qualification for maximum process-tree/concurrency complexity.
 
-It does provide a coherent local trusted-host execution contract with fail-closed review-to-run recipe identity, explicit ad-hoc authorization, bounded output, timeout/cancellation, process-tree containment, runtime claims, and structured audit metadata.
+It does provide a coherent trusted-host execution contract with fail-closed review-to-run recipe identity, explicit ad-hoc authorization, bounded output, timeout/cancellation, process-tree containment, runtime claims and structured audit metadata. It also provides a distinct built-in `ptl_internal` action path that reuses the live application services for end-to-end product orchestration rather than spawning a second PTL instance or writing SQLite directly.
+
+## 39. Full release-acceptance action
+
+`ptl.acceptance.run` is the built-in end-to-end acceptance workflow for a clean research workspace. It performs, through application services:
+
+1. model file/runtime probe;
+2. smoke generation;
+3. neutral Profile creation/reuse;
+4. Dataset import/reuse, validation and approval;
+5. baseline Big Five portrait;
+6. pinned Training-run creation and full fine-tune;
+7. exact ModelVersion resolution from that Training run;
+8. post-training Big Five portrait on that exact version;
+9. exact battery/scoring protocol comparability check;
+10. complete 10/10 requirement for both portraits;
+11. structured trait deltas in the action output.
+
+The action deliberately fails closed if Training/ModelVersion/experiment state already exists in the acceptance workspace. Trait direction itself is observational rather than a software PASS criterion.
 
 ## Related documentation
 

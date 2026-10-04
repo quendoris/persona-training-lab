@@ -76,7 +76,13 @@ The local-model card can:
 - check the configured local model files;
 - run a small inference probe against the configured local model.
 
-The inference probe is a model-readiness diagnostic. It does **not** automatically switch to the newly produced training artifact after a run completes.
+The local-model check is a two-layer readiness diagnostic: PTL first validates the required files and then inspects the installed Transformers runtime against the architecture declared by the model config, without loading the weights. A green model check therefore means both file structure and loader selection are available. The separate inference probe then loads the model and performs a small generation.
+
+The default Qwen3.5 checkpoint declares the `qwen3_5` conditional-generation architecture. PTL uses an architecture-aware loader: Qwen3.5/conditional-generation configs select the available multimodal text-capable auto-model loader, while ordinary causal-LM configs use `AutoModelForCausalLM`. Production loading keeps `trust_remote_code=False`.
+
+Inference/training dependencies are optional package extras. If `torch` or `transformers` is absent, the model check reports the missing packages instead of showing a misleading files-only success. Use the `inference` or `training` extra when exercising those capabilities.
+
+The inference probe does **not** automatically switch to the newly produced training artifact after a run completes.
 
 ## 3. Default local model location
 
@@ -350,7 +356,7 @@ completed
 
 and records the artifact path.
 
-The Training view-model then attempts to publish/register a model-version record from the latest completed run. The resulting model-version metadata includes the Training run ID and artifact path.
+The application-layer `TrainingService` publishes/registers the model-version record for the exact run that completed successfully. Model-version publication is therefore not a GUI-only side effect: UI, Automation and other application callers share the same Training → artifact → ModelVersion lifecycle. The resulting model-version metadata includes the exact Training run ID and artifact path.
 
 If you are inspecting lineage or later evaluation workflows, use those persisted identifiers rather than inferring provenance only from a directory name.
 

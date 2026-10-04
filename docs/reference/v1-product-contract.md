@@ -83,7 +83,7 @@ This prevents an editable checkout from validating against local hidden inputs t
 
 ## 5. Local-model trust boundary
 
-PTL may load local model files when inference/training capabilities are installed and configured.
+PTL may load local model files when inference/training capabilities are installed and configured. Model readiness combines file-structure checks with architecture/loader compatibility. The default Qwen3.5 checkpoint is loaded through its declared conditional-generation architecture; PTL does not force it through a causal-LM auto-loader merely because the current workflow is text-only.
 
 Production loaders do **not** opt into Hugging Face `trust_remote_code=True`. v0.1.0 therefore does not intentionally grant a model repository permission to execute arbitrary repository-supplied Python through that Transformers mechanism.
 
@@ -134,7 +134,7 @@ The product also does not claim bit-for-bit reproducibility across arbitrary Pyt
 
 ## 9. Training execution boundary
 
-The production Training backend is local supervised full-parameter causal-language-model fine-tuning.
+The production Training backend is local supervised full-parameter text training over an architecture-aware Transformers model loader. Ordinary causal models use the causal-LM loader; compatible conditional-generation/Qwen3.5 models use the multimodal conditional-generation loader while PTL supplies text-only training tensors.
 
 The current UI does not expose a production LoRA/QLoRA workflow. Pause and Stop controls are present but disabled in v0.1.0; the backend does not implement cooperative per-step cancellation.
 
@@ -142,15 +142,14 @@ Training executes through owned background work and runtime-resource coordinatio
 
 ## 10. Automation execution and trust contract
 
-Automation is an explicit **trusted-host** execution surface.
-
-The only current effect-scope identifier is:
+Automation exposes two explicit effect scopes:
 
 ```text
 trusted_host
+ptl_internal
 ```
 
-A recipe or authorized ad-hoc command executes under the PTL process/OS-account permissions.
+Trusted-host workspace recipes and authorized ad-hoc commands execute under the PTL process/OS-account permissions. Built-in `ptl_internal` recipes do not launch arbitrary host commands: they invoke registered operations against the same composed application services used by the GUI, under Automation audit/runtime coordination. Workspace manifests cannot request this reserved internal capability.
 
 Automation is **not** a sandbox and does not claim to provide container isolation, restricted syscalls, filesystem confinement, network isolation, or a separate low-privilege identity.
 
@@ -170,7 +169,7 @@ and are discovered under:
 
 Recipe execution uses explicit argv/`exec` semantics. Inputs/placeholders/resource claims/timeout/working directory are validated/rendered before the execution snapshot is created.
 
-The built-in `workspace_health` diagnostic declares a workspace read claim.
+The built-in `workspace_health` diagnostic declares a workspace read claim. Production also exposes built-in internal actions for model, Profile, Dataset, Training, ModelVersion, evaluation/state inspection and a clean-workspace end-to-end release acceptance workflow.
 
 ### 10.2 Ad-hoc authorization
 

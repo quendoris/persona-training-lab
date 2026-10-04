@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Automation is Persona Training Lab's trusted-host execution subsystem. It turns a recipe or explicit operator command into a bounded process execution that participates in PTL runtime coordination and structured audit infrastructure.
+Automation is Persona Training Lab's execution/orchestration subsystem. It supports bounded trusted-host process execution and built-in PTL-internal application actions. Both participate in PTL runtime coordination and structured audit infrastructure; only the trusted-host path launches arbitrary host processes.
 
 Its architectural requirement is:
 
@@ -21,7 +21,8 @@ FilesystemAutomationRecipeProvider(<workspace>/automation/recipes)
 AutomationService
         ├─ RuntimeOperationCoordinator
         ├─ workspace_root
-        ├─ run_automation_process
+        ├─ run_automation_process            [trusted_host]
+        ├─ PTLAutomationActionRunner         [ptl_internal]
         └─ AutomationAuditTrail(event_log)
         │
         ▼
@@ -53,13 +54,14 @@ Built-in workspace diagnostic output schema:
 ptl:automation-output:workspace-health:v1
 ```
 
-Current execution effect scope:
+Current execution effect scopes:
 
 ```text
 trusted_host
+ptl_internal
 ```
 
-The effect-scope value is intentionally explicit in both execution/result/audit structures.
+The effect-scope value is intentionally explicit in execution/result/audit structures. `ptl_internal` is reserved for production-owned built-in recipes and cannot be selected by a workspace manifest.
 
 ## 3. Recipe domain object
 
@@ -79,7 +81,10 @@ source
 source_path
 working_directory
 timeout_seconds
+internal_action
 ```
+
+`internal_action` is empty for workspace/trusted-host recipes. Production-owned built-ins may bind it to a registered application action; the field is part of the reviewed semantic recipe identity.
 
 The command is a tuple of argv tokens. Recipe execution is always constructed as `mode="exec"`.
 
@@ -101,11 +106,24 @@ It recursively scans:
 
 and merges valid workspace recipes with built-in recipes.
 
-The built-in registry currently contains:
+The provider always contains `workspace_health`. Production composition additionally enables the built-in PTL action recipes:
 
 ```text
-workspace_health
+ptl.model.probe
+ptl.model.generate
+ptl.profile.create
+ptl.dataset.import
+ptl.dataset.validate
+ptl.dataset.approve
+ptl.training.create
+ptl.training.start
+ptl.model_versions.list
+ptl.experiment.portrait
+ptl.state.snapshot
+ptl.acceptance.run
 ```
+
+Standalone providers keep the internal actions opt-in so low-level provider tests/tools do not accidentally acquire application orchestration capabilities.
 
 ### Discovery isolation
 
@@ -351,17 +369,18 @@ Ambiguous command shapes raise `ValueError` before process launch.
 
 This prevents a caller from providing both argv and hidden shell text and relying on implementation precedence.
 
-## 15. Trusted-host effect scope
+## 15. Execution effect scopes
 
-`AutomationExecution.effect_scope` currently accepts only:
+`AutomationExecution.effect_scope` accepts:
 
 ```text
 trusted_host
+ptl_internal
 ```
 
-Any other value is rejected.
+`trusted_host` remains the explicit no-sandbox host-process contract. `ptl_internal` means the recipe invokes a registered action against the already composed application services instead of launching a subprocess. Unknown scopes are rejected.
 
-This makes the absence of a sandbox explicit in the execution object instead of leaving it as undocumented behavior.
+Internal actions still receive an `automation_action` runtime lease and the normal Automation audit start/finish records. Their stdout is a structured `ptl:automation-action-output:v1` JSON envelope. Nested domain operations such as Training or personality evaluation continue to acquire their own domain-specific leases.
 
 ## 16. Ad-hoc working directory
 
@@ -909,7 +928,10 @@ A v0.1.0 Automation implementation must preserve these invariants unless the pub
 8. runtime claims are acquired before launch;
 9. conflicts prevent launch;
 10. `PTL_WORKSPACE` reflects the actual resolved workspace;
-11. Automation remains documented as trusted-host execution rather than a sandbox.
+11. trusted-host Automation remains documented as host execution rather than a sandbox;
+12. workspace manifests cannot acquire the reserved `ptl_internal` action capability;
+13. internal actions reuse the live application services rather than opening a second application container/database;
+14. successful Training publishes its ModelVersion at the application layer so UI and Automation observe the same lifecycle.
 
 ## Related documentation
 
