@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any, Mapping
 
 from persona_training_lab.application.agents.service import AgentsService
@@ -54,8 +53,11 @@ from persona_training_lab.domain.datasets.statuses import (
 
 
 def _jsonable(value: Any) -> Any:
-    if is_dataclass(value):
-        return _jsonable(asdict(value))
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            item.name: _jsonable(getattr(value, item.name))
+            for item in fields(value)
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
