@@ -317,6 +317,11 @@ class AutomationService:
                     if recipe.timeout_seconds > 0
                     else None
                 ),
+                effect_scope=(
+                    "ptl_internal"
+                    if recipe.internal_action
+                    else "trusted_host"
+                ),
             )
         except (KeyError, ValueError) as exc:
             return AutomationRunResult(
@@ -326,6 +331,15 @@ class AutomationService:
                 stderr=str(exc),
             )
 
+        if recipe.internal_action:
+            return self._execute_internal_action(
+                result_id=recipe.recipe_id,
+                action_id=recipe.internal_action,
+                inputs=resolved,
+                execution=execution,
+                claims=claims,
+                cancel_requested=cancel_requested,
+            )
         return self._execute(
             result_id=recipe.recipe_id,
             execution=execution,
@@ -409,6 +423,193 @@ class AutomationService:
             claims=claims,
             cancel_requested=cancel_requested,
         )
+
+    def _execute_internal_action(
+        self,
+        *,
+        result_id: str,
+        action_id: str,
+        inputs: Mapping[str, str],
+        execution: AutomationExecution,
+        claims: tuple[ResourceClaim, ...],
+        cancel_requested: Callable[[], bool] | None,
+    ) -> AutomationRunResult:
+        runner = self.action_runner
+        command = execution.command_snapshot
+        cwd = str(execution.cwd)
+        if runner is None:
+            return AutomationRunResult(
+                False,
+                "action_unavailable",
+                result_id,
+                execution_mode=execution.mode,
+                effect_scope=execution.effect_scope,
+                command=command,
+                working_directory=cwd,
+            )
+        try:
+            lease = self.operation_coordinator.begin(
+                operation_kind="automation_action",
+                subject_kind="automation_action",
+                subject_id=result_id,
+                claims=claims,
+            )
+        except OperationConflictError as exc:
+            if self.audit_trail is not None:
+                try:
+                    self.audit_trail.record_blocked(
+                        operation_kind="automation_action",
+                        subject_kind="automation_action",
+                        subject_id=result_id,
+                        execution=execution,
+                        claims=claims,
+                        detail=str(exc),
+                    )
+                except Exception as audit_exc:
+                    return AutomationRunResult(
+                        False,
+                        "audit_failed",
+                        result_id,
+                        execution_mode=execution.mode,
+                        effect_scope=execution.effect_scope,
+                        command=command,
+                        working_directory=cwd,
+                        stderr=str(audit_exc),
+                    )
+            return AutomationRunResult(
+                False,
+                "operation_blocked",
+                result_id,
+                execution_mode=execution.mode,
+                effect_scope=execution.effect_scope,
+                command=command,
+                working_directory=cwd,
+                stderr=str(exc),
+            )
+
+        with lease:
+            if self.audit_trail is not None:
+                try:
+                    self.audit_trail.record_started(
+                        operation_id=lease.operation_id,
+                        correlation_id=lease.correlation_id,
+                        operation_kind="automation_action",
+                        subject_kind="automation_action",
+                        subject_id=result_id,
+                        execution=execution,
+                        claims=claims,
+                    )
+                except Exception as exc:
+                    lease.fail(f"automation audit start failed: {exc}")
+                    return AutomationRunResult(
+                        False,
+                        "audit_failed",
+                        result_id,
+                        operation_id=lease.operation_id,
+                        execution_mode=execution.mode,
+                        effect_scope=execution.effect_scope,
+                        command=command,
+                        working_directory=cwd,
+                        stderr=str(exc),
+                    )
+
+            if cancel_requested is not None and cancel_requested():
+                lease.cancel("cancelled")
+                return AutomationRunResult(
+                    False,
+                    "cancelled",
+                    result_id,
+                    operation_id=lease.operation_id,
+                    return_code=-15,
+                    execution_mode=execution.mode,
+                    effect_scope=execution.effect_scope,
+                    command=command,
+                    working_directory=cwd,
+                )
+
+            try:
+                action_result = runner.run(
+                    action_id,
+                    inputs,
+                    cancel_requested=cancel_requested,
+                )
+            except Exception as exc:
+                action_result = AutomationInternalActionResult(
+                    False,
+                    "action_failed",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+
+            stdout = json.dumps(
+                {
+                    "schema": "ptl:automation-action-output:v1",
+                    "action": action_id,
+                    "ok": action_result.ok,
+                    "code": action_result.code,
+                    "payload": dict(action_result.payload),
+                },
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            )
+            completed = AutomationProcessResult(
+                return_code=0 if action_result.ok else 1,
+                stdout=stdout + "\n",
+                stderr=action_result.error,
+            )
+            state = "succeeded" if action_result.ok else "failed"
+
+            if self.audit_trail is not None:
+                try:
+                    self.audit_trail.record_finished(
+                        operation_id=lease.operation_id,
+                        correlation_id=lease.correlation_id,
+                        operation_kind="automation_action",
+                        subject_kind="automation_action",
+                        subject_id=result_id,
+                        execution=execution,
+                        claims=claims,
+                        result=completed,
+                        state=state,
+                    )
+                except Exception as exc:
+                    lease.fail(f"automation audit finish failed: {exc}")
+                    return AutomationRunResult(
+                        False,
+                        "audit_failed",
+                        result_id,
+                        operation_id=lease.operation_id,
+                        return_code=completed.return_code,
+                        execution_mode=execution.mode,
+                        effect_scope=execution.effect_scope,
+                        command=command,
+                        working_directory=cwd,
+                        stdout=completed.stdout,
+                        stderr=completed.stderr or str(exc),
+                    )
+
+            if action_result.ok:
+                lease.succeed()
+            else:
+                lease.fail(action_result.code)
+            return AutomationRunResult(
+                action_result.ok,
+                (
+                    "succeeded"
+                    if action_result.ok
+                    else action_result.code
+                ),
+                result_id,
+                operation_id=lease.operation_id,
+                return_code=completed.return_code,
+                execution_mode=execution.mode,
+                effect_scope=execution.effect_scope,
+                command=command,
+                working_directory=cwd,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                values=action_result.payload,
+            )
 
     def _execute(
         self,
