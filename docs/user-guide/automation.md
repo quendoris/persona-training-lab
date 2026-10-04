@@ -105,10 +105,12 @@ ptl.model.probe
 ptl.model.generate
 ptl.profile.create
 ptl.dataset.import
+ptl.dataset.preview
 ptl.dataset.validate
 ptl.dataset.approve
 ptl.training.create
 ptl.training.start
+ptl.training.logs
 ptl.model_versions.list
 ptl.experiment.portrait
 ptl.analysis.compare
@@ -784,15 +786,17 @@ It does provide a coherent trusted-host execution contract with fail-closed revi
 1. model file/runtime probe;
 2. smoke generation;
 3. neutral Profile creation/reuse;
-4. Dataset import/reuse, validation and approval;
-5. baseline Big Five portrait;
-6. pinned Training-run creation and full fine-tune;
-7. exact ModelVersion resolution from that Training run;
-8. post-training Big Five portrait on that exact version;
-9. application-level Analysis comparison of the two persisted portrait experiments;
-10. exact battery/scoring protocol comparability check;
-11. complete 10/10 requirement for both portraits;
-12. structured trait deltas in the action output.
+4. Dataset import/reuse plus a real preview pass;
+5. Dataset validation and approval;
+6. baseline Big Five portrait;
+7. pinned Training-run creation and full fine-tune;
+8. persisted Training logs and exact ModelVersion resolution from that run;
+9. post-training Big Five portrait on that exact version;
+10. application-level Analysis comparison of the two persisted portrait experiments;
+11. exact battery/scoring protocol comparability check;
+12. complete 10/10 requirement for both portraits;
+13. Agents lineage verification for Training → ModelVersion → evaluation;
+14. structured trait deltas/revisions in the action output.
 
 The action deliberately fails closed if Training/ModelVersion/experiment state already exists in the acceptance workspace. Trait direction itself is observational rather than a software PASS criterion.
 
