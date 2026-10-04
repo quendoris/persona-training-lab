@@ -145,6 +145,10 @@
     "automation.recipe.ptl_acceptance_run.title": "PTL · Full release acceptance",
     "automation.recipe.ptl_acceptance_run.description": "Run the model, Dataset, Training, ModelVersion and Big Five workflow in a clean workspace.",
     "automation.recipe.ptl_analysis_compare.title": "PTL · Compare portraits",
-    "automation.recipe.ptl_analysis_compare.description": "Compare two persisted Big Five experiments under the same protocol."
+    "automation.recipe.ptl_analysis_compare.description": "Compare two persisted Big Five experiments under the same protocol.",
+    "automation.recipe.ptl_dataset_preview.title": "PTL · Preview dataset",
+    "automation.recipe.ptl_dataset_preview.description": "Preview parsed Dataset rows before validation.",
+    "automation.recipe.ptl_training_logs.title": "PTL · Training logs",
+    "automation.recipe.ptl_training_logs.description": "Return persisted logs for an exact Training run."
   }
 }
