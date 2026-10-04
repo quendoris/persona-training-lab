@@ -118,6 +118,7 @@
     "inspector.context.automation.status": "سجل وصفات قابل لإعادة الإنتاج وتنفيذ مخصص مدقق على المضيف الموثوق.",
     "inspector.context.automation.title": "الأتمتة",
     "nav.automation": "الأتمتة",
-    "operations.kind.automation": "الأتمتة"
+    "operations.kind.automation": "الأتمتة",
+    "automation.effect_scope.ptl_internal": "داخلي في PTL"
   }
 }
