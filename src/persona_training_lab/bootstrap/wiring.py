@@ -219,6 +219,7 @@ def build_container(settings: AppSettings | None = None) -> AppContainer:
             profiles_service=profiles_service,
             datasets_service=datasets_service,
             local_model_service=local_model_service,
+            model_versions_service=model_versions_service,
             full_backend=LocalFullFineTuneBackend(paths.artifacts),
             operation_coordinator=runtime_operations,
             error_reporter=error_reporter,
