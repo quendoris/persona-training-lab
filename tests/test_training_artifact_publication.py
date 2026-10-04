@@ -6,6 +6,7 @@ import pytest
 
 from persona_training_lab.application.training.full_backend import (
     _publish_training_artifact,
+    _select_training_dtype,
 )
 
 
@@ -86,3 +87,41 @@ def test_existing_training_artifact_is_not_overwritten(
 
     assert sentinel.read_text(encoding="utf-8") == "keep"
     assert not any(path.name.startswith(".trn_existing-staging-") for path in root.iterdir())
+
+
+
+class _Device:
+    def __init__(self, kind: str) -> None:
+        self.type = kind
+
+
+class _Cuda:
+    def __init__(self, supported: bool) -> None:
+        self._supported = supported
+
+    def is_bf16_supported(self) -> bool:
+        return self._supported
+
+
+class _Torch:
+    float32 = "float32"
+    float16 = "float16"
+    bfloat16 = "bfloat16"
+
+    def __init__(self, bf16_supported: bool) -> None:
+        self.cuda = _Cuda(bf16_supported)
+
+
+def test_training_dtype_prefers_bfloat16_on_supported_cuda() -> None:
+    torch = _Torch(True)
+    assert _select_training_dtype(torch, _Device("cuda")) == "bfloat16"
+
+
+def test_training_dtype_falls_back_to_float16_on_cuda_without_bfloat16() -> None:
+    torch = _Torch(False)
+    assert _select_training_dtype(torch, _Device("cuda")) == "float16"
+
+
+def test_training_dtype_uses_float32_on_cpu() -> None:
+    torch = _Torch(True)
+    assert _select_training_dtype(torch, _Device("cpu")) == "float32"
