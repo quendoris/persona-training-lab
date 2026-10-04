@@ -258,6 +258,17 @@ class FilesystemAutomationRecipeProvider:
                 tags=("dataset", "write"),
             ),
             action(
+                "ptl.dataset.preview",
+                "PTL · Preview dataset",
+                "Preview parsed Dataset rows before validation.",
+                "dataset.preview",
+                inputs=(
+                    AutomationInput("dataset_id", required=True),
+                    AutomationInput("limit", default="25"),
+                ),
+                tags=("dataset", "read"),
+            ),
+            action(
                 "ptl.dataset.validate",
                 "PTL · Validate dataset",
                 "Validate a persisted Dataset against its current bytes.",
@@ -299,6 +310,17 @@ class FilesystemAutomationRecipeProvider:
                 "training.start",
                 inputs=(AutomationInput("run_id", required=True),),
                 tags=("training", "model-version"),
+            ),
+            action(
+                "ptl.training.logs",
+                "PTL · Training logs",
+                "Return persisted logs for an exact Training run.",
+                "training.logs",
+                inputs=(
+                    AutomationInput("run_id", required=True),
+                    AutomationInput("limit", default="200"),
+                ),
+                tags=("training", "logs"),
             ),
             action(
                 "ptl.model_versions.list",
