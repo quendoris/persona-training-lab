@@ -592,13 +592,18 @@ class AutomationService:
                 lease.succeed()
             else:
                 lease.fail(action_result.code)
+            result_code = (
+                "succeeded"
+                if action_result.ok
+                else (
+                    "cancelled"
+                    if action_result.code == "cancelled"
+                    else "failed"
+                )
+            )
             return AutomationRunResult(
                 action_result.ok,
-                (
-                    "succeeded"
-                    if action_result.ok
-                    else action_result.code
-                ),
+                result_code,
                 result_id,
                 operation_id=lease.operation_id,
                 return_code=completed.return_code,
@@ -608,7 +613,12 @@ class AutomationService:
                 working_directory=cwd,
                 stdout=completed.stdout,
                 stderr=completed.stderr,
-                values=action_result.payload,
+                values=MappingProxyType(
+                    {
+                        **dict(action_result.payload),
+                        "action_code": action_result.code,
+                    }
+                ),
             )
 
     def _execute(
