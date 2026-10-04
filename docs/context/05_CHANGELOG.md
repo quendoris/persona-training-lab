@@ -25,25 +25,29 @@ This is a compact engineering-history summary, not the public release changelog 
 - UI literal inventory reached zero in the current audit.
 - Documentation audit is a blocking release-gate step.
 
-## Most recent executed evidence before documentation moved HEAD
+## Most recent fully executed pre-acceptance baseline
 
 Commit:
 
 ```text
-39d25de13568571a019992fe84ec8a616b6e7048
+2f06aa5d0898f1141af4474f9b77b19b2b5896fb
 ```
 
 Evidence:
 
 - compileall PASS;
 - Ruff PASS;
-- typing audit: zero blocking findings;
-- quick pytest inventory: **603 passed ×3**;
+- typing audit PASS;
+- production mypy: **0 issues in 323 source files**;
+- full pytest suite: **672 passed**;
 - i18n audit PASS;
 - docs audit PASS;
-- clean tracked-tree statistics.
+- wheel + sdist build PASS;
+- built-package audit PASS;
+- final candidate-identity audit PASS;
+- overall full release gate PASS.
 
-This evidence is not automatically inherited by later commits.
+This is historical evidence for the last frozen candidate before real-model acceptance exposed additional product-contract work. It is **not** inherited by the later Qwen/runtime/Automation commits; those changes require fresh quick/full/visual/package/real-model evidence before release.
 
 ## Current documentation findings
 
